@@ -353,6 +353,206 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 ---
 
+## User Journey Maps
+
+### Journey 1 — Marco Ferretti (Barbiere indipendente)
+**Scenario:** Dalla scoperta della piattaforma al primo cliente che prenota
+
+| Fase | Scoperta | Registrazione | Setup | Primo Cliente | Uso Quotidiano |
+|------|----------|---------------|-------|---------------|----------------|
+| **Emozione** | 👍 Happy | 👀 Neutral | 👎 Unhappy | 👍 Happy | 👍 Happy |
+| **Curva** | Alta → | Scende → | Punto più basso → | Risale → | Stabile alta |
+
+**Azioni e pensieri per fase:**
+
+**Scoperta:**
+- Vede un post su Instagram di un collega che usa l'app
+- Incuriosito dalla possibilità di avere la "sua" app brandizzata
+- Confronta mentalmente con WhatsApp e agenda cartacea
+
+**Registrazione:**
+- Apre il sito e clicca "Prova gratis"
+- Inserisce email, nome del salone, telefono
+- Si chiede se sarà complicato da configurare
+
+**Setup:**
+- Deve inserire servizi, orari, prezzi, logo
+- Si sente sopraffatto dal numero di campi
+- Non capisce subito come appare la sua landing page
+- Abbandonerebbe se il processo dura più di 10 minuti
+
+**Primo Cliente:**
+- Condivide il link della sua app su Instagram Stories
+- Un cliente abituale prenota dal telefono
+- Vede la notifica in dashboard: è entusiasta
+
+**Uso Quotidiano:**
+- Ogni mattina apre la dashboard per vedere gli appuntamenti
+- I clienti prenotano in autonomia, meno messaggi WhatsApp
+- Si sente professionale e organizzato
+
+**Takeaway:**
+- Scoperta: La prima impressione deve urlare "semplicità" e "il TUO brand"
+- Registrazione: Registrazione in massimo 3 step, zero complessità
+- Setup: Setup guidato con preview live — il punto più critico
+- Primo Cliente: Fornire template pronti per condividere su social
+- Uso Quotidiano: Dashboard minimal — solo ciò che serve nel giorno
+
+---
+
+### Journey 2 — Sara Bianchi (Titolare salone parrucchiera)
+**Scenario:** Da Fresha ad Amity — migrazione e gestione multi-staff
+
+| Fase | Frustrazione | Scoperta | Migrazione | Setup Multi-Staff | Gestione Reale |
+|------|-------------|----------|------------|-------------------|----------------|
+| **Emozione** | 👎 Unhappy | 👀 Neutral | 👀 Neutral | 👍 Happy | 👍 Happy |
+| **Curva** | Punto più basso → | Risale → | Stabile → | Sale → | Stabile alta |
+
+**Azioni e pensieri per fase:**
+
+**Frustrazione:**
+- Fresha prende commissioni su ogni prenotazione
+- I suoi barbieri sono visibili accanto ai concorrenti
+- Perde il controllo del rapporto col cliente
+- Si sente intrappolata in un marketplace
+
+**Scoperta:**
+- Cerca su Google "gestionale barbieri senza commissioni"
+- Trova Amity: nessuna commissione, white-label
+- Legge la promessa "il TUO brand, non il nostro"
+- È scettica ma incuriosita
+
+**Migrazione:**
+- Deve spostare lista clienti e storico appuntamenti
+- Teme di perdere dati durante il passaggio
+- Vorrebbe un import CSV o automatico da Fresha
+- Ha paura che i clienti si confondano col cambio
+
+**Setup Multi-Staff:**
+- Configura i 3 barbieri con orari e servizi diversi
+- Assegna permessi: ogni barbiere vede solo i suoi dati
+- Personalizza colori e logo per le sue 2 sedi
+- Vede la preview delle landing page: soddisfatta
+
+**Gestione Reale:**
+- Monitora tutti gli appuntamenti da un'unica dashboard
+- Confronta performance dei barbieri e delle sedi
+- I clienti prenotano senza commissioni
+- Il brand è finalmente suo, non di Fresha
+
+**Takeaway:**
+- Frustrazione: Marketing → enfatizzare "zero commissioni" e "il TUO brand"
+- Scoperta: Landing page chiara con confronto diretto vs marketplace
+- Migrazione: Offrire import dati facile — è il momento di massima ansia
+- Setup Multi-Staff: Setup multi-staff deve essere intuitivo con permessi chiari
+- Gestione Reale: Dashboard con vista aggregata multi-sede e confronto KPI
+
+---
+
+### Journey 3 — Luca Esposito (Cliente giovane)
+**Scenario:** Dal link su Instagram alla prima prenotazione e fidelizzazione
+
+| Fase | Link Social | Landing Page | Installa PWA | Prenota | Taglio | Fidelizzazione |
+|------|------------|-------------|-------------|---------|--------|----------------|
+| **Emozione** | 👍 Happy | 👍 Happy | 👀 Neutral | 👍 Happy | 👍 Happy | 👍 Happy |
+| **Curva** | Alta → | Stabile → | Scende leggermente → | Risale → | Stabile alta → | Stabile alta |
+
+**Azioni e pensieri per fase:**
+
+**Link Social:**
+- Vede una Story del barbiere su Instagram con "Prenota qui"
+- Clicca il link in bio per curiosità
+- Si aspetta qualcosa di veloce e moderno
+
+**Landing Page:**
+- Arriva sulla landing page del barbiere
+- Vede il brand del barbiere, non una piattaforma esterna
+- Trova subito servizi e prezzi
+- Pensa: "sembra l'app del mio barbiere"
+
+**Installa PWA:**
+- Il banner suggerisce "Aggiungi alla Home"
+- Non sa bene cos'è una PWA
+- La installa ma si chiede se occupa spazio
+- Vede l'icona col logo del barbiere: ok, figo
+
+**Prenota:**
+- Sceglie "Taglio + Barba" dal menu servizi
+- Seleziona giorno e ora dallo slot disponibile
+- Conferma in 3 tap senza creare account
+- Riceve conferma istantanea su schermo
+
+**Taglio:**
+- Riceve reminder push il giorno prima
+- Va dal barbiere, tutto è già pronto
+- Nessuna attesa, il barbiere sa già cosa fare
+- Esperienza fluida, si sente VIP
+
+**Fidelizzazione:**
+- Dopo il taglio riceve "Prenota il prossimo?"
+- Vede la streak: "3 tagli consecutivi 🔥"
+- La prossima volta apre direttamente l'app dalla Home
+- Non torna più a chiamare o scrivere su WhatsApp
+
+**Takeaway:**
+- Link Social: Il link social è il canale #1 — deve caricare in <2 secondi
+- Landing Page: La landing deve sembrare l'app del barbiere, non un SaaS
+- Installa PWA: Spiegare la PWA in modo semplice: "Aggiungi, è gratis"
+- Prenota: Prenotazione in max 3 tap, zero registrazione obbligatoria
+- Taglio: Push reminder non invasivo: 1 solo, il giorno prima
+- Fidelizzazione: Gamification leggera: streak e rebooking automatico
+
+---
+
+### Journey 4 — Roberto Marini (Cliente maturo)
+**Scenario:** Dall'SMS del barbiere alla prenotazione — esperienza passiva e rassicurante
+
+| Fase | SMS dal Barbiere | Apre il Link | Prenota | Visita | Continuità |
+|------|-----------------|-------------|---------|--------|------------|
+| **Emozione** | 👀 Neutral | 👎 Unhappy | 👀 Neutral | 👍 Happy | 👍 Happy |
+| **Curva** | Media → | Scende → | Risale → | Alta → | Stabile alta |
+
+**Azioni e pensieri per fase:**
+
+**SMS dal Barbiere:**
+- Riceve un SMS: "Ciao Roberto, prenota il prossimo taglio qui"
+- Non sa cosa sia, ma si fida del barbiere
+- Pensa: "ma non posso chiamare come sempre?"
+- Apre il link per curiosità più che per convinzione
+
+**Apre il Link:**
+- Si apre una pagina nel browser del telefono
+- I testi sono piccoli, non capisce subito cosa fare
+- Cerca un numero di telefono da chiamare
+- Non vuole "registrarsi" o "scaricare nulla"
+
+**Prenota:**
+- Vede i servizi con prezzi chiari e bottone grande "Prenota"
+- Seleziona il solito taglio classico
+- Sceglie la data dal calendario visuale
+- Conferma senza inserire email — solo nome e telefono
+
+**Visita:**
+- Riceve un SMS di promemoria il giorno prima
+- Arriva al salone, il barbiere sa già l'orario
+- Non deve aspettare, si sente rispettato
+- Paga in contanti come sempre — nessun obbligo digitale
+
+**Continuità:**
+- Dopo 3 settimane riceve un altro SMS gentile
+- Questa volta prenota subito: ha capito il meccanismo
+- Inizia a sentirlo naturale, non tecnologico
+- Lo racconta agli amici: "il mio barbiere ha l'app"
+
+**Takeaway:**
+- SMS dal Barbiere: L'SMS è il canale giusto — deve essere personale, non spam
+- Apre il Link: Testi grandi, contrasto alto, zero gergo tech. Mostrare anche tel.
+- Prenota: Zero registrazione: solo nome + telefono. Bottoni enormi
+- Visita: Reminder via SMS, non push. Pagamento cash deve restare opzione
+- Continuità: Re-engagement automatico e gentile — mai aggressivo
+
+---
+
 ## Indice tesi (aggiornato)
 
 ### Introduzione
@@ -475,9 +675,9 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 - [x] Personas creati (4: 2 professionisti + 2 clienti)
 - [x] Indice tesi aggiornato (10 capitoli)
 - [x] Brand Analysis "Your Company" completata
+- [x] User Journey Maps completate (4 journey per le 4 personas)
 - [ ] Naming definitivo da scegliere
 - [ ] Branding e identità visiva
-- [ ] User Journey Maps
 - [ ] Architettura dell'informazione e flussi
 - [ ] Wireframe low-fidelity
 - [ ] Design system
@@ -507,7 +707,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 ## Prossimi step
 
-1. **User Journey Maps** — percorso completo di ogni persona con il prodotto
+1. ~~**User Journey Maps** — percorso completo di ogni persona con il prodotto~~ ✅ Completato
 2. **Architettura dell'informazione** — mappa di tutte le schermate e navigazione
 3. **Wireframe low-fidelity** — schizzi strutturali
 4. **Design system** — regole visive + componenti (post-branding)
