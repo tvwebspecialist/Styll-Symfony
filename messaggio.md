@@ -69,7 +69,7 @@ Il professionista rimane sempre al centro. La tecnologia lavora in silenzio, die
 
 **Target primario:** Barbieri italiani indipendenti (137.730 attività sul territorio, 82.7% micro-imprenditori individuali)
 
-**Target secondario:** Saloni da parrucchiere con piccoli team (2-5 persone)
+**Target secondario:** Saloni da parrucchieri con piccoli team (2-5 persone)
 
 **Scalabilità futura:** Fitness, tattoo, fisioterapia — qualsiasi micro-professionista su appuntamento
 
@@ -553,185 +553,449 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 ---
 
-## 🔍 Open Questions & Cose da Approfondire
+## 🔍 Open Questions — Decisioni Progettuali
 
-> Questi sono spunti emersi dalla rilettura del progetto. Vanno approfonditi, studiati e poi trasformati in decisioni progettuali concrete.
+> Tutti i 10 temi emersi dalla rilettura del progetto sono stati analizzati in profondità con ricerca web, benchmark competitor, analisi costi e confronto con SaaS di riferimento. Per ciascuno è stata presa una **decisione progettuale concreta**.
 
-### 1. 🧠 Setup intelligente con AI
+---
+
+### 1. 🧠 Setup intelligente con AI — ✅ DECISIONE PRESA
+
 **Problema:** Il setup è il punto più critico delle journey (Marco abbandona se dura >10 minuti).
-**Idea:** Permettere al barbiere di descrivere la sua attività a voce o in un campo testo libero, e l'AI compila automaticamente orari, servizi, prezzi e descrizione.
-**Da studiare:**
-- Come funziona tecnicamente (NLP su testo libero → form strutturato)
-- Quale livello di AI è realistico per la v1 (template smart) vs v2 (AI vera)
-- Benchmark: come fanno i competitor il setup? Quanti step? Quanto dura?
-- Prevedere anche setup da Google Business Profile import (se il barbiere ha già i dati lì)
-- Fallback: setup guidato step-by-step con preview live se l'AI non è pronta per la v1
 
-### 2. 📱 Template social per promuovere l'app
-**Problema:** Il barbiere ha l'app, ma non sa come comunicarla ai clienti. Il momento "primo cliente che prenota" è cruciale per l'adozione.
-**Idea:** Fornire template pronti e brandizzati per Instagram Stories, post, WhatsApp broadcast.
-**Da studiare:**
-- Quanti template servono al minimo per il lancio? (es. "Prenota qui", "La mia app", "Promo inaugurale")
-- Devono essere generati automaticamente col brand del barbiere (colori, logo, nome)?
-- Formato: Canva-like editor interno? Export PNG/video? Link diretto con deep link alla PWA?
-- Studiare come Barberly e GlossGenius gestiscono il marketing sociale del barbiere
-- Pensare a template per momenti diversi: lancio app, promo, post-taglio, reminder stagionale
+**Benchmark competitor:**
 
-### 3. 👥 Gestione dipendenti e multi-staff
-**Problema:** Sara ha 3 dipendenti e 2 sedi. Come gestiamo ruoli, permessi, calendari separati?
-**Da studiare:**
-- **Ruoli e permessi:** Quali ruoli servono? (Titolare, Barbiere dipendente, Receptionist, Admin)
-  - Il titolare vede tutto, il dipendente vede solo i suoi appuntamenti e i suoi clienti?
-  - Il dipendente può modificare i servizi o solo il titolare?
-  - Chi gestisce la loyalty: il titolare o ogni barbiere per sé?
-- **Calendario multi-staff:** Ogni barbiere ha il suo calendario. Il cliente sceglie con chi prenotare.
-  - Vista titolare: tutti i calendari sovrapposti o affiancati?
-  - Vista dipendente: solo il proprio calendario
-- **Setup multi-staff:** Come si aggiunge un dipendente?
-  - Invito via email/link? Il dipendente crea il suo account?
-  - Il titolare precompila i dati (servizi, orari) o ogni barbiere si configura da sé?
-- **Permessi CRM:** Il dipendente vede i clienti di tutti o solo i suoi?
-- **Analytics multi-staff:** Il titolare deve vedere KPI per singolo barbiere (revenue, clienti, retention)
-- **Pricing:** Staff aggiuntivo incluso nel tier? O a pagamento per persona aggiunta?
+| SaaS | Setup Time | Approccio |
+|------|-----------|-----------|
+| **Mangomint** | ~30 giorni con onboarding manager | Hands-on con specialista, call 30 min, import in 24h |
+| **GlossGenius** | ~10 min self-service | Wizard step-by-step, mobile-first |
+| **Barberly** | ~15 min | Form classico multi-step |
+| **Phorest** | ~30 giorni con concierge | Migrazione assistita completa |
 
-### 4. 🔄 Migrazione dai competitor
-**Problema:** Sara viene da Fresha e ha paura di perdere i dati. La migrazione è il momento di massima ansia.
-**Da studiare:**
-- **Da quali piattaforme migrano i nostri utenti target?** Fresha, Booksy, Barberly, agenda cartacea, WhatsApp
-- **Cosa si può importare?**
-  - Lista clienti (nome, telefono, email)
-  - Storico appuntamenti
-  - Servizi e prezzi
-  - Note cliente
-- **Come tecnicamente?**
-  - Import CSV/Excel (tutti i competitor lo esportano)
-  - API diretta da Fresha/Booksy? (probabilmente no, ma verificare)
-  - Import manuale assistito (il barbiere manda il file, noi lo processiamo)
-- **Cosa succede lato cliente?**
-  - Come comunicare il cambio ai clienti del barbiere? (template SMS/WhatsApp: "Da oggi prenota qui")
-  - Il link vecchio (Fresha) smette di funzionare — rischio confusione
-  - Serve un periodo di transizione (entrambi i sistemi attivi)?
-- **Migrazione dei punti loyalty:** Se il barbiere aveva un sistema di punti altrove, si può importare il saldo?
-- **Benchmark:** Come gestiscono la migrazione Phorest, GlossGenius, Barberly? Offrono assistenza dedicata?
-- **Idea differenziante:** "Migrazione concierge" — ti aiutiamo noi, gratis, in 24h
+**Decisione per v1 — Setup guidato smart (senza AI vera):**
+- **Wizard in 5 step** conversazionali (1 schermata per step):
+  1. Nome attività + telefono + città
+  2. Tipo attività (barbiere/parrucchiere/altro) → pre-compila servizi template
+  3. Orari (template: "Lun-Sab 9-19" modificabile)
+  4. Logo + colori (upload o generazione palette automatica da logo)
+  5. Preview live della landing page → "Ecco la TUA app!"
+- **Template di servizi precompilati** per barbieri (Taglio €15, Barba €10, Taglio+Barba €20...) modificabili
+- **Import da Google Business Profile** via OAuth 2.0: nome, indirizzo, orari, telefono, foto → auto-fill
+- **Obiettivo: < 8 minuti** per barbiere singolo
+- **Fallback:** il barbiere può sempre saltare e completare dopo
 
-### 5. 🏷️ Comunicazione brand-first: "Eleviamo il TUO brand, non il nostro"
-**Problema:** Il barbiere deve capire immediatamente che questa non è un'altra piattaforma che gli ruba il brand, ma uno strumento che eleva il SUO.
-**Da studiare:**
-- **Nella landing page di vendita (B2B):** Come comunicare visivamente "il tuo brand è il protagonista"?
-  - Mockup con il nome/logo del barbiere, non il nostro
-  - Prima/dopo: "Con Fresha il tuo cliente vede questo... Con NOI vede questo"
-  - Video demo personalizzato con il nome dell'attività (generato dinamicamente?)
-- **Nella PWA del cliente:** Il cliente vede il suo profilo? Cosa vede? (storico prenotazioni, punti, prossima visita)
-  - Può aggiornare le sue preferenze? O è solo il barbiere a farlo?
-- **Privacy:** Come gestiamo le note del barbiere? Il cliente può vederle? GDPR compliance.
+**Decisione per v2 — AI vera:**
+- Campo testo libero: "Descrivi la tua attività" → NLP estrae servizi, orari, prezzi
+- Implementabile con OpenAI API (GPT-4o): costo ~$0.01-0.03 per setup
+- Structured output JSON da prompt → popola form
 
-### 6. 📊 Design della Dashboard (singola/multisede)
-**Problema:** La dashboard deve funzionare sia per Marco (1 sedia, 1 persona) sia per Sara (3 dipendenti, 2 sedi).
-**Da studiare:**
-- **Dashboard barbiere singolo (Marco):**
-  - Cosa vede appena apre? Appuntamenti di oggi? KPI rapidi?
-  - Informazioni minime essenziali: prossimo cliente, buchi nel giorno, notifiche churn
-- **Dashboard titolare multi-staff (Sara):**
-  - Vista aggregata di tutti i barbieri + vista singola per dipendente
-  - KPI comparativi: chi ha più revenue? Chi ha più clienti fidelizzati?
-  - Gestione turni e disponibilità staff
-- **Dashboard multi-sede:**
-  - Switcher tra sedi o vista unificata?
-  - KPI per sede: revenue, clienti attivi, retention rate
-  - Il dipendente vede solo la sua sede
-- **Principio guida:** Stessa base, complessità progressiva. Marco vede il 30% delle feature, Sara il 70%, il piano Pro il 100%.
-- **Benchmark:** Studiare dashboard di Mangomint (pulita), Phorest (complessa), GlossGenius (bella)
+**Google Business Profile API:**
+- Gratuita (con limiti di quota)
+- OAuth 2.0 → `locations.get` → nome, indirizzo, orari, telefono, foto, categorie
+- Perfetta per auto-fill al signup
 
-### 7. 👤 Profilo cliente avanzato (CRM per barbieri)
-**Problema:** Il barbiere non ricorda cosa ha fatto l'ultima volta, che prodotti usa il cliente, le sue preferenze. Il cliente deve ripetere tutto ogni volta.
-**Da studiare:**
-- **Cosa deve contenere il profilo cliente:**
-  - Dati base: nome, telefono, email, foto (opzionale)
-  - Storico completo: tutti i servizi fatti, con date e note
-  - Preferenze: taglio preferito, prodotti usati, allergie/sensibilità
-  - Note libere del barbiere ("vuole sempre il 3 ai lati", "parla del figlio")
-  - Frequenza media e prossima visita prevista
-  - Punteggio VIP, livello loyalty, punti accumulati
-  - Rischio churn (giorni dall'ultima visita vs media)
-- **Servizio consigliato automatico:**
-  - "L'ultima volta Marco ha fatto Taglio + Barba. Suggerire lo stesso?" → un tap per riprenotare
-  - Suggerimenti stagionali o basati sulla frequenza ("È ora del trattamento trimestrale?")
-  - In v3: AI che suggerisce upsell basato sullo storico ("I clienti simili a Marco di solito aggiungono il trattamento barba")
-- **Lato cliente (PWA):**
-  - Il cliente vede il suo profilo? Cosa vede? (storico prenotazioni, punti, prossima visita)
-  - Può aggiornare le sue preferenze? O è solo il barbiere a farlo?
-- **Privacy:** Come gestiamo le note del barbiere? Il cliente può vederle? GDPR compliance.
+**SaaS di riferimento:** Typeform (1 domanda alla volta, conversazionale), Duolingo (detection automatica lingua/location, percorso adattivo)
 
-### 8. 🎮 Flusso completo gamification e loyalty
-**Problema:** Abbiamo definito che la gamification è il nostro blue ocean, ma non abbiamo ancora progettato il flusso completo.
-**Da studiare:**
-- **Tipi di loyalty da supportare:**
-  - **Punti classici:** X punti per €1 speso → reward al raggiungimento soglia
-  - **Streak:** "5 tagli consecutivi senza saltare = premio". Come Duolingo.
-  - **Badge:** Traguardi ("Primo taglio", "10° visita", "Cliente dell'anno", "Hai portato un amico")
-  - **Livelli/Tier:** Bronze → Silver → Gold → Platinum. Ogni livello sblocca benefici
-  - **Sfide:** "Prenota 3 volte in 2 mesi e vinci X" — temporanee, create dal barbiere
-- **Come funziona il flusso per il cliente:**
-  - Guadagna punti automaticamente dopo ogni visita?
-  - Deve fare check-in? O il barbiere conferma la visita e i punti si assegnano?
-  - Dove vede i punti? Nella PWA? Via SMS?
-  - Come riscatta un reward? Mostra lo schermo al barbiere? QR code? Il barbiere lo fa dal CRM?
-- **Come funziona il flusso per il barbiere:**
-  - Chi configura la loyalty? Il barbiere sceglie tra template predefiniti?
-  - Può creare reward personalizzati? ("Taglio gratis", "Prodotto in omaggio", "Sconto 20%")
-  - Vede una classifica dei clienti più fedeli?
-  - Può assegnare punti manualmente (per walk-in o clienti senza app)?
-- **Gamification vs semplicità:** Roberto (54 anni) non deve sentirsi confuso
-  - La gamification è opt-in per il cliente? O funziona in background?
-  - Per Roberto i punti si accumulano silenziosamente, il barbiere gli dice "hai un taglio gratis"
-  - Per Luca la gamification è visibile, divertente, condivisibile
-- **Benchmark:** Studiare Duolingo (streak), Starbucks Rewards (tier), Nike Run Club (badge), Phorest TreatCard (punti barber)
+---
 
-### 9. 📨 Prenotazioni e reminder via WhatsApp e SMS
-**Problema:** Il cliente deve poter prenotare e ricevere reminder sia via WhatsApp che SMS. Roberto usa solo SMS, Luca preferisce WhatsApp.
-**Da studiare:**
-- **Prenotazione da WhatsApp:**
-  - Come funziona tecnicamente? WhatsApp Business API? Chatbot? Link diretto alla PWA?
-  - Il cliente scrive al numero del barbiere e un bot risponde con gli slot?
-  - Oppure il barbiere manda un link di prenotazione via WhatsApp (più semplice per v1)?
-  - Costi: WhatsApp Business API ha costi per messaggio (circa €0.04-0.09 per conversation)
-  - Alternativa v1: deep link WhatsApp che apre direttamente la pagina booking della PWA
-- **Prenotazione da SMS:**
-  - SMS con link alla PWA (il modo più semplice)
-  - SMS bidirezionale? ("Rispondi 1 per confermare, 2 per spostare") — complesso ma potente per Roberto
-  - Costi: SMS ha costi variabili per paese (Italia: ~€0.05-0.08 per SMS)
-- **Reminder:**
-  - Canale preferito per i reminder: push notification (PWA), SMS, WhatsApp? Tutti e 3?
-  - Il cliente sceglie il canale preferito? O il barbiere decide?
-  - Timing: 24h prima? Giorno stesso? Entrambi?
-  - Contenuto: solo reminder o anche upsell leggero? ("Vuoi aggiungere la barba?")
-- **Win-back messages:**
-  - "Non ti vediamo da un po'" — via SMS o WhatsApp?
-  - Il barbiere approva prima dell'invio o è automatico?
-  - Frequenza: max 1 al mese per non diventare spam
-- **Costi e pricing:** SMS/WhatsApp hanno un costo reale
-  - Includere X messaggi nel piano? (es. 100 SMS/mese nel Tier 1, 500 nel Tier 2, illimitati nel Tier 3)
-  - Oppure pay-per-use oltre una soglia?
-- **Compliance:** GDPR, consenso esplicito per SMS marketing, opt-out facile
+### 2. 📱 Template social per promuovere l'app — ✅ DECISIONE PRESA
 
-### 10. 🏆 Punti loyalty visibili lato CRM barbiere (per clienti senza app)
-**Problema:** Non tutti i clienti installeranno la PWA (es. Roberto). Il barbiere deve comunque poter vedere e gestire i punti di TUTTI i clienti dal suo CRM.
-**Da studiare:**
-- **CRM come "fonte di verità" per la loyalty:**
-  - Ogni cliente ha un profilo nel CRM con punti, livello, streak — anche se non ha la PWA
-  - Il barbiere assegna punti manualmente dopo una visita walk-in ("Roberto è venuto, +50 punti")
-  - Il barbiere vede: "Roberto ha 450 punti, gli mancano 50 per il taglio gratis"
-- **Come il barbiere comunica i punti al cliente senza app:**
-  - A voce: "Roberto, hai 450 punti! Ancora un taglio e il prossimo è gratis"
-  - Via SMS automatico post-visita: "Grazie Roberto! Hai ora 450 punti. Ancora 50 per un taglio gratis 💈"
-  - Scontrino/ricevuta con punti stampati? (nice to have, forse v2+)
-- **Riscatto reward per clienti senza app:**
-  - Il barbiere riscatta dal CRM per conto del cliente ("Roberto riscatta taglio gratis")
-  - Log di tutte le operazioni per trasparenza
-- **Sincronizzazione:** Se Roberto un giorno installa la PWA, i punti devono esserci tutti
-  - Il profilo CRM è lo stesso sia che il cliente abbia la PWA sia che non l'abbia
-  - Nessun dato perso nel passaggio
+**Problema:** Il barbiere ha l'app, ma non sa come comunicarla ai clienti.
+
+**Benchmark competitor:**
+
+| SaaS | Approccio |
+|------|-----------|
+| **GlossGenius** | Marketing kit integrato, share link diretto |
+| **Barberly** | Nessun tool marketing integrato |
+| **Canva API** | Editor embeddabile, brand kit |
+| **PromoRepublic** | Template pronti per categorie business ($49+/mese standalone) |
+
+**Decisione per v1 — 5 template statici auto-brandizzati:**
+1. *"Prenota qui"* — con QR code alla PWA
+2. *"La mia nuova app"* — per lancio
+3. *"Promo inaugurale"* — sconto primo taglio
+4. *"Post-taglio"* — "Come è andata? Lascia una recensione"
+5. *"Reminder stagionale"* — "È ora di un taglio!"
+
+**Specifiche tecniche:**
+- Generati server-side con **Sharp/Canvas API** (Node.js) usando colori + logo + nome del barbiere
+- Export come PNG per Instagram Stories (1080x1920) e post (1080x1080)
+- Deep link alla PWA integrato
+- Costo: zero (librerie open source)
+- Nella dashboard sotto "Promuovi la tua app"
+
+**Decisione per v2 — Editor leggero:**
+- Integrazione Canva API (Button "Edit in Canva") o editor semplice in-app
+
+---
+
+### 3. 👥 Gestione dipendenti e multi-staff — ✅ DECISIONE PRESA
+
+**Problema:** Sara ha 3 dipendenti e 2 sedi.
+
+**Benchmark competitor:**
+
+| SaaS | Ruoli disponibili |
+|------|------------------|
+| **Mangomint** | Owner, Manager, Staff, Front Desk — permessi granulari |
+| **Phorest** | Owner, Manager, Stylist, Receptionist — complesso ma completo |
+| **Fresha** | Owner, Team Member — semplice, pochi ruoli |
+| **GlossGenius** | Solo (1 utente) → Team plan recente |
+
+**Decisione — 4 ruoli per Amity:**
+
+| Ruolo | Vede | Può fare |
+|-------|------|----------|
+| **Titolare (Owner)** | Tutto: tutti i calendari, tutti i clienti, tutti i KPI | Tutto: gestisce staff, servizi, loyalty, branding, billing |
+| **Manager** | Tutto tranne billing | Gestisce staff e appuntamenti, non il billing |
+| **Barbiere (Staff)** | Solo il suo calendario e i suoi clienti | Conferma appuntamenti, aggiunge note, assegna punti loyalty |
+| **Receptionist** | Tutti i calendari (sola lettura) | Prenota per tutti, gestisce walk-in, check-in clienti |
+
+**Calendario multi-staff:**
+- Vista titolare: calendari **affiancati** (side-by-side) — come Mangomint
+- Vista staff: solo il proprio calendario
+- Il cliente nella PWA sceglie con chi prenotare (o "primo disponibile")
+
+**Setup staff:**
+- Il titolare invita via email/link
+- Lo staff accetta e crea password → vede solo il suo scope
+- Il titolare pre-configura servizi e orari per ogni staff member
+
+**Pricing staff:**
+- **Tier 1 (Starter):** solo 1 utente (Marco)
+- **Tier 2 (Growth):** fino a 5 staff inclusi
+- **Tier 3 (Pro):** staff illimitato + multi-location
+
+**CRM condiviso:** Il CRM clienti è condiviso ma filtrato per staff assegnato. La loyalty è gestita dal Titolare, lo staff può solo assegnare punti. Permessi pre-configurati, non customizzabili in v1 (semplifica).
+
+---
+
+### 4. 🔄 Migrazione dai competitor — ✅ DECISIONE PRESA
+
+**Problema:** Sara viene da Fresha e ha paura di perdere i dati.
+
+**Benchmark competitor:**
+
+| SaaS | Approccio migrazione | Costo |
+|------|---------------------|-------|
+| **Phorest** | Concierge dedicato, team specializzato, import completo | Incluso (contratto annuale) |
+| **Mangomint** | Onboarding manager, import dati in 24h, call 30 min | Incluso |
+| **GlossGenius** | Self-service CSV import | Gratuito |
+| **Barberly** | Import manuale, supporto email | Basic |
+
+**Cosa si può importare da Fresha/Booksy:**
+
+| Campo | Fresha | Booksy | WhatsApp/Cartaceo |
+|-------|--------|--------|-------------------|
+| Nome + cognome | ✅ | ✅ | Manuale |
+| Telefono | ✅ | ✅ | Manuale |
+| Email | ✅ | ✅ | Raro |
+| Note cliente | ✅ | ⚠️ | No |
+| Storico appuntamenti | ✅ | ⚠️ | No |
+| Servizi e prezzi | ✅ | ✅ | Manuale |
+
+**Decisione — "Migrazione concierge — ti aiutiamo noi, gratis, in 24h":**
+1. Il barbiere carica il CSV nella dashboard (drag & drop)
+2. Il sistema mappa automaticamente le colonne (nome, telefono, email...)
+3. Preview dei dati → conferma → import
+4. **Se il barbiere non riesce:** "Mandaci il file, ci pensiamo noi in 24h" (gratis)
+5. Template SMS/WhatsApp pronti: *"Ciao [Nome], da oggi puoi prenotare qui: [link PWA]"*
+6. Import punti loyalty dal vecchio sistema (campo opzionale nel CSV)
+
+**v2 — Import intelligente:** AI che riconosce formato CSV non standard e mappa automaticamente.
+
+**Selling point differenziante:** La migrazione concierge gratuita è uno dei principali selling point vs competitor.
+
+---
+
+### 5. 🏷️ Comunicazione brand-first — ✅ DECISIONE PRESA
+
+**Problema:** Il barbiere deve capire immediatamente che questa non è un'altra piattaforma che gli ruba il brand.
+
+**Benchmark competitor:**
+
+| SaaS | Approccio white-label |
+|------|----------------------|
+| **Shopify** | Theme personalizzabili, dominio custom, zero menzione Shopify al cliente |
+| **Auth0** | Universal Login customizzabile per tenant |
+| **Barberly** | App brandizzata su App Store per ogni barbiere |
+| **GlossGenius** | Branding parziale, il nome GlossGenius è visibile |
+
+**Decisione — Architettura branding per tenant (React + Supabase):**
+
+```javascript
+// Ogni tenant ha un config in Supabase
+{
+  tenant_id: "uuid",
+  business_name: "Marco's Barber",
+  primary_color: "#1A1A2E",
+  secondary_color: "#E94560",
+  logo_url: "https://cdn.amity.app/tenants/marco/logo.png",
+  favicon_url: "...",
+  custom_domain: "prenotamarco.it", // v2
+  subdomain: "marco.amity.app"     // v1
+}
+```
+
+**v1 — Subdomain + CSS Variables:**
+- Ogni barbiere ha: `nomeattività.amity.app`
+- CSS Variables caricate da config tenant → colori, font, logo cambiano runtime
+- Il cliente vede SOLO il brand del barbiere, MAI "Amity" (tranne un piccolo "Powered by" nel footer)
+
+**v2 — Custom domain:**
+- Il barbiere usa il suo dominio: `prenotamarco.it`
+- SSL automatico via Let's Encrypt
+- DNS CNAME + wildcard certificate
+
+**Landing page B2B (vendita):**
+- Mockup interattivo: il barbiere inserisce il nome del suo negozio → vede in real-time come apparirebbe la SUA app
+- Confronto visivo: "Con Fresha vedono QUESTO → Con NOI vedono QUESTO"
+
+**Privacy e GDPR:**
+- Le note del barbiere NON sono visibili al cliente nella PWA
+- Il cliente vede: storico prenotazioni, punti loyalty, prossima visita
+- Il cliente può aggiornare: telefono, email, preferenze orario
+- Consenso esplicito al primo accesso, opt-out sempre disponibile
+- Export dati cliente: sempre gratis
+
+---
+
+### 6. 📊 Design della Dashboard — ✅ DECISIONE PRESA
+
+**Problema:** La dashboard deve funzionare sia per Marco (1 sedia) sia per Sara (3 dipendenti, 2 sedi).
+
+**Benchmark competitor:**
+
+| SaaS | Stile Dashboard |
+|------|----------------|
+| **Mangomint** | Pulita, modulare, automazioni intelligenti (4.9/5 Capterra) |
+| **GlossGenius** | Bellissima, mobile-first, minimalista |
+| **Phorest** | Complessa, potente, troppe info per piccoli |
+| **Fresha** | Funzionale ma generica |
+
+**Decisione — Principio "Progressive complexity":**
+
+**Dashboard Marco (barbiere singolo) — vede il 30%:**
+- Saluto personalizzato ("Buongiorno Marco 👋")
+- Appuntamenti di OGGI (lista scrollabile con orario + servizio + cliente)
+- Alert: clienti a rischio churn ("Marco F. non viene da 42 giorni" + bottone win-back)
+- KPI settimanali: revenue, clienti serviti, retention %
+- Buchi nel calendario di oggi ("14:00-15:00 libero" + bottone "Notifica clienti vicini")
+
+**Dashboard Sara (titolare multi-staff) — vede il 70%:**
+- Saluto + switcher sede ("Sede: Roma Centro ▼")
+- Vista team giornaliera: calendari affiancati (Anna | Giulia | Paolo)
+- KPI team settimanali per singolo staff (revenue, retention)
+- Churn alert aggregato ("5 clienti a rischio")
+
+**Principi design:**
+- Stessa codebase, complessità adattiva basata su ruolo e tier
+- Mobile-first: la dashboard principale deve funzionare perfettamente su smartphone
+- Benchmark design: Mangomint (pulizia) + GlossGenius (bellezza)
+
+---
+
+### 7. 👤 Profilo cliente avanzato (CRM) — ✅ DECISIONE PRESA
+
+**Problema:** Il barbiere non ricorda cosa ha fatto l'ultima volta, le preferenze, i prodotti.
+
+**Benchmark competitor:** Vagaro, Boulevard, Zenoti, Phorest — tutti offrono profili clienti avanzati ma nessuno con semaforo churn o VIP score.
+
+**Decisione — Profilo a 2 livelli:**
+
+| Sezione | Campi | Visibile al cliente (PWA)? |
+|---------|-------|--------------------------|
+| **Dati base** | Nome, telefono, email, foto | ✅ Sì (editabili) |
+| **Storico** | Tutti i servizi + date + barbiere + importo | ✅ Sì (read-only) |
+| **Preferenze** | Taglio preferito, prodotti, allergie | ✅ Sì (editabili dal cliente) |
+| **Note barbiere** | "Vuole il 3 ai lati", "parla del figlio" | ❌ No (private) |
+| **Loyalty** | Punti, livello, streak, badge | ✅ Sì |
+| **Rischio churn** | Giorni dall'ultima visita vs media, semaforo 🟢🟡🔴 | ❌ Solo barbiere |
+| **VIP Score** | Punteggio composito (frequenza, spesa, puntualità, referral, review) | ❌ Solo barbiere |
+| **Comunicazione** | Canale preferito (SMS/WhatsApp/Push), consensi GDPR | ✅ Sì (modificabile) |
+
+**Feature "Suggerisci servizio" (v1):**
+- "L'ultima volta Luca ha fatto Taglio + Barba (28 giorni fa). Suggerire lo stesso?"
+- Un tap per il barbiere → pre-compila il prossimo appuntamento
+
+**Feature "Foto prima/dopo" (v2):**
+- Il barbiere scatta foto del taglio → salvate nel profilo
+- Utile come reference per la prossima visita
+
+**Principi:** Le note del barbiere sono SEMPRE private (GDPR). Semaforo churn visibile nella lista clienti. VIP Score calcolato automaticamente, visibile solo al barbiere.
+
+---
+
+### 8. 🎮 Flusso completo gamification e loyalty — ✅ DECISIONE PRESA
+
+**Problema:** La gamification è il nostro blue ocean, ma serviva progettare il flusso completo.
+
+**Benchmark:**
+
+| SaaS/App | Meccanica | Efficacia |
+|----------|-----------|-----------|
+| **Duolingo** | Streak giornaliera, XP, livelli, leaderboard, "streak freeze" | +48% engagement (DAU) |
+| **Starbucks Rewards** | Stelle per acquisto → tier Bronze/Gold, reward personalizzati | 28M membri attivi, +26% revenue |
+| **Nike Run Club** | Badge per traguardi, sfide settimanali, community | Alta retention |
+| **Phorest TreatCard** | Punti per €1 speso → reward al barbiere | Unico nel settore, ma zero gamification |
+| **Passtastic** | Card digitale in Apple/Google Wallet, QR scan | No app required |
+
+**Decisione — 5 meccaniche di gamification:**
+
+| Meccanica | Come funziona | Esempio |
+|-----------|--------------|---------|
+| **Punti** | X punti per €1 speso (configurabile dal barbiere) | "Hai guadagnato 200 punti!" |
+| **Streak** | Visite consecutive entro X giorni (es. ogni 30-45 gg) | "5 visite consecutive 🔥" |
+| **Badge** | Traguardi automatici | "Primo taglio", "10ª visita", "1 anno di fedeltà" |
+| **Livelli/Tier** | Soglie punti → benefici crescenti | Bronze → Silver → Gold → Platinum |
+| **Sfide** | Temporanee, create dal barbiere | "3 visite in 2 mesi = prodotto gratis" |
+
+**Schema database (Supabase):**
+```sql
+-- Loyalty config per tenant
+CREATE TABLE loyalty_config (
+  tenant_id UUID REFERENCES tenants(id),
+  points_per_euro INTEGER DEFAULT 10,
+  streak_threshold_days INTEGER DEFAULT 45,
+  tiers JSONB DEFAULT '[
+    {"name": "Bronze", "min_points": 0, "benefits": []},
+    {"name": "Silver", "min_points": 500, "benefits": ["5% sconto"]},
+    {"name": "Gold", "min_points": 1500, "benefits": ["10% sconto", "prodotto omaggio"]},
+    {"name": "Platinum", "min_points": 5000, "benefits": ["taglio gratis trimestrale"]}
+  ]'
+);
+
+-- Loyalty stato per cliente
+CREATE TABLE client_loyalty (
+  client_id UUID REFERENCES clients(id),
+  total_points INTEGER DEFAULT 0,
+  current_streak INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
+  tier VARCHAR DEFAULT 'Bronze',
+  badges JSONB DEFAULT '[]',
+  last_visit_date DATE
+);
+```
+
+**Flusso per il CLIENTE tech-savvy (Luca, 22 anni — visibile e divertente):**
+1. Prenota e va dal barbiere
+2. Il barbiere conferma la visita nella dashboard
+3. Punti assegnati automaticamente + streak aggiornata
+4. Notifica PWA: "🔥 Streak di 5! Hai guadagnato 200 punti. Ancora 100 per Silver!"
+5. Nella PWA: barra progresso, badge collection, posizione nel tier
+6. Riscatto: seleziona reward nella PWA → mostra schermata al barbiere → barbiere conferma
+
+**Flusso per il CLIENTE non-tech (Roberto, 54 anni — silenzioso e in background):**
+1. Roberto viene, il barbiere conferma la visita dal CRM
+2. Punti assegnati automaticamente (Roberto non lo sa)
+3. Il barbiere vede nel CRM: "Roberto ha 450 punti. Ancora 50 per taglio gratis"
+4. Il barbiere glielo dice a voce: "Roberto, il prossimo taglio è gratis!"
+5. Opzionale: SMS post-visita: "Grazie Roberto! Hai 450 punti 💈"
+
+**Flusso per il BARBIERE:**
+1. Nel setup, sceglie un template loyalty (es. "1 punto per €1, taglio gratis a 500 punti")
+2. Può personalizzare reward e soglie
+3. Vede classifica clienti più fedeli
+4. Può assegnare punti manualmente (walk-in senza app)
+
+**Roadmap gamification:**
+- **v1 (Tier 1):** Punti classici — configurazione semplice, 1 reward
+- **v2 (Tier 2):** Gamification completa — streak, badge, livelli, sfide, classifica
+
+---
+
+### 9. 📨 Prenotazioni e reminder via WhatsApp/SMS — ✅ DECISIONE PRESA
+
+**Problema:** Roberto usa solo SMS, Luca preferisce WhatsApp. Servono entrambi.
+
+**Prezzi reali 2025 (Italia):**
+
+**WhatsApp Business API (prezzi Meta):**
+
+| Tipo messaggio | Costo per messaggio |
+|---------------|-------------------|
+| Marketing (template) | €0.0572 |
+| Utility (reminder, conferma) | €0.0248 |
+| Autenticazione | €0.0248-0.0313 |
+| User-initiated (entro 24h) | **GRATIS** |
+
+**SMS API (Italia):**
+
+| Provider | Costo per SMS |
+|----------|--------------|
+| **Twilio** | ~€0.055 |
+| **MessageBird** | ~€0.045 |
+| **Infobip** | ~€0.04-0.05 (volume) |
+| **Vonage** | ~€0.062 |
+
+**Provider consigliati per Amity:** MessageBird o Infobip (API unificata WhatsApp + SMS, prezzi competitivi Italia, pay-as-you-go).
+
+**Calcolo costi per barbiere singolo (~120 clienti/mese):**
+- Reminder 24h prima: 120 × €0.0248 = €2.98/mese
+- Win-back (10 clienti/mese): 10 × €0.0572 = €0.57/mese
+- Review request: 120 × €0.0248 = €2.98/mese
+- **Totale: ~€6.50/mese** → ampiamente sostenibile
+
+**Decisione — Strategia canali:**
+
+| Canale | Per chi | Quando |
+|--------|---------|--------|
+| **Push notification (PWA)** | Luca (ha la PWA) | Reminder 24h, conferma booking |
+| **WhatsApp** | Luca + clienti con WhatsApp | Reminder, win-back, promozioni |
+| **SMS** | Roberto (no WhatsApp business) | Reminder, win-back |
+| **Email** | Tutti (fallback) | Conferma booking, receipt |
+
+**Cascata intelligente (v2):** Push → WhatsApp → SMS → Email
+
+**Pricing messaggi:**
+- **Tier 1:** 200 messaggi/mese inclusi (~€5 di costo reale)
+- **Tier 2:** 500 messaggi/mese inclusi
+- **Tier 3:** illimitati
+- Oltre la soglia: pay-per-use €0.05/messaggio
+
+**Regole:**
+- Il barbiere approva i win-back prima dell'invio (mai spam automatico in v1)
+- GDPR: opt-in esplicito + opt-out in ogni messaggio
+- Frequenza win-back: max 1 al mese per cliente
+
+---
+
+### 10. 🏆 Punti loyalty lato CRM (per clienti senza app) — ✅ DECISIONE PRESA
+
+**Problema:** Non tutti i clienti installeranno la PWA (es. Roberto). Il barbiere deve gestire i punti dal CRM.
+
+**Benchmark competitor:** Vagaro, Boulevard, Zenoti, Phorest — tutti offrono profili clienti avanzati ma nessuno con semaforo churn o VIP score.
+
+**Decisione — Il CRM è SEMPRE la fonte di verità unica per la loyalty:**
+- Ogni cliente ha un profilo nel CRM con punti, livello, streak — anche se non ha la PWA
+- Il barbiere assegna punti manualmente dopo una visita walk-in (un tap)
+- Il barbiere riscatta reward dal CRM per conto del cliente
+- Log completo di tutte le operazioni per trasparenza
+
+**3 modi per comunicare i punti al cliente senza app:**
+1. **A voce** — il barbiere legge dal CRM: "Roberto, hai 450 punti!"
+2. **SMS automatico post-visita** — "Grazie Roberto! Hai ora 450 punti. Ancora 50 per un taglio gratis 💈"
+3. **Apple/Google Wallet** (v2) — card digitale senza app, aggiornata automaticamente
+
+**Sincronizzazione:** Se Roberto un giorno installa la PWA, i punti sono già lì. Il profilo CRM è unico: con o senza PWA, stessi dati, stessi punti. Zero perdita dati nel passaggio.
+
+---
+
+## Riepilogo decisioni — Tabella sintetica
+
+| # | Tema | Decisione chiave | Fase |
+|---|------|-----------------|------|
+| 1 | **Setup AI** | Wizard 5 step + template servizi + import GBP. AI in v2. Target: < 8 min | v1 + v2 |
+| 2 | **Template social** | 5 template auto-generati col brand. Scaricabili in un tap. Editor Canva in v2 | v1 + v2 |
+| 3 | **Multi-staff** | 4 ruoli (Titolare, Manager, Staff, Receptionist). Invito email. Staff incluso da Tier 2 | v1 |
+| 4 | **Migrazione** | "Migrazione concierge gratis in 24h". CSV import + mapping guidato + template comunicazione | v1 |
+| 5 | **Brand-first** | Subdomain v1, custom domain v2. Zero menzione Amity nella PWA. GDPR: note private | v1 + v2 |
+| 6 | **Dashboard** | Progressive complexity. Marco: 30% feature. Sara: 70%. Mobile-first. Stile Mangomint | v1 |
+| 7 | **CRM profilo** | 2 livelli (barbiere vede tutto, cliente vede i suoi dati). Note private. Semaforo churn | v1 |
+| 8 | **Gamification** | v1: punti classici. v2: streak+badge+tier+sfide. Silenzioso per Roberto, visibile per Luca | v1 + v2 |
+| 9 | **WhatsApp/SMS** | MessageBird/Infobip. 200 msg inclusi Tier 1. Win-back approvati dal barbiere. GDPR opt-in | v1 |
+| 10 | **Loyalty senza app** | CRM = fonte unica. Assegna/riscatta dal CRM. SMS post-visita. Wallet card in v2 | v1 + v2 |
 
 ---
 
@@ -859,6 +1123,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 - [x] Brand Analysis "Your Company" completata
 - [x] User Journey Maps completate (4 journey per le 4 personas)
 - [x] Open Questions & spunti di approfondimento documentati (10 temi)
+- [x] Open Questions risolte — decisioni progettuali concrete per tutti i 10 temi
 - [ ] Naming definitivo da scegliere
 - [ ] Branding e identità visiva
 - [ ] Architettura dell'informazione e flussi
@@ -885,6 +1150,12 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 - La gamification nel settore barber/beauty è un **blue ocean** — nessuno la fa
 - Il prodotto deve funzionare per Luca (22 anni, vuole gamification) E per Roberto (54 anni, vuole solo un SMS)
 - **I dati del barbiere sono del barbiere. Sempre. Export gratis.**
+- **Il CRM è la fonte di verità unica** — la loyalty funziona con o senza PWA installata
+- **Setup < 8 minuti** — wizard 5 step + import GBP + template servizi
+- **Migrazione concierge gratuita** — selling point differenziante
+- **4 ruoli staff** — Titolare, Manager, Staff, Receptionist
+- **Messaging: 200 msg/mese inclusi Tier 1** — WhatsApp + SMS via MessageBird/Infobip
+- **Gamification adattiva** — visibile per Luca, invisibile per Roberto
 
 ---
 
@@ -892,7 +1163,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 1. ~~**User Journey Maps** — percorso completo di ogni persona con il prodotto~~ ✅ Completato
 2. ~~**Open Questions** — spunti di approfondimento su setup, staff, loyalty, migrazione, ecc.~~ ✅ Documentati
-3. **Approfondire le Open Questions** — risolvere i 10 temi uno per uno e trasformarli in decisioni
+3. ~~**Approfondire le Open Questions** — risolvere i 10 temi uno per uno e trasformarli in decisioni~~ ✅ Completato
 4. **Architettura dell'informazione** — mappa di tutte le schermate e navigazione
 5. **Wireframe low-fidelity** — schizzi strutturali
 6. **Design system** — regole visive + componenti (post-branding)
