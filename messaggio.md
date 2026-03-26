@@ -1,7 +1,7 @@
 # Contesto del Progetto di Tesi
 
 > **Usa questo file all'inizio di ogni nuova chat con Copilot:**
-> *"Leggi il file messaggio.md nel repo tvwebspecialist/Amity"*
+> *"Leggi il file messaggio.md nel repo tvwebspecialist/Styll"*
 
 ---
 
@@ -401,7 +401,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 ---
 
 ### Journey 2 — Sara Bianchi (Titolare salone parrucchiera)
-**Scenario:** Da Fresha ad Amity — migrazione e gestione multi-staff
+**Scenario:** Da Fresha ad Styll — migrazione e gestione multi-staff
 
 | Fase | Frustrazione | Scoperta | Migrazione | Setup Multi-Staff | Gestione Reale |
 |------|-------------|----------|------------|-------------------|----------------|
@@ -418,7 +418,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 **Scoperta:**
 - Cerca su Google "gestionale barbieri senza commissioni"
-- Trova Amity: nessuna commissione, white-label
+- Trova Styll: nessuna commissione, white-label
 - Legge la promessa "il TUO brand, non il nostro"
 - È scettica ma incuriosita
 
@@ -643,7 +643,7 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 | **Fresha** | Owner, Team Member — semplice, pochi ruoli |
 | **GlossGenius** | Solo (1 utente) → Team plan recente |
 
-**Decisione — 4 ruoli per Amity:**
+**Decisione — 4 ruoli per Styll:**
 
 | Ruolo | Vede | Può fare |
 |-------|------|----------|
@@ -731,17 +731,17 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
   business_name: "Marco's Barber",
   primary_color: "#1A1A2E",
   secondary_color: "#E94560",
-  logo_url: "https://cdn.amity.app/tenants/marco/logo.png",
+  logo_url: "https://cdn.Styll.app/tenants/marco/logo.png",
   favicon_url: "...",
   custom_domain: "prenotamarco.it", // v2
-  subdomain: "marco.amity.app"     // v1
+  subdomain: "marco.Styll.app"     // v1
 }
 ```
 
 **v1 — Subdomain + CSS Variables:**
-- Ogni barbiere ha: `nomeattività.amity.app`
+- Ogni barbiere ha: `nomeattività.Styll.app`
 - CSS Variables caricate da config tenant → colori, font, logo cambiano runtime
-- Il cliente vede SOLO il brand del barbiere, MAI "Amity" (tranne un piccolo "Powered by" nel footer)
+- Il cliente vede SOLO il brand del barbiere, MAI "Styll" (tranne un piccolo "Powered by" nel footer)
 
 **v2 — Custom domain:**
 - Il barbiere usa il suo dominio: `prenotamarco.it`
@@ -929,7 +929,7 @@ CREATE TABLE client_loyalty (
 | **Infobip** | ~€0.04-0.05 (volume) |
 | **Vonage** | ~€0.062 |
 
-**Provider consigliati per Amity:** MessageBird o Infobip (API unificata WhatsApp + SMS, prezzi competitivi Italia, pay-as-you-go).
+**Provider consigliati per Styll:** MessageBird o Infobip (API unificata WhatsApp + SMS, prezzi competitivi Italia, pay-as-you-go).
 
 **Calcolo costi per barbiere singolo (~120 clienti/mese):**
 - Reminder 24h prima: 120 × €0.0248 = €2.98/mese
@@ -990,7 +990,7 @@ CREATE TABLE client_loyalty (
 | 2 | **Template social** | 5 template auto-generati col brand. Scaricabili in un tap. Editor Canva in v2 | v1 + v2 |
 | 3 | **Multi-staff** | 4 ruoli (Titolare, Manager, Staff, Receptionist). Invito email. Staff incluso da Tier 2 | v1 |
 | 4 | **Migrazione** | "Migrazione concierge gratis in 24h". CSV import + mapping guidato + template comunicazione | v1 |
-| 5 | **Brand-first** | Subdomain v1, custom domain v2. Zero menzione Amity nella PWA. GDPR: note private | v1 + v2 |
+| 5 | **Brand-first** | Subdomain v1, custom domain v2. Zero menzione Styll nella PWA. GDPR: note private | v1 + v2 |
 | 6 | **Dashboard** | Progressive complexity. Marco: 30% feature. Sara: 70%. Mobile-first. Stile Mangomint | v1 |
 | 7 | **CRM profilo** | 2 livelli (barbiere vede tutto, cliente vede i suoi dati). Note private. Semaforo churn | v1 |
 | 8 | **Gamification** | v1: punti classici. v2: streak+badge+tier+sfide. Silenzioso per Roberto, visibile per Luca | v1 + v2 |
@@ -1366,7 +1366,7 @@ I 2 mesi di grazia evitano la frustrazione del reset brutale.
 Stesso modello di Sephora Beauty Insider — validato dal mercato.
 
 Punti Iniziali per Clienti Storici
-Problema: il primo anno il barbiere attiva Amity e tutti i clienti storici partono da Bronze. Non è giusto.
+Problema: il primo anno il barbiere attiva Styll e tutti i clienti storici partono da Bronze. Non è giusto.
 Soluzione: il barbiere può assegnare punti iniziali ai clienti storici dal CRM.
 Come funziona:
 Il sistema suggerisce automaticamente i punti in base allo storico importato (es. "Luca ha 36 visite nello storico → suggerito 3.600 punti").
