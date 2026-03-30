@@ -761,6 +761,63 @@ In un mondo dove tutti automatizzano, il tocco umano diventa lusso.
 
 ---
 
+### Brand Foundation
+
+**Nome:** Styll
+
+**Mission:**
+Il tuo negozio, il tuo brand, i tuoi clienti — e la tecnologia dei migliori per farli crescere. Styll mette il professionista al centro di tutto e lavora al suo fianco perché ogni cliente torni.
+
+**Vision:**
+Un futuro dove ogni professionista su appuntamento ha in mano la tecnologia per costruire qualcosa di suo — un brand riconoscibile, una clientela fedele, un business che cresce. Senza dover scegliere tra qualità e prezzo. Senza cedere la propria identità a una piattaforma. Styll esiste per questo: essere lo strumento invisibile che rende possibile tutto il resto.
+
+**Valori:**
+- **Premium accessibile** — Funzionalità da leader di mercato, prezzo da indipendente.
+- **Trasparenza radicale** — Un prezzo. Niente sorprese. I tuoi dati sono tuoi.
+- **Retention come cura** — Non ti vendiamo visibilità. Ti aiutiamo a non perdere chi hai già.
+- **Il professionista prima del prodotto** — Il tuo brand è il protagonista. Il nostro lavora in silenzio.
+
+**Brand Personality:**
+Competente ma accessibile. Discreto ma presente. Moderno ma caldo. Sicuro ma mai arrogante. Stiloso ma sostanziale.
+
+**Brand Archetype:**
+Creator (diamo al professionista il potere di costruire il suo brand) + Caregiver (ci prendiamo cura del suo business in silenzio).
+
+---
+
+### Tone of Voice
+
+**Voice (costante, non cambia mai) — 3 tratti:**
+- Diretto
+- Caldo
+- Sicuro
+
+**Posizionamento sulle 4 dimensioni NNG:**
+
+| Asse | Posizione Styll |
+|------|----------------|
+| Formale ← → Casual | 7/10 casual — "tu", frasi brevi, zero burocratese, ma niente slang |
+| Serio ← → Umoristico | 3/10 umoristico — leggero ma non fa battute, rispetta la serietà del business |
+| Rispettoso ← → Irriverente | 2/10 irriverente — decisamente rispettoso, zero sarcasmo, zero provocazioni |
+| Entusiasta ← → Fattuale | 6/10 entusiasta — ha energia contenuta, celebra senza esagerare |
+
+**Tone (variabile per contesto):**
+
+| Touchpoint | Registro |
+|------------|----------|
+| Landing page B2B | Sicuro, ispirazionale, concreto |
+| Dashboard barbiere | Operativo, caldo, utile |
+| PWA cliente finale | Leggero, immediato, zero frizione |
+| Messaggi (SMS/WA/email) | Personale, rispettoso, mai spam |
+| Onboarding/setup | Incoraggiante, passo dopo passo |
+| Errori/empty states | Umano, mai colpevolizzante, con via d'uscita |
+
+**Doppio livello verbale:**
+- **Styll come Styll (B2B)** → voce riconoscibile, brand presente
+- **Styll come il barbiere (B2C)** → voce neutra, universale, Styll invisibile
+
+---
+
 ### 6. 📊 Design della Dashboard — ✅ DECISIONE PRESA
 
 **Problema:** La dashboard deve funzionare sia per Marco (1 sedia) sia per Sara (3 dipendenti, 2 sedi).
@@ -1309,6 +1366,7 @@ Raggiungibilità (con spesa media €25/visita):
 Livello
 Visite/anno necessarie
 Frequenza
+
 % clienti che ci arriveranno
 🥈 Livello 2
 ~10
