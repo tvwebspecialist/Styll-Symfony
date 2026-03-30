@@ -1309,6 +1309,7 @@ Raggiungibilità (con spesa media €25/visita):
 Livello
 Visite/anno necessarie
 Frequenza
+
 % clienti che ci arriveranno
 🥈 Livello 2
 ~10
