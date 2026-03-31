@@ -27,10 +27,12 @@
 | **Trigger** | Azione automatica del database che scatta quando succede qualcosa (es. "quando un appuntamento viene completato, aggiorna le metriche") |
 | **Cron job** | Processo programmato che gira a intervalli regolari (es. ogni notte ricalcola il semaforo churn) |
 | **Edge Function** | Codice che gira sul server Supabase, non nel browser. Usato per logica che deve essere sicura e centralizzata |
+| **Exclusion constraint** | Vincolo PostgreSQL che impedisce che due righe si sovrappongano (es. due appuntamenti allo stesso orario per lo stesso barbiere) |
+| **Partial unique index** | Indice UNIQUE che si applica solo alle righe che soddisfano una condizione (es. "un solo abbonamento attivo per tenant") |
 
 ---
 
-### Le 8 decisioni architetturali fondamentali
+### Le 10 decisioni architetturali fondamentali
 
 Ogni decisione è stata analizzata con alternative e motivazioni. Sono definitive.
 
@@ -54,6 +56,15 @@ Ogni decisione è stata analizzata con alternative e motivazioni. Sono definitiv
 | `cancelled` | Ha lasciato la piattaforma |
 
 **Perché separata:** Le info billing cambiano spesso (rinnovi, scadenze, cambi piano). I dati del barbiere (nome, logo, colori) cambiano raramente. Separando, ogni parte fa il suo lavoro senza interferenze.
+
+**Vincolo di unicità abbonamento attivo:**
+Un tenant può avere UN SOLO abbonamento in stato operativo alla volta. Implementato con partial unique index:
+```sql
+CREATE UNIQUE INDEX idx_tenant_subscriptions_one_active
+ON tenant_subscriptions (tenant_id)
+WHERE status IN ('trial', 'active', 'past_due');
+```
+Questo impedisce che un bug o una race condition nel flusso admin/Stripe crei due abbonamenti attivi contemporaneamente. Gli abbonamenti `suspended` e `cancelled` restano come storico.
 
 **Flusso v1:** Admin crea tenant → sistema crea abbonamento con `status: trial` e `trial_ends_at: +14 giorni` → barbiere paga fuori piattaforma → admin cambia status in `active`.
 
@@ -149,9 +160,9 @@ Luca (auth.users, telefono +39 333...)
 
 ---
 
-#### Decisione 6 — Slot temporali
+#### Decisione 6 — Slot temporali e prevenzione sovrapposizioni
 
-**Decisione:** Calcolati runtime via Edge Function. Mai tabella pre-generata.
+**Decisione:** Calcolati runtime via Edge Function. Mai tabella pre-generata. Sovrapposizioni impedite a livello di database.
 
 **Flusso:**
 1. Luca sceglie "Taglio + Barba" (45 min) nella PWA
@@ -162,24 +173,44 @@ Luca (auth.users, telefono +39 333...)
 
 **Perché no tabella slot:** 1 barbiere = ~6.000 righe/anno di slot. 1.000 barbieri = 6 milioni di righe, 95% vuote. Calcolarli al volo: pochi millisecondi, sempre aggiornati, zero spreco.
 
+**Prevenzione sovrapposizioni (race condition):**
+Se Luca e Anna prenotano lo stesso slot nello stesso istante, il database deve impedirlo. Implementato con exclusion constraint PostgreSQL:
+
+```sql
+-- Richiede l'estensione btree_gist (già disponibile su Supabase)
+ALTER TABLE appointments
+ADD CONSTRAINT no_overlapping_appointments
+EXCLUDE USING gist (
+  staff_id WITH =,
+  tstzrange(start_time, end_time) WITH &&
+)
+WHERE (status NOT IN ('cancelled', 'no_show') AND deleted_at IS NULL);
+```
+
+**Come funziona:**
+- Se Marco ha un appuntamento 10:00-10:45, nessun altro appuntamento può sovrapporsi per Marco in quel range
+- Gli appuntamenti cancellati o no-show non bloccano lo slot
+- Funziona a livello di database → impossibile da aggirare, anche con race condition nell'applicazione
+- L'Edge Function calcola gli slot disponibili, il constraint è la **rete di sicurezza** finale
+
 ---
 
 #### Decisione 7 — Analytics e metriche clienti
 
-**Decisione:** Tabella reale `client_analytics` + trigger su appointment completato + cron job notturno.
+**Decisione:** Tabella reale `client_analytics` + trigger su appointment completato/modificato + cron job notturno con riconciliazione completa.
 
 **Cosa viene pre-calcolato:**
 
-| Metrica | Aggiornamento |
-|---------|--------------|
-| Visite totali | Trigger (dopo ogni appuntamento completato) |
-| Spesa totale servizi | Trigger |
-| Spesa totale prodotti | Trigger |
-| Data ultima visita | Trigger |
-| Frequenza media (giorni) | Cron notturno |
-| Giorni dall'ultima visita | Cron notturno |
-| Semaforo churn 🟢🟡🔴 | Cron notturno |
-| VIP Score | Cron notturno |
+| Metrica | Aggiornamento primario | Riconciliazione |
+|---------|----------------------|-----------------|
+| Visite totali | Trigger (dopo ogni cambio status appointment) | Cron notturno (ricalcolo completo) |
+| Spesa totale servizi | Trigger | Cron notturno (ricalcolo completo) |
+| Spesa totale prodotti | Trigger | Cron notturno (ricalcolo completo) |
+| Data ultima visita | Trigger | Cron notturno (ricalcolo completo) |
+| Frequenza media (giorni) | Cron notturno | — |
+| Giorni dall'ultima visita | Cron notturno | — |
+| Semaforo churn 🟢🟡🔴 | Cron notturno | — |
+| VIP Score | Cron notturno | — |
 
 **Semaforo churn — logica:**
 
@@ -192,6 +223,13 @@ Luca (auth.users, telefono +39 333...)
 **Esempio:** Roberto viene ogni 28 giorni → giorno 25: 🟢 → giorno 35: 🟡 → giorno 45: 🔴
 
 **Perché tabella reale e non calcolato runtime:** Con 200 clienti, calcolare tutto al volo ad ogni apertura della dashboard significherebbe analizzare migliaia di appuntamenti. Con le metriche pre-calcolate, la dashboard legge numeri già pronti → istantaneo.
+
+**Strategia di riconciliazione (safety net):**
+Il trigger è veloce ma fragile: se un appuntamento viene segnato come `completed` e poi corretto in `no_show`, o se un appuntamento viene soft-deleted, il trigger potrebbe lasciare dati inconsistenti. Per questo:
+
+1. **Il trigger scatta su OGNI cambio di status** (non solo su `completed`) e ricalcola le metriche per quel cliente
+2. **Il cron notturno ricalcola TUTTO** per ogni cliente: conta gli appuntamenti `completed` reali, somma i prezzi reali, ricalcola la frequenza. Se trova discrepanze col trigger, sovrascrive
+3. Questo significa che nel peggiore dei casi, un dato sbagliato vive massimo fino alla notte successiva
 
 ---
 
@@ -206,6 +244,76 @@ Luca (auth.users, telefono +39 333...)
 
 **Regola:** `deleted_at` per cose che "spariscono". `is_active` per cose che si "accendono e spengono".
 
+**Chiarimento su `staff_members` — `is_active` vs `deleted_at`:**
+`staff_members` ha ENTRAMBI i campi, con significati diversi:
+
+| Stato | `is_active` | `deleted_at` | Significato | Esempio |
+|-------|-------------|-------------|-------------|---------|
+| Operativo | `true` | `NULL` | Lavora normalmente | Anna è attiva |
+| Sospeso | `false` | `NULL` | Temporaneamente non operativo, potrebbe tornare | Anna è in maternità |
+| Rimosso | `false` | `2025-03-15` | Ha lasciato il team definitivamente | Paolo si è licenziato |
+
+- **Sospeso (`is_active = false`, `deleted_at = NULL`):** non compare nel calendario, non riceve nuovi appuntamenti, ma il suo storico resta visibile. Può essere riattivato con un click
+- **Rimosso (`deleted_at = timestamp`):** sparisce da tutto. Lo storico appuntamenti/revenue resta grazie allo snapshot. Non riattivabile senza intervento admin
+- **Regola:** se c'è `deleted_at`, `is_active` è sempre `false`. L'applicazione deve impostare entrambi
+
+---
+
+#### Decisione 9 — Gestione fuso orario
+
+**Decisione:** Ogni tenant ha un campo `timezone` obbligatorio. Tutti gli orari sono salvati e confrontati rispettando il fuso orario del tenant.
+
+**Come funziona:**
+- `tenants.timezone` (es. `'Europe/Rome'`) — impostato al setup, modificabile dal titolare
+- `working_hours` usa `TIME` (senza timezone) → rappresenta l'orario LOCALE del barbiere (es. "9:00" = 9:00 a Roma)
+- `appointments` usa `TIMESTAMPTZ` → PostgreSQL salva in UTC, la conversione avviene in fase di query/display
+- L'Edge Function per il calcolo degli slot converte `working_hours` (TIME locale) → `TIMESTAMPTZ` usando il timezone del tenant
+
+**Perché serve:**
+- Il cambio ora legale (CET ↔ CEST) può creare buchi o sovrapposizioni se non gestito
+- Gli slot delle 9:00 locali diventano 8:00 UTC in inverno e 7:00 UTC in estate
+- Senza il timezone esplicito, i reminder arriverebbero all'ora sbagliata
+
+**Dove vive il dato:**
+- `tenants.timezone` — il timezone principale del business
+- Se un tenant ha più sedi in fusi orari diversi (raro per barbieri italiani, ma possibile in futuro), il timezone può essere sovrascritto a livello di `locations.timezone` (nullable, default = quello del tenant)
+
+---
+
+#### Decisione 10 — Gestione tier loyalty — Reset annuale
+
+**Decisione:** Reset annuale dei punti tier con 2 mesi di grazia.
+
+**Come funziona:**
+- A fine anno i punti tier (`tier_points_this_year`) si resettano a 0
+- Il tier raggiunto resta attivo per 2 mesi (periodo di grazia)
+- In quei 2 mesi, se il cliente ricomincia ad accumulare punti, mantiene il tier
+- Se dopo 2 mesi non ha abbastanza punti per quel tier, scende al tier corretto
+
+**Campi necessari in `client_loyalty`:**
+
+| Campo | Tipo | Scopo |
+|-------|------|-------|
+| `tier_points_this_year` | INTEGER | Punti accumulati nell'anno corrente (per calcolo tier) |
+| `tier_year` | INTEGER | Anno di riferimento (es. 2025) |
+| `tier_grace_expires_at` | TIMESTAMPTZ (nullable) | Scadenza del periodo di grazia. NULL se non in grazia |
+
+**Esempio:**
+
+| Mese | Punti anno | Tier attivo | Nota |
+|------|-----------|-------------|------|
+| Gen-Dic Anno 1 | 5.500 | 🥇 Oro | Raggiunto Oro |
+| 1 Gen Anno 2 | 0 (reset) | 🥇 Oro | Periodo di grazia (2 mesi), `tier_grace_expires_at = 1 Mar` |
+| Febbraio Anno 2 | 450 | 🥇 Oro | Ancora in grazia |
+| 1 Marzo Anno 2 | 900 | 🥉 Bronzo | Grazia scaduta → scende al tier corretto |
+| Giu Anno 2 | 2.800 | 🥈 Argento | Risale appena raggiunge la soglia |
+
+**Chi gestisce il reset:** Il cron notturno controlla ogni notte:
+1. Se `tier_year < anno_corrente` → resetta `tier_points_this_year = 0`, imposta `tier_grace_expires_at = +2 mesi`
+2. Se `tier_grace_expires_at < oggi` → ricalcola il tier in base ai punti reali, azzera la grazia
+
+**Perché nel documento database:** Questa logica impatta direttamente le colonne di `client_loyalty` e il comportamento del cron notturno. Deve essere documentata qui, non solo nel documento di progetto generale.
+
 ---
 
 ### Le 10 aree funzionali del database
@@ -216,11 +324,12 @@ Il database è organizzato in 10 macro-aree, dalle fondamenta verso le funzional
 
 #### AREA 1 — Business e Abbonamenti (le fondamenta)
 
-**Scopo:** I barbershop registrati, i piani disponibili, lo stato dell'abbonamento.
+**Scopo:** I barbershop registrati, le loro sedi, i piani disponibili, lo stato dell'abbonamento.
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
-| `tenants` | Il business (barbershop) | No (è la root) | `id`, `business_name`, `slug` (subdomain), `logo_url`, `primary_color`, `secondary_color`, `font_family`, `feature_flag_overrides` (JSONB), `status` (active/suspended), `created_at`, `updated_at` |
+| `tenants` | Il business (barbershop) | No (è la root) | `id`, `business_name`, `slug` (subdomain), `timezone` (es. 'Europe/Rome', obbligatorio), `logo_url`, `primary_color`, `secondary_color`, `font_family`, `feature_flag_overrides` (JSONB), `status` (active/suspended), `created_at`, `updated_at` |
+| `locations` | Sedi fisiche del tenant | Sì | `id`, `tenant_id`, `name`, `address`, `city`, `zip_code`, `phone`, `email`, `latitude` (DECIMAL, nullable), `longitude` (DECIMAL, nullable), `timezone` (nullable, override del tenant), `is_active`, `created_at`, `updated_at` |
 | `subscription_plans` | I 3 tier | No (globale) | `id`, `name`, `slug`, `price_monthly`, `max_staff`, `max_locations`, `max_messages_month`, `feature_flags` (JSONB), `is_active`, `created_at` |
 | `tenant_subscriptions` | Collegamento tenant → piano | Sì | `id`, `tenant_id`, `plan_id`, `status`, `trial_ends_at`, `current_period_start`, `current_period_end`, `stripe_subscription_id` (nullable, per v2), `stripe_customer_id` (nullable), `created_at`, `updated_at` |
 
@@ -228,17 +337,23 @@ Il database è organizzato in 10 macro-aree, dalle fondamenta verso le funzional
 ```
 subscription_plans ←── tenant_subscriptions ──→ tenants
 (1 piano serve N barbieri)     (ogni barbiere ha 1 abbonamento attivo)
+
+tenants ←── locations (1 tenant ha N sedi)
 ```
 
+**Vincoli:**
+- `UNIQUE(tenant_subscriptions.tenant_id) WHERE status IN ('trial', 'active', 'past_due')` — un solo abbonamento operativo per tenant
+- `UNIQUE(tenants.slug)` — subdomain unico
+
 **Chi vede cosa:**
-| Ruolo | `tenants` | `subscription_plans` | `tenant_subscriptions` |
-|-------|-----------|---------------------|----------------------|
-| Admin | ✅ Tutti | ✅ | ✅ Tutti |
-| Titolare | ✅ Solo il suo | ✅ | ✅ Solo il suo |
-| Manager | ✅ Solo il suo | ✅ | ❌ |
-| Staff | ✅ Solo il suo (dati base) | ❌ | ❌ |
-| Receptionist | ✅ Solo il suo (dati base) | ❌ | ❌ |
-| Cliente | ✅ Solo branding (nome, colori, logo) | ❌ | ❌ |
+| Ruolo | `tenants` | `locations` | `subscription_plans` | `tenant_subscriptions` |
+|-------|-----------|------------|---------------------|----------------------|
+| Admin | ✅ Tutti | ✅ Tutte | ✅ | ✅ Tutti |
+| Titolare | ✅ Solo il suo | ✅ Le sue | ✅ | ✅ Solo il suo |
+| Manager | ✅ Solo il suo | ✅ Le sue | ✅ | ❌ |
+| Staff | ✅ Solo il suo (dati base) | ✅ Le sue sedi | ❌ | ❌ |
+| Receptionist | ✅ Solo il suo (dati base) | ✅ Le sue sedi | ❌ | ❌ |
+| Cliente | ✅ Solo branding (nome, colori, logo) | ✅ Indirizzo e orari | ❌ | ❌ |
 
 ---
 
@@ -249,7 +364,7 @@ subscription_plans ←── tenant_subscriptions ──→ tenants
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
 | `profiles` | Profilo esteso di ogni `auth.users` | No (collegata a `auth.users`) | `id` (= `auth.users.id`), `user_type` ('staff'/'client'/'admin'), `full_name`, `phone`, `avatar_url`, `created_at`, `updated_at` |
-| `staff_members` | Staff di un tenant con ruolo | Sì | `id`, `tenant_id`, `profile_id` → `profiles.id`, `role` ('owner'/'manager'/'staff'/'receptionist'), `bio`, `photo_url`, `is_active`, `deleted_at`, `created_at`, `updated_at` |
+| `staff_members` | Staff di un tenant con ruolo | Sì | `id`, `tenant_id`, `profile_id` → `profiles.id`, `role` ('owner'/'manager'/'staff'/'receptionist'), `bio`, `photo_url`, `is_active` (BOOLEAN, per sospensione temporanea), `deleted_at` (TIMESTAMPTZ, per rimozione definitiva), `created_at`, `updated_at` |
 | `staff_locations` | Ponte N:N: staff ↔ sedi | Sì | `id`, `tenant_id`, `staff_id` → `staff_members.id`, `location_id` → `locations.id` |
 
 **Relazioni:**
@@ -266,6 +381,9 @@ auth.users ──→ profiles ──→ staff_members ──→ tenants
 
 **Perché `staff_locations` è una tabella ponte:**
 Anna lavora in 2 sedi, Giulia in 1. Relazione molti-a-molti → tabella ponte. Un array in `staff_members` impedirebbe JOIN e query efficienti.
+
+**`is_active` vs `deleted_at` su `staff_members`:**
+Vedi Decisione 8 per la spiegazione dettagliata dei 3 stati (operativo, sospeso, rimosso).
 
 **Chi vede cosa:**
 | Ruolo | `profiles` | `staff_members` | `staff_locations` |
@@ -327,7 +445,7 @@ products ──→ product_inventory ──→ locations
 |---------|-------|-------------|-------------------|
 | `working_hours` | Orari settimanali ricorrenti per staff | Sì | `id`, `tenant_id`, `staff_id`, `day_of_week` (0-6), `start_time` (TIME), `end_time` (TIME), `created_at` |
 | `working_hour_overrides` | Eccezioni per data specifica | Sì | `id`, `tenant_id`, `staff_id`, `date` (DATE), `is_closed` (BOOLEAN), `start_time` (TIME, nullable), `end_time` (TIME, nullable), `reason`, `created_at` |
-| `appointments` | L'appuntamento | Sì | `id`, `tenant_id`, `client_id`, `staff_id`, `location_id`, `start_time` (TIMESTAMPTZ), `end_time` (TIMESTAMPTZ), `status` ('pending'/'confirmed'/'completed'/'cancelled'/'no_show'), `booking_source`, `booked_by` (nullable), `payment_status` ('unpaid'/'paid'/'refunded'), `payment_method` ('cash'/'card'/'online'/'other'), `notes`, `deleted_at`, `created_at`, `updated_at` |
+| `appointments` | L'appuntamento | Sì | `id`, `tenant_id`, `client_id`, `staff_id`, `location_id`, `start_time` (TIMESTAMPTZ), `end_time` (TIMESTAMPTZ), `status` ('pending'/'confirmed'/'completed'/'cancelled'/'no_show'), `booking_source`, `booked_by` (nullable), `payment_status` ('unpaid'/'paid'/'refunded'), `payment_method` ('cash'/'card'/'online'/'other'), `notes`, `created_by` → `profiles.id` (nullable, chi ha materialmente creato il record), `deleted_at`, `created_at`, `updated_at` |
 | `appointment_services` | Servizi nell'appuntamento con prezzo snapshot | Sì | `id`, `tenant_id`, `appointment_id`, `service_id`, `price_at_booking` (DECIMAL), `created_at` |
 | `appointment_products` | Prodotti venduti con prezzo e quantità snapshot | Sì | `id`, `tenant_id`, `appointment_id`, `product_id`, `quantity`, `price_at_sale` (DECIMAL), `created_at` |
 
@@ -351,6 +469,12 @@ Marco lavora 9-13 e 15-19 il lunedì → 2 righe per lo stesso giorno. Questo mo
 
 **Prezzo snapshot:** Quando Luca prenota Taglio a €15, quel prezzo va in `appointment_services.price_at_booking`. Se domani Marco alza a €18, lo storico di Luca mostra ancora €15.
 
+**Prevenzione sovrapposizioni:** Exclusion constraint su `appointments` — vedi Decisione 6.
+
+**`booked_by` vs `created_by`:**
+- `booked_by` = chi è il "proprietario logico" della prenotazione (il cliente o lo staff per conto del quale si prenota). Usato per contatti e responsabilità
+- `created_by` = chi ha materialmente creato il record nel sistema. Usato per audit trail (es. "Anna la receptionist ha creato 15 appuntamenti oggi")
+
 **Chi vede cosa:**
 | Ruolo | `working_hours` | `appointments` | `appointment_services/products` |
 |-------|----------------|----------------|-------------------------------|
@@ -368,7 +492,7 @@ Marco lavora 9-13 e 15-19 il lunedì → 2 righe per lo stesso giorno. Questo mo
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
-| `clients` | Il cliente nel CRM | Sì | `id`, `tenant_id`, `profile_id` (nullable) → `profiles.id`, `full_name`, `phone`, `email`, `date_of_birth`, `preferred_contact_channel` ('push'/'whatsapp'/'sms'/'email'), `marketing_consent` (BOOLEAN), `data_consent` (BOOLEAN), `consent_date` (TIMESTAMPTZ), `tags` (JSONB, es. `["VIP", "nuovo"]`), `deleted_at`, `created_at`, `updated_at` |
+| `clients` | Il cliente nel CRM | Sì | `id`, `tenant_id`, `profile_id` (nullable) → `profiles.id`, `full_name`, `phone`, `email`, `date_of_birth`, `preferred_contact_channel` ('push'/'whatsapp'/'sms'/'email'), `marketing_consent` (BOOLEAN), `data_consent` (BOOLEAN), `consent_date` (TIMESTAMPTZ), `tags` (JSONB, es. `["VIP", "nuovo"]`), `created_by` → `profiles.id` (nullable, chi ha aggiunto il cliente), `deleted_at`, `created_at`, `updated_at` |
 | `client_notes` | Note private del barbiere | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `staff_id` → `staff_members.id` (chi ha scritto), `note_text`, `created_at` |
 
 **Relazioni:**
@@ -407,9 +531,9 @@ clients ←── client_notes (N note per cliente, con autore e data)
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
-| `loyalty_configs` | Config loyalty del tenant | Sì | `id`, `tenant_id`, `is_active` (BOOLEAN), `template` ('classic'/'streak_master'/'vip_club'), `points_per_visit` (per Classico), `points_per_euro` (per Streak Master), `streak_threshold_days` (default 45), `created_at`, `updated_at` |
+| `loyalty_configs` | Config loyalty del tenant | Sì | `id`, `tenant_id`, `is_active` (BOOLEAN), `template` ('classic'/'streak_master'/'vip_club'), `points_per_visit` (per Classico), `points_per_euro` (per Streak Master), `streak_threshold_days` (default 45), `version` (INTEGER, default 1), `created_at`, `updated_at` |
 | `rewards` | Catalogo ricompense (max 6) | Sì | `id`, `tenant_id`, `name`, `description`, `points_cost`, `reward_type` ('product'/'service'/'discount'/'custom'), `display_order`, `is_active`, `created_at`, `updated_at` |
-| `client_loyalty` | Stato loyalty del cliente | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `total_points`, `available_points`, `current_streak`, `longest_streak`, `current_tier` (default 'bronze'), `tier_points_this_year`, `tier_year`, `last_visit_date`, `created_at`, `updated_at` |
+| `client_loyalty` | Stato loyalty del cliente | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `total_points`, `available_points`, `current_streak`, `longest_streak`, `current_tier` (default 'bronze'), `tier_points_this_year`, `tier_year` (INTEGER), `tier_grace_expires_at` (TIMESTAMPTZ, nullable), `last_visit_date`, `created_at`, `updated_at` |
 | `loyalty_transactions` | Log ogni operazione punti | Sì | `id`, `tenant_id`, `client_id`, `type` ('earn'/'redeem'/'bonus'/'import'/'expire'/'adjustment'), `points` (positivo o negativo), `description`, `appointment_id` (nullable), `staff_id` (nullable, chi ha assegnato), `created_at` |
 | `reward_redemptions` | Riscatti effettuati | Sì | `id`, `tenant_id`, `client_id`, `reward_id` → `rewards.id`, `points_spent`, `confirmed_by` → `staff_members.id`, `confirmed_at`, `created_at` |
 
@@ -424,7 +548,7 @@ clients ←── client_notes (N note per cliente, con autore e data)
 
 **Relazioni:**
 ```
-loyalty_configs ──→ tenants (1:1, ogni barbiere ha 1 config loyalty)
+loyalty_configs ──→ tenants (1:1, ogni barbiere ha 1 config loyalty attiva)
 rewards ──→ tenants (1:N, ogni barbiere ha max 6 rewards)
 client_loyalty ──→ clients (1:1, ogni cliente ha 1 stato loyalty)
 loyalty_transactions ──→ clients + appointments (log di ogni movimento)
@@ -439,6 +563,15 @@ reward_redemptions ──→ clients + rewards + staff_members (chi conferma il 
 **Perché `loyalty_transactions` è fondamentale:**
 Senza questa tabella, non puoi rispondere a: "Quando ha guadagnato questi punti? Per quale visita? Chi glieli ha assegnati manualmente?". È l'audit trail completo della loyalty. Ogni riga = un evento con data, tipo, punti, e contesto.
 
+**Gestione cambio template loyalty:**
+`loyalty_configs` ha un campo `version` che si incrementa ad ogni cambio di template. Quando il barbiere cambia template (es. da Classico a Streak Master):
+1. I punti esistenti restano invariati (non si azzerano)
+2. La `version` si incrementa → il log in `loyalty_transactions` traccia quando è avvenuto il cambio
+3. I nuovi punti si calcolano con la nuova formula
+4. Lo storico rimane coerente perché `loyalty_transactions` ha già i punti assegnati con la formula precedente
+
+**Reset annuale dei tier:** Vedi Decisione 10.
+
 **Chi vede cosa:**
 | Ruolo | `loyalty_configs` | `rewards` | `client_loyalty` | `transactions` | `redemptions` |
 |-------|------------------|-----------|-----------------|----------------|---------------|
@@ -450,36 +583,45 @@ Senza questa tabella, non puoi rispondere a: "Quando ha guadagnato questi punti?
 
 ---
 
-#### AREA 7 — Messaggistica
+#### AREA 7 — Messaggistica e Notifiche
 
-**Scopo:** Template messaggi e registro di tutto ciò che viene inviato.
+**Scopo:** Template messaggi, registro di tutto ciò che viene inviato, e notifiche in-app per il barbiere.
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
 | `message_templates` | Modelli con segnaposto | Sì | `id`, `tenant_id`, `name`, `type` ('reminder'/'confirmation'/'win_back'/'review_request'/'loyalty_update'/'custom'), `channel` ('sms'/'whatsapp'/'email'/'push'), `subject` (per email), `body` (con placeholder: `{client_name}`, `{appointment_date}`, `{staff_name}`...), `is_active`, `created_at`, `updated_at` |
 | `messages_log` | Log messaggi inviati | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `template_id` → `message_templates.id` (nullable), `channel` ('sms'/'whatsapp'/'email'/'push'), `type`, `recipient` (telefono o email), `body_sent` (testo effettivo inviato), `status` ('queued'/'sent'/'delivered'/'failed'/'bounced'), `cost` (DECIMAL, nullable), `external_id` (ID del provider es. MessageBird), `sent_at`, `created_at` |
+| `staff_notifications` | Notifiche in-app per lo staff | Sì | `id`, `tenant_id`, `staff_id` → `staff_members.id` (nullable, NULL = visibile a tutto lo staff), `type` ('churn_alert'/'low_stock'/'new_booking'/'cancellation'/'review_received'/'system'), `title`, `body`, `data` (JSONB, nullable — contesto: client_id, appointment_id, product_id...), `is_read` (BOOLEAN DEFAULT false), `read_at` (TIMESTAMPTZ, nullable), `created_at` |
 
 **Relazioni:**
 ```
-message_templates ──→ tenants
+message_templates ��─→ tenants
 messages_log ──→ tenants + clients + message_templates (opzionale)
+staff_notifications ──→ tenants + staff_members (opzionale)
 ```
 
-**Perché separate:**
+**Perché `message_templates` e `messages_log` sono separate:**
 - Template = definizione ("Ciao {client_name}, domani alle {appointment_time}...")
 - Log = evento ("Inviato a Roberto via SMS alle 18:00, delivered, €0.045")
 - Un template viene usato migliaia di volte → 1:N
 
 **Il `body_sent` nel log:** Salviamo il testo effettivo inviato (con i placeholder già risolti) perché se il template cambia in futuro, lo storico dei messaggi inviati resta intatto.
 
+**Perché `staff_notifications` è una tabella dedicata:**
+Le notifiche in-app del barbiere (churn alert, scorta bassa, nuova prenotazione) NON sono messaggi al cliente. Sono avvisi interni per la dashboard. Servono:
+- Stato letta/non letta per il badge di notifica
+- Filtro per tipo (vedi solo i churn alert, vedi solo le nuove prenotazioni)
+- `staff_id` nullable: se NULL, la notifica è visibile a tutto lo staff del tenant (es. "Scorta bassa: Matt Clay")
+- `data` JSONB per il contesto: cliccando la notifica si apre il cliente/appuntamento/prodotto giusto
+
 **Chi vede cosa:**
-| Ruolo | `message_templates` | `messages_log` |
-|-------|--------------------|--------------  |
-| Titolare | ✅ CRUD | ✅ Lettura tutti |
-| Manager | ✅ CRUD | ✅ Lettura tutti |
-| Staff | ❌ | ✅ Lettura (i suoi clienti) |
-| Receptionist | ❌ | ❌ |
-| Cliente | ❌ | ❌ |
+| Ruolo | `message_templates` | `messages_log` | `staff_notifications` |
+|-------|--------------------|--------------  |----------------------|
+| Titolare | ✅ CRUD | ✅ Lettura tutti | ✅ Tutte le sue + quelle globali (staff_id NULL) |
+| Manager | ✅ CRUD | ✅ Lettura tutti | ✅ Tutte le sue + quelle globali |
+| Staff | ❌ | ✅ Lettura (i suoi clienti) | ✅ Solo le sue + quelle globali |
+| Receptionist | ❌ | ❌ | ✅ Solo le sue + quelle globali |
+| Cliente | ❌ | ❌ | ❌ |
 
 ---
 
@@ -489,7 +631,7 @@ messages_log ──→ tenants + clients + message_templates (opzionale)
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
-| `client_analytics` | Metriche calcolate | Sì | `id`, `tenant_id`, `client_id` → `clients.id` (UNIQUE 1:1), `total_visits`, `total_spent_services` (DECIMAL), `total_spent_products` (DECIMAL), `average_visit_frequency_days`, `last_visit_date`, `days_since_last_visit`, `churn_status` ('green'/'yellow'/'red'), `vip_score` (INTEGER 0-100), `first_visit_date`, `updated_at` |
+| `client_analytics` | Metriche calcolate | Sì | `id`, `tenant_id`, `client_id` → `clients.id` (UNIQUE 1:1), `total_visits`, `total_spent_services` (DECIMAL), `total_spent_products` (DECIMAL), `average_visit_frequency_days`, `last_visit_date`, `days_since_last_visit`, `churn_status` ('green'/'yellow'/'red'), `vip_score` (INTEGER 0-100), `first_visit_date`, `last_reconciled_at` (TIMESTAMPTZ — ultima riconciliazione cron), `updated_at` |
 
 **Relazione:**
 ```
@@ -497,8 +639,10 @@ client_analytics ──→ clients (1:1)
 ```
 
 **Quando si aggiorna:**
-- **Trigger** (dopo appointment completato): `total_visits`, `total_spent_*`, `last_visit_date`, `days_since_last_visit`
-- **Cron notturno** (ogni notte): `days_since_last_visit` (cambia ogni giorno anche senza nuovi appuntamenti), `churn_status`, `vip_score`, `average_visit_frequency_days`
+- **Trigger** (dopo ogni cambio status su appointment): `total_visits`, `total_spent_*`, `last_visit_date`, `days_since_last_visit`
+- **Cron notturno** (ogni notte — riconciliazione completa): TUTTE le metriche vengono ricalcolate da zero contando gli appuntamenti `completed` reali. `last_reconciled_at` viene aggiornato
+
+Vedi Decisione 7 per la strategia di riconciliazione dettagliata.
 
 **Chi vede cosa:**
 | Ruolo | `client_analytics` |
@@ -526,6 +670,10 @@ review_requests ──→ clients + appointments (opzionale)
 
 **Perché serve:** Per non inviare la richiesta 2 volte per la stessa visita. Per analytics: "quante recensioni richieste? quante completate?".
 
+**Rate limiting:**
+- Vincolo `UNIQUE(tenant_id, appointment_id) WHERE appointment_id IS NOT NULL` — massimo 1 richiesta per visita
+- Regola applicativa (Edge Function): massimo 1 richiesta ogni 14 giorni per lo stesso cliente, anche se ha fatto più visite. La Edge Function controlla l'ultimo `sent_at` per quel `client_id` prima di inviare
+
 **Chi vede cosa:**
 | Ruolo | `review_requests` |
 |-------|-------------------|
@@ -539,17 +687,19 @@ review_requests ──→ clients + appointments (opzionale)
 
 #### AREA 10 — Amministrazione Piattaforma
 
-**Scopo:** Gestione admin. L'admin monitora la salute della piattaforma, NON i dati operativi dei singoli barbieri.
+**Scopo:** Gestione admin. L'admin monitora la salute della piattaforma, NON i dati operativi dei singoli barbieri. Include audit log per operazioni sensibili.
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
 | `admin_users` | Admin piattaforma | No (globale) | `id`, `profile_id` → `profiles.id`, `role` ('superadmin'/'support'), `created_at` |
 | `tenant_activity_log` | Metriche aggregate per tenant | Sì (ma visibile solo ad admin) | `id`, `tenant_id`, `last_login_at`, `appointments_this_month`, `active_clients_count`, `total_revenue_this_month` (DECIMAL), `staff_count`, `updated_at` |
+| `audit_log` | Log operazioni sensibili | Sì | `id`, `tenant_id`, `actor_id` → `profiles.id` (chi ha fatto l'azione), `action` ('create'/'update'/'delete'/'status_change'), `entity_type` (es. 'appointment', 'client', 'service', 'reward', 'staff_member'), `entity_id` (UUID dell'entità modificata), `changes` (JSONB — `{"field": "price", "old": 15, "new": 18}`), `ip_address` (nullable), `created_at` |
 
 **Relazioni:**
 ```
 admin_users ──→ profiles
 tenant_activity_log ──→ tenants
+audit_log ──→ tenants + profiles
 ```
 
 **Cosa l'admin vede vs NON vede:**
@@ -561,6 +711,23 @@ tenant_activity_log ──→ tenants
 | Numero clienti e appuntamenti | I nomi o i dati dei clienti |
 | Revenue aggregato | Dettagli delle transazioni |
 
+**Perché `audit_log`:**
+- GDPR richiede di sapere chi ha modificato/cancellato dati personali
+- Dispute commerciali: "Chi ha cambiato il prezzo del servizio? Quando?"
+- Debugging: "Perché l'appuntamento di Luca risulta cancellato?"
+- Il titolare può vedere l'audit log del suo tenant. L'admin può vedere tutti
+- NON si logga ogni lettura (troppo costoso), solo le scritture/modifiche/cancellazioni
+
+**Chi vede cosa:**
+| Ruolo | `admin_users` | `tenant_activity_log` | `audit_log` |
+|-------|-------------|----------------------|-------------|
+| Admin | ✅ | ✅ Tutti | ✅ Tutti |
+| Titolare | ❌ | ❌ | ✅ Solo il suo tenant |
+| Manager | ❌ | ❌ | ✅ Solo il suo tenant (lettura) |
+| Staff | ❌ | ❌ | ❌ |
+| Receptionist | ❌ | ❌ | ❌ |
+| Cliente | ❌ | ❌ | ❌ |
+
 ---
 
 ### Mappa relazioni tra le 10 aree
@@ -568,12 +735,12 @@ tenant_activity_log ──→ tenants
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                AREA 10: ADMIN PIATTAFORMA                    │
-│           Monitora la salute di tutti i barbieri             │
+│      Monitora la salute di tutti i barbieri + audit log      │
 └──────────────────────┬───────────────────────────────────────┘
                        │ monitora
 ┌──────────────────────▼───────────────────────────────────────┐
 │              AREA 1: BUSINESS E ABBONAMENTI                  │
-│        Chi sono i barbieri, che piano hanno                   │
+│     Chi sono i barbieri, che piano hanno, dove sono (sedi)   │
 └────────┬────────────────────────────────────────────┬────────┘
          │                                            │
          ▼                                            ▼
@@ -586,6 +753,7 @@ tenant_activity_log ──→ tenants
          │       ┌──────────────────────────┐       │
          └──────►│  AREA 4: APPUNTAMENTI    │◄──────┘
                  │  Quando, con chi, cosa   │
+                 │  (no sovrapposizioni)    │
                  └────────────┬─────────────┘
                               │
                  ┌────────────▼─────────────┐
@@ -593,7 +761,7 @@ tenant_activity_log ──→ tenants
                  │  Chi sono i clienti      │
                  └──┬─────────────┬─────────┘
                     │             │
-         ┌──────────▼───┐  ┌─────▼──────────────┐
+         ┌──────────▼───┐  ��─────▼──────────────┐
          │  AREA 6:     │  │  AREA 8:           │
          │  LOYALTY E   │  │  ANALYTICS E       │
          │  GAMIFICATION│  │  CHURN DETECTION   │
@@ -602,6 +770,7 @@ tenant_activity_log ──→ tenants
      ┌──────────▼──────────┐    ┌────────────────────┐
      │  AREA 7:            │    │  AREA 9:           │
      │  MESSAGGISTICA      │    │  RECENSIONI        │
+     │  + NOTIFICHE IN-APP │    │                    │
      └─────────────────────┘    └────────────────────┘
 ```
 
@@ -609,20 +778,20 @@ tenant_activity_log ──→ tenants
 
 ### Riepilogo tabelle per fase
 
-**v1 (MVP) — 28 tabelle:**
+**v1 (MVP) — 32 tabelle:**
 
 | Area | Tabelle |
 |------|---------|
-| 1. Business | `tenants`, `subscription_plans`, `tenant_subscriptions` |
+| 1. Business | `tenants`, `locations`, `subscription_plans`, `tenant_subscriptions` |
 | 2. Utenti | `profiles`, `staff_members`, `staff_locations` |
 | 3. Catalogo | `services`, `staff_services`, `products`, `product_inventory` |
 | 4. Appuntamenti | `working_hours`, `working_hour_overrides`, `appointments`, `appointment_services`, `appointment_products` |
 | 5. CRM | `clients`, `client_notes` |
 | 6. Loyalty | `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions` |
-| 7. Messaggi | `message_templates`, `messages_log` |
+| 7. Messaggi e Notifiche | `message_templates`, `messages_log`, `staff_notifications` |
 | 8. Analytics | `client_analytics` |
 | 9. Recensioni | `review_requests` |
-| 10. Admin | `admin_users`, `tenant_activity_log` |
+| 10. Admin | `admin_users`, `tenant_activity_log`, `audit_log` |
 
 **v2 (Growth) — +5 tabelle:**
 
@@ -631,7 +800,7 @@ tenant_activity_log ──→ tenants
 | 3. Catalogo | `inventory_movements` |
 | 6. Gamification | `tier_configs`, `badges`, `client_badges`, `challenges` |
 
-**Totale: 33 tabelle** (28 v1 + 5 v2)
+**Totale: 37 tabelle** (32 v1 + 5 v2)
 
 **Tabelle senza `tenant_id` (globali):**
 - `subscription_plans` — i piani sono uguali per tutti
@@ -639,11 +808,11 @@ tenant_activity_log ──→ tenants
 - `profiles` — collegata a `auth.users`, non a un tenant specifico
 - `auth.users` — gestita da Supabase, non la creiamo noi
 
-**Tutte le altre 29 tabelle hanno `tenant_id`.**
+**Tutte le altre 33 tabelle hanno `tenant_id`.**
 
 ---
 
-### Regole architetturali — Le 8 regole d'oro
+### Regole architetturali — Le 10 regole d'oro
 
 | # | Regola | Perché |
 |---|--------|--------|
@@ -655,44 +824,5 @@ tenant_activity_log ──→ tenants
 | 6 | **Le note del barbiere sono SEMPRE private** | Tabella separata, il cliente non le vede MAI (GDPR) |
 | 7 | **UUID come primary key ovunque** | Impossibile da indovinare, sicuro, senza collisioni |
 | 8 | **Schema v1 pronto per v2** senza riscritture | Le tabelle v2 si aggiungono sopra, non si riscrive ciò che esiste |
-
----
-
-### Indici consigliati (da creare con le tabelle)
-
-Gli indici accelerano le query più frequenti. Ecco quelli necessari:
-
-| Tabella | Colonne indicizzate | Perché |
-|---------|--------------------|--------|
-| `appointments` | `tenant_id, staff_id, start_time` | Query più frequente: "appuntamenti di Marco oggi/questa settimana" |
-| `appointments` | `tenant_id, client_id` | "Storico appuntamenti di Luca" |
-| `appointments` | `tenant_id, status` | "Tutti gli appuntamenti confermati" |
-| `appointments` | `tenant_id, location_id, start_time` | "Appuntamenti di oggi a Roma Centro" |
-| `clients` | `tenant_id, phone` | Ricerca cliente per telefono (+ vincolo UNIQUE) |
-| `clients` | `tenant_id, deleted_at` | Filtrare i clienti non cancellati |
-| `client_loyalty` | `tenant_id, client_id` | Stato loyalty di un cliente |
-| `client_analytics` | `tenant_id, churn_status` | "Quanti clienti sono 🔴?" |
-| `client_analytics` | `tenant_id, vip_score` | "Top 10 clienti VIP" |
-| `loyalty_transactions` | `tenant_id, client_id, created_at` | "Storico punti di Luca, ordinato per data" |
-| `messages_log` | `tenant_id, client_id` | "Tutti i messaggi inviati a Roberto" |
-| `messages_log` | `tenant_id, sent_at` | "Messaggi inviati questo mese" |
-| `working_hours` | `tenant_id, staff_id, day_of_week` | Calcolo slot disponibili |
-| `working_hour_overrides` | `tenant_id, staff_id, date` | Eccezioni orario per data |
-| `product_inventory` | `tenant_id, product_id, location_id` | Giacenza di un prodotto in una sede |
-| `staff_members` | `tenant_id, role` | "Tutti i barbieri del mio tenant" |
-| `review_requests` | `tenant_id, client_id, appointment_id` | Evitare richieste duplicate |
-| `tenant_subscriptions` | `tenant_id, status` | "Il mio abbonamento è attivo?" |
-
----
-
-### Prossimo step
-
-Con questo documento, tutte le decisioni sono prese. Il prossimo step è:
-
-1. **Scrivere lo SQL** — creare le tabelle area per area, partendo da Area 1 + Area 2
-2. **Scrivere le RLS policy** — per ogni tabella, in base alla matrice "chi vede cosa"
-3. **Scrivere i trigger** — per aggiornamento automatico `client_analytics`
-4. **Scrivere il cron job** — per churn detection notturno
-5. **Testare** — inserire dati di test e verificare che le policy funzionino
-
----
+| 9 | **Ogni tenant ha un timezone esplicito** | Gli orari sono corretti anche con il cambio ora legale |
+| 10 | **Le operazioni sensibili sono loggate** | Audit log per GD
