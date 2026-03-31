@@ -79,7 +79,7 @@ export const useAppointments = (date?: string) => {
           .select('id, price')
           .in('id', data.service_ids)
 
-        const serviceInserts = (servicesData ?? []).map(s => ({
+        const serviceInserts = (servicesData ?? []).map((s: { id: string; price: number }) => ({
           tenant_id: tenantId,
           appointment_id: appt!.id,
           service_id: s.id,

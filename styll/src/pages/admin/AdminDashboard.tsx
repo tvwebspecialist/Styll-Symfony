@@ -25,8 +25,10 @@ const AdminDashboard: React.FC = () => {
       setTenants(list)
       setStats({
         total: list.length,
-        active: list.filter(t => (t.tenant_subscriptions as Array<{ status: string }>)?.[0]?.status === 'active').length,
-        trial: list.filter(t => (t.tenant_subscriptions as Array<{ status: string }>)?.[0]?.status === 'trial').length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        active: list.filter((t: any) => (t.tenant_subscriptions as Array<{ status: string }>)?.[0]?.status === 'active').length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        trial: list.filter((t: any) => (t.tenant_subscriptions as Array<{ status: string }>)?.[0]?.status === 'trial').length,
       })
       setIsLoading(false)
     }

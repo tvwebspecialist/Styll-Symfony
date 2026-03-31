@@ -85,7 +85,7 @@ export const useAnalytics = () => {
           .gte('paid_at', weekAgo),
       ])
 
-      const weekRevenue = (revenueData ?? []).reduce((sum, p) => sum + (p.amount ?? 0), 0)
+      const weekRevenue = (revenueData ?? []).reduce((sum: number, p: { amount?: number }) => sum + (p.amount ?? 0), 0)
 
       setMetrics({
         todayAppointments: todayCount ?? 0,

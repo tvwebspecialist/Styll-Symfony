@@ -27,7 +27,7 @@ export const useMessages = () => {
 
       const notifs = data ?? []
       setNotifications(notifs)
-      setUnreadCount(notifs.filter(n => !n.is_read).length)
+      setUnreadCount(notifs.filter((n: { is_read: boolean }) => !n.is_read).length)
     } catch (err: unknown) {
       console.error('Error loading notifications:', err)
     } finally {
