@@ -1,5 +1,5 @@
 // Mock Supabase client for demo mode — implements the builder pattern
-import { mockStore, PROFILE_MARCO_ID } from './data'
+import { mockStore, PROFILE_MARCO_ID, PROFILE_ADMIN_ID } from './data'
 
 // ── Auth state ──────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -315,11 +315,13 @@ const mockAuth = {
   },
 
   signInWithPassword: async ({ email }: { email: string; password: string }) => {
+    const isAdmin = email.toLowerCase().includes('admin')
+    const userId = isAdmin ? PROFILE_ADMIN_ID : PROFILE_MARCO_ID
     const session = {
       access_token: 'demo-token',
       refresh_token: 'demo-refresh',
       user: {
-        id: PROFILE_MARCO_ID,
+        id: userId,
         email,
         phone: null,
         app_metadata: {},

@@ -2,6 +2,7 @@
 
 // ── Consistent IDs ──────────────────────────────────────────────────────────
 export const TENANT_ID = 'a0000000-0000-4000-8000-000000000001'
+export const PROFILE_ADMIN_ID = 'b0000000-0000-4000-8000-000000000000'
 export const PROFILE_MARCO_ID = 'b0000000-0000-4000-8000-000000000001'
 export const PROFILE_LUCA_ID = 'b0000000-0000-4000-8000-000000000002'
 export const STAFF_MARCO_ID = 'c0000000-0000-4000-8000-000000000001'
@@ -22,6 +23,15 @@ const rid = (prefix: string, n: number) =>
 
 // ── Profiles ────────────────────────────────────────────────────────────────
 const profiles = [
+  {
+    id: PROFILE_ADMIN_ID,
+    user_type: 'admin',
+    full_name: 'Admin Styll',
+    phone: '+39 300 0000000',
+    avatar_url: null,
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2026-03-30T12:00:00Z',
+  },
   {
     id: PROFILE_MARCO_ID,
     user_type: 'staff',
