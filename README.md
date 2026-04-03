@@ -1,2 +1,0 @@
-# Amity
-Tesi e progetto 
