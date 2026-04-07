@@ -165,6 +165,18 @@ Luca (auth.users, telefono +39 333...)
 - `booked_by` → chi contattare se c'è un problema
 - `booking_source` → analytics: "60% PWA, 25% dashboard, 15% walk-in"
 
+
+⚠️ booking_source deve essere un enum, non una stringa libera: Senza vincolo, possono finire valori come 'pwa', 'PWA', 'Pwa', 'webapp' — rendendo le analytics inutili. Implementare come:
+
+SQL
+booking_source TEXT NOT NULL DEFAULT 'pwa'
+  CHECK (booking_source IN (
+    'pwa', 'dashboard_owner', 'dashboard_manager', 
+    'dashboard_staff', 'dashboard_receptionist', 
+    'walk_in', 'phone', 'whatsapp'
+  ))
+
+
 ---
 
 #### Decisione 6 — Slot temporali e prevenzione sovrapposizioni
