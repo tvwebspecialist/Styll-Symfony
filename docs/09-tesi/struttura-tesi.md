@@ -811,4 +811,4 @@ Parlamento Europeo e Consiglio dell'Unione Europea. (2022). Regolamento (UE) 202
 
 ---
 
-*Documento generato come guida alla strutturazione della tesi di laurea sul progetto Styll. Ultimo aggiornamento: 2025.*
+*Documento generato come guida alla strutturazione della tesi di laurea sul progetto Styll. Ultimo aggiornamento: 2025.*-
