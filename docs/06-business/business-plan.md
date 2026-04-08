@@ -58,10 +58,10 @@ Abbonamento SaaS a 3 tier (€19–€149/mese) + fee sulle transazioni (2,5–2
 
 | Periodo | Clienti paganti | MRR | ARR |
 |---------|----------------|-----|-----|
-| Mese 6 | 45 | €1.305 | €15.660 |
-| Mese 12 | 120 | €3.480 | €41.760 |
-| Anno 2 | 350 | €10.150 | €121.800 |
-| Anno 3 | 800 | €23.200 | €278.400 |
+| Mese 6 | 54 | €1.566 | €18.792 |
+| Mese 12 | 116 | €3.364 | €40.368 |
+| Anno 2 | 350 | €11.200 | €134.400 |
+| Anno 3 | 800 | €28.000 | €336.000 |
 
 **Break-even stimato:** mese 14–18 (con ~160 clienti paganti).
 
