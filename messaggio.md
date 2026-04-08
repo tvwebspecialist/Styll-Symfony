@@ -117,7 +117,7 @@ Ogni barbiere ha un sottodominio dedicato (`nome.Styll.app`) con colori, logo e 
 | **v2 — Crescita** | Post-lancio | Gamification completa, Win-back, QR walk-in, Multi-staff |
 | **v3 — AI** | Futuro | AI Coach, No-show prediction, Prezzi dinamici, WhatsApp booking |
 
-**Stato attuale:** concept, stack, competitor analysis, personas, user journeys, decisioni progettuali (10 temi), naming definitivo (Styll) — tutti completati. Prossimi passi: architettura informazione → wireframe → design system → UI high-fidelity → prototipo.
+**Stato attuale:** concept, stack, competitor analysis, personas, user journeys, decisioni progettuali (10 temi), naming definitivo (Styll), business plan (12/36 mesi), literature review, internazionalizzazione (9 mercati), Voice of Customer (2.800+ recensioni), pricing strategy, go-to-market, legal/GDPR, strategia social, KPI framework, database schema, architettura tecnica, analisi strategica, struttura tesi — tutti completati. Prossimi passi: branding e identità visiva → architettura informazione → wireframe → design system → UI high-fidelity → prototipo.
 
 ---
 

@@ -74,12 +74,24 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 | Roadmap feature (v1/v2/v3) | ✅ Completo | Media | Presente ma non prioritizzata con framework |
 | Stack tecnologico (React + Supabase) | ✅ Scelto | Media | PWA, multi-tenant, white-label |
 | Indice tesi (10 capitoli) | ✅ Completo | Alta | Struttura accademica definita |
+| Naming definitivo: Styll | ✅ Completo | Alta | Processo documentato in `docs/05-brand/naming-process.md` |
+| Business plan con proiezioni 12/36 mesi | ✅ Completo | Alta | Scenari pessimistico/realistico/ottimistico |
+| Literature review accademica | ✅ Completo | Alta | Fonti SaaS, retention, gamification |
+| Internazionalizzazione (9 mercati, PPP pricing) | ✅ Completo | Alta | Pricing adattato per potere d'acquisto |
+| Voice of Customer (2.800+ recensioni) | ✅ Completo | Alta | Analisi qualitativa su recensioni competitor |
+| Pricing strategy comparativa (7 modelli SaaS) | ✅ Completo | Alta | Benchmark di mercato dettagliato |
+| Go-to-market plan | ✅ Completo | Alta | Strategia acquisizione e canali |
+| Legal compliance / GDPR | ✅ Completo | Alta | Conformità normativa e privacy |
+| Strategia social e brand | ✅ Completo | Alta | Piano editoriale e posizionamento |
+| KPI framework e metriche SaaS | ✅ Completo | Alta | Dashboard metriche e target |
+| Architettura tecnica dettagliata | ✅ Completo | Alta | Infrastruttura, API, costi |
+| Analisi strategica completa | ✅ Completo | Alta | SWOT, Porter, value chain |
+| Struttura tesi definita | ✅ Completo | Alta | Capitoli, sezioni, metodologia |
 
 **Da completare:**
 
 | Area | Stato | Priorità |
 |------|-------|----------|
-| Naming definitivo: Styll | ✅ Completato | Alta | Processo documentato in `docs/05-brand/naming-process.md` |
 | Branding e identità visiva | ❌ Da fare | Alta |
 | Architettura dell'informazione | ❌ Da fare | Alta |
 | Wireframe low-fidelity | ❌ Da fare | Alta |

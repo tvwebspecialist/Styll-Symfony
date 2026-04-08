@@ -13,6 +13,19 @@
 - [x] Open Questions & spunti di approfondimento documentati (10 temi)
 - [x] Open Questions risolte — decisioni progettuali concrete per tutti i 10 temi
 - [x] Naming definitivo: Styll (processo documentato in `docs/05-brand/naming-process.md`)
+- [x] Business plan completo con proiezioni 12/36 mesi
+- [x] Literature review accademica
+- [x] Analisi di internazionalizzazione (9 mercati, PPP pricing)
+- [x] Voice of Customer su 2.800+ recensioni
+- [x] Pricing strategy comparativa (7 modelli SaaS)
+- [x] Go-to-market plan
+- [x] Legal compliance / GDPR
+- [x] Strategia social e brand
+- [x] KPI framework e metriche SaaS
+- [x] Database schema completo
+- [x] Architettura tecnica dettagliata
+- [x] Analisi strategica completa
+- [x] Struttura tesi definita
 - [ ] Branding e identità visiva
 - [ ] Architettura dell'informazione e flussi
 - [ ] Wireframe low-fidelity
