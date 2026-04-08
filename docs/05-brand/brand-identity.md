@@ -5,6 +5,7 @@
 
 # Brand Identity — Styll
 
+> Per il processo di scelta del nome Styll vedi [`naming-process.md`](naming-process.md) nella stessa cartella.
 > Per il contesto completo del progetto vedere anche: [`docs/01-progetto/overview.md`](../01-progetto/overview.md)
 
 # Visione e Idea — Styll

@@ -79,7 +79,7 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 
 | Area | Stato | Priorità |
 |------|-------|----------|
-| Naming definitivo | ❌ Da fare | Alta |
+| Naming definitivo: Styll | ✅ Completato | Alta | Processo documentato in `docs/05-brand/naming-process.md` |
 | Branding e identità visiva | ❌ Da fare | Alta |
 | Architettura dell'informazione | ❌ Da fare | Alta |
 | Wireframe low-fidelity | ❌ Da fare | Alta |

@@ -12,7 +12,7 @@
 - [x] User Journey Maps completate (4 journey per le 4 personas)
 - [x] Open Questions & spunti di approfondimento documentati (10 temi)
 - [x] Open Questions risolte — decisioni progettuali concrete per tutti i 10 temi
-- [ ] Naming definitivo da scegliere
+- [x] Naming definitivo: Styll (processo documentato in `docs/05-brand/naming-process.md`)
 - [ ] Branding e identità visiva
 - [ ] Architettura dell'informazione e flussi
 - [ ] Wireframe low-fidelity
