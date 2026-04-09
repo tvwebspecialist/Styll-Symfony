@@ -255,3 +255,128 @@ Nessun nuovo problema emerso in questa sessione. Restano aperti dalle sessioni p
 
 1. `589f397` audit: Task 2 - consolidamento numero competitor a 13
 2. `e5282f0` audit: Task 3 - consolidamento numero tabelle database a 33+5=38
+
+---
+
+# Sessione 4 — 9 aprile 2026
+
+## Sintesi
+
+Eseguiti i Task 5 (allineamento stack a Next.js 14+ con App Router + TypeScript) e 4 (cancellazione cartella `progetto/` duplicata di `docs/`). Questa è la sessione finale dell'audit di coerenza.
+
+## Task eseguiti
+
+### Task 5 — Stack Next.js 14+ con App Router + TypeScript
+
+**File modificati (18 file):**
+- `messaggio.md`: sinossi (riga 12) e tabella stack (riga 87) aggiornate da "React + Supabase" a "Next.js 14+ (App Router) + TypeScript + Supabase"
+- `docs/01-progetto/overview.md`: sinossi e tabella stack aggiornate
+- `docs/01-progetto/roadmap.md`: checklist "React + Supabase" → "Next.js 14+ App Router + TypeScript + Supabase"
+- `docs/02-mercato/analisi-mercato.md`: struttura costi BMC e scorecard tecnologico
+- `docs/02-mercato/trend-analysis.md`: header tecnologie
+- `docs/03-prodotto/product-roadmap.md`: tabella deliverables e rischi
+- `docs/06-business/business-plan.md`: sezione stack e tabella costi (Vercel al posto di Vercel/Netlify)
+- `docs/06-business/kpi-framework.md`: tabella stack e implementazione PostHog
+- `docs/07-tecnico/architettura.md`: dichiarazione stack, titolo, tabella gap, criticità #2 e #3 risolte, **nuova sezione 2.6**
+- `docs/07-tecnico/database-schema.md`: aggiunta nota workflow tipi TypeScript (`npx supabase gen types typescript`)
+- `docs/08-strategia/analisi-strategica.md`: 6 riferimenti stack aggiornati
+- `docs/08-strategia/internazionalizzazione.md`: stack, libreria i18n (react-i18next → next-i18next), raccomandazioni
+- `docs/08-strategia/legal-compliance.md`: tabella stack
+- `docs/08-strategia/partnership-ecosistem.md`: riferimento frontend API
+- `docs/09-tesi/literature-review.md`: dimensione architetturale
+- `docs/09-tesi/ARCHIVED-struttura-tesi-academic-6cap.md`: abstract italiano/inglese, indice, tabella mapping
+- `progetto/05-tecnologia-e-stack.md`: stack e titolo (prima della cancellazione in Task 4)
+- `progetto/08-roadmap-e-sviluppo.md`: checklist (prima della cancellazione in Task 4)
+
+**Sezione aggiunta:**
+- `docs/07-tecnico/architettura.md` sezione 2.6 "Decisioni prese durante l'audit" con giustificazioni formali per:
+  - Passaggio da React a Next.js 14+ con App Router (4 motivazioni)
+  - Adozione di TypeScript (3 motivazioni)
+
+**Criticità risolte:**
+- Criticità #2 "React senza framework" → ✅ Risolto (Next.js 14+ App Router)
+- Criticità #3 "Nessun type safety" → ✅ Risolto (TypeScript + tipi auto-generati Supabase)
+
+**Cambio libreria i18n:** react-i18next → next-i18next (wrapper ottimizzato per Next.js con supporto SSR/SSG)
+
+**File dove "React" è stato mantenuto (riferimenti legittimi, non dichiarazioni di stack):**
+- Stack dei competitor in `architettura.md` (Calendly, Acuity, Fresha, GlossGenius, Mangomint, Barberly, Square Appointments)
+- Nomi prodotto: React Email, React Query (TanStack Query)
+- Feature framework: React Server Components, React Context
+- Tabella alternative: "React + Vite" come alternativa non raccomandata
+- Sezione 2.6 che spiega la decisione (menziona React come scelta precedente)
+- `styll/` README (app React/Vite — fuori scope)
+- `docs/README.md` e `REPORT-RIORDINO.md` (riferimenti a styll/)
+- Voci storiche dell'audit log
+- Licenze: "React: MIT"
+
+### Task 4 — Cancellazione cartella `progetto/`
+
+**Esito check di completezza:** Nessun contenuto orfano trovato.
+
+Tutte le 8 corrispondenze verificate:
+
+| File `progetto/` | Corrispettivo in `docs/` | Esito |
+|---|---|---|
+| `01-visione-e-idea.md` | `docs/01-progetto/overview.md` + `docs/05-brand/brand-identity.md` | ✅ |
+| `02-funzionalita-e-feature.md` | `docs/03-prodotto/feature-overview.md` | ✅ |
+| `03-modello-di-business.md` | `docs/06-business/business-plan.md` (incl. 10 design decisions, riga 716) | ✅ |
+| `04-target-e-utenti.md` | `docs/04-utenti/personas-e-journeys.md` | ✅ |
+| `05-tecnologia-e-stack.md` | `docs/07-tecnico/architettura.md` (incl. API pricing, templates, GBP, cascade, righe 80-162) | ✅ |
+| `06-design-e-ux.md` | `docs/03-prodotto/design-ux.md` (identico) | ✅ |
+| `07-competitor-e-mercato.md` | `docs/02-mercato/competitor-analysis.md` + `analisi-mercato.md` (incl. 7 lamentele) | ✅ |
+| `08-roadmap-e-sviluppo.md` | `docs/01-progetto/roadmap.md` + `docs/03-prodotto/product-roadmap.md` | ✅ |
+
+**File cancellati:** 8 file, 1422 righe rimosse.
+
+**Link e riferimenti aggiornati (11 file):**
+- `messaggio.md`: rimossa tabella "Indice dei file dettagliati" (8 link a `progetto/`), sostituita con rimando a `docs/README.md`; aggiornato banner iniziale
+- `docs/README.md`: rimossa nota "I file originali sono ancora nelle loro posizioni originali"; aggiornata sezione "Note sui File Originali"; rimossi riferimenti `progetto/` dalla colonna Fonti di 10 righe
+- `docs/01-progetto/overview.md`: aggiornato header Fonti, rimosso banner progetto/, sostituita tabella indice con rimando a `docs/README.md`
+- `docs/01-progetto/roadmap.md`: aggiornato header Fonti
+- `docs/02-mercato/competitor-analysis.md`: aggiornato header Fonti e nota appendice
+- `docs/03-prodotto/design-ux.md`: aggiornato header Fonti
+- `docs/03-prodotto/feature-overview.md`: aggiornato header Fonti
+- `docs/04-utenti/personas-e-journeys.md`: aggiornato header Fonti
+- `docs/05-brand/brand-identity.md`: aggiornato header Fonti
+- `docs/06-business/business-plan.md`: aggiornato header Fonti e nota appendice
+- `docs/07-tecnico/architettura.md`: aggiornato header Fonti
+
+**Riferimenti `progetto/` mantenuti (documenti storici):**
+- `docs/REPORT-RIORDINO.md`: report storico del riordino, descrive il processo originale
+- `docs/00-audit-log.md`: voci storiche delle sessioni precedenti
+- `docs/09-tesi/ARCHIVED-struttura-tesi-academic-6cap.md`: file archiviato, tabella mapping storica
+
+---
+
+## Riepilogo finale dell'audit completo
+
+L'audit di coerenza del repository Styll è stato completato in 4 sessioni:
+
+| Sessione | Data | Task eseguiti |
+|---|---|---|
+| 1 | 2026-04-08 | Task 6 (naming), Task 7 (business plan), Task 8 (checklist) |
+| 2 | 2026-04-09 | Task 1 (indice tesi a 8 capitoli), ritocco Task 8 |
+| 3 | 2026-04-09 | Task 2 (competitor → 13), Task 3 (tabelle DB → 33) |
+| 4 | 2026-04-09 | Task 5 (stack Next.js+TS), Task 4 (cancellazione progetto/) |
+
+**Tutti i task del prompt originale sono stati eseguiti:**
+- ✅ Task 1 — Indice tesi a 8 capitoli (struttura ABA)
+- ✅ Task 2 — Numero competitor consolidato a 13
+- ✅ Task 3 — Numero tabelle DB consolidato a 28 v1 + 5 v2 = 33
+- ✅ Task 4 — Cartella `progetto/` cancellata (check completezza superato)
+- ✅ Task 5 — Stack allineato a Next.js 14+ App Router + TypeScript
+- ✅ Task 6 — Naming process documentato
+- ✅ Task 7 — 10 discrepanze business plan corrette
+- ✅ Task 8 — Checklist di stato aggiornata (13 voci)
+
+## Incongruenze residue
+
+Nessuna incongruenza residua. I due problemi aperti dalle sessioni precedenti sono stati risolti:
+1. ~~Stack dichiarato incoerente (React vs Next.js)~~ → risolto con Task 5
+2. ~~Cartella `progetto/` ancora presente~~ → risolto con Task 4
+
+## Commit fatti (Sessione 4)
+
+1. `c083e3a` audit: Task 5 - allineamento stack a Next.js 14+ con App Router + TypeScript
+2. `ac13fde` audit: Task 4 - cancellazione cartella progetto/ duplicata di docs/
