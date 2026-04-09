@@ -98,7 +98,7 @@ Eseguiti i Task 6, 7 e 8 dell'audit di coerenza del repository Styll. Documentat
 ## Altre incongruenze trovate durante l'audit (non risolte automaticamente)
 
 1. **Stack dichiarato incoerente:** `messaggio.md` dichiara "React + Supabase" come stack, ma `docs/07-tecnico/architettura.md` e `docs/06-business/business-plan.md` riportano anch'essi "React". Se il Task 5 (Stack Next.js + TypeScript) è previsto, questa incongruenza verrà risolta da quel task.
-2. **Indice tesi a "10 capitoli":** la checklist ancora dice "Indice tesi aggiornato (10 capitoli)" — se il Task 1 prevede una struttura a 8 capitoli, questa voce andrà aggiornata.
+2. ~~**Indice tesi a "10 capitoli":** la checklist ancora dice "Indice tesi aggiornato (10 capitoli)" — se il Task 1 prevede una struttura a 8 capitoli, questa voce andrà aggiornata.~~ → **Risolto in Sessione 2 (Task 1 + ritocco Task 8).**
 3. **`progetto/` ancora presente:** la cartella `progetto/` contiene 8 file che sembrano essere le fonti originali poi migrate in `docs/`. Se il Task 4 (cancellazione progetto/) è previsto, va fatto il check di completezza prima.
 4. **`120 clienti/mese` in `docs/07-tecnico/architettura.md:102` e `progetto/05-tecnologia-e-stack.md:97`:** si riferisce ai clienti *del singolo barbiere* (non ai clienti paganti di Styll), quindi NON è la stessa metrica del business plan. Non corretto perché semanticamente diverso.
 

@@ -73,7 +73,7 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 | Decisioni progettuali (10/10 open questions) | ✅ Completo | Alta | Con benchmark competitor e dati reali |
 | Roadmap feature (v1/v2/v3) | ✅ Completo | Media | Presente ma non prioritizzata con framework |
 | Stack tecnologico (React + Supabase) | ✅ Scelto | Media | PWA, multi-tenant, white-label |
-| Indice tesi (10 capitoli) | ✅ Completo | Alta | Struttura accademica definita |
+| Indice tesi (8 capitoli, struttura ABA) | ✅ Completo | Alta | Struttura definitiva per tesi ABA |
 | Naming definitivo: Styll | ✅ Completo | Alta | Processo documentato in `docs/05-brand/naming-process.md` |
 | Business plan con proiezioni 12/36 mesi | ✅ Completo | Alta | Scenari pessimistico/realistico/ottimistico |
 | Literature review accademica | ✅ Completo | Alta | Fonti SaaS, retention, gamification |

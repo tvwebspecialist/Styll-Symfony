@@ -47,7 +47,7 @@
 - [x] Roadmap feature completa (v1, v2, v3)
 - [x] Feature innovative esclusive definite (9 feature)
 - [x] Personas creati (4: 2 professionisti + 2 clienti)
-- [x] Indice tesi aggiornato (10 capitoli)
+- [x] Indice tesi definito (8 capitoli, struttura ABA)
 - [x] Brand Analysis "Your Company" completata
 - [x] User Journey Maps completate (4 journey per le 4 personas)
 - [x] Open Questions & spunti di approfondimento documentati (10 temi)
