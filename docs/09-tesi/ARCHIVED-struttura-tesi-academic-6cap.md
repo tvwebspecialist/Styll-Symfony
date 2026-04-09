@@ -1,3 +1,8 @@
+> ⚠️ **DOCUMENTO ARCHIVIATO**
+> Questa struttura tesi a 6 capitoli in stile academic (case study Yin) era una proposta elaborata prima della definizione del contesto ABA (Accademia di Belle Arti). È stata superata dalla struttura a 8 capitoli definita in `indice-tesi.md`. Conservata per riferimento storico.
+
+---
+
 # Struttura Tesi — Progetto Styll
 
 > Documento di pianificazione per la stesura della tesi di laurea sul progetto Styll: piattaforma SaaS verticale per la fidelizzazione nel settore barbershop con gamification e rilevamento silenzioso del churn.
