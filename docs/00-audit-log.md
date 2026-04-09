@@ -149,3 +149,109 @@ Nessun nuovo problema emerso in questa sessione. Restano aperti dalla Sessione 1
 
 1. `b4cb611` audit: Task 1 - allineamento indice tesi a 8 capitoli
 2. `47e5730` audit: ritocco Task 8 - voce indice tesi aggiornata da 10 a 8 capitoli
+
+---
+
+# Sessione 3 — 8 luglio 2025
+
+**Task eseguiti:** Task 2 (competitor), Task 3 (tabelle database)
+**Branch:** dev
+
+## Task 2 — Consolidamento numero competitor a 13
+
+### Problema
+Tre numeri discordanti nel repository:
+- `messaggio.md`: "8 competitor, 2 categorie"
+- `competitor-analysis.md`: matrice con 13 competitor
+- `ARCHIVED-struttura-tesi-academic-6cap.md`: citava Treatwell, Uala, Square Appointments (non presenti nella matrice)
+
+### Soluzione
+1. **Conteggio verificato**: 13 competitor con sezione analitica dedicata in `competitor-analysis.md`: Fresha, Booksy, theCut, Barberly, BookedBarber, GlossGenius, Phorest, Squire, Vagaro, Zenoti, Timely, Goldie, Boulevard
+2. **Treatwell, Uala, Square Appointments**: rimossi dal file archiviato (non avevano analisi dedicata). Riferimenti a Treatwell/Square Appointments in altri file (internazionalizzazione, pricing, stack tecnico) lasciati intatti — sono citazioni contestuali legittime, non competitor analizzati
+3. **Formato canonico**: *"13 competitor analizzati in dettaglio"*
+4. **`messaggio.md`**: tabella competitor sostituita con riepilogo breve + rimando a `docs/02-mercato/competitor-analysis.md`
+5. **Indice tesi**: Appendice A → "Matrice completa dei 13 competitor"
+
+### File modificati (8)
+- `messaggio.md`
+- `docs/01-progetto/roadmap.md`
+- `docs/01-progetto/overview.md`
+- `docs/07-tecnico/architettura.md`
+- `docs/08-strategia/strategia-social.md`
+- `docs/09-tesi/ARCHIVED-struttura-tesi-academic-6cap.md`
+- `docs/09-tesi/indice-tesi.md`
+- `progetto/08-roadmap-e-sviluppo.md`
+
+### Nota
+Il numero "7 prodotti competitor analizzati" in `docs/02-mercato/voice-of-customer.md` è stato lasciato intatto: si riferisce ai prodotti da cui sono state estratte le recensioni, non al totale dei competitor analizzati.
+
+---
+
+## Task 3 — Consolidamento numero tabelle database a 33+5=38
+
+### Problema
+Quattro numeri diversi nel repository:
+- `messaggio.md` / `architettura.md`: "28 tabelle v1, 33 v2"
+- `database-schema.md` (fonte canonica): dichiarava "35 v1, 40 totali" (errato)
+- `analisi-strategica.md`: "35 v1, 40 totali"
+- File archiviato: "35 tabelle"
+
+### Verifica
+Enumerazione manuale delle tabelle nella fonte canonica (`database-schema.md`):
+
+| Area funzionale | Tabelle | Conteggio |
+|-----------------|---------|-----------|
+| Business & Abbonamenti | tenants, subscription_plans, tenant_subscriptions, invoices | 4 |
+| Utenti & Staff | profiles, staff_members, staff_schedules | 3 |
+| Catalogo Servizi | services, service_categories, staff_services, working_hours | 4 |
+| Appuntamenti | appointments, appointment_services, recurring_appointments, waitlist_entries, payments, time_off | 6 |
+| CRM & Clienti | clients, client_notes, client_consents | 3 |
+| Loyalty & Gamification | loyalty_configs, loyalty_points, loyalty_rewards, loyalty_redemptions, loyalty_transactions | 5 |
+| Messaggistica | message_templates, messages_log, notifications | 3 |
+| Analytics | client_analytics | 1 |
+| Recensioni | reviews | 1 |
+| Admin & Platform | admin_users, audit_log, feature_flags | 3 |
+| **Totale v1** | | **33** |
+| **v2 (+5)** | tier_configs, badges, client_badges, challenges, inventory_movements | **5** |
+| **Totale** | | **38** |
+
+L'errore nel file canonico: il changelog riportava "32 → 35" citando "payments, client_consents, e conteggio corretto" — il "conteggio corretto" sovrastimava di 2.
+
+### Formato canonico
+*"33 tabelle in v1, +5 in v2 (totale 38)"*
+
+### File modificati (6)
+- `docs/07-tecnico/database-schema.md` (fonte canonica): 35→33 v1, 40→38 totale, 36→34 con tenant_id (38−3 globali−auth.users), changelog
+- `docs/07-tecnico/architettura.md`: 7 riferimenti "28 tabelle" → "33 tabelle"
+- `docs/03-prodotto/product-roadmap.md`: "33 tabelle" → "33 tabelle v1, 38 totali"
+- `docs/08-strategia/analisi-strategica.md`: "35 v1, 40 totali" → "33 v1, 38 totali"
+- `docs/09-tesi/ARCHIVED-struttura-tesi-academic-6cap.md`: 3 riferimenti "35" corretti
+- `docs/09-tesi/indice-tesi.md`: Appendice C → "38 tabelle"
+
+---
+
+## Ripasso numerico opportunistico
+
+Verifiche effettuate durante l'esecuzione dei Task 2 e 3:
+
+| Metrica | Risultato | Dettagli |
+|---------|-----------|----------|
+| TAM €41.3M / SAM €16.5M / SOM | ✅ Coerente | Verificato su 20+ file |
+| 137.730 barbieri italiani | ✅ Coerente | Verificato su 30+ file, zero discrepanze |
+| 82,7% micro-imprenditori | ✅ Coerente | Verificato su tutti i file |
+| MRR/ARR proiezioni | ✅ Già corretto | Sessione 1, Task 7 |
+
+**Nessuna nuova incongruenza numerica trovata.**
+
+---
+
+## Problemi aperti / richiedono decisione manuale
+
+Nessun nuovo problema emerso in questa sessione. Restano aperti dalle sessioni precedenti:
+1. Stack dichiarato incoerente (React vs Next.js) — da risolvere con Task 5
+2. Cartella `progetto/` ancora presente — da risolvere con Task 4
+
+## Commit fatti (Sessione 3)
+
+1. `589f397` audit: Task 2 - consolidamento numero competitor a 13
+2. `e5282f0` audit: Task 3 - consolidamento numero tabelle database a 33+5=38
