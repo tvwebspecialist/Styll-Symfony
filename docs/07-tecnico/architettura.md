@@ -236,7 +236,7 @@ L'obiettivo è fornire una guida concreta per trasformare il progetto di tesi do
 | 2 | **Multi-tenancy ben progettata** | RLS policy, `tenant_id` su ogni tabella, funzione helper `get_my_tenant_id()` |
 | 3 | **GDPR-first** | Tabella `client_consents` separata, soft delete con `deleted_by`, audit trail |
 | 4 | **Scalabilità prevista** | Slot calcolati runtime (no pre-generazione), indici espliciti, partitioning pianificato |
-| 5 | **Domain knowledge profondo** | 4 personas dettagliate, 4 user journey, analisi 8 competitor |
+| 5 | **Domain knowledge profondo** | 4 personas dettagliate, 4 user journey, analisi 13 competitor |
 | 6 | **Business model chiaro** | 3 tier con feature flags JSONB, pricing €19-149/mese |
 
 ### 2.4 — Criticità e gap

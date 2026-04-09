@@ -96,16 +96,12 @@ Ogni barbiere ha un sottodominio dedicato (`nome.Styll.app`) con colori, logo e 
 
 ## Competitor principali
 
-| Competitor | Tipo | Prezzo | Gap vs Noi |
-|-----------|------|--------|-----------|
-| **Fresha** | Marketplace | $19.95 + commissioni | Ruba il brand, loyalty +$60/mese extra |
-| **Booksy** | Marketplace | $29.99 | Fee nascoste, supporto lento |
-| **Barberly** | Brandizzato | ~$20 | Più simile a noi, ma zero retention |
-| **GlossGenius** | Brandizzato | $24 | UX bellissima, loyalty nulla, feature bloccate |
-| **Phorest** | Brandizzato | $99+ | Retention vera ma caro, contratti annuali |
+13 competitor analizzati in dettaglio, suddivisi in 3 categorie: marketplace (Fresha, Booksy, theCut), tool brandizzati (Barberly, BookedBarber, GlossGenius), soluzioni premium (Phorest, Squire, Vagaro, Zenoti, Timely, Goldie, Boulevard).
 
 **Posizionamento:** Phorest per i piccoli, al prezzo di GlossGenius, con la semplicità di Barberly.  
 **Blue ocean:** gamification nel settore barber/beauty — nessun competitor la offre.
+
+> Per l'analisi completa vedere [`docs/02-mercato/competitor-analysis.md`](docs/02-mercato/competitor-analysis.md).
 
 ---
 
@@ -131,5 +127,5 @@ Ogni barbiere ha un sottodominio dedicato (`nome.Styll.app`) con colori, logo e 
 | [`progetto/04-target-e-utenti.md`](progetto/04-target-e-utenti.md) | Target, 4 personas complete, 4 user journey maps dettagliate |
 | [`progetto/05-tecnologia-e-stack.md`](progetto/05-tecnologia-e-stack.md) | Stack, architettura multi-tenant, database schema SQL, API prezzi messaggistica, GDPR |
 | [`progetto/06-design-e-ux.md`](progetto/06-design-e-ux.md) | Dashboard (progressive complexity), CRM profilo avanzato, ruoli staff, brand-first, setup wizard |
-| [`progetto/07-competitor-e-mercato.md`](progetto/07-competitor-e-mercato.md) | Analisi completa 8 competitor, tabella comparativa, 7 lamentele universali, learnings, opportunities, dati di mercato |
+| [`progetto/07-competitor-e-mercato.md`](progetto/07-competitor-e-mercato.md) | Analisi completa 13 competitor analizzati in dettaglio, tabella comparativa, 7 lamentele universali, learnings, opportunities, dati di mercato |
 | [`progetto/08-roadmap-e-sviluppo.md`](progetto/08-roadmap-e-sviluppo.md) | Roadmap v1/v2/v3, stato attuale checklist, prossimi step, indice tesi definito (8 capitoli, struttura ABA) |

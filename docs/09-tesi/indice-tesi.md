@@ -100,7 +100,7 @@ Capitolo dedicato al brand, pensato per la relatrice copywriter.
 ### Bibliografia e sitografia
 
 ### Appendici
-- A — Matrice competitor
+- A — Matrice completa dei 13 competitor
 - B — Business Model Canvas
 - C — Database schema completo
 - D — Screenshot prototipo

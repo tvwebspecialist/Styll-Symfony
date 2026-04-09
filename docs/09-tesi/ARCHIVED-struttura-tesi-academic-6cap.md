@@ -200,7 +200,7 @@ The findings demonstrate how integrating gamification mechanics grounded in Self
   - GlossGenius (all-in-one beauty)
   - Phorest (salon management enterprise)
   - Squire (barbershop-specific US)
-  - Boulevard, Vagaro, Zenoti, Treatwell, Uala, Square Appointments
+  - Boulevard, Vagaro, Zenoti, BookedBarber, Timely, Goldie
 - 2.3.3 Matrice competitiva: funzionalità, pricing, target, posizionamento
 - 2.3.4 Gap analysis: l'assenza di soluzioni retention-first con gamification
 - 2.3.5 Posizionamento strategico di Styll: Blue Ocean Strategy (Kim & Mauborgne, 2005)
@@ -789,10 +789,6 @@ Squire. (2024). *Barbershop management platform*. https://www.getsquire.com
 Supabase. (2024). *The open source Firebase alternative*. https://supabase.com/docs
 
 theCut. (2024). *The #1 barber booking app*. https://thecut.co
-
-Treatwell. (2024). *Prenota trattamenti di bellezza online*. https://www.treatwell.it
-
-Uala. (2024). *Software gestionale per parrucchieri e centri estetici*. https://www.uala.com
 
 Y Combinator. (2024). *Startup Library: Resources for founders*. https://www.ycombinator.com/library
 

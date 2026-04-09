@@ -474,7 +474,7 @@ Domanda per voi:
 | Settimana | Tema | Piattaforma principale |
 |-----------|------|----------------------|
 | 1 | "Perché stiamo costruendo Styll" — la storia di origine | LinkedIn + Instagram Reel |
-| 2 | "Cosa abbiamo scoperto analizzando 8 competitor" | LinkedIn + Twitter thread |
+| 2 | "Cosa abbiamo scoperto analizzando 13 competitor" | LinkedIn + Twitter thread |
 | 3 | "La decisione più difficile: PWA vs app nativa" | LinkedIn + TikTok |
 | 4 | "Il silent churn: il problema che nessuno vede" | Instagram Carousel + Newsletter |
 | 5 | "Primo wireframe della dashboard" | Instagram Story + Twitter |
