@@ -17,7 +17,7 @@
 1. **Vision e posizionamento**: Styll è una piattaforma SaaS verticale "retention-first" per barbieri italiani indipendenti (137.730 attività, 82.7% micro-imprenditori). NON è un marketplace — il brand del professionista è sempre protagonista (white-label completo).
 2. **Differenziazione**: Gamification della loyalty (blue ocean — nessun competitor la offre), Silent Churn Detector, win-back automatico, pricing trasparente (3 tier: Starter €19-29, Growth €49-69, Pro €99-149), data ownership totale.
 3. **Competitor**: Fresha/Booksy/theCut sono marketplace (competitor indiretti). Barberly è il competitor diretto più vicino ma senza retention. Phorest è il benchmark retention ma costa $99+ e non è per piccoli. GlossGenius è il benchmark UX.
-4. **Architettura**: React + Supabase, PWA installabile, 3 interfacce (Admin, Barbiere, Cliente), multi-tenant con RLS. Setup guidato in 5 step (< 8 minuti). 4 personas definite (Marco, Sara, Luca, Roberto).
+4. **Architettura**: Next.js 14+ (App Router) + TypeScript + Supabase, PWA installabile, 3 interfacce (Admin, Barbiere, Cliente), multi-tenant con RLS. Setup guidato in 5 step (< 8 minuti). 4 personas definite (Marco, Sara, Luca, Roberto).
 5. **Roadmap**: v1 = MVP (prenotazioni + CRM + loyalty base + churn detector + PWA), v2 = gamification completa + win-back + walk-in QR, v3 = AI Coach + prediction + WhatsApp booking. 10 decisioni progettuali prese e documentate.
 
 ### ✅ Conferma lettura `database-architetture.md` — 5 punti chiave:
@@ -366,7 +366,7 @@ Fresha è il leader per volume, ma ha errori strutturali che creano frustrazione
 | Area | **Fresha** | **Barberly** | **GlossGenius** | **Phorest** | **Styll** |
 |------|-----------|-------------|----------------|------------|-----------|
 | **Cloud Provider** | AWS (probabile) | N/D | AWS/GCP (probabile) | AWS (confermato da job listings) | **Supabase (su AWS)** |
-| **Frontend Web** | React o Angular (SPA) | Dashboard web | React (probabile) | Angular/React | **React** |
+| **Frontend Web** | React o Angular (SPA) | Dashboard web | React (probabile) | Angular/React | **Next.js 14+ (App Router), TypeScript** |
 | **App Client** | Native iOS + Android | Native iOS + Android (per ogni barbiere) | PWA + Web app | Native iOS + Android | **PWA** |
 | **Backend** | Node.js o .NET Core (microservizi) | N/D | Node.js (probabile) | .NET / Java | **Supabase Edge Functions (Deno)** |
 | **Database** | PostgreSQL o MySQL (cloud-managed) | N/D | PostgreSQL (probabile) | SQL Server o PostgreSQL | **PostgreSQL (Supabase)** |
@@ -380,7 +380,7 @@ Fresha è il leader per volume, ma ha errori strutturali che creano frustrazione
 | **Auth** | OAuth2 + email/social | Email + social | Email + social + Apple | OAuth2 + SSO | **Supabase Auth (email + OTP telefono)** |
 | **Scalabilità** | 450K+ business, probabilmente sharding + read replicas + caching (Redis) | Piccola scala (migliaia) | Media scala (decine di migliaia) | Grande scala (migliaia di saloni) | **1K-10K tenant target v1-v2** |
 
-### Come si Posiziona il Nostro Stack (React + Supabase)
+### Come si Posiziona il Nostro Stack (Next.js + Supabase)
 
 **✅ Vantaggi dello stack Styll:**
 
@@ -408,7 +408,7 @@ Fresha è il leader per volume, ma ha errori strutturali che creano frustrazione
 | **Nessuna API pubblica competitor** | Non possiamo fare import automatico da Fresha/Booksy | CSV import + migrazione concierge manuale. In v2 valutare scraping etico |
 
 **Implicazioni per Styll:**
-Lo stack React + Supabase è il migliore per un progetto di tesi che deve diventare prodotto. Costo quasi zero per iniziare, features enterprise (RLS, Realtime, Edge Functions), e un percorso di scalabilità chiaro. I limiti sono gestibili e documentati.
+Lo stack Next.js + TypeScript + Supabase è il migliore per un progetto di tesi che deve diventare prodotto. Costo quasi zero per iniziare, features enterprise (RLS, Realtime, Edge Functions), e un percorso di scalabilità chiaro. I limiti sono gestibili e documentati.
 
 **Action items Fase 4:**
 - [ ] Monitorare i job listings di Fresha per capire il loro stack reale
@@ -913,7 +913,7 @@ Lo schema attuale in `database-architetture.md` è solido e ben strutturato. Le 
 
 | Sprint | Durata | Cosa si fa | Output |
 |--------|--------|-----------|--------|
-| **Sprint 0** | 1 settimana | Setup progetto: repo, Supabase project, React scaffold, design system base, CI/CD | Ambiente di sviluppo funzionante |
+| **Sprint 0** | 1 settimana | Setup progetto: repo, Supabase project, Next.js scaffold, design system base, CI/CD | Ambiente di sviluppo funzionante |
 | **Sprint 1** | 2 settimane | Database: creare tutte le tabelle v1, RLS policies, indici, funzioni helper, seed data | Schema SQL completo e funzionante su Supabase |
 | **Sprint 2** | 2 settimane | Auth + Profili: login staff (email+password), login cliente (OTP), profili, onboarding wizard (5 step) | Flusso di registrazione e login funzionante |
 | **Sprint 3** | 2 settimane | Catalogo + Staff: servizi, prodotti, staff members, ruoli, permessi base | Il barbiere può configurare servizi e team |
@@ -1005,7 +1005,7 @@ La roadmap è realistica per un progetto di tesi: ~5 mesi per l'MVP, primi clien
 
 3. **Fresha ha errori strutturali sfruttabili**: Loyalty a $59.95/mese (troppo cara per piccoli), commissioni nascoste fino al +70%, brand Fresha che domina l'esperienza (non il barbiere), zero churn detection, zero win-back. Ogni errore di Fresha è un'opportunità per Styll.
 
-4. **Lo stack React + Supabase è ideale per v1-v2**: Costo quasi zero per iniziare ($25/mese), RLS nativo per multi-tenancy, Realtime per calendario, Edge Functions per logica business. I limiti (vendor dependency, PWA push su iOS) sono gestibili e documentati.
+4. **Lo stack Next.js + TypeScript + Supabase è ideale per v1-v2**: Costo quasi zero per iniziare ($25/mese), RLS nativo per multi-tenancy, Realtime per calendario, Edge Functions per logica business. I limiti (vendor dependency, PWA push su iOS) sono gestibili e documentati.
 
 5. **Lo schema database è solido**: Le 12 decisioni architetturali sono fondate e ben motivate. Le criticità trovate sono minimali (DECIMAL consistency, indici mancanti, guest booking) e risolvibili in poche ore. Nessuna riscrittura necessaria.
 

@@ -36,7 +36,7 @@ Styll è una piattaforma SaaS verticale pensata per barbieri e micro-professioni
 - **Mercato attuale:** Italia (137.730 attività barber/beauty sul territorio, 82,7% micro-imprenditori individuali)
 - **Tipo di utenza:** Barbieri indipendenti e piccoli saloni (1–5 persone)
 - **Settore:** Beauty & grooming — sotto-segmento barber shop
-- **Stack tecnologico:** React (frontend) + Supabase (backend, database, auth) — architettura SaaS multi-tenant, PWA lato cliente
+- **Stack tecnologico:** Next.js 14+ con App Router, TypeScript (frontend) + Supabase (backend, database, auth) — architettura SaaS multi-tenant, PWA lato cliente
 - **Dipendenza da lingua/cultura:** Media-alta. L'esperienza è progettata per micro-professionisti italiani (terminologia, UX, flussi di comunicazione SMS/WhatsApp, cultura della fidelizzazione del barbiere). La localizzazione richiede adattamento linguistico, culturale e normativo.
 
 Il presente documento analizza l'opportunità, la fattibilità e la strategia per portare Styll in mercati internazionali, identificando i paesi più promettenti e definendo un playbook operativo di ingresso.
@@ -52,7 +52,7 @@ La seguente scorecard valuta la preparazione di Styll per l'espansione internazi
 | # | Criterio | Punteggio (1-10) | Note |
 |---|----------|:----------------:|------|
 | 1 | **Architettura tecnica scalabile** | 8 | Architettura SaaS multi-tenant cloud-based (Supabase), PWA cross-platform. Nessun vincolo infrastrutturale locale. Supabase supporta deployment multi-region. |
-| 2 | **Separazione contenuti/codice (i18n readiness)** | 5 | Attualmente l'interfaccia è in italiano hardcoded. Necessaria implementazione di un sistema i18n (es. react-i18next). La struttura React facilita la modularizzazione. |
+| 2 | **Separazione contenuti/codice (i18n readiness)** | 5 | Attualmente l'interfaccia è in italiano hardcoded. Necessaria implementazione di un sistema i18n (es. next-i18next). La struttura Next.js facilita la modularizzazione. |
 | 3 | **Indipendenza da valuta e pagamenti** | 4 | Pricing attuale in EUR. Necessaria integrazione con gateway multi-valuta (Stripe supporta 135+ valute). Nessun sistema PPP implementato. |
 | 4 | **Product-market fit domestico validato** | 6 | Il prodotto è in fase di tesi/MVP. Il PMF italiano è in fase di validazione. La proposta di valore (retention-first, gamification) è unica nel settore e potenzialmente universale. |
 | 5 | **Compliance e privacy (GDPR-ready)** | 7 | Essendo italiano, il prodotto è nativamente GDPR-compliant. Buona base per l'espansione in UE. Per mercati extra-UE servono adattamenti (CCPA, LGPD, Privacy Act). |
@@ -66,7 +66,7 @@ La seguente scorecard valuta la preparazione di Styll per l'espansione internazi
 - **36–50:** Pronto per l'espansione selettiva — iniziare con mercati adiacenti
 - **51–60:** Pronto per l'espansione aggressiva
 
-**Raccomandazione:** Styll ha un'architettura tecnica solida e una compliance GDPR nativa che costituiscono ottime fondamenta. Le aree di intervento prioritario prima dell'internazionalizzazione sono: (1) implementare i18n nel codebase React, (2) integrare pagamenti multi-valuta, (3) validare il PMF in Italia.
+**Raccomandazione:** Styll ha un'architettura tecnica solida e una compliance GDPR nativa che costituiscono ottime fondamenta. Le aree di intervento prioritario prima dell'internazionalizzazione sono: (1) implementare i18n nel codebase Next.js, (2) integrare pagamenti multi-valuta, (3) validare il PMF in Italia.
 
 ---
 
@@ -328,9 +328,9 @@ La localizzazione del prodotto va oltre la semplice traduzione. Per Styll, che �
 
 ### 6.2 Internazionalizzazione tecnica (i18n)
 
-**Implementazione raccomandata per React:**
+**Implementazione raccomandata per Next.js:**
 
-1. **Libreria:** `react-i18next` (standard de facto per React i18n, 5M+ download/settimana su npm)
+1. **Libreria:** `next-i18next` (wrapper di react-i18next ottimizzato per Next.js, con supporto SSR/SSG nativo)
 2. **Struttura file di traduzione:**
    ```
    /src/locales/
@@ -442,7 +442,7 @@ Prezzo base di riferimento: **Tier 1 Starter = €25/mese** (Italia)
 **Obiettivo:** Validare la domanda in 1–2 mercati pilota senza investimento strutturale.
 
 **Azioni:**
-1. **Implementare i18n nel codebase React** — Estrarre tutte le stringhe hardcoded, configurare `react-i18next`, creare file di traduzione per spagnolo e portoghese
+1. **Implementare i18n nel codebase Next.js** — Estrarre tutte le stringhe hardcoded, configurare `next-i18next`, creare file di traduzione per spagnolo e portoghese
 2. **Tradurre l'interfaccia** in spagnolo (Spagna) e portoghese (Portogallo) — Livello L1
 3. **Configurare Stripe** per accettare pagamenti in EUR dai nuovi mercati (stessa valuta, configurazione minima)
 4. **Landing page localizzata** — Creare versioni spagnola e portoghese della landing page di Styll
@@ -617,7 +617,7 @@ Prezzo base di riferimento: **Tier 1 Starter = €25/mese** (Italia)
 
 ### Punti di forza per l'internazionalizzazione
 
-1. **Architettura cloud-native multi-tenant:** Supabase + React è uno stack moderno, scalabile e senza vincoli geografici. Supporta deployment multi-region con minimo sforzo.
+1. **Architettura cloud-native multi-tenant:** Supabase + Next.js è uno stack moderno, scalabile e senza vincoli geografici. Supporta deployment multi-region con minimo sforzo.
 
 2. **Proposta di valore universale:** La retention del cliente (loyalty, win-back, churn detection) è un bisogno universale per i barbieri, indipendentemente dal paese. La gamification non ha barriere culturali (Duolingo lo dimostra).
 

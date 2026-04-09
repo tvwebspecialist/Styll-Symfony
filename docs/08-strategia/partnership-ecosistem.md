@@ -316,7 +316,7 @@
 
 ### Fase 1 — API interna (v1, Mese 1-6)
 
-**Obiettivo:** API RESTful interna usata dal frontend React e dalla PWA.
+**Obiettivo:** API RESTful interna usata dal frontend Next.js e dalla PWA.
 
 **Approccio:** Supabase fornisce automaticamente API REST (PostgREST) e Realtime per ogni tabella. Le RLS policy gestiscono l'autorizzazione per tenant.
 

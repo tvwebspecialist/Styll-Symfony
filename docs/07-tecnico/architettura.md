@@ -6,7 +6,7 @@
 # Tecnologia e Stack — Styll
 
 ## Stack Tecnologico
-- **Frontend:** React
+- **Frontend:** Next.js 14+ con App Router, TypeScript
 - **Backend / Database / Auth:** Supabase
 - **Architettura:** SaaS online, sempre accessibile, aggiornabile centralmente
 - **Tipo app cliente:** PWA (Progressive Web App) — no App Store, installabile da browser
@@ -19,7 +19,7 @@ Un'unica piattaforma centrale che ospita più barbieri contemporaneamente, mante
 
 ---
 
-## Architettura branding per tenant (React + Supabase)
+## Architettura branding per tenant (Next.js + Supabase)
 
 ```javascript
 // Ogni tenant ha un config in Supabase
@@ -219,7 +219,7 @@ L'obiettivo è fornire una guida concreta per trasformare il progetto di tesi do
 
 | Layer | Tecnologia dichiarata | Note |
 |-------|----------------------|------|
-| **Frontend** | React | Nessun framework specifico (Next.js non menzionato) |
+| **Frontend** | Next.js 14+ (App Router), TypeScript | Routing multi-tenant nativo, SSR/SSG per landing, SEO |
 | **Backend / API** | Supabase (Edge Functions) | PostgreSQL + Auth + Realtime + Storage |
 | **Database** | PostgreSQL (via Supabase) | 33 tabelle in v1, +5 in v2 (totale 38), RLS multi-tenant |
 | **Autenticazione** | Supabase Auth | Email+password (staff), OTP SMS (clienti) |
@@ -244,8 +244,8 @@ L'obiettivo è fornire una guida concreta per trasformare il progetto di tesi do
 | # | Criticità | Rischio | Raccomandazione |
 |---|-----------|---------|-----------------|
 | 1 | **Zero codice implementato** | Alto — nessuna validazione tecnica delle scelte | Iniziare con MVP verticale (booking + CRM) |
-| 2 | **React senza framework** | Medio — React vanilla richiede routing, SSR, bundling manuali | Adottare **Next.js** come framework React |
-| 3 | **Nessun type safety** | Medio — Supabase genera tipi, ma senza TypeScript si perdono | Adottare **TypeScript** end-to-end |
+| 2 | ~~React senza framework~~ | ✅ **Risolto** — adottato Next.js 14+ con App Router (decisione audit sessione 4) | — |
+| 3 | ~~Nessun type safety~~ | ✅ **Risolto** — adottato TypeScript end-to-end (decisione audit sessione 4) | — |
 | 4 | **Nessuna strategia di test** | Alto — 33 tabelle con trigger e cron senza test | Definire strategia testing (unit + integration + e2e) |
 | 5 | **Nessuna UI library scelta** | Basso — ma impatta velocity di sviluppo | Adottare **shadcn/ui** + **Tailwind CSS** |
 | 6 | **State management non definito** | Basso — Supabase realtime + React context possono bastare | Valutare **Zustand** o **TanStack Query** |
@@ -261,6 +261,34 @@ Pur non essendoci codice, le decisioni documentate presentano aree di debito tec
 3. **Exclusion constraint per overlap**: richiede estensione `btree_gist` — verificare disponibilità su Supabase
 4. **Funzione `get_my_tenant_id()` STABLE**: performance dipende dal query planner di PostgreSQL — testare con EXPLAIN ANALYZE
 5. **33 tabelle + trigger + RLS in v1**: complessità significativa per un MVP — valutare un rilascio più graduale
+
+---
+
+### 2.6 — Decisioni prese durante l'audit
+
+Durante la sessione di audit di coerenza del 9 aprile 2026, sono state formalizzate le seguenti decisioni tecniche che risolvono alcune criticità identificate nelle sezioni precedenti:
+
+#### Passaggio da "React" a "Next.js 14+ con App Router"
+
+**Decisione**: Lo stack front-end ufficiale è Next.js 14+ con App Router, non React vanilla.
+
+**Motivazioni**:
+1. **Routing multi-tenant nativo**: il requisito architetturale di gestire ogni barbiere come tenant con routing dinamico (`[slug]`) è nativo in Next.js App Router, che è stato progettato esattamente per questo caso d'uso
+2. **Performance delle landing page**: le landing page brandizzate dei barbieri sono il primo touchpoint del funnel di conversione cliente. La user journey di Luca (Cap. 4.5) identifica come requisito critico un caricamento sotto i 2 secondi. Next.js permette di generare queste pagine in modalità SSR o SSG, ottenendo tempi di first contentful paint inferiori rispetto a una SPA React vanilla
+3. **SEO per acquisizione organica**: il business plan include il content marketing SEO come canale di acquisizione primario. Le landing page dei barbieri devono essere indicizzabili, requisito risolto dal rendering server-side di Next.js
+4. **Standard di mercato**: nel 2026 Next.js è il framework di default per progetti React SaaS, con documentazione, community e tooling maturi
+
+#### Adozione di TypeScript
+
+**Decisione**: Il codice applicativo è scritto in TypeScript, non in JavaScript puro.
+
+**Motivazioni**:
+1. **Qualità del codice generato da AI tool**: il workflow di sviluppo previsto per il progetto include l'uso intensivo di AI assistant (GitHub Copilot, Claude) per la generazione di codice partendo da design Figma e istruzioni testuali. TypeScript fornisce agli AI tool le informazioni di tipo necessarie per generare codice corretto al primo tentativo, riducendo gli errori di integrazione con il database
+2. **Tipi auto-generati da Supabase**: lo schema delle 33 tabelle v1 (38 totali) può essere tradotto in tipi TypeScript automaticamente con il comando `npx supabase gen types typescript`. Questo garantisce coerenza end-to-end tra database e codice applicativo senza dichiarazioni manuali
+3. **Rilevamento errori in fase di sviluppo**: in un progetto con 4 ruoli utente, multi-tenant, 33 tabelle e branding dinamico, il rilevamento precoce di errori di tipo da parte dell'editor (VS Code) riduce significativamente il tempo di debug
+
+**Data della decisione**: 9 aprile 2026
+**Stato**: applicata a tutta la documentazione a partire dalla sessione di audit 4
 
 ---
 

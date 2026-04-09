@@ -1,7 +1,7 @@
 # Tecnologia e Stack — Styll
 
 ## Stack Tecnologico
-- **Frontend:** React
+- **Frontend:** Next.js 14+ con App Router, TypeScript
 - **Backend / Database / Auth:** Supabase
 - **Architettura:** SaaS online, sempre accessibile, aggiornabile centralmente
 - **Tipo app cliente:** PWA (Progressive Web App) — no App Store, installabile da browser
@@ -14,7 +14,7 @@ Un'unica piattaforma centrale che ospita più barbieri contemporaneamente, mante
 
 ---
 
-## Architettura branding per tenant (React + Supabase)
+## Architettura branding per tenant (Next.js + Supabase)
 
 ```javascript
 // Ogni tenant ha un config in Supabase

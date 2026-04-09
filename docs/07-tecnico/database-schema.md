@@ -1002,6 +1002,10 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 
 **Tutte le altre 34 tabelle hanno `tenant_id`.**
 
+### Workflow tipi TypeScript
+
+> I tipi TypeScript di tutte le tabelle sono auto-generati da Supabase con il comando `npx supabase gen types typescript --project-id [id] > types/database.ts`. Questo garantisce coerenza end-to-end tra schema del database e codice applicativo: ogni modifica allo schema si riflette immediatamente come errore di tipo nell'editor se il codice usa campi obsoleti o tipi errati.
+
 ---
 
 ### Regole architetturali — Le 12 regole d'oro (✏️ aggiornate)

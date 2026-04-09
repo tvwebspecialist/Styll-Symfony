@@ -8,7 +8,7 @@
 > **Progetto:** Styll — SaaS verticale per barbieri con focus sulla retention  
 > **Settore:** Beauty & Barber Tech · Vertical SaaS · Loyalty & Gamification  
 > **Target:** Barbieri italiani indipendenti (137.730 attività, 82,7% micro-imprenditori)  
-> **Tecnologie:** React, Supabase, PWA, AI (pianificata)  
+> **Tecnologie:** Next.js 14+ (App Router), TypeScript, Supabase, PWA, AI (pianificata)  
 > **Data analisi:** Aprile 2026
 
 ---

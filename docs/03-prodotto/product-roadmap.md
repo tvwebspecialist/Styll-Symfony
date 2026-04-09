@@ -72,7 +72,7 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 | Gamification design (4 layer, 3 template) | ✅ Completo | Alta | Soglie calibrate, flussi per persona |
 | Decisioni progettuali (10/10 open questions) | ✅ Completo | Alta | Con benchmark competitor e dati reali |
 | Roadmap feature (v1/v2/v3) | ✅ Completo | Media | Presente ma non prioritizzata con framework |
-| Stack tecnologico (React + Supabase) | ✅ Scelto | Media | PWA, multi-tenant, white-label |
+| Stack tecnologico (Next.js 14+ App Router + TypeScript + Supabase) | ✅ Scelto | Media | PWA, multi-tenant, white-label |
 | Indice tesi (8 capitoli, struttura ABA) | ✅ Completo | Alta | Struttura definitiva per tesi ABA |
 | Naming definitivo: Styll | ✅ Completo | Alta | Processo documentato in `docs/05-brand/naming-process.md` |
 | Business plan con proiezioni 12/36 mesi | ✅ Completo | Alta | Scenari pessimistico/realistico/ottimistico |
@@ -98,7 +98,7 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 | Design system | ❌ Da fare | Alta |
 | UI high-fidelity | ❌ Da fare | Alta |
 | Prototipo interattivo (Figma) | ❌ Da fare | Alta |
-| Implementazione frontend (React) | ❌ Da fare | Media |
+| Implementazione frontend (Next.js + TypeScript) | ❌ Da fare | Media |
 | Implementazione backend (Supabase) | ❌ Da fare | Media |
 | Testing e validazione | ❌ Da fare | Media |
 | Scrittura tesi (Cap. 1-10) | ❌ Da fare | Alta |

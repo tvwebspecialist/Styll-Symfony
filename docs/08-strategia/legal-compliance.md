@@ -44,7 +44,7 @@
 | **Tipo di dati trattati** | Dati personali (nome, telefono, email), dati di prenotazione, dati di pagamento, dati di loyalty/gamification, note CRM, storico visite, preferenze cliente, dati di geolocalizzazione (slot filler), punteggi comportamentali (VIP Score, churn detection) |
 | **Mercato di riferimento** | Italia (primario), UE (scalabilità futura) |
 | **Modello di business** | B2B2C — SaaS venduto ai barbieri (B2B) che lo usano con i propri clienti finali (B2C) |
-| **Stack tecnologico** | React (frontend), Supabase (backend/database/auth), PWA |
+| **Stack tecnologico** | Next.js 14+ con App Router, TypeScript (frontend), Supabase (backend/database/auth), PWA |
 | **Integrazioni** | Google Business Profile (OAuth 2.0), Instagram, WhatsApp, SMS, Apple Pay, pagamenti online |
 | **Pagamenti** | Abbonamento SaaS + % sulle transazioni (2,5–2,9%), hardware (card reader) |
 | **White-label** | Ogni barbiere ha la propria app brandizzata (subdomain, colori, logo) |

@@ -88,7 +88,7 @@ Styll è una piattaforma SaaS multi-tenant white-label per barbieri con focus su
 
 ### Stack tecnologico
 
-- **Frontend:** React
+- **Frontend:** Next.js 14+ con App Router, TypeScript
 - **Backend / Database / Auth:** Supabase (PostgreSQL)
 - **Architettura:** SaaS multi-tenant, PWA installabile da browser
 - **Messaggistica:** MessageBird/Infobip (WhatsApp + SMS)
@@ -202,7 +202,7 @@ Styll adotta un modello **SaaS a sottoscrizione mensile** con 3 tier, integrato 
 | Voce | Importo/mese | Note |
 |------|-------------|------|
 | **Supabase Pro** | €25 | Database, auth, storage — piano Pro per progetto |
-| **Hosting/CDN (Vercel/Netlify)** | €20 | Frontend React, piano Pro |
+| **Hosting/CDN (Vercel)** | €20 | Frontend Next.js, piano Pro |
 | **Dominio + DNS** | €5 | Dominio principale + gestione subdomain |
 | **Email transazionali (Resend/SendGrid)** | €20 | Conferme, receipt, onboarding |
 | **Error monitoring (Sentry)** | €0–26 | Free tier iniziale, poi Developer |

@@ -170,7 +170,7 @@ Creator (diamo al professionista il potere di costruire il suo brand) + Caregive
 
 ## Sintesi
 
-Styll è una piattaforma **SaaS verticale per barbieri** con focus sulla **retention**. Non è un marketplace: serve a chi i clienti li ha già, ma vuole gestirli meglio e farli tornare. La piattaforma è white-label al 100% — ogni barbiere ha la propria app brandizzata (PWA), senza passare dagli store. Integra loyalty gamificata, silent churn detection e win-back automatico. Stack: React + Supabase. Target primario: barbieri italiani indipendenti (137.730 attività, 82.7% micro-imprenditori). Modello: 3 tier da €19 a €149/mese.
+Styll è una piattaforma **SaaS verticale per barbieri** con focus sulla **retention**. Non è un marketplace: serve a chi i clienti li ha già, ma vuole gestirli meglio e farli tornare. La piattaforma è white-label al 100% — ogni barbiere ha la propria app brandizzata (PWA), senza passare dagli store. Integra loyalty gamificata, silent churn detection e win-back automatico. Stack: Next.js 14+ (App Router) + TypeScript + Supabase. Target primario: barbieri italiani indipendenti (137.730 attività, 82.7% micro-imprenditori). Modello: 3 tier da €19 a €149/mese.
 
 **La promessa:** *"Non ti porto clienti, ti aiuto a gestire i tuoi — e a farli tornare."*
 
@@ -245,7 +245,7 @@ Ogni barbiere ha un sottodominio dedicato (`nome.Styll.app`) con colori, logo e 
 
 | Componente | Tecnologia |
 |-----------|-----------|
-| Frontend | React |
+| Frontend | Next.js 14+ (App Router), TypeScript |
 | Backend + Auth + DB | Supabase |
 | App cliente | PWA (Progressive Web App) — no App Store |
 | Architettura | Multi-tenant SaaS, sempre online |

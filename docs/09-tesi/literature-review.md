@@ -601,7 +601,7 @@ Il progetto Styll si posiziona all'intersezione di più filoni di ricerca, offre
 
 1. **Dimensione progettuale**: primo sistema di loyalty gamificata nel settore barbiere/beauty nel segmento accessibile (< €50/mese), che combina meccaniche di game design (streak, badge, livelli, sfide) con un sistema di churn detection proattivo.
 
-2. **Dimensione architetturale**: dimostrazione pratica di un'architettura SaaS multi-tenant white-label costruita con stack moderno (React + Supabase) che permette a ciascun tenant di offrire un'esperienza completamente brandizzata ai propri clienti, mantenendo la semplicità operativa di una piattaforma centralizzata.
+2. **Dimensione architetturale**: dimostrazione pratica di un'architettura SaaS multi-tenant white-label costruita con stack moderno (Next.js + TypeScript + Supabase) che permette a ciascun tenant di offrire un'esperienza completamente brandizzata ai propri clienti, mantenendo la semplicità operativa di una piattaforma centralizzata.
 
 3. **Dimensione di design**: progettazione di un sistema di loyalty duale che si adatta automaticamente al profilo dell'utente finale — gamificato e visibile per gli utenti tech-savvy, silente e gestito dal professionista per gli utenti non-tech — senza richiedere configurazione aggiuntiva al barbiere.
 

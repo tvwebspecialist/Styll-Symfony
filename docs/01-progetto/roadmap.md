@@ -40,7 +40,7 @@
 
 - [x] Idea e concept definiti
 - [x] Struttura tecnica progettata (multi-tenant, white-label, PWA, 3 interfacce)
-- [x] Stack tecnologico scelto (React + Supabase)
+- [x] Stack tecnologico scelto (Next.js 14+ App Router + TypeScript + Supabase)
 - [x] Analisi competitor completata (13 competitor analizzati in dettaglio)
 - [x] Learnings e opportunities definiti
 - [x] Modello di business definito (3 tier)

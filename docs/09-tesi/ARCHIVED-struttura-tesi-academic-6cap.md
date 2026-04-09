@@ -57,7 +57,7 @@ La digitalizzazione dei micro-professionisti rappresenta una delle sfide più ri
 
 Il presente lavoro analizza la progettazione e la validazione del modello di business di Styll, una piattaforma SaaS verticale white-label che integra un sistema di fidelizzazione gamificata a quattro livelli (punti, tier, streak, badge) con un meccanismo proprietario di rilevamento silenzioso del churn e win-back automatico. La ricerca adotta un approccio di case study singolo integrato (Yin, 2018) con metodologia mixed-method, combinando desk research, analisi competitiva su 13 piattaforme concorrenti e studio qualitativo della voice of customer su oltre 2.800 recensioni.
 
-L'analisi di mercato identifica un gap significativo: le piattaforme esistenti si concentrano prevalentemente sulla fase di booking, trascurando la retention come leva strategica. Styll si posiziona come soluzione *brand-first retention platform*, con un modello di pricing a tre livelli (€19/€49/€149 mensili) e architettura tecnica basata su React, Supabase e PWA multi-tenant.
+L'analisi di mercato identifica un gap significativo: le piattaforme esistenti si concentrano prevalentemente sulla fase di booking, trascurando la retention come leva strategica. Styll si posiziona come soluzione *brand-first retention platform*, con un modello di pricing a tre livelli (€19/€49/€149 mensili) e architettura tecnica basata su Next.js 14+ (App Router), TypeScript, Supabase e PWA multi-tenant.
 
 I risultati evidenziano come l'integrazione di meccaniche di gamification fondate sulla Self-Determination Theory (Deci & Ryan, 1985) con algoritmi di churn prediction possa generare un vantaggio competitivo sostenibile. La tesi contribuisce alla letteratura sulla business model innovation nei mercati verticali SaaS e sull'applicazione della gamification nei contesti B2B2C per micro-imprese.
 
@@ -67,7 +67,7 @@ The digitalization of micro-professionals represents one of the most significant
 
 This thesis analyzes the design and validation of the business model of Styll, a vertical white-label SaaS platform that integrates a four-layer gamified loyalty system (points, tiers, streaks, badges) with a proprietary silent churn detection and automated win-back mechanism. The research adopts a single embedded case study approach (Yin, 2018) with a mixed-method methodology, combining desk research, competitive analysis across 13 competing platforms, and qualitative voice-of-customer analysis of over 2,800 reviews.
 
-The market analysis identifies a significant gap: existing platforms focus predominantly on the booking phase, neglecting retention as a strategic lever. Styll positions itself as a brand-first retention platform, with a three-tier pricing model (€19/€49/€149 per month) and a technical architecture built on React, Supabase, and multi-tenant PWA.
+The market analysis identifies a significant gap: existing platforms focus predominantly on the booking phase, neglecting retention as a strategic lever. Styll positions itself as a brand-first retention platform, with a three-tier pricing model (€19/€49/€149 per month) and a technical architecture built on Next.js 14+ (App Router), TypeScript, Supabase, and multi-tenant PWA.
 
 The findings demonstrate how integrating gamification mechanics grounded in Self-Determination Theory (Deci & Ryan, 1985) with churn prediction algorithms can generate a sustainable competitive advantage. The thesis contributes to the literature on business model innovation in vertical SaaS markets and the application of gamification in B2B2C contexts for micro-enterprises.
 
@@ -294,7 +294,7 @@ The findings demonstrate how integrating gamification mechanics grounded in Self
 - 4.4.5 Misurazione dell'efficacia: metriche e KPI
 
 #### 4.5 Architettura tecnica
-- 4.5.1 Stack tecnologico: React (frontend), Supabase (backend), PWA
+- 4.5.1 Stack tecnologico: Next.js 14+ con App Router, TypeScript (frontend), Supabase (backend), PWA
 - 4.5.2 Architettura multi-tenant: isolamento dati, Row Level Security (RLS)
 - 4.5.3 Database schema: 33 tabelle in v1, 38 totali, relazioni, ottimizzazioni
 - 4.5.4 Architettura API e integrazioni
@@ -470,7 +470,7 @@ Si consiglia l'adozione di un **case study singolo integrato** (single embedded 
 | `docs/06-business/business-plan.md` | Cap. 4, Cap. 5 | Modello di business, proiezioni finanziarie, struttura dei costi |
 | `docs/06-business/go-to-market.md` | Cap. 5 | Strategia di lancio, canali di acquisizione, fasi di go-to-market |
 | `docs/06-business/kpi-framework.md` | Cap. 5 | Framework AARRR, North Star Metric, metriche SaaS, dashboard |
-| `docs/07-tecnico/architettura.md` | Cap. 4 | Architettura tecnica, stack React+Supabase, PWA multi-tenant |
+| `docs/07-tecnico/architettura.md` | Cap. 4 | Architettura tecnica, stack Next.js+TypeScript+Supabase, PWA multi-tenant |
 | `docs/07-tecnico/database-schema.md` | Cap. 4, Appendici | Schema delle 33 tabelle v1 (38 totali), relazioni, RLS — descrizione e appendice |
 | `docs/07-tecnico/ai-strategy-research.md` | Cap. 1, Cap. 4 | Stato dell'arte AI (Cap. 1) e applicazione al churn prediction (Cap. 4) |
 | `docs/08-strategia/legal-compliance.md` | Cap. 4 | GDPR, privacy, PCI DSS, normativa italiana — sezione compliance |

@@ -43,7 +43,7 @@ Le metriche sono il sistema nervoso di ogni SaaS. Per **Styll** — piattaforma 
 | **Target primario** | Barbieri italiani indipendenti |
 | **Fase attuale** | Pre-launch / MVP in sviluppo |
 | **Monetizzazione** | Subscription 3 tier (€19-29, €49-69, €99-149) + fee transazioni |
-| **Stack tecnico** | React + Supabase |
+| **Stack tecnico** | Next.js 14+ (App Router) + TypeScript + Supabase |
 | **Modello di distribuzione** | Product-Led Growth (PLG) con trial gratuita |
 | **Differenziatore chiave** | Retention-first con gamification della loyalty |
 
@@ -677,7 +677,7 @@ Dato che Styll è in fase di sviluppo pre-lancio, le metriche critiche **ora** s
 ### 🎯 Piano di implementazione tracking (prioritizzato)
 
 **Settimana 1-2 (Pre-Launch):**
-- [ ] Integrare PostHog nel frontend React
+- [ ] Integrare PostHog nel frontend Next.js
 - [ ] Configurare Google Analytics 4 sulla landing page
 - [ ] Implementare evento di signup/registrazione
 - [ ] Implementare tracking del wizard (5 step)

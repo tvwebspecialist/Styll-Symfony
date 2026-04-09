@@ -315,7 +315,7 @@ Ipotesi: crescita product-led con trial gratuito, conversione 5-8%, focus inizia
 | **Soluzione** | PWA white-label + CRM + loyalty gamificata + silent churn detection + win-back automatico + analytics retention |
 | **Canali** | Instagram/TikTok (barbieri attivi sui social), referral tra colleghi, SEO/content marketing, fiere di settore, partnership con fornitori |
 | **Flussi di ricavo** | Abbonamento mensile (€19-149), % transazioni (2.5-2.9%), SMS extra, hardware POS |
-| **Struttura dei costi** | Sviluppo (React + Supabase), hosting cloud, SMS/notifiche, supporto clienti, marketing, acquisizione |
+| **Struttura dei costi** | Sviluppo (Next.js + TypeScript + Supabase), hosting cloud, SMS/notifiche, supporto clienti, marketing, acquisizione |
 | **Metriche chiave** | MRR, churn rate SaaS, conversione trial→paid, # barbieri attivi, retention rate dei clienti finali, NPS |
 | **Vantaggio sleale** | Primo con gamification nel barber/beauty. Dati proprietari sulla retention nel settore. Community di barbieri fidelizzati. Architettura multi-tenant scalabile. |
 
@@ -329,7 +329,7 @@ Ipotesi: crescita product-led con trial gratuito, conversione 5-8%, focus inizia
 | 2 | **Dimensione del mercato** | 7 | 137.730 imprese in Italia, mercato SaaS salon in crescita 9-13% annuo. Mercato grande ma nicchia specifica. |
 | 3 | **Gap competitivo** | 9 | Nessun competitor nel tier €19-29 offre retention gamificata + churn detection. Blue ocean confermato dall'analisi. |
 | 4 | **Willingness to pay** | 8 | Pricing allineato con competitor (€20-30/mese per singoli). I barbieri già spendono in questa fascia. Il valore aggiunto giustifica il prezzo. |
-| 5 | **Fattibilità tecnica** | 8 | Stack moderno (React + Supabase), PWA come scelta tecnica validata, architettura multi-tenant standard. Roadmap MVP realistica. |
+| 5 | **Fattibilità tecnica** | 8 | Stack moderno (Next.js + TypeScript + Supabase), PWA come scelta tecnica validata, architettura multi-tenant standard. Roadmap MVP realistica. |
 | 6 | **Differenziazione** | 9 | Gamification nel barber = unici. White-label PWA + retention-first positioning. Nessuno fa questa combinazione. |
 | 7 | **Scalabilità** | 7 | Multi-tenant SaaS scalabile. Estensione a parrucchieri, fitness, tattoo. Rischio: dipendenza dal mercato italiano iniziale. |
 | | **TOTALE** | **56/70** | |
