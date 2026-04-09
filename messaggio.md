@@ -1,4 +1,4 @@
-> ℹ️ Questo è il riassunto del progetto. Per i dettagli completi, consulta i file nella cartella `progetto/`.
+> ℹ️ Questo è il riassunto del progetto. Per i dettagli completi, consulta la documentazione in [`docs/`](docs/README.md).
 
 # Styll — Riassunto del Progetto
 
@@ -117,15 +117,6 @@ Ogni barbiere ha un sottodominio dedicato (`nome.Styll.app`) con colori, logo e 
 
 ---
 
-## Indice dei file dettagliati
+## Documentazione dettagliata
 
-| File | Contenuto |
-|------|-----------|
-| [`progetto/01-visione-e-idea.md`](progetto/01-visione-e-idea.md) | Perché nasce il progetto, l'idea, posizionamento, brand foundation, tone of voice, note e decisioni |
-| [`progetto/02-funzionalita-e-feature.md`](progetto/02-funzionalita-e-feature.md) | Le 3 interfacce, feature esclusive, sistema gamification completo (4 layer, 3 template, tier, soglie), prodotti & inventario |
-| [`progetto/03-modello-di-business.md`](progetto/03-modello-di-business.md) | I 3 tier nel dettaglio, revenue aggiuntive, pricing staff, pricing messaggi, riepilogo decisioni |
-| [`progetto/04-target-e-utenti.md`](progetto/04-target-e-utenti.md) | Target, 4 personas complete, 4 user journey maps dettagliate |
-| [`progetto/05-tecnologia-e-stack.md`](progetto/05-tecnologia-e-stack.md) | Stack, architettura multi-tenant, database schema SQL, API prezzi messaggistica, GDPR |
-| [`progetto/06-design-e-ux.md`](progetto/06-design-e-ux.md) | Dashboard (progressive complexity), CRM profilo avanzato, ruoli staff, brand-first, setup wizard |
-| [`progetto/07-competitor-e-mercato.md`](progetto/07-competitor-e-mercato.md) | Analisi completa 13 competitor analizzati in dettaglio, tabella comparativa, 7 lamentele universali, learnings, opportunities, dati di mercato |
-| [`progetto/08-roadmap-e-sviluppo.md`](progetto/08-roadmap-e-sviluppo.md) | Roadmap v1/v2/v3, stato attuale checklist, prossimi step, indice tesi definito (8 capitoli, struttura ABA) |
+> Per l'indice completo di tutta la documentazione del progetto, consulta [`docs/README.md`](docs/README.md).

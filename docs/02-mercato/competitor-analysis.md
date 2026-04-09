@@ -1,5 +1,5 @@
 > **Progetto:** Styll — Piattaforma SaaS di retention per barbieri
-> **Fonti originali:** `competitor-watch.md`, `progetto/07-competitor-e-mercato.md`
+> **Fonti originali:** `competitor-watch.md`
 
 ---
 
@@ -758,7 +758,7 @@ I grandi player (Fresha, Booksy, Squire) sono focalizzati su USA/UK. Barberly ha
 
 ## Analisi Competitor — Documento Progetto Originale
 
-> ℹ️ La sezione seguente proviene dal documento di progetto originale (`progetto/07-competitor-e-mercato.md`) e può contenere informazioni parzialmente sovrapposte con la sezione precedente. In caso di contraddizioni si segnalano con ⚠️.
+> ℹ️ La sezione seguente proviene dal documento di progetto originale (analisi competitor e mercato) e può contenere informazioni parzialmente sovrapposte con la sezione precedente. In caso di contraddizioni si segnalano con ⚠️.
 
 # Competitor e Mercato — Styll
 

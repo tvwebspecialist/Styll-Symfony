@@ -1,5 +1,5 @@
 > **Progetto:** Styll — Piattaforma SaaS di retention per barbieri
-> **Fonti originali:** `bussines-plan.md`, `progetto/03-modello-di-business.md`
+> **Fonti originali:** `bussines-plan.md`
 
 ---
 
@@ -653,7 +653,7 @@ Il tasso di crescita di Styll è compatibile con il modello T2D3 nella fase pre-
 
 ## Modello di Business — Documento Progetto Originale
 
-> La sezione seguente proviene da `progetto/03-modello-di-business.md` (documento originale del progetto) e integra il business plan dettagliato sopra.
+> La sezione seguente proviene dal documento di progetto originale (modello di business) e integra il business plan dettagliato sopra.
 
 # Modello di Business — Styll
 

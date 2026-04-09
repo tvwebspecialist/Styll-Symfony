@@ -1,5 +1,5 @@
 > **Progetto:** Styll — Piattaforma SaaS di retention per barbieri
-> **Fonti originali:** `progetto/06-design-e-ux.md`
+> **Fonti originali:** *(contenuto consolidato da fonti di progetto originali)*
 
 ---
 

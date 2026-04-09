@@ -1,5 +1,5 @@
 > **Progetto:** Styll — Piattaforma SaaS di retention per barbieri
-> **Fonti originali:** `progetto/05-tecnologia-e-stack.md`, `tech-stack-recommendations.md`
+> **Fonti originali:** `tech-stack-recommendations.md`
 
 ---
 
