@@ -296,7 +296,7 @@ The findings demonstrate how integrating gamification mechanics grounded in Self
 #### 4.5 Architettura tecnica
 - 4.5.1 Stack tecnologico: React (frontend), Supabase (backend), PWA
 - 4.5.2 Architettura multi-tenant: isolamento dati, Row Level Security (RLS)
-- 4.5.3 Database schema: 35 tabelle, relazioni, ottimizzazioni
+- 4.5.3 Database schema: 33 tabelle in v1, 38 totali, relazioni, ottimizzazioni
 - 4.5.4 Architettura API e integrazioni
 - 4.5.5 PWA white-label: personalizzazione per barbiere, installabilità
 - 4.5.6 Scalabilità, performance e sicurezza
@@ -428,7 +428,7 @@ The findings demonstrate how integrating gamification mechanics grounded in Self
 - **Appendice C:** Tabelle comparative dei 13 competitor
 - **Appendice D:** Proiezioni finanziarie dettagliate (3 scenari)
 - **Appendice E:** Screenshot e mockup dell'interfaccia utente
-- **Appendice F:** Database schema completo (35 tabelle)
+- **Appendice F:** Database schema completo (38 tabelle)
 - **Appendice G:** Matrice funzionalità × piano di pricing
 - **Appendice H:** Risultati dell'analisi Voice of Customer
 - **Appendice I:** Calendario editoriale e piano SEO
@@ -471,7 +471,7 @@ Si consiglia l'adozione di un **case study singolo integrato** (single embedded 
 | `docs/06-business/go-to-market.md` | Cap. 5 | Strategia di lancio, canali di acquisizione, fasi di go-to-market |
 | `docs/06-business/kpi-framework.md` | Cap. 5 | Framework AARRR, North Star Metric, metriche SaaS, dashboard |
 | `docs/07-tecnico/architettura.md` | Cap. 4 | Architettura tecnica, stack React+Supabase, PWA multi-tenant |
-| `docs/07-tecnico/database-schema.md` | Cap. 4, Appendici | Schema delle 35 tabelle, relazioni, RLS — descrizione e appendice |
+| `docs/07-tecnico/database-schema.md` | Cap. 4, Appendici | Schema delle 33 tabelle v1 (38 totali), relazioni, RLS — descrizione e appendice |
 | `docs/07-tecnico/ai-strategy-research.md` | Cap. 1, Cap. 4 | Stato dell'arte AI (Cap. 1) e applicazione al churn prediction (Cap. 4) |
 | `docs/08-strategia/legal-compliance.md` | Cap. 4 | GDPR, privacy, PCI DSS, normativa italiana — sezione compliance |
 | `docs/08-strategia/internazionalizzazione.md` | Cap. 5 | I 9 mercati target, PPP pricing, strategia di localizzazione |

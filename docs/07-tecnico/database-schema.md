@@ -970,7 +970,7 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 
 ### Riepilogo tabelle per fase (✏️ aggiornato)
 
-**v1 (MVP) — 35 tabelle:**
+**v1 (MVP) — 33 tabelle:**
 
 | Area | Tabelle |
 |------|---------|
@@ -992,7 +992,7 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 | 3. Catalogo | `inventory_movements` |
 | 6. Gamification | `tier_configs`, `badges`, `client_badges`, `challenges` |
 
-**Totale: 40 tabelle** (35 v1 + 5 v2)
+**Totale: 38 tabelle** (33 v1 + 5 v2)
 
 **Tabelle senza `tenant_id` (globali):**
 - `subscription_plans` — i piani sono uguali per tutti
@@ -1000,7 +1000,7 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 - `profiles` — collegata a `auth.users`, non a un tenant specifico
 - `auth.users` — gestita da Supabase, non la creiamo noi
 
-**Tutte le altre 36 tabelle hanno `tenant_id`.**
+**Tutte le altre 34 tabelle hanno `tenant_id`.**
 
 ---
 
@@ -1166,8 +1166,8 @@ Prima di scrivere le migrazioni SQL, verificare:
 | Cosa | Prima | Dopo | Perché |
 |------|-------|------|--------|
 | Decisioni architetturali | 10 | **12** | Aggiunte Decisione 11 (Pagamenti) e Decisione 12 (Indicizzazione + Performance RLS) |
-| Tabelle v1 | 32 | **35** | Aggiunte `payments`, `client_consents`, e conteggio corretto |
-| Tabelle totali (v1+v2) | 37 | **40** | Conseguenza delle 3 nuove tabelle v1 |
+| Tabelle v1 | 32 | **33** | Aggiunte `payments`, `client_consents`; conteggio corretto da enumerazione manuale |
+| Tabelle totali (v1+v2) | 37 | **38** | Conseguenza delle nuove tabelle v1 |
 | Regole d'oro | 10 | **12** | Aggiunte regole su pagamenti separati e indici espliciti |
 | `client_analytics` | 8 metriche | **12 metriche** | Aggiunti `no_show_count`, `cancellation_count`, `referral_count`, `average_spend_per_visit` |
 | `clients` | No referral tracking | **`referred_by`** self-reference | Il VIP Score menzionava "referral" ma non c'era struttura per tracciarlo |

@@ -102,6 +102,6 @@ Capitolo dedicato al brand, pensato per la relatrice copywriter.
 ### Appendici
 - A — Matrice completa dei 13 competitor
 - B — Business Model Canvas
-- C — Database schema completo
+- C — Database schema completo (38 tabelle)
 - D — Screenshot prototipo
 - E — Risultati Voice of Customer

@@ -22,7 +22,7 @@
 
 ### ✅ Conferma lettura `database-architetture.md` — 5 punti chiave:
 
-1. **Schema completo**: 35 tabelle v1, 40 totali (v1+v2), organizzate in 10 aree funzionali — da Business & Abbonamenti fino ad Admin & Platform. 12 decisioni architetturali definitive documentate con alternative e motivazioni.
+1. **Schema completo**: 33 tabelle in v1, 38 totali (v1+v2), organizzate in 10 aree funzionali — da Business & Abbonamenti fino ad Admin & Platform. 12 decisioni architetturali definitive documentate con alternative e motivazioni.
 2. **Multi-tenancy**: Ogni tabella ha `tenant_id` (tranne 4 globali). RLS obbligatorie su ogni tabella. Funzione helper `get_my_tenant_id()` STABLE per performance. Indici espliciti su tutte le colonne filtrate nelle RLS.
 3. **Strutture chiave**: Appointments con exclusion constraint (no sovrapposizioni), prezzi snapshot, pagamenti separati dagli appuntamenti, client_analytics pre-calcolati (trigger + cron notturno), loyalty con versioning immutabile delle config.
 4. **Sicurezza e GDPR**: Soft delete con `deleted_at` + `deleted_by` per audit trail. `client_consents` per consensi granulari con timestamp e IP. `client_notes` sempre private (tabella separata). `audit_log` per operazioni sensibili.

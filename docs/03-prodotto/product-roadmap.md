@@ -68,7 +68,7 @@ Il progetto Styll è attualmente in **fase di progettazione pre-sviluppo**. Non 
 | Personas (4: 2 professionisti + 2 clienti) | ✅ Completo | Alta | Con journey map completa per ciascuno |
 | User Journey Maps (4 journey) | ✅ Completo | Alta | Touchpoint, emozioni, takeaway per fase |
 | Modello di business (3 tier) | ✅ Completo | Alta | Pricing calibrato su benchmark |
-| Architettura database (33 tabelle, 10 aree) | ✅ Completo | Alta | Schema PostgreSQL/Supabase, RLS, multi-tenant |
+| Architettura database (33 tabelle v1, 38 totali) | ✅ Completo | Alta | Schema PostgreSQL/Supabase, RLS, multi-tenant |
 | Gamification design (4 layer, 3 template) | ✅ Completo | Alta | Soglie calibrate, flussi per persona |
 | Decisioni progettuali (10/10 open questions) | ✅ Completo | Alta | Con benchmark competitor e dati reali |
 | Roadmap feature (v1/v2/v3) | ✅ Completo | Media | Presente ma non prioritizzata con framework |

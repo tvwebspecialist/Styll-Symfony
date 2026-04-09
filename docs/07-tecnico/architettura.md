@@ -221,7 +221,7 @@ L'obiettivo è fornire una guida concreta per trasformare il progetto di tesi do
 |-------|----------------------|------|
 | **Frontend** | React | Nessun framework specifico (Next.js non menzionato) |
 | **Backend / API** | Supabase (Edge Functions) | PostgreSQL + Auth + Realtime + Storage |
-| **Database** | PostgreSQL (via Supabase) | 28 tabelle v1, 33 v2, RLS multi-tenant |
+| **Database** | PostgreSQL (via Supabase) | 33 tabelle in v1, +5 in v2 (totale 38), RLS multi-tenant |
 | **Autenticazione** | Supabase Auth | Email+password (staff), OTP SMS (clienti) |
 | **App client** | PWA (Progressive Web App) | Installabile da browser, no App Store |
 | **Messaggistica** | MessageBird / Infobip | WhatsApp + SMS |
@@ -246,7 +246,7 @@ L'obiettivo è fornire una guida concreta per trasformare il progetto di tesi do
 | 1 | **Zero codice implementato** | Alto — nessuna validazione tecnica delle scelte | Iniziare con MVP verticale (booking + CRM) |
 | 2 | **React senza framework** | Medio — React vanilla richiede routing, SSR, bundling manuali | Adottare **Next.js** come framework React |
 | 3 | **Nessun type safety** | Medio — Supabase genera tipi, ma senza TypeScript si perdono | Adottare **TypeScript** end-to-end |
-| 4 | **Nessuna strategia di test** | Alto — 28 tabelle con trigger e cron senza test | Definire strategia testing (unit + integration + e2e) |
+| 4 | **Nessuna strategia di test** | Alto — 33 tabelle con trigger e cron senza test | Definire strategia testing (unit + integration + e2e) |
 | 5 | **Nessuna UI library scelta** | Basso — ma impatta velocity di sviluppo | Adottare **shadcn/ui** + **Tailwind CSS** |
 | 6 | **State management non definito** | Basso — Supabase realtime + React context possono bastare | Valutare **Zustand** o **TanStack Query** |
 | 7 | **Nessun monitoring/logging** | Medio — critico per produzione | Pianificare da subito (Sentry + PostHog) |
@@ -260,7 +260,7 @@ Pur non essendoci codice, le decisioni documentate presentano aree di debito tec
 2. **Cron job notturno per riconciliazione**: richiede infrastruttura (pg_cron o Supabase scheduled functions)
 3. **Exclusion constraint per overlap**: richiede estensione `btree_gist` — verificare disponibilità su Supabase
 4. **Funzione `get_my_tenant_id()` STABLE**: performance dipende dal query planner di PostgreSQL — testare con EXPLAIN ANALYZE
-5. **28 tabelle + trigger + RLS in v1**: complessità significativa per un MVP — valutare un rilascio più graduale
+5. **33 tabelle + trigger + RLS in v1**: complessità significativa per un MVP — valutare un rilascio più graduale
 
 ---
 
@@ -333,7 +333,7 @@ Pur non essendoci codice, le decisioni documentate presentano aree di debito tec
 | Firebase | Realtime maturo, mobile SDK eccellente | NoSQL (non ideale per relazioni complesse), vendor lock-in Google, costi imprevedibili | Free → pay-per-use | Bassa | ❌ |
 
 **Raccomandazione**: **Supabase come backend primario** + **Next.js API Routes per logica custom**. Motivazioni:
-- Il database schema con 28 tabelle relazionali è **progettato per PostgreSQL** — Supabase è PostgreSQL managed
+- Il database schema con 33 tabelle relazionali è **progettato per PostgreSQL** — Supabase è PostgreSQL managed
 - RLS multi-tenant è già pianificato nel documento di architettura
 - Auth con OTP SMS per clienti è nativo in Supabase Auth
 - Edge Functions per calcolo slot disponibili (Decisione 6 del DB)
@@ -345,7 +345,7 @@ Pur non essendoci codice, le decisioni documentate presentano aree di debito tec
 |---------|-----|--------|-------|-------------|----------------|
 | **PostgreSQL (via Supabase)** | Relazionale, RLS, JSONB, exclusion constraints, btree_gist, maturo | Scaling verticale (non orizzontale), Supabase limita alcune estensioni | Incluso in Supabase | Media | ✅ **SÌ** |
 | MySQL / PlanetScale | Veloce, branching (PlanetScale), scaling orizzontale | No RLS nativo, no exclusion constraints, JSONB meno maturo | PlanetScale: da $39/mese | Media | ❌ |
-| MongoDB | Schema flessibile, scaling orizzontale | Non ideale per relazioni complesse (28 tabelle!), no ACID completo | Atlas: da $0 (free) | Bassa | ❌ |
+| MongoDB | Schema flessibile, scaling orizzontale | Non ideale per relazioni complesse (33 tabelle!), no ACID completo | Atlas: da $0 (free) | Bassa | ❌ |
 | CockroachDB | PostgreSQL-compatible, distributed | Complessità operativa, costo per startup | Da $0 (free tier) | Alta | ❌ |
 
 **Raccomandazione**: **PostgreSQL via Supabase** — l'intero schema database è già progettato per PostgreSQL con funzionalità specifiche (RLS, exclusion constraints, btree_gist, partial unique index). Cambiare database richiederebbe una riprogettazione completa.
@@ -820,11 +820,11 @@ jobs:
 
 ### 12.2 — Raccomandazioni specifiche
 
-1. **Inizia con un MVP più snello**: le 28 tabelle v1 sono troppe per un primo rilascio. Suggerimento:
+1. **Inizia con un MVP più snello**: le 33 tabelle v1 sono troppe per un primo rilascio. Suggerimento:
    - **MVP-0 (4-6 settimane)**: Tenants + Profiles + Staff + Services + Appointments + Clients (8 tabelle)
    - **MVP-1 (+4 settimane)**: Loyalty base + Working hours + Payments (13 tabelle)
    - **MVP-2 (+4 settimane)**: Analytics, Reviews, Messaging (19 tabelle)
-   - **v1 completa (+4 settimane)**: Tutte le 28 tabelle
+   - **v1 completa (+4 settimane)**: Tutte le 33 tabelle
 
 2. **Adotta TypeScript dall'inizio**: non è menzionato nei documenti ma è essenziale per un progetto di questa complessità. Supabase genera tipi TypeScript dal database (`supabase gen types typescript`).
 
