@@ -107,3 +107,45 @@ Eseguiti i Task 6, 7 e 8 dell'audit di coerenza del repository Styll. Documentat
 1. `40c84e3` audit: Task 6 - naming process Styll documentato, checklist aggiornate
 2. `6f24e6d` audit: Task 7 - correzione discrepanze numeriche business plan
 3. `e39f180` audit: Task 8 - checklist aggiornata con lavoro effettivamente prodotto
+
+---
+
+# Sessione 2 — 9 aprile 2026
+
+## Sintesi esecutiva
+
+Allineamento dell'indice tesi alla struttura definitiva a 8 capitoli ABA e aggiornamento di tutti i riferimenti "10 capitoli" sparsi nel repository.
+
+## Task eseguiti
+
+### Task 1 — Allineamento indice tesi a 8 capitoli
+
+**Struttura adottata:** 8 capitoli + Introduzione + Conclusioni + Bibliografia + Appendici. Stile progettuale/narrativo, prima persona, target 120-150 pp.
+
+**Modifiche per file:**
+- `docs/09-tesi/indice-tesi.md`: sovrascritto interamente con nuova struttura a 8 capitoli (titolo, metadata, nota di archiviazione, indice completo con tutte le sezioni)
+- `docs/01-progetto/roadmap.md`: sezione "Indice tesi" sostituita — rimosso indice a 10 capitoli, inserita versione sintetica a 8 capitoli con rimando a indice-tesi.md
+- `messaggio.md`: aggiornato riferimento nella tabella dei documenti ("10 capitoli" → "8 capitoli, struttura ABA")
+
+**File archiviati:**
+- `docs/09-tesi/struttura-tesi.md` → `docs/09-tesi/ARCHIVED-struttura-tesi-academic-6cap.md` (aggiunto banner ⚠️ DOCUMENTO ARCHIVIATO in testa)
+
+### Ritocco Task 8 — Aggiornamento voci "10 capitoli" → "8 capitoli"
+
+**File modificati:**
+- `docs/01-progetto/roadmap.md` (checklist): `[x] Indice tesi aggiornato (10 capitoli)` → `[x] Indice tesi definito (8 capitoli, struttura ABA)`
+- `docs/03-prodotto/product-roadmap.md`: tabella aggiornata
+- `progetto/08-roadmap-e-sviluppo.md`: checklist aggiornata
+- `docs/01-progetto/overview.md`: tabella documenti aggiornata
+- `docs/00-audit-log.md`: incongruenza #2 marcata come risolta
+
+## Problemi aperti / richiedono decisione manuale
+
+Nessun nuovo problema emerso in questa sessione. Restano aperti dalla Sessione 1:
+1. Stack dichiarato incoerente (React vs Next.js) — da risolvere con Task 5
+2. Cartella `progetto/` ancora presente — da risolvere con Task 4
+
+## Commit fatti (Sessione 2)
+
+1. `b4cb611` audit: Task 1 - allineamento indice tesi a 8 capitoli
+2. `47e5730` audit: ritocco Task 8 - voce indice tesi aggiornata da 10 a 8 capitoli
