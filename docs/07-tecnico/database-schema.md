@@ -11,6 +11,27 @@
 > È la referenza definitiva: il prossimo step è solo scrivere le tabelle SQL.
 > Ogni scelta è motivata e non va ridiscussa salvo nuovi requisiti.
 
+> ⚠️ Revisione: v2 — 13 decisioni, 11 aree, 39 tabelle v1, 48 tabelle v2, ~51 tabelle v3. Vedi sezione «Riepilogo cambiamenti rispetto alla versione precedente» alla fine.
+
+---
+
+### Strategia di versionamento del database (v1 → v2 → v3)
+
+**Domanda:** *devo creare da subito il database finale o anche il database ha le sue fasi?*
+
+**Risposta breve:** il dominio è finale da subito, lo schema fisico cresce per fasi additive.
+
+| Livello | Versionato? | Strategia |
+|---|---|---|
+| Schema concettuale (entità, relazioni, domini) | **No, finale da subito** | Il modello di dominio è stabile, si disegna una volta |
+| Schema fisico (CREATE TABLE) | **Sì, incrementale** | Solo tabelle che servono ora; le altre sono migrations additive |
+| Colonne "future-proof" nullable/JSONB | **Sì, da subito in v1** | Es. `tier_grace_expires_at`, `referred_by`, `loyalty_config_version` esistono già inerti |
+| RLS e indici | **Incrementale** | Aggiunti con la feature via `CREATE INDEX CONCURRENTLY` |
+
+**Regola d'oro:** *Le tabelle v2/v3 si AGGIUNGONO sopra lo schema v1. Nessuna tabella v1 viene modificata strutturalmente. Tutte le colonne che serviranno dopo esistono già in v1 con default sensati.*
+
+Esempio pratico (Luca, Marco): Marco parte con v1 e usa booking/CRM/loyalty base. Quando attiva v2, non riscrive nulla: aggiunge tabelle marketing/queue/integrations. Quando attiva v3, aggiunge AI (`no_show_predictions`, `ai_suggestions`) senza toccare i dati storici di Luca.
+
 ---
 
 ### Glossario — Termini tecnici in parole semplici
@@ -39,7 +60,7 @@
 
 ---
 
-### Le 12 decisioni architetturali fondamentali
+### Le 13 decisioni architetturali fondamentali
 
 Ogni decisione è stata analizzata con alternative e motivazioni. Sono definitive.
 
@@ -413,9 +434,35 @@ CREATE POLICY "Staff sees own tenant" ON appointments
 
 ---
 
-### Le 10 aree funzionali del database
+#### 🆕 Decisione 13 — Messaging outbox pattern e idempotenza
 
-Il database è organizzato in 10 macro-aree, dalle fondamenta verso le funzionalità più alte.
+**Decisione:** Separiamo nettamente scheduling/invio da storico, e rendiamo idempotenti tutte le scritture esterne.
+
+**Pilastri:**
+1. `messaging_outbox` = coda operativa (`pending/processing/sent/failed/cancelled`)
+2. `messages_log` = storico post-invio (audit e costi)
+3. Worker `pg_cron` ogni minuto: legge outbox `pending` con `scheduled_for <= now()` e processa in batch
+4. `idempotency_keys` per API critiche (`booking`, `payment`, `redeem`)
+5. `webhook_events_inbox` con `UNIQUE(provider, external_id)` per bloccare duplicati provider
+
+**Perché è fondamentale:**
+- Se Luca preme due volte "Prenota" con rete mobile lenta, la seconda richiesta non deve creare duplicati
+- Se il provider webhook invia 3 volte lo stesso evento delivery, va processato una sola volta
+- Se il reminder delle 24h non parte al primo tentativo, il worker deve poter fare retry tracciato
+
+**Pattern operativo:**
+- API/cron inseriscono in `messaging_outbox` (mai invio diretto)
+- Worker prende i pending in ordine temporale
+- Invia (sms/whatsapp/email/push)
+- Scrive esito in `messages_log` e aggiorna outbox
+
+Questo rende il sistema osservabile (queue depth, retry, latenza) e robusto a errori transienti esterni.
+
+---
+
+### Le 11 aree funzionali del database
+
+Il database è organizzato in 11 macro-aree, dalle fondamenta verso le funzionalità più alte.
 
 ---
 
@@ -920,7 +967,138 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 
 ---
 
-### Mappa relazioni tra le 10 aree (✏️ aggiornata con payments e consents)
+#### AREA 11 — Infrastruttura operativa
+
+**Scopo:** Tabelle infrastrutturali cross-feature necessarie per push, outbox, idempotenza API, webhook e stato onboarding tenant.
+
+| Tabella | Scopo | `tenant_id`? | Colonne principali |
+|---------|-------|-------------|-------------------|
+| `push_subscriptions` | Device registrati per Web Push (PWA cliente + staff) | Nullable (admin può avere subscription globale) | `id`, `tenant_id` (nullable), `profile_id` → `profiles.id`, `endpoint` (UNIQUE), `p256dh_key`, `auth_key`, `user_agent`, `device_label`, `last_used_at`, `created_at` |
+| `messaging_outbox` | Coda messaggi programmati (reminder, win-back) | Sì | `id`, `tenant_id`, `client_id`, `appointment_id`, `template_id`, `channel`, `scheduled_for`, `payload` (JSONB), `status`, `attempts`, `last_attempt_at`, `last_error`, `messages_log_id`, `idempotency_key` (UNIQUE), `created_at` |
+| `idempotency_keys` | Protezione richieste duplicate su endpoint critici | Sì | `id`, `tenant_id`, `scope`, `key`, `response_hash`, `response_body` (JSONB), `status_code`, `created_at`, `expires_at` |
+| `tenant_usage_counters` | Metering atomico quote piano (`max_messages_month`) | Sì (PK composta) | `tenant_id`, `period_month`, `metric`, `count`, `cost_cents`, `updated_at` |
+| `webhook_events_inbox` | Inbox eventi webhook idempotenti provider esterni | Nullable (derivato da payload) | `id`, `provider`, `external_id`, `event_type`, `tenant_id` (nullable), `payload` (JSONB), `signature`, `status`, `processed_at`, `error`, `received_at` |
+| `tenant_onboarding_state` | Stato wizard onboarding 1:1 con tenant | Sì (PK=FK) | `tenant_id` (PK/FK), `current_step`, `completed_steps` (TEXT[]), `data` (JSONB), `completed_at`, `updated_at` |
+
+**Relazioni:**
+```
+push_subscriptions ──→ profiles ──→ tenants (opzionale via staff/client)
+messaging_outbox ──→ tenants + clients + appointments + message_templates
+messaging_outbox ──→ messages_log (quando inviato)
+idempotency_keys ──→ tenants
+tenant_usage_counters ──→ tenants
+webhook_events_inbox ──→ tenants (derivato da payload/event binding)
+tenant_onboarding_state ──→ tenants (1:1)
+```
+
+**Chi vede cosa:**
+Queste tabelle sono prevalentemente **interne al sistema** o per **Admin piattaforma**. I ruoli operativi (staff/receptionist/cliente) non hanno accesso diretto in lettura/scrittura.
+
+| Ruolo | `push_subscriptions` | `messaging_outbox` | `idempotency_keys` | `tenant_usage_counters` | `webhook_events_inbox` | `tenant_onboarding_state` |
+|-------|----------------------|--------------------|--------------------|-------------------------|------------------------|---------------------------|
+| Sistema (Edge/cron/worker) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Admin piattaforma | ✅ (debug) | ✅ (monitoring) | ✅ (debug) | ✅ (metering) | ✅ (operativo) | ✅ (supporto onboarding) |
+| Titolare/manager/staff/receptionist | ❌ diretto | ❌ diretto | ❌ | ❌ diretto | ❌ | ❌ diretto |
+| Cliente | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+**SQL di riferimento (v1 infrastrutturale):**
+
+```sql
+CREATE TABLE push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NULL REFERENCES tenants(id),
+  profile_id UUID NOT NULL REFERENCES profiles(id),
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh_key TEXT NOT NULL,
+  auth_key TEXT NOT NULL,
+  user_agent TEXT,
+  device_label TEXT,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+```sql
+CREATE TABLE messaging_outbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  client_id UUID REFERENCES clients(id),
+  appointment_id UUID REFERENCES appointments(id),
+  template_id UUID REFERENCES message_templates(id),
+  channel TEXT NOT NULL CHECK (channel IN ('sms','whatsapp','email','push')),
+  scheduled_for TIMESTAMPTZ NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','sent','failed','cancelled')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  last_error TEXT,
+  messages_log_id UUID REFERENCES messages_log(id),
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_messaging_outbox_pending_scheduled
+  ON messaging_outbox (scheduled_for)
+  WHERE status = 'pending';
+```
+
+```sql
+CREATE TABLE idempotency_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  scope TEXT NOT NULL CHECK (scope IN ('booking','payment','redeem')),
+  key TEXT NOT NULL,
+  response_hash TEXT,
+  response_body JSONB,
+  status_code INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '24 hours'),
+  UNIQUE (tenant_id, scope, key)
+);
+```
+
+```sql
+CREATE TABLE tenant_usage_counters (
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  period_month DATE NOT NULL,
+  metric TEXT NOT NULL CHECK (metric IN ('sms_sent','whatsapp_sent','email_sent','push_sent','bookings_created','storage_bytes')),
+  count BIGINT NOT NULL DEFAULT 0,
+  cost_cents BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (tenant_id, period_month, metric)
+);
+```
+
+```sql
+CREATE TABLE webhook_events_inbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider TEXT NOT NULL CHECK (provider IN ('messagebird','infobip','stripe','twilio')),
+  external_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  tenant_id UUID REFERENCES tenants(id),
+  payload JSONB NOT NULL,
+  signature TEXT,
+  status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('received','processed','failed','skipped')),
+  processed_at TIMESTAMPTZ,
+  error TEXT,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(provider, external_id)
+);
+```
+
+```sql
+CREATE TABLE tenant_onboarding_state (
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id),
+  current_step TEXT NOT NULL,
+  completed_steps TEXT[] NOT NULL DEFAULT '{}',
+  data JSONB NOT NULL DEFAULT '{}',
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+---
+
+### Mappa relazioni tra le 11 aree (✏️ aggiornata con AREA 11 infrastrutturale)
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -959,40 +1137,58 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
          │  GAMIFICATION│  │  CHURN DETECTION   │
          └──────┬───────┘  └────────────────────┘
                 │
-     ┌──────────▼──────────┐    ┌────────────────────┐
-     │  AREA 7:            │    │  AREA 9:           │
-     │  MESSAGGISTICA      │    │  RECENSIONI        │
-     │  + NOTIFICHE IN-APP │    │                    │
-     └─────────────────────┘    └────────────────────┘
+      ┌──────────▼──────────┐    ┌────────────────────┐
+      │  AREA 7:            │    │  AREA 9:           │
+      │  MESSAGGISTICA      │    │  RECENSIONI        │
+      │  + NOTIFICHE IN-APP │    │                    │
+      └──────────┬──────────┘    └────────────────────┘
+                 │
+                 ▼
+      ┌─────────────────────────────────────────────────┐
+      │ AREA 11: INFRASTRUTTURA OPERATIVA (🆕)         │
+      │ push, outbox, idempotency, webhook, onboarding │
+      └─────────────────────────────────────────────────┘
 ```
+
+Collegamenti chiave aggiuntivi con AREA 11:
+- AREA 7 (Messaggistica) **scrive sempre** su `messaging_outbox` e poi su `messages_log`
+- AREA 1 (Business) alimenta i limiti piano tramite `tenant_usage_counters`
+- Webhook provider esterni passano da `webhook_events_inbox` prima di aggiornare dati operativi
 
 ---
 
 ### Riepilogo tabelle per fase (✏️ aggiornato)
 
-**v1 (MVP) — 33 tabelle:**
+**v1 (MVP) — 39 tabelle** *(40 se si anticipa `data_export_requests` per compliance)*:
 
 | Area | Tabelle |
 |------|---------|
 | 1. Business | `tenants`, `locations`, `subscription_plans`, `tenant_subscriptions` |
 | 2. Utenti | `profiles`, `staff_members`, `staff_locations` |
 | 3. Catalogo | `services`, `staff_services`, `products`, `product_inventory` |
-| 4. Appuntamenti | `working_hours`, `working_hour_overrides`, `appointments`, `appointment_services`, `appointment_products`, 🆕 `payments` |
-| 5. CRM | `clients`, `client_notes`, 🆕 `client_consents` |
+| 4. Appuntamenti | `working_hours`, `working_hour_overrides`, `appointments`, `appointment_services`, `appointment_products`, `payments` |
+| 5. CRM | `clients`, `client_notes`, `client_consents` |
 | 6. Loyalty | `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions` |
 | 7. Messaggi e Notifiche | `message_templates`, `messages_log`, `staff_notifications` |
 | 8. Analytics | `client_analytics` |
 | 9. Recensioni | `review_requests` |
 | 10. Admin | `admin_users`, `tenant_activity_log`, `audit_log` |
+| 11. Infrastruttura operativa (🆕) | `push_subscriptions`, `messaging_outbox`, `idempotency_keys`, `tenant_usage_counters`, `webhook_events_inbox`, `tenant_onboarding_state` |
 
-**v2 (Growth) — +5 tabelle:**
+**v2 (Growth) — +9 tabelle totali rispetto a v1:**
 
 | Area | Tabelle aggiunte |
 |------|-----------------|
 | 3. Catalogo | `inventory_movements` |
 | 6. Gamification | `tier_configs`, `badges`, `client_badges`, `challenges` |
+| 7/11. Growth operativo (🆕) | `marketing_campaigns`, `campaign_recipients`, `walk_in_queue`, `tenant_integrations` |
 
-**Totale: 38 tabelle** (33 v1 + 5 v2)
+**v3 (AI) — +2 (o +3 con compliance posticipata):**
+- `no_show_predictions`
+- `ai_suggestions`
+- (`data_export_requests` se non anticipata in v1)
+
+**Totale pianificato:** v1 = **39**, v2 = **48**, v3 = **~51**.
 
 **Tabelle senza `tenant_id` (globali):**
 - `subscription_plans` — i piani sono uguali per tutti
@@ -1000,15 +1196,172 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 - `profiles` — collegata a `auth.users`, non a un tenant specifico
 - `auth.users` — gestita da Supabase, non la creiamo noi
 
-**Tutte le altre 34 tabelle hanno `tenant_id`.**
+**Nota:** `push_subscriptions` e `webhook_events_inbox` possono avere `tenant_id` nullable in casi specifici (scope admin/provider), quindi NON sono globali.
+
+### 🆕 Tabelle aggiuntive v2 — SQL di riferimento
+
+```sql
+CREATE TABLE marketing_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('win_back','birthday','promo','reactivation','custom')),
+  template_id UUID REFERENCES message_templates(id),
+  audience_filter JSONB NOT NULL DEFAULT '{}',
+  scheduled_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','scheduled','sending','sent','cancelled')),
+  stats JSONB NOT NULL DEFAULT '{}',
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+```sql
+CREATE TABLE campaign_recipients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  campaign_id UUID NOT NULL REFERENCES marketing_campaigns(id),
+  client_id UUID NOT NULL REFERENCES clients(id),
+  messages_log_id UUID REFERENCES messages_log(id),
+  status TEXT NOT NULL,
+  converted_appointment_id UUID REFERENCES appointments(id),
+  UNIQUE (campaign_id, client_id)
+);
+```
+
+```sql
+CREATE TABLE walk_in_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  location_id UUID NOT NULL REFERENCES locations(id),
+  client_id UUID REFERENCES clients(id),
+  phone TEXT,
+  display_name TEXT,
+  requested_service_id UUID REFERENCES services(id),
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  estimated_ready_at TIMESTAMPTZ,
+  called_at TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting','called','served','left','expired')),
+  position INTEGER
+);
+```
+
+```sql
+CREATE TABLE tenant_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  provider TEXT NOT NULL CHECK (provider IN ('google_calendar','instagram','stripe','meta_whatsapp')),
+  access_token_encrypted BYTEA,
+  refresh_token_encrypted BYTEA,
+  token_expires_at TIMESTAMPTZ,
+  scopes TEXT[] NOT NULL DEFAULT '{}',
+  external_account_id TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  connected_at TIMESTAMPTZ,
+  disconnected_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX idx_tenant_integrations_active
+  ON tenant_integrations (tenant_id, provider)
+  WHERE disconnected_at IS NULL;
+```
+
+### 🆕 Tabelle aggiuntive v3 (AI) — SQL di riferimento
+
+```sql
+CREATE TABLE no_show_predictions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  appointment_id UUID NOT NULL UNIQUE REFERENCES appointments(id),
+  client_id UUID NOT NULL REFERENCES clients(id),
+  risk_score NUMERIC(3,2) NOT NULL CHECK (risk_score >= 0 AND risk_score <= 1),
+  risk_bucket TEXT NOT NULL CHECK (risk_bucket IN ('low','medium','high')),
+  factors JSONB NOT NULL DEFAULT '{}',
+  deposit_required BOOLEAN NOT NULL DEFAULT false,
+  predicted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actual_outcome TEXT
+);
+```
+
+```sql
+CREATE TABLE ai_suggestions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  suggestion_type TEXT NOT NULL,
+  context JSONB NOT NULL DEFAULT '{}',
+  suggestion_text TEXT NOT NULL,
+  priority TEXT NOT NULL CHECK (priority IN ('low','medium','high')),
+  acknowledged_at TIMESTAMPTZ,
+  acknowledged_by UUID REFERENCES profiles(id),
+  feedback TEXT CHECK (feedback IN ('helpful','not_helpful','applied')),
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 🆕 Bonus compliance — `data_export_requests` (GDPR art. 17/20)
+
+Questa tabella può essere anticipata in v1 per compliance o posticipata in v3.
+
+```sql
+CREATE TABLE data_export_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  client_id UUID NOT NULL REFERENCES clients(id),
+  request_type TEXT NOT NULL CHECK (request_type IN ('export','delete','rectify')),
+  status TEXT NOT NULL,
+  file_url TEXT,
+  completed_at TIMESTAMPTZ,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deadline_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '30 days')
+);
+```
 
 ### Workflow tipi TypeScript
 
-> I tipi TypeScript di tutte le tabelle sono auto-generati da Supabase con il comando `npx supabase gen types typescript --project-id [id] > types/database.ts`. Questo garantisce coerenza end-to-end tra schema del database e codice applicativo: ogni modifica allo schema si riflette immediatamente come errore di tipo nell'editor se il codice usa campi obsoleti o tipi errati.
+> I tipi TypeScript di tutte le tabelle sono auto-generati da Supabase con il comando `npx supabase gen types typescript --project-id [id] > styll/src/types/database.ts`. Questo garantisce coerenza end-to-end tra schema del database e codice applicativo: ogni modifica allo schema si riflette immediatamente come errore di tipo nell'editor se il codice usa campi obsoleti o tipi errati.
+
+⚠️ Dopo le nuove migrazioni (estensione schema con 11 nuove tabelle documentate in questa revisione), **non aggiornare a mano le interfacce**: rigenerare sempre il file tipi con il comando sopra.
 
 ---
 
-### Regole architetturali — Le 12 regole d'oro (✏️ aggiornate)
+### 🆕 Miglioramenti alle tabelle esistenti (additivi, retro-compatibili)
+
+1. **Full-text search su `clients`**
+   - Nuova colonna materializzata: `search_vector tsvector GENERATED ALWAYS AS (...) STORED`
+   - Peso A: `full_name` (config `italian`), Peso B: `phone` (`simple`), Peso C: `email` (`simple`)
+   - Indice: `CREATE INDEX ... USING GIN(search_vector)`
+
+2. **GIN index su JSONB filtrabili**
+   - `tenants.feature_flag_overrides`
+   - `subscription_plans.feature_flags`
+   - `messages_log.metadata`
+
+3. **Partitioning pianificato (decisione presa ora, rollout dopo)**
+   - `messages_log` by RANGE su `created_at` trimestrale
+   - `audit_log` by RANGE su `created_at` trimestrale
+   - Migrazione futura additive, senza impatti sul dominio
+
+4. **Indici aggiuntivi su `audit_log`**
+   - `(entity_type, entity_id, created_at DESC)`
+   - `(tenant_id, actor_id, created_at DESC)`
+
+5. **Standardizzazione tipi NUMERIC**
+   - Prezzi: `NUMERIC(10,2)`
+   - Costi messaggi: `NUMERIC(12,4)` (es. €0.0248)
+   - VIP Score: `NUMERIC(5,2)`
+   - Risk AI: `NUMERIC(3,2)`
+   - Coordinate: `NUMERIC(10,7)`
+
+6. **CHECK su `client_loyalty.current_tier`**
+   - Fino a quando v2 non introduce `tier_configs` FK: `CHECK (current_tier IN ('Bronze','Silver','Gold','Platinum'))`
+
+7. **`booking_rate_limit` (opzionale)**
+   - Valutazione: per MVP è preferibile riusare `idempotency_keys` + regole applicative per anti-spam
+   - Se il volume guest booking cresce: mini-tabella dedicata (`phone`, `ip`, `first_seen_at`, `count`)
+
+---
+
+### Regole architetturali — Le 14 regole d'oro (✏️ aggiornate)
 
 | # | Regola | Perché |
 |---|--------|--------|
@@ -1022,8 +1375,10 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 | 8 | **Schema v1 pronto per v2** senza riscritture | Le tabelle v2 si aggiungono sopra, non si riscrive ciò che esiste |
 | 9 | **Ogni tenant ha un timezone esplicito** | Gli orari sono corretti anche con il cambio ora legale |
 | 10 | **Le operazioni sensibili sono loggate** | Audit log per GDPR, dispute e debugging |
-| 🆕 11 | **I pagamenti sono separati dagli appuntamenti** | `completed` ≠ `pagato`. Il revenue reale viene dalla tabella `payments` |
-| 🆕 12 | **Indici espliciti su ogni colonna filtrata** | PostgreSQL non crea indici sulle FK. Senza indici, RLS + tenant_id = full table scan |
+| 11 | **I pagamenti sono separati dagli appuntamenti** | `completed` ≠ `pagato`. Il revenue reale viene dalla tabella `payments` |
+| 12 | **Indici espliciti su ogni colonna filtrata** | PostgreSQL non crea indici sulle FK. Senza indici, RLS + tenant_id = full table scan |
+| 🆕 13 | **Idempotenza su ogni scrittura esterna** | Booking API, webhook, pagamenti e redeem passano per `idempotency_keys` o `webhook_events_inbox` |
+| 🆕 14 | **SMS/push/email SEMPRE via `messaging_outbox`** | Mai invio diretto: retry, scheduling e audit coerente |
 
 ---
 
@@ -1056,10 +1411,22 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 | `working_hour_overrides` | `(tenant_id, staff_id, date)` | B-tree composto | Calcolo slot: "Marco ha un override per il 25/12?" |
 | `product_inventory` | `(tenant_id, product_id, location_id)` | B-tree composto (UNIQUE) | Lookup giacenza per prodotto per sede |
 | `client_consents` | `(tenant_id, client_id, consent_type)` | B-tree composto | "Roberto ha il consenso SMS marketing?" |
+| `push_subscriptions` | `(profile_id)` | B-tree | Lookup device per utente autenticato (cliente/staff) |
+| `push_subscriptions` | `(tenant_id)` | B-tree | Invio broadcast operativo per tenant |
+| `messaging_outbox` | `(scheduled_for) WHERE status='pending'` | Partial B-tree | Worker minuto per minuto: pesca solo i pending in scadenza |
+| `messaging_outbox` | `(tenant_id, status)` | B-tree composto | Monitoring coda e retry per tenant |
+| `idempotency_keys` | `(expires_at)` | B-tree | Cleanup orario chiavi scadute |
+| `webhook_events_inbox` | `(received_at) WHERE status='received'` | Partial B-tree | Worker webhook prende solo eventi non processati |
+| `clients` | `search_vector` | GIN | Ricerca full-text veloce per nome/telefono/email |
+| `tenants` | `feature_flag_overrides` | GIN (JSONB) | Filtri admin/operativi su override funzionalità |
+| `subscription_plans` | `feature_flags` | GIN (JSONB) | Query piani per capability senza full scan JSONB |
+| `messages_log` | `metadata` | GIN (JSONB) | Filtri tecnici su provider/status metadata |
+| `audit_log` | `(entity_type, entity_id, created_at DESC)` | B-tree composto | Traccia cronologica completa per entità |
+| `audit_log` | `(tenant_id, actor_id, created_at DESC)` | B-tree composto | Audit per operatore (chi ha fatto cosa) |
 
 **Quando creare gli indici:** Insieme alle tabelle, nella stessa migrazione SQL. Non dopo. Un indice aggiunto a posteriori su una tabella con dati richiede un lock esclusivo (su Supabase con `CREATE INDEX CONCURRENTLY` si evita il downtime, ma è meglio farlo subito).
 
-**Nota sulle performance:** Con i volumi previsti per v1 (~1.000 tenant × 200 clienti = 200K righe in `clients`), questi indici sono più che sufficienti. Il partitioning (divisione tabelle per periodo) NON serve in v1. Diventa utile solo quando `appointments` o `messages_log` superano i 10M di righe (~5.000+ tenant attivi).
+**Nota sulle performance:** Con i volumi previsti per v1 (~1.000 tenant × 200 clienti = 200K righe in `clients`), questi indici sono più che sufficienti. Il partitioning fisico viene comunque deciso ora (piano trimestrale su `messages_log` e `audit_log`) ma attivato in rollout successivo quando i volumi lo richiedono.
 
 ---
 
@@ -1078,11 +1445,20 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 | `tenant_activity_log` | **Indefinita** | Mai cancellare | Metriche aggregate leggere, utili per trend storici |
 | `review_requests` | **12 mesi** | Archivia o elimina | Serve solo per rate limiting e analytics recenti |
 | `client_consents` | **Indefinita** | Mai cancellare | GDPR: la prova del consenso deve restare per sempre |
+| `push_subscriptions` | Indefinita (con cleanup inattivi) | Cleanup se `last_used_at < now() - 6 months` | Evita endpoint push obsoleti e bounce inutili |
+| `messaging_outbox` | 90 giorni post invio | Elimina record `sent/failed/cancelled` oltre finestra operativa | La coda storica lunga vive in `messages_log` e analytics |
+| `idempotency_keys` | 24 ore | Cleanup automatico via `expires_at` | Finestra sufficiente per retry client/rete mobile |
+| `webhook_events_inbox` | 90 giorni dopo `processed_at` | Cleanup periodico processati | Conserva troubleshooting recente, evita crescita infinita |
+| `tenant_usage_counters` | Indefinita | Mai cancellare | Aggregati leggeri utili per billing e trend |
+| `no_show_predictions` | 24 mesi | Archivia o elimina oltre soglia | Utile per tuning modelli, poi valore decresce |
+| `ai_suggestions` | 24 mesi | Archivia o elimina oltre soglia | Storico suggerimenti/follow-up utile medio termine |
 
 **Chi gestisce la pulizia:** Un cron job settimanale (non notturno — la pulizia è meno urgente della riconciliazione):
 1. Controlla `messages_log WHERE sent_at < NOW() - INTERVAL '24 months'` → elimina
 2. Controlla `staff_notifications WHERE is_read = true AND created_at < NOW() - INTERVAL '6 months'` → elimina
 3. Controlla `audit_log WHERE created_at < NOW() - INTERVAL '36 months'` → esporta come JSON in Supabase Storage → elimina dal database
+4. Controlla `push_subscriptions WHERE last_used_at < NOW() - INTERVAL '6 months'` → elimina endpoint inattivi
+5. Controlla `webhook_events_inbox WHERE status IN ('processed','skipped') AND processed_at < NOW() - INTERVAL '90 days'` → elimina
 
 **Nota v1:** In v1 NON implementiamo la pulizia automatica. I volumi sono troppo bassi per giustificarlo. La retention policy viene documentata ora per non dimenticarla quando i volumi cresceranno.
 
@@ -1100,6 +1476,9 @@ Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il
 | 6 | **`messages_log` cresce troppo** → tabella più grande del database | 🟡 Medio | Alta (dopo 2+ anni) | La retention policy a 24 mesi mitiga. Se serve prima, partitioning per mese su `sent_at`. Supabase supporta il partitioning nativo di PostgreSQL |
 | 7 | **Staff member eliminato** → appuntamenti orfani | 🟢 Basso | Bassa | Il soft delete (`deleted_at`) previene questo. Gli appuntamenti futuri dello staff rimosso devono essere riassegnati — l'applicazione deve gestire questo nel flusso di rimozione staff |
 | 8 | **Cambio template loyalty** → confusione nei punti | 🟢 Basso | Bassa | Il versioning con `loyalty_config_version` su ogni transazione rende tracciabile quale formula ha generato ogni punto. La riconciliazione notturna verifica la coerenza |
+| 9 | **Outbox worker fallisce** → reminder non inviati | 🔴 Alto | Media | Monitoring: `messaging_outbox WHERE status='pending' AND scheduled_for < now() - interval '5 minutes'`. Se > 0, alert immediato + retry controllato |
+| 10 | **Webhook duplicati non rilevati** → corruzione dati | 🔴 Alto | Bassa | `UNIQUE(provider, external_id)` su inbox + validazione firma provider obbligatoria su ogni evento |
+| 11 | **Token OAuth scaduti** su `tenant_integrations` | 🟡 Medio | Media | Cron ogni 15 min: controlla `token_expires_at < now() + interval '1 hour'` e avvia refresh preventivo |
 
 ---
 
@@ -1147,6 +1526,13 @@ Prima di scrivere le migrazioni SQL, verificare:
   31. `review_requests` (dipende da `clients` + `appointments`)
   32. `tenant_activity_log` (dipende da `tenants`)
   33. `audit_log` (dipende da `tenants` + `profiles`)
+  34. `push_subscriptions` (dipende da `profiles` + `tenants`)
+  35. `messaging_outbox` (dipende da `tenants` + `clients` + `appointments` + `message_templates`)
+  36. `idempotency_keys` (dipende da `tenants`)
+  37. `tenant_usage_counters` (dipende da `tenants`)
+  38. `webhook_events_inbox` (dipende opzionalmente da `tenants`)
+  39. `tenant_onboarding_state` (dipende da `tenants`, 1:1)
+  40. `data_export_requests` (opzionale v1 compliance; dipende da `tenants` + `clients`)
 
 - [ ] **RLS abilitate su OGNI tabella** (anche quelle globali come `subscription_plans` — con policy `SELECT` per tutti)
 
@@ -1157,8 +1543,13 @@ Prima di scrivere le migrazioni SQL, verificare:
   - Trigger su `appointment_products` → aggiorna `product_inventory` (decrementa giacenza)
   - Trigger su `product_inventory` → crea `staff_notification` se `quantity < low_stock_threshold`
   - Trigger su `profiles` → creazione automatica del profilo dopo `auth.users` insert (Supabase Auth hook)
+  - Trigger su `messages_log` → incrementa `tenant_usage_counters` (`sms_sent`, `whatsapp_sent`, `email_sent`, `push_sent`)
+  - Trigger su `appointments` INSERT → incrementa `tenant_usage_counters(bookings_created)`
 
 - [ ] **Cron jobs da configurare (Supabase pg_cron):**
+  - Ogni minuto: worker outbox (`messaging_outbox` pending in scadenza)
+  - Ogni ora: cleanup `idempotency_keys WHERE expires_at < now()`
+  - Settimanale: cleanup `webhook_events_inbox` processati > 30 giorni
   - Notturno: riconciliazione `client_analytics` + aggiornamento churn/VIP Score
   - Notturno: check reset annuale tier loyalty (`tier_year`, `tier_grace_expires_at`)
   - Settimanale (v2+): pulizia dati secondo retention policy
@@ -1169,10 +1560,10 @@ Prima di scrivere le migrazioni SQL, verificare:
 
 | Cosa | Prima | Dopo | Perché |
 |------|-------|------|--------|
-| Decisioni architetturali | 10 | **12** | Aggiunte Decisione 11 (Pagamenti) e Decisione 12 (Indicizzazione + Performance RLS) |
-| Tabelle v1 | 32 | **33** | Aggiunte `payments`, `client_consents`; conteggio corretto da enumerazione manuale |
-| Tabelle totali (v1+v2) | 37 | **38** | Conseguenza delle nuove tabelle v1 |
-| Regole d'oro | 10 | **12** | Aggiunte regole su pagamenti separati e indici espliciti |
+| Decisioni architetturali | 12 | **13** | Aggiunta Decisione 13 (Messaging outbox pattern e idempotenza) |
+| Tabelle v1 | 33 | **39** | Aggiunte 6 tabelle infrastrutturali v1 in AREA 11 (più `data_export_requests` opzionale per compliance) |
+| Tabelle v2 cumulative | 38 | **48** | v2 cresce con 4 tabelle nuove additive (`marketing_campaigns`, `campaign_recipients`, `walk_in_queue`, `tenant_integrations`) |
+| Regole d'oro | 12 | **14** | Aggiunte regole su idempotenza globale e uso obbligatorio `messaging_outbox` |
 | `client_analytics` | 8 metriche | **12 metriche** | Aggiunti `no_show_count`, `cancellation_count`, `referral_count`, `average_spend_per_visit` |
 | `clients` | No referral tracking | **`referred_by`** self-reference | Il VIP Score menzionava "referral" ma non c'era struttura per tracciarlo |
 | `loyalty_configs` | Campo `version` con update in-place | **Modello immutabile** con `started_at`/`ended_at` | Storico completo delle configurazioni, ricostruibile nel tempo |
@@ -1180,4 +1571,4 @@ Prima di scrivere le migrazioni SQL, verificare:
 | Soft delete | Solo `deleted_at` | **`deleted_at` + `deleted_by`** | GDPR: sapere CHI ha cancellato, non solo QUANDO |
 | GDPR consensi | Boolean impliciti | **Tabella `client_consents`** dedicata | Audit trail obbligatorio per legge con timestamp e IP |
 | Performance RLS | Non documentata | **Funzione `get_my_tenant_id()`** + piano indici | Senza questo, ogni query fa un full table scan |
-| Sezioni nuove | — | **Piano indicizzazione, Retention policy, Rischi, Checklist** | Documentazione operativa necessaria prima di scrivere SQL |
+| Sezioni nuove | — | **Strategia versionamento DB, AREA 11, Miglioramenti tabelle esistenti, SQL nuove tabelle v2/v3** | Allineamento completo MVP→Growth→AI senza perdere retro-compatibilità |
