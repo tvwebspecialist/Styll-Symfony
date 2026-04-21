@@ -5,13 +5,70 @@
 
 ---
 
+## Sezione 0 — TL;DR strategia versionamento
+
+**Risposta diretta alla domanda strategica:** *Il dominio si progetta una volta sola e non si tocca più. Le tabelle si creano quando servono. Le colonne future-proof esistono già in v1 come campi nullable/default, così v2 non deve MAI fare ALTER TABLE su tabelle v1.*
+
+| Livello | Strategia |
+|---|---|
+| Modello dominio | Finale da subito: entità, relazioni e invarianti si disegnano una volta |
+| Schema fisico | Incrementale additivo: v1 crea solo le tabelle necessarie oggi |
+| Colonne future-proof | Presenti già in v1 come nullable/default, anche se inerti in UX |
+| Indici e RLS | Attivati/estesi con la feature, mantenendo compatibilità retroattiva |
+
+**Esempi concreti di colonne future-proof già in v1:**
+- `clients.referred_by` esiste nullable in v1 → in v2 si attiva la UI referral
+- `client_loyalty.tier_grace_expires_at` esiste inerte in v1 → in v2 si attiva il tier system completo
+- `appointments.booking_source` include già `'whatsapp'` nel CHECK → in v3 si attiva la prenotazione WhatsApp in UI
+
+> 🆕 **Perché NON creare tutte le 51 tabelle in v1**
+> - **RLS debt:** più tabelle inutilizzate = più policy da scrivere, testare e mantenere
+> - **Test surface:** aumenta la superficie di regressioni e leakage multi-tenant
+> - **Backup costs:** snapshot/restore più costosi e più lenti senza valore operativo immediato
+> - **Rischio requisiti cambiati:** le feature future cambiano, quindi tabelle premature invecchiano male
+
+---
+
+## Analisi critica — Punti di forza e criticità
+
+### ✅ Punti di forza
+
+- Versionamento additivo MVP→Growth→AI con migrazioni non distruttive
+- Multi-tenancy nativa con helper RLS `get_my_tenant_id()`
+- Separazione CRM/Auth robusta con `clients.profile_id` nullable
+- Prezzi snapshot (`price_at_booking`, `price_at_sale`) per storico immutabile
+- Exclusion constraint PostgreSQL contro sovrapposizioni appuntamenti
+- Outbox + idempotency + webhook inbox per resilienza eventi esterni
+- `loyalty_configs` immutabile con versioning storico tracciabile
+- GDPR coperto con `client_consents`, `deleted_by` e `audit_log`
+- Retention policy e partitioning pianificati in anticipo
+
+### ⚠️ Criticità e miglioramenti integrati
+
+| # | Criticità | Gravità | Miglioramento |
+|---|---|---|---|
+| 1 | `get_my_tenant_id()` ritorna un solo UUID → futuro multi-tenant staff limitato | 🟡 Media | Aggiunto `get_my_tenant_ids()` e raccomandazione RLS con `ANY(...)` |
+| 2 | `client_loyalty.current_tier` basato su CHECK hardcoded | 🟡 Media | Bootstrap v1 mantenuto + introduzione `tier_slug` nullable per migrazione v2 |
+| 3 | `appointments` senza controllo concorrenza ottimistico | 🟢 Bassa | Aggiunta colonna `version` con strategia optimistic locking |
+| 4 | Rischio doppio earn loyalty su stesso appuntamento | 🟡 Media | Unique partial index in v1 su `loyalty_transactions(appointment_id)` dove `type='earn'` |
+| 5 | `payments` senza campi refund strutturati | 🟡 Media | Campi refund aggiunti già in v1 come inerti |
+| 6 | Convenzione `updated_at` non formalizzata | 🟢 Bassa | Sezione dedicata con trigger standard `set_updated_at()` |
+| 7 | Mancanza di tenant-consistency su FK cross-tabella | 🟠 Alta | Nuova Decisione 14 + regola d'oro su FK composte/trigger di fallback |
+| 8 | Costo messaggi lasciato solo in metadata JSONB | 🟢 Bassa | `messages_log.cost_cents` promosso a colonna dedicata + indice KPI |
+| 9 | Nessun campo data residency esplicito su tenant | 🟢 Bassa | `tenants.data_region` aggiunto in v1 come future-proof |
+| 10 | Audit incompleto per forensics operativo | 🟡 Media | Aggiunti `audit_log.actor_ip` e `audit_log.user_agent` |
+| 11 | Checklist trigger senza regola tenant-consistency esplicita | 🟠 Alta | Aggiunta voce `check_tenant_consistency` su tabelle critiche |
+| 12 | Strategia versionamento poco visibile in apertura | 🟡 Media | Strategia promossa a Sezione 0 con TL;DR operativo |
+
+---
+
 ## 🗄️ Architettura Database — Decisioni definitive
 
 > Questa sezione contiene TUTTE le decisioni architetturali del database.
 > È la referenza definitiva: il prossimo step è solo scrivere le tabelle SQL.
 > Ogni scelta è motivata e non va ridiscussa salvo nuovi requisiti.
 
-> ⚠️ Revisione: v2 — 13 decisioni, 11 aree, 39 tabelle v1, 48 tabelle v2, ~51 tabelle v3. Vedi sezione «Riepilogo cambiamenti rispetto alla versione precedente» alla fine.
+> ⚠️ Revisione: v2 — 14 decisioni, 11 aree, 39 tabelle v1, 48 tabelle v2, ~51 tabelle v3. Vedi sezione «Riepilogo cambiamenti rispetto alla versione precedente» alla fine.
 
 ---
 
@@ -60,7 +117,7 @@ Esempio pratico (Luca, Marco): Marco parte con v1 e usa booking/CRM/loyalty base
 
 ---
 
-### Le 13 decisioni architetturali fondamentali
+### Le 14 decisioni architetturali fondamentali
 
 Ogni decisione è stata analizzata con alternative e motivazioni. Sono definitive.
 
@@ -393,6 +450,8 @@ Per GDPR e audit trail, serve sapere non solo QUANDO un dato è stato cancellato
 2. Il webhook Supabase riceve la conferma → crea il record in `payments` con `stripe_payment_id`
 3. Se il pagamento fallisce → `status: 'failed'`, l'appuntamento resta `'unpaid'`
 
+**✏️ Refund fields inerti già in v1:** `refunded_amount`, `refunded_at`, `refund_reason`, `stripe_refund_id` vengono creati subito per evitare ALTER TABLE in v2 quando arriva Stripe.
+
 **Nota:** `payments` NON sostituisce `appointment_services` e `appointment_products`. Queste tabelle tracciano COSA è stato venduto (con prezzo snapshot). `payments` traccia SE e COME è stato pagato. Sono dati complementari.
 
 ---
@@ -428,7 +487,25 @@ CREATE POLICY "Staff sees own tenant" ON appointments
 
 `STABLE` dice a PostgreSQL che la funzione restituisce lo stesso risultato per tutta la transazione → può cachearne il risultato invece di rieseguire la subquery per ogni riga.
 
-**⚠️ Nota multi-tenant per staff:** Se in futuro uno staff lavorasse per più tenant (raro per barbieri, ma il nostro schema lo permette), `LIMIT 1` non basterebbe. In quel caso si userebbe il `tenant_id` come custom claim nel JWT di Supabase (configurabile via Supabase Auth hooks).
+✏️ **Nota multi-tenant per staff (implementazione additiva):**
+`get_my_tenant_id()` resta utile come helper di comodità (ritorna il primo tenant disponibile), ma le policy RLS dovrebbero preferire una funzione array-based per essere pronte al caso staff multi-tenant.
+
+```sql
+CREATE OR REPLACE FUNCTION get_my_tenant_ids()
+RETURNS UUID[] AS $$
+  SELECT COALESCE(array_agg(tenant_id), ARRAY[]::UUID[])
+  FROM staff_members
+  WHERE profile_id = auth.uid()
+  AND deleted_at IS NULL
+  AND is_active = true;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- RLS d'esempio
+CREATE POLICY "Staff sees own tenants" ON appointments
+  FOR SELECT USING (tenant_id = ANY(get_my_tenant_ids()));
+```
+
+**Regola pratica:** `get_my_tenant_id()` resta disponibile per query semplici; nelle RLS preferire `ANY(get_my_tenant_ids())`.
 
 **Indici minimi da creare:** Vedi la sezione "Piano di indicizzazione" più avanti nel documento.
 
@@ -460,6 +537,24 @@ Questo rende il sistema osservabile (queue depth, retry, latenza) e robusto a er
 
 ---
 
+#### 🆕 Decisione 14 — Tenant consistency cross-FK
+
+**Decisione:** Ogni foreign key che attraversa più tabelle tenant-scoped deve garantire coerenza sullo stesso `tenant_id`.
+
+Esempio operativo: `appointments.staff_id.tenant_id = appointments.client_id.tenant_id = appointments.tenant_id`.
+
+**Strategia combinata:**
+1. **Preferita:** chiavi composte con `tenant_id` su tutte le FK cross-tenant
+```sql
+-- Invece di: FOREIGN KEY (staff_id) REFERENCES staff_members(id)
+-- Fare: FOREIGN KEY (tenant_id, staff_id) REFERENCES staff_members(tenant_id, id)
+```
+2. **Fallback:** trigger `BEFORE INSERT/UPDATE` (`check_tenant_consistency`) quando introdurre FK composte è troppo invasivo su schema già esistente.
+
+**Perché è critica:** impedisce collegamenti invalidi tra tenant diversi (es. dati di Marco legati per errore a dati di Andrea) anche in presenza di bug applicativi.
+
+---
+
 ### Le 11 aree funzionali del database
 
 Il database è organizzato in 11 macro-aree, dalle fondamenta verso le funzionalità più alte.
@@ -472,10 +567,13 @@ Il database è organizzato in 11 macro-aree, dalle fondamenta verso le funzional
 
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
-| `tenants` | Il business (barbershop) | No (è la root) | `id`, `business_name`, `slug` (subdomain), `timezone` (es. 'Europe/Rome', obbligatorio), `logo_url`, `primary_color`, `secondary_color`, `font_family`, `feature_flag_overrides` (JSONB), `settings` (JSONB — config generali: cancellation policy, no-show policy, ecc.), `status` (active/suspended), `created_at`, `updated_at` |
+| `tenants` | Il business (barbershop) | No (è la root) | `id`, `business_name`, `slug` (subdomain), `timezone` (es. 'Europe/Rome', obbligatorio), `logo_url`, `primary_color`, `secondary_color`, `font_family`, `feature_flag_overrides` (JSONB), `settings` (JSONB — config generali: cancellation policy, no-show policy, ecc.), `status` (active/suspended), `data_region` (TEXT NOT NULL DEFAULT 'eu-west-1'), `created_at`, `updated_at` |
 | `locations` | Sedi fisiche del tenant | Sì | `id`, `tenant_id`, `name`, `address`, `city`, `zip_code`, `phone`, `email`, `latitude` (DECIMAL, nullable), `longitude` (DECIMAL, nullable), `timezone` (nullable, override del tenant), `is_active`, `created_at`, `updated_at` |
 | `subscription_plans` | I 3 tier | No (globale) | `id`, `name`, `slug`, `price_monthly`, `max_staff`, `max_locations`, `max_messages_month`, `feature_flags` (JSONB), `is_active`, `created_at` |
 | `tenant_subscriptions` | Collegamento tenant → piano | Sì | `id`, `tenant_id`, `plan_id`, `status`, `trial_ends_at`, `current_period_start`, `current_period_end`, `stripe_subscription_id` (nullable, per v2), `stripe_customer_id` (nullable), `created_at`, `updated_at` |
+
+🆕 **Colonna future-proof `tenants.data_region`:**
+In v1 è inerte e defaulta a `'eu-west-1'`. In v3 abilita strategie di data residency/internazionalizzazione senza `ALTER TABLE` distruttivi (vedi `docs/08-strategia/internazionalizzazione.md`).
 
 **✏️ Chiarimento su `tenants.settings` (JSONB):**
 Il campo `settings` raccoglie configurazioni operative del tenant che non meritano colonne dedicate perché sono poche, raramente lette in batch, e variabili per tenant:
@@ -617,10 +715,10 @@ products ──→ product_inventory ──→ locations
 |---------|-------|-------------|-------------------|
 | `working_hours` | Orari settimanali ricorrenti per staff | Sì | `id`, `tenant_id`, `staff_id`, `day_of_week` (0-6), `start_time` (TIME), `end_time` (TIME), `created_at` |
 | `working_hour_overrides` | Eccezioni per data specifica | Sì | `id`, `tenant_id`, `staff_id`, `date` (DATE), `is_closed` (BOOLEAN), `start_time` (TIME, nullable), `end_time` (TIME, nullable), `reason`, `created_at` |
-| `appointments` | L'appuntamento | Sì | `id`, `tenant_id`, `client_id`, `staff_id`, `location_id`, `start_time` (TIMESTAMPTZ), `end_time` (TIMESTAMPTZ), `status` ('pending'/'confirmed'/'completed'/'cancelled'/'no_show'), `booking_source`, `booked_by` (nullable), `notes`, `created_by` → `profiles.id` (nullable, chi ha materialmente creato il record), `deleted_at`, `deleted_by` (UUID, nullable), `created_at`, `updated_at` |
+| `appointments` | L'appuntamento | Sì | `id`, `tenant_id`, `client_id`, `staff_id`, `location_id`, `start_time` (TIMESTAMPTZ), `end_time` (TIMESTAMPTZ), `status` ('pending'/'confirmed'/'completed'/'cancelled'/'no_show'), `booking_source`, `booked_by` (nullable), `notes`, `created_by` → `profiles.id` (nullable, chi ha materialmente creato il record), `version` (INT NOT NULL DEFAULT 1), `deleted_at`, `deleted_by` (UUID, nullable), `created_at`, `updated_at` |
 | `appointment_services` | Servizi nell'appuntamento con prezzo snapshot | Sì | `id`, `tenant_id`, `appointment_id`, `service_id`, `price_at_booking` (DECIMAL), `created_at` |
 | `appointment_products` | Prodotti venduti con prezzo e quantità snapshot | Sì | `id`, `tenant_id`, `appointment_id`, `product_id`, `quantity`, `price_at_sale` (DECIMAL), `created_at` |
-| 🆕 `payments` | Pagamento effettivo dell'appuntamento | Sì | `id`, `tenant_id`, `appointment_id` → `appointments.id` (nullable — un pagamento potrebbe essere un acconto senza appuntamento specifico), `client_id` → `clients.id`, `amount` (DECIMAL(10,2)), `tip_amount` (DECIMAL(10,2) DEFAULT 0), `payment_method` ('cash'/'card_terminal'/'stripe_online'/'bank_transfer'/'other'), `status` ('pending'/'completed'/'refunded'/'partial_refund'/'failed'), `stripe_payment_id` (VARCHAR, nullable — per v2), `notes` (TEXT, nullable), `paid_at` (TIMESTAMPTZ), `created_by` → `profiles.id` (nullable, chi ha registrato il pagamento), `created_at` |
+| 🆕 `payments` | Pagamento effettivo dell'appuntamento | Sì | `id`, `tenant_id`, `appointment_id` → `appointments.id` (nullable — un pagamento potrebbe essere un acconto senza appuntamento specifico), `client_id` → `clients.id`, `amount` (DECIMAL(10,2)), `tip_amount` (DECIMAL(10,2) DEFAULT 0), `payment_method` ('cash'/'card_terminal'/'stripe_online'/'bank_transfer'/'other'), `status` ('pending'/'completed'/'refunded'/'partial_refund'/'failed'), `stripe_payment_id` (VARCHAR, nullable — per v2), `refunded_amount` (NUMERIC(10,2) NOT NULL DEFAULT 0), `refunded_at` (TIMESTAMPTZ, nullable), `refund_reason` (TEXT, nullable), `stripe_refund_id` (TEXT, nullable), `notes` (TEXT, nullable), `paid_at` (TIMESTAMPTZ), `created_by` → `profiles.id` (nullable, chi ha registrato il pagamento), `created_at` |
 
 **Relazioni:**
 ```
@@ -644,6 +742,11 @@ Marco lavora 9-13 e 15-19 il lunedì → 2 righe per lo stesso giorno. Questo mo
 **Prezzo snapshot:** Quando Luca prenota Taglio a €15, quel prezzo va in `appointment_services.price_at_booking`. Se domani Marco alza a €18, lo storico di Luca mostra ancora €15.
 
 **Prevenzione sovrapposizioni:** Exclusion constraint su `appointments` — vedi Decisione 6.
+
+✏️ **Optimistic locking su `appointments`:**
+- `version INT NOT NULL DEFAULT 1` per gestire modifiche concorrenti (es. due receptionist sullo stesso appuntamento)
+- Trigger `BEFORE UPDATE` incrementa `version`
+- L'app aggiorna con guardia: `UPDATE ... WHERE id = ? AND version = ?`
 
 **`booked_by` vs `created_by`:**
 - `booked_by` = chi è il "proprietario logico" della prenotazione (il cliente o lo staff per conto del quale si prenota). Usato per contatti e responsabilità
@@ -730,7 +833,7 @@ clients ←── client_consents (N consensi per cliente, con timestamp)
 |---------|-------|-------------|-------------------|
 | `loyalty_configs` | Config loyalty del tenant | Sì | `id`, `tenant_id`, `is_active` (BOOLEAN), `template` ('classic'/'streak_master'/'vip_club'), `points_per_visit` (per Classico), `points_per_euro` (per Streak Master), `streak_threshold_days` (default 45), `version` (INTEGER, default 1), `started_at` (TIMESTAMPTZ DEFAULT now()), `ended_at` (TIMESTAMPTZ, nullable — NULL = config attiva), `created_at`, `updated_at` |
 | `rewards` | Catalogo ricompense (max 6) | Sì | `id`, `tenant_id`, `name`, `description`, `points_cost`, `reward_type` ('product'/'service'/'discount'/'custom'), `display_order`, `is_active`, `created_by` → `profiles.id` (nullable), `created_at`, `updated_at` |
-| `client_loyalty` | Stato loyalty del cliente | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `total_points`, `available_points`, `current_streak`, `longest_streak`, `current_tier` (default 'bronze'), `tier_points_this_year`, `tier_year` (INTEGER), `tier_grace_expires_at` (TIMESTAMPTZ, nullable), `last_visit_date`, `created_at`, `updated_at` |
+| `client_loyalty` | Stato loyalty del cliente | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `total_points`, `available_points`, `current_streak`, `longest_streak`, `current_tier` (default 'bronze'), `tier_slug` (TEXT, nullable), `tier_points_this_year`, `tier_year` (INTEGER), `tier_grace_expires_at` (TIMESTAMPTZ, nullable), `last_visit_date`, `created_at`, `updated_at` |
 | `loyalty_transactions` | Log ogni operazione punti | Sì | `id`, `tenant_id`, `client_id`, `type` ('earn'/'redeem'/'bonus'/'import'/'expire'/'adjustment'), `points` (positivo o negativo), `description`, `appointment_id` (nullable), `staff_id` (nullable, chi ha assegnato), `loyalty_config_version` (INTEGER, nullable — la version della config al momento della transazione), `created_at` |
 | `reward_redemptions` | Riscatti effettuati | Sì | `id`, `tenant_id`, `client_id`, `reward_id` → `rewards.id`, `points_spent`, `confirmed_by` → `staff_members.id`, `confirmed_at`, `created_at` |
 
@@ -759,6 +862,14 @@ reward_redemptions ──→ clients + rewards + staff_members (chi conferma il 
 
 **Perché `loyalty_transactions` è fondamentale:**
 Senza questa tabella, non puoi rispondere a: "Quando ha guadagnato questi punti? Per quale visita? Chi glieli ha assegnati manualmente?". È l'audit trail completo della loyalty. Ogni riga = un evento con data, tipo, punti, e contesto.
+
+🆕 **Prevenzione doppio accredito earn già in v1:**
+```sql
+CREATE UNIQUE INDEX idx_loyalty_transactions_one_earn_per_appt
+ON loyalty_transactions (appointment_id)
+WHERE type = 'earn' AND appointment_id IS NOT NULL;
+```
+Questo impedisce race condition che accreditano due volte i punti per lo stesso appuntamento completato.
 
 **✏️ Gestione cambio template loyalty (versioning con storico):**
 `loyalty_configs` usa un modello immutabile: ogni cambio di template crea una nuova riga, la vecchia viene chiusa con `ended_at`. La riga attiva è quella con `ended_at IS NULL`.
@@ -799,7 +910,7 @@ Quando il barbiere cambia template (es. da Classico a Streak Master):
 | Tabella | Scopo | `tenant_id`? | Colonne principali |
 |---------|-------|-------------|-------------------|
 | `message_templates` | Modelli con segnaposto | Sì | `id`, `tenant_id`, `name`, `type` ('reminder'/'confirmation'/'win_back'/'review_request'/'loyalty_update'/'custom'), `channel` ('sms'/'whatsapp'/'email'/'push'), `subject` (per email), `body` (con placeholder: `{client_name}`, `{appointment_date}`, `{staff_name}`...), `is_active`, `created_at`, `updated_at` |
-| `messages_log` | Log messaggi inviati | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `template_id` → `message_templates.id` (nullable), `channel` ('sms'/'whatsapp'/'email'/'push'), `type`, `recipient` (telefono o email), `body_sent` (testo effettivo inviato), `status` ('queued'/'sent'/'delivered'/'failed'/'bounced'), `cost` (DECIMAL, nullable), `external_id` (ID del provider es. MessageBird), `sent_at`, `created_at` |
+| `messages_log` | Log messaggi inviati | Sì | `id`, `tenant_id`, `client_id` → `clients.id`, `template_id` → `message_templates.id` (nullable), `channel` ('sms'/'whatsapp'/'email'/'push'), `type`, `recipient` (telefono o email), `body_sent` (testo effettivo inviato), `status` ('queued'/'sent'/'delivered'/'failed'/'bounced'), `cost` (DECIMAL, nullable), `cost_cents` (BIGINT NOT NULL DEFAULT 0), `external_id` (ID del provider es. MessageBird), `sent_at`, `created_at` |
 | `staff_notifications` | Notifiche in-app per lo staff | Sì | `id`, `tenant_id`, `staff_id` → `staff_members.id` (nullable, NULL = visibile a tutto lo staff), `type` ('churn_alert'/'low_stock'/'new_booking'/'cancellation'/'review_received'/'system'), `title`, `body`, `data` (JSONB, nullable — contesto: client_id, appointment_id, product_id...), `is_read` (BOOLEAN DEFAULT false), `read_at` (TIMESTAMPTZ, nullable), `created_at` |
 
 **Relazioni:**
@@ -813,6 +924,9 @@ staff_notifications ──→ tenants + staff_members (opzionale)
 - Template = definizione ("Ciao {client_name}, domani alle {appointment_time}...")
 - Log = evento ("Inviato a Roberto via SMS alle 18:00, delivered, €0.045")
 - Un template viene usato migliaia di volte → 1:N
+
+✏️ **`messages_log.cost_cents` come colonna esplicita:**
+Il costo resta disponibile anche in `metadata` per compatibilità, ma il campo dedicato `cost_cents` abilita query billing/KPI veloci (`SUM`, filtri per periodo, ranking tenant) senza parsing JSONB.
 
 **Il `body_sent` nel log:** Salviamo il testo effettivo inviato (con i placeholder già risolti) perché se il template cambia in futuro, lo storico dei messaggi inviati resta intatto.
 
@@ -921,7 +1035,7 @@ review_requests ──→ clients + appointments (opzionale)
 |---------|-------|-------------|-------------------|
 | `admin_users` | Admin piattaforma | No (globale) | `id`, `profile_id` → `profiles.id`, `role` ('superadmin'/'support'), `created_at` |
 | `tenant_activity_log` | Metriche aggregate per tenant | Sì (ma visibile solo ad admin) | `id`, `tenant_id`, `last_login_at`, `appointments_this_month`, `active_clients_count`, `total_revenue_this_month`, `recorded_at` (TIMESTAMPTZ), `created_at` |
-| `audit_log` | Log operazioni sensibili | Sì | `id`, `tenant_id`, `actor_id` → `profiles.id` (chi ha fatto l'azione), `action` ('create'/'update'/'delete'/'status_change'), `entity_type` (es. 'appointment', 'client', 'service', 'payment'), `entity_id` (UUID dell'entità modificata), `changes` (JSONB — old/new values), `ip_address` (INET, nullable), `created_at` |
+| `audit_log` | Log operazioni sensibili | Sì | `id`, `tenant_id`, `actor_id` → `profiles.id` (chi ha fatto l'azione), `action` ('create'/'update'/'delete'/'status_change'), `entity_type` (es. 'appointment', 'client', 'service', 'payment'), `entity_id` (UUID dell'entità modificata), `changes` (JSONB — old/new values), `actor_ip` (INET, nullable), `user_agent` (TEXT, nullable), `created_at` |
 
 **Relazioni:**
 ```
@@ -950,7 +1064,8 @@ audit_log ──→ tenants + profiles
 ```json
 {
   "old": { "status": "confirmed", "price": 15.00 },
-  "new": { "status": "cancelled", "price": 15.00 }
+  "new": { "status": "cancelled", "price": 15.00 },
+  "reason": "Cliente assente"
 }
 ```
 Solo i campi modificati vengono salvati, non l'intero record. Questo mantiene il JSONB leggero.
@@ -1353,7 +1468,9 @@ CREATE TABLE data_export_requests (
    - Coordinate: `NUMERIC(10,7)`
 
 6. **CHECK su `client_loyalty.current_tier`**
-   - Fino a quando v2 non introduce `tier_configs` FK: `CHECK (current_tier IN ('Bronze','Silver','Gold','Platinum'))`
+   - In v1 il CHECK hardcoded resta bootstrap: `CHECK (current_tier IN ('Bronze','Silver','Gold','Platinum'))`
+   - 🆕 In v1 aggiungiamo anche `tier_slug TEXT NULL` accanto a `current_tier`
+   - In v2, con `tier_configs`, migrazione consigliata: `current_tier_slug TEXT` + FK soft (validazione applicativa) verso `tier_configs(tier_slug)`
 
 7. **`booking_rate_limit` (opzionale)**
    - Valutazione: per MVP è preferibile riusare `idempotency_keys` + regole applicative per anti-spam
@@ -1361,7 +1478,7 @@ CREATE TABLE data_export_requests (
 
 ---
 
-### Regole architetturali — Le 14 regole d'oro (✏️ aggiornate)
+### Regole architetturali — Le 15 regole d'oro (✏️ aggiornate)
 
 | # | Regola | Perché |
 |---|--------|--------|
@@ -1379,6 +1496,24 @@ CREATE TABLE data_export_requests (
 | 12 | **Indici espliciti su ogni colonna filtrata** | PostgreSQL non crea indici sulle FK. Senza indici, RLS + tenant_id = full table scan |
 | 🆕 13 | **Idempotenza su ogni scrittura esterna** | Booking API, webhook, pagamenti e redeem passano per `idempotency_keys` o `webhook_events_inbox` |
 | 🆕 14 | **SMS/push/email SEMPRE via `messaging_outbox`** | Mai invio diretto: retry, scheduling e audit coerente |
+| 🆕 15 | **Tenant-consistency su FK cross-tenant** | Nessun dato di Marco può collegarsi a dati di Andrea via FK mal validate |
+
+---
+
+### 🆕 Convenzione `updated_at`
+
+- Tutte le tabelle mutabili devono avere `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`
+- Trigger generico standard:
+```sql
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+-- Applicato a: tenants, locations, tenant_subscriptions, staff_members, services,
+-- products, product_inventory, clients, appointments, client_loyalty, loyalty_configs,
+-- rewards, message_templates, tenant_integrations, etc.
+```
+- Tabelle append-only che **non** usano `updated_at`: `loyalty_transactions`, `messages_log`, `audit_log`, `reward_redemptions`, `appointment_services`, `appointment_products`, `webhook_events_inbox`
 
 ---
 
@@ -1400,7 +1535,8 @@ CREATE TABLE data_export_requests (
 | `client_loyalty` | `(tenant_id, client_id)` | B-tree composto (UNIQUE) | Lookup 1:1 client → loyalty |
 | `loyalty_transactions` | `(tenant_id, client_id, created_at)` | B-tree composto | "Storico punti di Luca, ordinato per data" |
 | `messages_log` | `(tenant_id, client_id, sent_at)` | B-tree composto | "Ultimo messaggio inviato a Roberto" per rate limiting win-back |
-| `staff_members` | `(tenant_id, profile_id) WHERE deleted_at IS NULL` | Partial B-tree | Usato dalla funzione `get_my_tenant_id()` — chiamata in OGNI RLS policy |
+| `messages_log` | `(tenant_id, sent_at, cost_cents)` | B-tree composto | Query billing/KPI per periodo con aggregazioni veloci su costo |
+| `staff_members` | `(tenant_id, profile_id) WHERE deleted_at IS NULL` | Partial B-tree | Usato da `get_my_tenant_id()`/`get_my_tenant_ids()` — chiamate in OGNI RLS policy |
 | `staff_notifications` | `(tenant_id, staff_id, is_read)` | B-tree composto | Badge notifiche non lette nella dashboard |
 | `payments` | `(tenant_id, appointment_id)` | B-tree composto | Collegamento appuntamento → pagamento |
 | `payments` | `(tenant_id, paid_at)` | B-tree composto | KPI revenue per periodo |
@@ -1470,7 +1606,7 @@ CREATE TABLE data_export_requests (
 |---|---------|---------|-------------|-------------|
 | 1 | **RLS policy mal configurata** → un tenant vede i dati di un altro | 🔴 Critico | Media (errore umano in fase di sviluppo) | Test automatici per ogni policy RLS: per ogni tabella, verificare che un utente del tenant A non possa leggere/scrivere dati del tenant B. Suite di test obbligatoria prima del deploy |
 | 2 | **Cron notturno fallisce** → metriche analytics sbagliate | 🟡 Medio | Media | Il cron scrive un log di esecuzione con `started_at`, `completed_at`, `tenants_processed`, `errors`. Se il cron non gira per 2 notti consecutive, notifica all'admin. Le metriche trigger restano comunque ragionevolmente corrette |
-| 3 | **Race condition su loyalty points** → punti duplicati | 🟡 Medio | Bassa | La riconciliazione notturna corregge. In v2, aggiungere un vincolo `UNIQUE(appointment_id, type)` su `loyalty_transactions` per impedire doppi earn dallo stesso appuntamento |
+| 3 | **Race condition su loyalty points** → punti duplicati | 🟡 Medio | Bassa | Mitigato già in v1 con indice parziale `UNIQUE` su `loyalty_transactions(appointment_id)` quando `type='earn'`, più riconciliazione notturna |
 | 4 | **Exclusion constraint performance** su `appointments` con molte righe | 🟡 Medio | Bassa (sotto 1M righe) | L'exclusion constraint usa un indice GiST che è efficiente. Diventa lento solo sopra i 5M di righe. Monitorare con `pg_stat_user_indexes` |
 | 5 | **JSONB `settings` su `tenants` diventa troppo grande** | 🟢 Basso | Bassa | Le impostazioni sono poche (<20 chiavi). Se crescono oltre 50, migrare a una tabella `tenant_settings` chiave-valore. Per ora JSONB è perfetto |
 | 6 | **`messages_log` cresce troppo** → tabella più grande del database | 🟡 Medio | Alta (dopo 2+ anni) | La retention policy a 24 mesi mitiga. Se serve prima, partitioning per mese su `sent_at`. Supabase supporta il partitioning nativo di PostgreSQL |
@@ -1490,7 +1626,7 @@ Prima di scrivere le migrazioni SQL, verificare:
   - `btree_gist` — per l'exclusion constraint sugli appuntamenti
   - `pgcrypto` — per `gen_random_uuid()` (già abilitata di default su Supabase)
 
-- [ ] **Funzione `get_my_tenant_id()`** creata PRIMA di qualsiasi RLS policy
+- [ ] **Funzioni `get_my_tenant_id()` e `get_my_tenant_ids()`** create PRIMA di qualsiasi RLS policy
 
 - [ ] **Ordine di creazione tabelle** (rispettare le dipendenze FK):
   1. `subscription_plans` (nessuna dipendenza)
@@ -1545,6 +1681,7 @@ Prima di scrivere le migrazioni SQL, verificare:
   - Trigger su `profiles` → creazione automatica del profilo dopo `auth.users` insert (Supabase Auth hook)
   - Trigger su `messages_log` → incrementa `tenant_usage_counters` (`sms_sent`, `whatsapp_sent`, `email_sent`, `push_sent`)
   - Trigger su `appointments` INSERT → incrementa `tenant_usage_counters(bookings_created)`
+  - 🆕 Trigger `check_tenant_consistency` su tabelle con FK multiple tenant-scoped (`appointments`, `loyalty_transactions`, `reward_redemptions`, `campaign_recipients`, `messaging_outbox`)
 
 - [ ] **Cron jobs da configurare (Supabase pg_cron):**
   - Ogni minuto: worker outbox (`messaging_outbox` pending in scadenza)
@@ -1560,10 +1697,10 @@ Prima di scrivere le migrazioni SQL, verificare:
 
 | Cosa | Prima | Dopo | Perché |
 |------|-------|------|--------|
-| Decisioni architetturali | 12 | **13** | Aggiunta Decisione 13 (Messaging outbox pattern e idempotenza) |
+| Decisioni architetturali | 13 | **14** | Aggiunta Decisione 14 (Tenant consistency cross-FK) |
 | Tabelle v1 | 33 | **39** | Aggiunte 6 tabelle infrastrutturali v1 in AREA 11 (più `data_export_requests` opzionale per compliance) |
 | Tabelle v2 cumulative | 38 | **48** | v2 cresce con 4 tabelle nuove additive (`marketing_campaigns`, `campaign_recipients`, `walk_in_queue`, `tenant_integrations`) |
-| Regole d'oro | 12 | **14** | Aggiunte regole su idempotenza globale e uso obbligatorio `messaging_outbox` |
+| Regole d'oro | 14 | **15** | Aggiunta regola tenant-consistency |
 | `client_analytics` | 8 metriche | **12 metriche** | Aggiunti `no_show_count`, `cancellation_count`, `referral_count`, `average_spend_per_visit` |
 | `clients` | No referral tracking | **`referred_by`** self-reference | Il VIP Score menzionava "referral" ma non c'era struttura per tracciarlo |
 | `loyalty_configs` | Campo `version` con update in-place | **Modello immutabile** con `started_at`/`ended_at` | Storico completo delle configurazioni, ricostruibile nel tempo |
@@ -1572,3 +1709,13 @@ Prima di scrivere le migrazioni SQL, verificare:
 | GDPR consensi | Boolean impliciti | **Tabella `client_consents`** dedicata | Audit trail obbligatorio per legge con timestamp e IP |
 | Performance RLS | Non documentata | **Funzione `get_my_tenant_id()`** + piano indici | Senza questo, ogni query fa un full table scan |
 | Sezioni nuove | — | **Strategia versionamento DB, AREA 11, Miglioramenti tabelle esistenti, SQL nuove tabelle v2/v3** | Allineamento completo MVP→Growth→AI senza perdere retro-compatibilità |
+| Sezione 0 | — | **TL;DR strategia versionamento promossa in apertura** | Risposta esplicita alla domanda strategica più frequente |
+| Sezione analisi critica | — | **Nuova** | Documentazione trasparente di punti di forza e criticità note |
+| `appointments.version` | — | **Aggiunto** | Optimistic locking per modifiche concorrenti |
+| `payments` refund fields | — | **Aggiunti inerti v1** | Pronti per Stripe v2 senza ALTER TABLE |
+| `loyalty_transactions` unique earn | v2 | **v1** | Prevenzione doppi accrediti già da MVP |
+| `audit_log.actor_ip/user_agent` | — | **Aggiunti** | GDPR + forensics |
+| `messages_log.cost_cents` | in metadata | **Colonna dedicata** | Query billing performanti |
+| `tenants.data_region` | — | **Aggiunto inerte** | Internazionalizzazione v3-ready |
+| `get_my_tenant_ids()` | Solo singolo | **Anche array** | Multi-tenant staff ready |
+| Convenzione `updated_at` | Implicita | **Formalizzata** con trigger `moddatetime` | Consistenza temporale standard |
