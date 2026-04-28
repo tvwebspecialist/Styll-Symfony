@@ -1,0 +1,294 @@
+'use client'
+
+import * as React from 'react'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  LayoutDashboard,
+  Calendar,
+  Users,
+  ShoppingBag,
+  Menu,
+  X,
+  Trophy,
+  Megaphone,
+  Scissors,
+  Smartphone,
+  Settings,
+  User,
+  LogOut,
+  type LucideIcon,
+} from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+interface NavItem {
+  label: string
+  href: string
+  icon: LucideIcon
+  exact?: boolean
+}
+
+const MAIN_ITEMS: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
+  { label: 'Calendario', href: '/dashboard/calendario', icon: Calendar },
+  { label: 'Clienti', href: '/dashboard/clienti', icon: Users },
+  { label: 'Vendite', href: '/dashboard/vendite', icon: ShoppingBag },
+]
+
+const DRAWER_GRID: NavItem[] = [
+  { label: 'Loyalty', href: '/dashboard/loyalty', icon: Trophy },
+  { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
+  { label: 'Team', href: '/dashboard/team', icon: Users },
+  { label: 'Catalogo', href: '/dashboard/catalogo', icon: Scissors },
+  { label: 'La mia App', href: '/dashboard/app', icon: Smartphone },
+  { label: 'Impostazioni', href: '/dashboard/impostazioni', icon: Settings },
+]
+
+function isActive(path: string, item: NavItem): boolean {
+  return item.exact
+    ? path === item.href
+    : path === item.href || path.startsWith(item.href + '/')
+}
+
+export function BottomNav() {
+  const pathname = usePathname() ?? ''
+  const router = useRouter()
+  const [open, setOpen] = React.useState(false)
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  return (
+    <>
+      <nav
+        className="mobile-only"
+        style={{
+          display: 'none',
+          position: 'fixed',
+          bottom: 16,
+          left: 16,
+          right: 16,
+          height: 64,
+          zIndex: 50,
+          background: '#222222',
+          borderRadius: 100,
+          alignItems: 'center',
+          padding: '0 10px',
+          gap: 0,
+          justifyContent: 'space-between',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+        }}
+      >
+        {MAIN_ITEMS.map((item) => {
+          const active = isActive(pathname, item)
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              style={{
+                flex: '0 0 auto',
+                width: active ? 'auto' : 44,
+                height: 48,
+                padding: active ? '8px 16px' : 0,
+                borderRadius: active ? 100 : 100,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: active ? 8 : 0,
+                textDecoration: 'none',
+                background: active ? '#FFFFFF' : 'transparent',
+                whiteSpace: 'nowrap',
+                transition: 'background 180ms ease',
+              }}
+            >
+              <Icon size={20} color={active ? '#222222' : 'rgba(255,255,255,0.5)'} />
+              {active && (
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#222222',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1,
+                  }}
+                >
+                  {item.label}
+                </span>
+              )}
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Menu"
+          style={{
+            flex: '0 0 auto',
+            width: 44,
+            height: 48,
+            borderRadius: 100,
+            background: 'transparent',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          <Menu size={20} color="rgba(255,255,255,0.5)" />
+        </button>
+      </nav>
+
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 60,
+          }}
+        />
+      )}
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 70,
+          background: '#FFFFFF',
+          borderRadius: '20px 20px 0 0',
+          padding: '16px 16px 32px',
+          transform: open ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: open ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 4,
+            background: '#E0E0E0',
+            borderRadius: 2,
+            margin: '0 auto 20px',
+          }}
+        />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#222222' }}>Menu</div>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Chiudi"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'flex',
+            }}
+          >
+            <X size={18} color="#222222" />
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 8,
+            marginBottom: 16,
+          }}
+        >
+          {DRAWER_GRID.map((item) => {
+            const Icon = item.icon
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  background: '#F9F9F9',
+                  fontSize: 14,
+                  color: '#222222',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+              >
+                <Icon size={20} color="#222222" />
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div style={{ height: 1, background: '#F0F0F0', margin: '8px 0 12px' }} />
+
+        <Link
+          href="/dashboard/profilo"
+          onClick={() => setOpen(false)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 16px',
+            borderRadius: 12,
+            background: '#F9F9F9',
+            fontSize: 14,
+            color: '#222222',
+            textDecoration: 'none',
+            fontWeight: 500,
+            marginBottom: 8,
+          }}
+        >
+          <User size={20} color="#222222" />
+          <span>Profilo</span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '14px 16px',
+            borderRadius: 12,
+            background: '#F9F9F9',
+            fontSize: 14,
+            color: '#DC2626',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 500,
+            width: '100%',
+            textAlign: 'left',
+          }}
+        >
+          <LogOut size={20} color="#DC2626" />
+          <span>Logout</span>
+        </button>
+      </div>
+    </>
+  )
+}
