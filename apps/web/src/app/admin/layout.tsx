@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { ThemeProvider } from 'next-themes'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -22,17 +21,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ])
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <AdminShell
-        email={user.email ?? null}
-        onSignOut={signOutAction}
-        counts={{
-          tenants: tenantsCount.count ?? 0,
-          users: usersCount.count ?? 0,
-        }}
-      >
-        {children}
-      </AdminShell>
-    </ThemeProvider>
+    <AdminShell
+      email={user.email ?? null}
+      onSignOut={signOutAction}
+      counts={{
+        tenants: tenantsCount.count ?? 0,
+        users: usersCount.count ?? 0,
+      }}
+    >
+      {children}
+    </AdminShell>
   )
 }

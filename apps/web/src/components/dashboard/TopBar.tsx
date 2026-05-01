@@ -3,10 +3,15 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { Search, HelpCircle, Moon, Bell, User as UserIcon } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 interface TopBarProps {
+  fullName?: string | null
+  avatarUrl?: string | null
   initials?: string
+  impersonation?: {
+    adminName: string
+    tenantName: string
+  } | null
 }
 
 function computeInitials(fullName: string | null | undefined, fallback?: string): string {
@@ -17,42 +22,10 @@ function computeInitials(fullName: string | null | undefined, fallback?: string)
   return (fallback ?? '').slice(0, 2).toUpperCase()
 }
 
-export function TopBar({ initials }: TopBarProps) {
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [fullName, setFullName] = React.useState<string | null>(null)
+export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarProps) {
   const [imgError, setImgError] = React.useState(false)
 
-  React.useEffect(() => {
-    let active = true
-    const supabase = createClient()
-    ;(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || !active) return
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('avatar_url, full_name')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (!active) return
-
-      const profileAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null
-      const profileName = (profile as { full_name?: string | null } | null)?.full_name ?? null
-      const metaAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? null
-      const metaName = (user.user_metadata?.full_name as string | undefined) ?? null
-
-      setAvatarUrl(profileAvatar ?? metaAvatar ?? null)
-      setFullName(profileName ?? metaName ?? null)
-    })()
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const initialsText = computeInitials(fullName, initials)
+  const initialsText = computeInitials(fullName ?? null, initials)
   const showImage = !!avatarUrl && !imgError
   const showInitials = !showImage && initialsText.length > 0
 
@@ -88,12 +61,35 @@ export function TopBar({ initials }: TopBarProps) {
         <div
           style={{
             fontWeight: 700,
-            fontSize: 32,
+            fontSize: impersonation ? 14 : 32,
             color: '#222222',
             flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
           }}
         >
-          Styll
+          {impersonation ? (
+            <>
+              <span style={{ color: '#222' }}>{impersonation.adminName}</span>
+              <span
+                style={{
+                  background: '#E94560',
+                  color: '#fff',
+                  borderRadius: 6,
+                  padding: '2px 6px',
+                  fontSize: 10,
+                  letterSpacing: '0.08em',
+                }}
+              >
+                ADMIN
+              </span>
+              <span style={{ color: '#999', fontWeight: 500 }}>→</span>
+              <span style={{ color: '#8B5CF6' }}>{impersonation.tenantName}</span>
+            </>
+          ) : (
+            'Styll'
+          )}
         </div>
 
         <div
@@ -207,9 +203,10 @@ export function TopBar({ initials }: TopBarProps) {
               fontWeight: 600,
               color: '#222222',
               cursor: 'pointer',
-              textDecoration: 'none',
+              padding: 0,
               transition: 'opacity 120ms ease',
               overflow: 'hidden',
+              textDecoration: 'none',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}

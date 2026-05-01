@@ -6,31 +6,35 @@ import { useRouter } from 'next/navigation'
 import {
   Plus,
   Pencil,
-  Trash2,
   Archive,
   LogIn,
   Download,
   CheckCircle2,
   Ban,
+  AlertTriangle,
+  UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AdminTable, type AdminTableColumn } from '@/components/admin/admin-table'
 import { SlideOver } from '@/components/admin/slide-over'
-import { TypeNameConfirm } from '@/components/admin/type-name-confirm'
+import { ConfirmDialog } from '@/components/admin/admin-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { JsonEditor } from '@/components/admin/json-editor'
+import { ImageUpload } from '@/components/admin/image-upload'
 import {
   createTenant,
   updateTenant,
   toggleTenantStatus,
-  deleteTenant,
   softDeleteTenant,
   exportTenantData,
-  impersonateUser,
-  getTenantOwner,
+  startTenantImpersonation,
+  updateTenantSubscription,
+  assignTenantOwnerToMe,
+  assignTenantOwnerByEmail,
+  type PlanOption,
 } from '@/app/admin/actions'
 
 export interface TenantRow {
@@ -47,7 +51,9 @@ export interface TenantRow {
   created_at: string
   services_count: number
   staff_count: number
+  active_staff_count: number
   locations_count: number
+  plan_id: string | null
   plan_name: string | null
   subscription_status: string | null
 }
@@ -63,6 +69,8 @@ interface FormState {
   font_family: string
   settings: Record<string, unknown> | null
   settingsValid: boolean
+  plan_id: string
+  initial_plan_id: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -76,13 +84,15 @@ const EMPTY_FORM: FormState = {
   font_family: '',
   settings: {},
   settingsValid: true,
+  plan_id: '',
+  initial_plan_id: '',
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  suspended: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  deleted: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  inactive: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  active: 'bg-emerald-100 text-emerald-700',
+  suspended: 'bg-amber-100 text-amber-700',
+  deleted: 'bg-red-100 text-red-700',
+  inactive: 'bg-zinc-100 text-zinc-700  ',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -90,6 +100,26 @@ const STATUS_LABEL: Record<string, string> = {
   suspended: 'Sospeso',
   deleted: 'Eliminato',
   inactive: 'Inattivo',
+}
+
+function planBadgeClass(name: string | null): string {
+  const n = (name ?? '').toLowerCase()
+  if (n.includes('pro'))
+    return 'bg-violet-100 text-violet-700'
+  if (n.includes('growth') || n.includes('plus') || n.includes('business'))
+    return 'bg-emerald-100 text-emerald-700'
+  return 'bg-zinc-100 text-zinc-700  '
+}
+
+function PlanBadge({ name }: { name: string | null }) {
+  if (!name) return <span className="text-xs text-muted-foreground">—</span>
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${planBadgeClass(name)}`}
+    >
+      {name}
+    </span>
+  )
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -141,13 +171,19 @@ function downloadJson(filename: string, payload: unknown) {
   URL.revokeObjectURL(url)
 }
 
-export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] }) {
+export function TenantsClient({
+  initialTenants,
+  plans,
+}: {
+  initialTenants: TenantRow[]
+  plans: PlanOption[]
+}) {
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<TenantRow | null>(null)
   const [form, setForm] = React.useState<FormState>(EMPTY_FORM)
-  const [confirmDel, setConfirmDel] = React.useState<TenantRow | null>(null)
-  const [bulkDelete, setBulkDelete] = React.useState<TenantRow[] | null>(null)
+  const [confirmSuspend, setConfirmSuspend] = React.useState<TenantRow | null>(null)
+  const [bulkSuspendConfirm, setBulkSuspendConfirm] = React.useState<TenantRow[] | null>(null)
   const [pending, startTransition] = React.useTransition()
 
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'active' | 'suspended'>('all')
@@ -185,6 +221,8 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
       font_family: t.font_family ?? '',
       settings: (t.settings as Record<string, unknown>) ?? {},
       settingsValid: true,
+      plan_id: t.plan_id ?? '',
+      initial_plan_id: t.plan_id ?? '',
     })
     setOpen(true)
   }
@@ -220,6 +258,16 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
       if (!res.success) {
         toast.error(res.error ?? 'Errore')
         return
+      }
+      if (editing && form.plan_id && form.plan_id !== form.initial_plan_id) {
+        const planRes = await updateTenantSubscription(editing.id, {
+          plan_id: form.plan_id,
+          status: 'active',
+        })
+        if (!planRes.success) {
+          toast.error(planRes.error ?? 'Errore aggiornamento piano')
+          return
+        }
       }
       toast.success(editing ? 'Tenant aggiornato.' : 'Tenant creato.')
       setOpen(false)
@@ -264,43 +312,74 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
   }
 
   function impersonate(t: TenantRow) {
+    if (t.active_staff_count === 0) {
+      toast.error('Tenant senza proprietario. Assegna prima un owner.')
+      return
+    }
     startTransition(async () => {
-      const owner = await getTenantOwner(t.id)
-      if (!owner.success || !owner.profileId) {
-        toast.error(owner.error ?? 'Owner non trovato.')
-        return
-      }
-      const res = await impersonateUser(owner.profileId)
-      if (!res.success || !res.url) {
+      const res = await startTenantImpersonation(t.id)
+      if (!res.success) {
         toast.error(res.error ?? 'Errore impersonate')
         return
       }
-      window.open(res.url, '_blank', 'noopener,noreferrer')
+      toast.success(`Stai visualizzando ${t.business_name}`)
+      router.push('/dashboard')
     })
   }
 
-  function doDelete() {
-    if (!confirmDel) return
+  function claimOwner(t: TenantRow) {
     startTransition(async () => {
-      const res = await deleteTenant(confirmDel.id)
+      const res = await assignTenantOwnerToMe(t.id)
       if (!res.success) {
         toast.error(res.error ?? 'Errore')
         return
       }
-      toast.success('Tenant eliminato.')
-      setConfirmDel(null)
+      toast.success('Sei stato assegnato come proprietario.')
       router.refresh()
     })
   }
 
-  function doBulkDelete() {
-    if (!bulkDelete) return
+  function assignByEmail(t: TenantRow) {
+    const email = window.prompt(
+      `Assegna ${t.business_name} a un utente esistente.\nInserisci l'email del profilo:`,
+      '',
+    )
+    if (!email) return
     startTransition(async () => {
-      const results = await Promise.all(bulkDelete.map((t) => deleteTenant(t.id)))
+      const res = await assignTenantOwnerByEmail(t.id, email)
+      if (!res.success) {
+        toast.error(res.error ?? 'Errore')
+        return
+      }
+      toast.success(`Tenant assegnato a ${email}.`)
+      router.refresh()
+    })
+  }
+
+  function doSuspend() {
+    if (!confirmSuspend) return
+    startTransition(async () => {
+      const res = await softDeleteTenant(confirmSuspend.id)
+      if (!res.success) {
+        toast.error(res.error ?? 'Errore')
+        return
+      }
+      toast.success('Tenant sospeso.')
+      setConfirmSuspend(null)
+      router.refresh()
+    })
+  }
+
+  function doBulkSuspend() {
+    if (!bulkSuspendConfirm) return
+    startTransition(async () => {
+      const results = await Promise.all(
+        bulkSuspendConfirm.map((t) => softDeleteTenant(t.id)),
+      )
       const failed = results.filter((r) => !r.success).length
-      if (failed) toast.error(`${failed} eliminazioni fallite.`)
-      else toast.success(`${results.length} tenant eliminati.`)
-      setBulkDelete(null)
+      if (failed) toast.error(`${failed} sospensioni fallite.`)
+      else toast.success(`${results.length} tenant sospesi.`)
+      setBulkSuspendConfirm(null)
       router.refresh()
     })
   }
@@ -309,14 +388,6 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
     startTransition(async () => {
       await Promise.all(rows.map((r) => toggleTenantStatus(r.id, 'active')))
       toast.success(`${rows.length} tenant attivati.`)
-      clear()
-      router.refresh()
-    })
-  }
-  function bulkSuspend(rows: TenantRow[], clear: () => void) {
-    startTransition(async () => {
-      await Promise.all(rows.map((r) => softDeleteTenant(r.id)))
-      toast.success(`${rows.length} tenant sospesi.`)
       clear()
       router.refresh()
     })
@@ -334,12 +405,20 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
       header: 'Business',
       sortValue: (r) => r.business_name.toLowerCase(),
       accessor: (r) => (
-        <Link
-          href={`/admin/tenants/${r.id}`}
-          className="font-medium text-foreground hover:underline"
-        >
-          {r.business_name}
-        </Link>
+        <div className="flex flex-col gap-0.5">
+          <Link
+            href={`/admin/tenants/${r.id}`}
+            className="font-medium text-foreground hover:underline"
+          >
+            {r.business_name}
+          </Link>
+          {r.active_staff_count === 0 ? (
+            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+              <AlertTriangle className="h-3 w-3" />
+              Senza proprietario
+            </span>
+          ) : null}
+        </div>
       ),
     },
     {
@@ -361,9 +440,7 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
       header: 'Piano',
       sortValue: (r) => r.plan_name ?? '',
       hideOnMobile: true,
-      accessor: (r) => (
-        <span className="text-xs text-muted-foreground">{r.plan_name ?? '—'}</span>
-      ),
+      accessor: (r) => <PlanBadge name={r.plan_name} />,
     },
     {
       key: 'counts',
@@ -414,12 +491,39 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
               <CheckCircle2 className="h-3.5 w-3.5" />
             )}
           </button>
+          {r.active_staff_count === 0 ? (
+            <button
+              type="button"
+              onClick={() => claimOwner(r)}
+              className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50"
+              aria-label="Assegna a me"
+              title="Assegna come proprietario a me"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          {r.active_staff_count === 0 ? (
+            <button
+              type="button"
+              onClick={() => assignByEmail(r)}
+              className="rounded px-1.5 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
+              aria-label="Assegna a email"
+              title="Assegna proprietario via email"
+            >
+              @
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => impersonate(r)}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            disabled={r.active_staff_count === 0}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
             aria-label="Impersona"
-            title="Entra come questo tenant"
+            title={
+              r.active_staff_count === 0
+                ? 'Disabilitato: tenant senza proprietario'
+                : 'Entra come questo tenant'
+            }
           >
             <LogIn className="h-3.5 w-3.5" />
           </button>
@@ -434,12 +538,17 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
           </button>
           <button
             type="button"
-            onClick={() => setConfirmDel(r)}
-            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label="Elimina"
-            title="Elimina (definitivo)"
+            onClick={() => setConfirmSuspend(r)}
+            disabled={r.status !== 'active'}
+            className="rounded p-1.5 text-muted-foreground hover:bg-amber-100 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            aria-label="Sospendi"
+            title={
+              r.status === 'active'
+                ? 'Sospendi/Disattiva tenant'
+                : 'Tenant già sospeso'
+            }
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Ban className="h-3.5 w-3.5" />
           </button>
         </div>
       ),
@@ -448,7 +557,7 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
 
   return (
     <>
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4 dark:bg-zinc-900 dark:border-zinc-800">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4 ">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-status" className="text-xs">
             Stato
@@ -525,18 +634,10 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
             <Button
               size="xs"
               variant="outline"
-              onClick={() => bulkSuspend(selected, clear)}
+              onClick={() => setBulkSuspendConfirm(selected)}
               disabled={pending}
             >
               <Ban /> Sospendi
-            </Button>
-            <Button
-              size="xs"
-              variant="destructive"
-              onClick={() => setBulkDelete(selected)}
-              disabled={pending}
-            >
-              <Trash2 /> Elimina
             </Button>
           </>
         )}
@@ -637,11 +738,14 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
             </div>
           </div>
           <div className="col-span-2 flex flex-col gap-1.5">
-            <Label htmlFor="t-logo">Logo URL</Label>
-            <Input
-              id="t-logo"
-              value={form.logo_url}
-              onChange={(e) => patch('logo_url', e.target.value)}
+            <Label>Logo</Label>
+            <ImageUpload
+              bucket="tenants"
+              pathPrefix={editing?.id ?? (form.slug || 'new')}
+              value={form.logo_url || null}
+              onChange={(url) => patch('logo_url', url ?? '')}
+              shape="square"
+              size={88}
             />
           </div>
           <div className="col-span-2 flex flex-col gap-1.5">
@@ -652,6 +756,28 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
               onChange={(e) => patch('font_family', e.target.value)}
             />
           </div>
+          {editing ? (
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <Label htmlFor="t-plan">Piano abbonamento</Label>
+              <select
+                id="t-plan"
+                value={form.plan_id}
+                onChange={(e) => patch('plan_id', e.target.value)}
+                className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm"
+              >
+                <option value="">— Nessun piano —</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.price_monthly != null ? ` · €${Number(p.price_monthly).toFixed(0)}/mese` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Aggiorna il piano associato a questo tenant. La sottoscrizione sarà attivata immediatamente.
+              </p>
+            </div>
+          ) : null}
           <div className="col-span-2 flex flex-col gap-1.5">
             <Label htmlFor="t-settings">Settings (JSON)</Label>
             <JsonEditor
@@ -669,24 +795,24 @@ export function TenantsClient({ initialTenants }: { initialTenants: TenantRow[] 
         </div>
       </SlideOver>
 
-      <TypeNameConfirm
-        open={!!confirmDel}
-        onOpenChange={(o) => !o && setConfirmDel(null)}
-        title="Elimina tenant"
-        description="Questa azione è irreversibile e cancellerà definitivamente il tenant e i suoi dati."
-        confirmName={confirmDel?.business_name ?? ''}
+      <ConfirmDialog
+        open={!!confirmSuspend}
+        onOpenChange={(o) => !o && setConfirmSuspend(null)}
+        title="Sospendi tenant"
+        description={`Il tenant "${confirmSuspend?.business_name ?? ''}" verrà sospeso. I barbieri non potranno più accedere alla dashboard finché non verrà riattivato.`}
+        confirmLabel="Sospendi"
         loading={pending}
-        onConfirm={doDelete}
+        onConfirm={doSuspend}
       />
 
-      <TypeNameConfirm
-        open={!!bulkDelete}
-        onOpenChange={(o) => !o && setBulkDelete(null)}
-        title={`Elimina ${bulkDelete?.length ?? 0} tenant`}
-        description="Eliminazione massiva e definitiva. Conferma digitando ELIMINA."
-        confirmName="ELIMINA"
+      <ConfirmDialog
+        open={!!bulkSuspendConfirm}
+        onOpenChange={(o) => !o && setBulkSuspendConfirm(null)}
+        title={`Sospendi ${bulkSuspendConfirm?.length ?? 0} tenant`}
+        description="I tenant selezionati verranno sospesi. Potranno essere riattivati in qualsiasi momento."
+        confirmLabel="Sospendi tutti"
         loading={pending}
-        onConfirm={doBulkDelete}
+        onConfirm={doBulkSuspend}
       />
     </>
   )

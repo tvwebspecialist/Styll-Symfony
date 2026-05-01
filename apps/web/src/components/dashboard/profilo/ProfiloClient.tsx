@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import {
   User,
   Image as ImageIcon,
@@ -9,8 +10,10 @@ import {
   Shield,
   ChevronRight,
   ChevronLeft,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import type { ProfileData, SubscriptionInfo } from '@/lib/actions/profilo'
 import { DatiPersonali } from './sections/DatiPersonali'
 import { Portfolio } from './sections/Portfolio'
@@ -71,11 +74,18 @@ export function ProfiloClient({
   profile: ProfileData
   subscription: SubscriptionInfo
 }) {
+  const router = useRouter()
   const [active, setActive] = React.useState<SectionKey>('profilo')
   const [mobileSection, setMobileSection] = React.useState<SectionKey | null>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(profile.avatarUrl)
   const [fullName, setFullName] = React.useState<string>(profile.fullName ?? '')
   const current = SECTIONS.find((s) => s.key === active)!
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   const initials =
     (fullName || profile.email || '?')
@@ -192,6 +202,32 @@ export function ProfiloClient({
                 </button>
               )
             })}
+
+            <div style={{ height: 1, background: '#F0F0F0', margin: '8px 4px' }} />
+
+            <button
+              onClick={handleLogout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                fontSize: 14,
+                fontWeight: 500,
+                borderRadius: 10,
+                cursor: 'pointer',
+                textAlign: 'left',
+                border: 'none',
+                background: 'transparent',
+                color: '#DC2626',
+                transition: 'background 120ms ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+            >
+              <LogOut size={16} />
+              <span>Esci</span>
+            </button>
           </nav>
         </aside>
 
@@ -310,6 +346,39 @@ export function ProfiloClient({
                   </button>
                 )
               })}
+
+              <button
+                onClick={handleLogout}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '14px 16px',
+                  width: '100%',
+                  background: '#FFFFFF',
+                  border: 'none',
+                  borderTop: '1px solid #F0F0F0',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  color: '#DC2626',
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: '#FEF2F2',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <LogOut size={16} color="#DC2626" />
+                </div>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>Esci</span>
+              </button>
             </div>
           </>
         ) : (

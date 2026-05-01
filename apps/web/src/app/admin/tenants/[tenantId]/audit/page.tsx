@@ -14,7 +14,7 @@ export default async function TenantAuditPage({
   const entries = res.data ?? []
 
   return (
-    <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+    <div className="rounded-xl border bg-white p-5 ">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Audit log</h2>
         <span className="text-xs text-muted-foreground">{entries.length} eventi</span>
@@ -31,7 +31,7 @@ export default async function TenantAuditPage({
             return (
               <li
                 key={e.id}
-                className="flex gap-3 rounded-lg border p-3 dark:border-zinc-800"
+                className="flex gap-3 rounded-lg border p-3 "
               >
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
                   <Activity className="h-3.5 w-3.5" />

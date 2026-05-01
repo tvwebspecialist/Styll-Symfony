@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
 
 export interface ProfileData {
   id: string
@@ -38,6 +39,8 @@ export interface ServiceOption {
   name: string
 }
 
+const SHADOW_BLOCKED_ERROR = 'Azione non disponibile in modalità shadow'
+
 async function requireUser() {
   const supabase = await createClient()
   const {
@@ -47,16 +50,63 @@ async function requireUser() {
   return { supabase, user }
 }
 
-async function getStaffContext(userId: string) {
+/**
+ * Best-effort audit log entry. Never throws — auditing must not block flows.
+ */
+async function logShadowAction(
+  actorId: string,
+  action: string,
+  tenantId: string | null,
+  details: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const db = createAdminClient()
+    await db.from('admin_audit_log').insert({
+      actor_id: actorId,
+      action,
+      entity_type: 'profile',
+      entity_id: null,
+      tenant_id: tenantId,
+      details,
+    })
+  } catch {
+    /* swallow */
+  }
+}
+
+/**
+ * Resolve the profile id targeted by a profile action, taking shadow mode into
+ * account. Returns null when there is no authenticated user.
+ */
+async function resolveTargetProfile(): Promise<{
+  profileId: string
+  realUserId: string
+  isShadow: boolean
+  tenantId: string | null
+} | null> {
+  const ctx = await resolveActiveProfile()
+  if (!ctx) return null
+  return {
+    profileId: ctx.profileId,
+    realUserId: ctx.realUserId,
+    isShadow: ctx.isShadow,
+    tenantId: ctx.tenantId,
+  }
+}
+
+async function getStaffContext(profileId: string) {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { staffId: null, tenantId: null }
   const db = createAdminClient()
   const { data } = await db
     .from('staff_members')
-    .select('id, tenant_id')
-    .eq('profile_id', userId)
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .limit(1)
     .maybeSingle()
-  return { staffId: data?.id ?? null, tenantId: data?.tenant_id ?? null }
+  return { staffId: data?.id ?? null, tenantId }
 }
 
 export async function getProfile(userId: string): Promise<ProfileData | null> {
@@ -82,7 +132,7 @@ export async function getProfile(userId: string): Promise<ProfileData | null> {
 }
 
 export async function updateProfile(
-  userId: string,
+  _userId: string,
   data: {
     fullName?: string
     phone?: string | null
@@ -92,8 +142,9 @@ export async function updateProfile(
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
-    if (user.id !== userId) return { ok: false, error: 'Non autorizzato' }
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+
     const db = createAdminClient()
     const { error } = await db
       .from('profiles')
@@ -105,8 +156,15 @@ export async function updateProfile(
         timezone: data.timezone,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq('id', ctx.profileId)
     if (error) return { ok: false, error: error.message }
+
+    if (ctx.isShadow) {
+      await logShadowAction(ctx.realUserId, 'shadow.profile.update', ctx.tenantId, {
+        target_profile_id: ctx.profileId,
+        changed_fields: Object.keys(data),
+      })
+    }
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -118,9 +176,20 @@ export async function updatePassword(
   newPassword: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    if (ctx.isShadow) {
+      await logShadowAction(
+        ctx.realUserId,
+        'shadow.profile.update_password_blocked',
+        ctx.tenantId,
+        { target_profile_id: ctx.profileId },
+      )
+      return { ok: false, error: SHADOW_BLOCKED_ERROR }
+    }
+
     const { supabase, user } = await requireUser()
     if (!user.email) return { ok: false, error: 'Email mancante' }
-    // Re-auth con password attuale
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: currentPassword,
@@ -138,12 +207,13 @@ export async function uploadAvatar(
   formData: FormData,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
     const file = formData.get('file')
     if (!(file instanceof File)) return { ok: false, error: 'File mancante' }
     const db = createAdminClient()
     const ext = file.name.split('.').pop() || 'jpg'
-    const path = `${user.id}/avatar-${Date.now()}.${ext}`
+    const path = `${ctx.profileId}/avatar-${Date.now()}.${ext}`
     const buf = Buffer.from(await file.arrayBuffer())
     const { error: upErr } = await db.storage
       .from('avatars')
@@ -151,7 +221,13 @@ export async function uploadAvatar(
     if (upErr) return { ok: false, error: upErr.message }
     const { data: pub } = db.storage.from('avatars').getPublicUrl(path)
     const url = pub.publicUrl
-    await db.from('profiles').update({ avatar_url: url }).eq('id', user.id)
+    await db.from('profiles').update({ avatar_url: url }).eq('id', ctx.profileId)
+
+    if (ctx.isShadow) {
+      await logShadowAction(ctx.realUserId, 'shadow.profile.upload_avatar', ctx.tenantId, {
+        target_profile_id: ctx.profileId,
+      })
+    }
     return { ok: true, url }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -159,8 +235,9 @@ export async function uploadAvatar(
 }
 
 export async function getPortfolio(): Promise<PortfolioPhoto[]> {
-  const { user } = await requireUser()
-  const { tenantId } = await getStaffContext(user.id)
+  const ctx = await resolveTargetProfile()
+  if (!ctx) return []
+  const { tenantId } = await getStaffContext(ctx.profileId)
   if (!tenantId) return []
   const db = createAdminClient()
   const { data } = await db
@@ -180,8 +257,9 @@ export async function getPortfolio(): Promise<PortfolioPhoto[]> {
 }
 
 export async function getServicesForTags(): Promise<ServiceOption[]> {
-  const { user } = await requireUser()
-  const { tenantId } = await getStaffContext(user.id)
+  const ctx = await resolveTargetProfile()
+  if (!ctx) return []
+  const { tenantId } = await getStaffContext(ctx.profileId)
   if (!tenantId) return []
   const db = createAdminClient()
   const { data } = await db
@@ -196,8 +274,9 @@ export async function addPortfolioPhoto(
   formData: FormData,
 ): Promise<{ ok: true; photo: PortfolioPhoto } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
-    const { tenantId, staffId } = await getStaffContext(user.id)
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    const { tenantId, staffId } = await getStaffContext(ctx.profileId)
     if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
     const file = formData.get('file')
     const tags = (formData.get('tags') as string | null) ?? ''
@@ -248,8 +327,9 @@ export async function deletePortfolioPhoto(
   photoId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
-    const { tenantId } = await getStaffContext(user.id)
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    const { tenantId } = await getStaffContext(ctx.profileId)
     if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
     const db = createAdminClient()
     const { data: photo } = await db
@@ -258,7 +338,6 @@ export async function deletePortfolioPhoto(
       .eq('id', photoId)
       .maybeSingle()
     if (!photo || photo.tenant_id !== tenantId) return { ok: false, error: 'Non trovato' }
-    // Estrai path da public URL: /storage/v1/object/public/portfolio/<path>
     const m = photo.photo_url.match(/\/portfolio\/(.+)$/)
     if (m) await db.storage.from('portfolio').remove([m[1]])
     await db.from('portfolio_photos').delete().eq('id', photoId)
@@ -273,8 +352,9 @@ export async function togglePhotoVisibility(
   visible: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
-    const { tenantId } = await getStaffContext(user.id)
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    const { tenantId } = await getStaffContext(ctx.profileId)
     if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
     const db = createAdminClient()
     const { error } = await db
@@ -290,7 +370,6 @@ export async function togglePhotoVisibility(
 }
 
 export async function getSubscription(): Promise<SubscriptionInfo> {
-  // Stub: nessuna tabella di subscription al momento. Ritorniamo lo Starter.
   return {
     planName: 'Starter',
     priceMonthly: 0,
@@ -310,13 +389,23 @@ export async function updateNotificationPreferences(
   prefs: Record<string, boolean>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { user } = await requireUser()
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
     const db = createAdminClient()
     const { error } = await db
       .from('profiles')
       .update({ notification_preferences: prefs })
-      .eq('id', user.id)
+      .eq('id', ctx.profileId)
     if (error) return { ok: false, error: error.message }
+
+    if (ctx.isShadow) {
+      await logShadowAction(
+        ctx.realUserId,
+        'shadow.profile.update_notification_prefs',
+        ctx.tenantId,
+        { target_profile_id: ctx.profileId },
+      )
+    }
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -327,18 +416,37 @@ export async function exportUserData(): Promise<
   { ok: true; data: string } | { ok: false; error: string }
 > {
   try {
-    const { user } = await requireUser()
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
     const db = createAdminClient()
-    const [profile, appointments, portfolio] = await Promise.all([
-      db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-      db.from('appointments').select('*').eq('client_profile_id', user.id).limit(500),
-      db.from('portfolio_photos').select('*').limit(500),
-    ])
+
+    const profileResp = await db.from('profiles').select('*').eq('id', ctx.profileId).maybeSingle()
+
+    // Appointments where the user appears as a client. The link goes
+    // appointments.client_id → clients.id → clients.profile_id, so we filter
+    // through an inner join in a single query rather than two round-trips.
+    const appointmentsResp = await db
+      .from('appointments')
+      .select('*, clients!inner(id, profile_id)')
+      .eq('clients.profile_id', ctx.profileId)
+      .limit(500)
+
+    const portfolioQuery = ctx.tenantId
+      ? db.from('portfolio_photos').select('*').eq('tenant_id', ctx.tenantId).limit(500)
+      : db.from('portfolio_photos').select('*').limit(0)
+    const portfolioResp = await portfolioQuery
+
     const payload = {
-      profile: profile.data,
-      appointments: appointments.data ?? [],
-      portfolio: portfolio.data ?? [],
+      profile: profileResp.data,
+      appointments: appointmentsResp.data ?? [],
+      portfolio: portfolioResp.data ?? [],
       exportedAt: new Date().toISOString(),
+    }
+
+    if (ctx.isShadow) {
+      await logShadowAction(ctx.realUserId, 'shadow.profile.export_data', ctx.tenantId, {
+        target_profile_id: ctx.profileId,
+      })
     }
     return { ok: true, data: JSON.stringify(payload, null, 2) }
   } catch (e) {
@@ -355,9 +463,17 @@ export interface ActiveSession {
 }
 
 export async function getActiveSessions(): Promise<ActiveSession[]> {
-  // Supabase non espone una API pubblica per le sessioni.
-  // Ritorniamo solo la sessione corrente come placeholder.
-  const { user } = await requireUser()
+  const ctx = await resolveTargetProfile()
+  if (!ctx) return []
+  if (ctx.isShadow) {
+    await logShadowAction(
+      ctx.realUserId,
+      'shadow.profile.list_sessions_blocked',
+      ctx.tenantId,
+      { target_profile_id: ctx.profileId },
+    )
+    return []
+  }
   return [
     {
       id: 'current',
@@ -366,11 +482,22 @@ export async function getActiveSessions(): Promise<ActiveSession[]> {
       lastActive: new Date().toISOString(),
       current: true,
     },
-  ].filter(() => Boolean(user))
+  ]
 }
 
 export async function terminateSession(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    if (ctx.isShadow) {
+      await logShadowAction(
+        ctx.realUserId,
+        'shadow.profile.terminate_session_blocked',
+        ctx.tenantId,
+        { target_profile_id: ctx.profileId },
+      )
+      return { ok: false, error: SHADOW_BLOCKED_ERROR }
+    }
     const { supabase } = await requireUser()
     await supabase.auth.signOut()
     return { ok: true }
@@ -383,12 +510,23 @@ export async function deleteAccount(
   confirmation: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const ctx = await resolveTargetProfile()
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+    if (ctx.isShadow) {
+      await logShadowAction(
+        ctx.realUserId,
+        'shadow.profile.delete_account_blocked',
+        ctx.tenantId,
+        { target_profile_id: ctx.profileId },
+      )
+      return { ok: false, error: SHADOW_BLOCKED_ERROR }
+    }
+
     const { user } = await requireUser()
     if (confirmation !== user.email) {
       return { ok: false, error: "Inserisci la tua email per confermare l'eliminazione" }
     }
     const db = createAdminClient()
-    // Soft delete: marchiamo onboarding e svuotiamo i dati di base.
     const { error } = await db
       .from('profiles')
       .update({

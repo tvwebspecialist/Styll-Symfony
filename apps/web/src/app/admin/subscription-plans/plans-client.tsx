@@ -227,7 +227,7 @@ export function PlansClient({
             e.stopPropagation()
             openTenants(r)
           }}
-          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+          className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100    "
         >
           {r.active_tenants_count}
           <ExternalLink className="h-3 w-3" />
@@ -249,13 +249,13 @@ export function PlansClient({
             {shown.map((l) => (
               <span
                 key={l}
-                className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700  "
               >
                 {l}
               </span>
             ))}
             {rest > 0 ? (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500  ">
                 +{rest} altri
               </span>
             ) : null}
@@ -272,7 +272,7 @@ export function PlansClient({
             type="checkbox"
             checked={r.is_active}
             onChange={() => toggleActive(r)}
-            className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600"
+            className="h-4 w-4 rounded border-zinc-300 "
           />
           <span
             className={
@@ -317,7 +317,7 @@ export function PlansClient({
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Piani' }]} />
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="rounded-xl border bg-white p-6 shadow-sm  ">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -458,7 +458,7 @@ export function PlansClient({
         ) : tenantsList.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nessun tenant attivo su questo piano.</p>
         ) : (
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <ul className="divide-y divide-zinc-100">
             {tenantsList.map((t) => (
               <li key={t.id} className="flex items-center justify-between py-3">
                 <div>

@@ -59,8 +59,7 @@ export default function OnboardingStep4Page() {
         return
       }
       onboardingStorage.clear()
-      router.push('/onboarding/complete')
-      router.refresh()
+      window.location.href = '/onboarding/complete'
     })
   }
 
@@ -94,10 +93,11 @@ export default function OnboardingStep4Page() {
             }}
           >
             <span
-              className="w-24 text-sm font-medium"
+              className="w-8 shrink-0 text-sm font-medium sm:w-24"
               style={{ color: row.is_open ? 'var(--color-fg)' : 'var(--color-fg-muted)' }}
             >
-              {DAY_LABELS[row.day_of_week]}
+              <span className="hidden sm:inline">{DAY_LABELS[row.day_of_week]}</span>
+              <span className="sm:hidden">{DAY_LABELS[row.day_of_week].slice(0, 3)}</span>
             </span>
 
             <button
@@ -113,14 +113,13 @@ export default function OnboardingStep4Page() {
               {row.is_open ? 'Aperto' : 'Chiuso'}
             </button>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-1.5">
               <input
                 type="time"
                 disabled={!row.is_open}
                 value={row.open_time}
                 onChange={(e) => updateRow(idx, { open_time: e.target.value })}
-                className="styll-input px-3 py-2 text-sm disabled:opacity-50"
-                style={{ width: 110 }}
+                className="styll-input w-[90px] min-w-0 px-2 py-2 text-sm disabled:opacity-50 sm:w-[110px] sm:px-3"
               />
               <span style={{ color: 'var(--color-fg-muted)' }}>–</span>
               <input
@@ -128,8 +127,7 @@ export default function OnboardingStep4Page() {
                 disabled={!row.is_open}
                 value={row.close_time}
                 onChange={(e) => updateRow(idx, { close_time: e.target.value })}
-                className="styll-input px-3 py-2 text-sm disabled:opacity-50"
-                style={{ width: 110 }}
+                className="styll-input w-[90px] min-w-0 px-2 py-2 text-sm disabled:opacity-50 sm:w-[110px] sm:px-3"
               />
             </div>
           </div>

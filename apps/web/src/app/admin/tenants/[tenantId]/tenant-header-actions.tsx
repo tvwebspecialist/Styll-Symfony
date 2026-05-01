@@ -2,18 +2,15 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { LogIn, Download, Archive, CheckCircle2, Trash2 } from 'lucide-react'
+import { LogIn, Download, Archive, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { TypeNameConfirm } from '@/components/admin/type-name-confirm'
 import {
   exportTenantData,
-  getTenantOwner,
-  impersonateUser,
   softDeleteTenant,
+  startTenantImpersonation,
   toggleTenantStatus,
-  deleteTenant,
 } from '@/app/admin/actions'
 
 interface Props {
@@ -26,23 +23,18 @@ interface Props {
 export function TenantHeaderActions({ tenantId, tenantName, tenantSlug, status }: Props) {
   const router = useRouter()
   const [pending, startTransition] = React.useTransition()
-  const [confirmDel, setConfirmDel] = React.useState(false)
 
   const isActive = status === 'active'
 
   function impersonate() {
     startTransition(async () => {
-      const owner = await getTenantOwner(tenantId)
-      if (!owner.success || !owner.profileId) {
-        toast.error(owner.error ?? 'Owner non trovato.')
-        return
-      }
-      const res = await impersonateUser(owner.profileId)
-      if (!res.success || !res.url) {
+      const res = await startTenantImpersonation(tenantId)
+      if (!res.success) {
         toast.error(res.error ?? 'Errore impersonate')
         return
       }
-      window.open(res.url, '_blank', 'noopener,noreferrer')
+      toast.success(`Stai visualizzando ${tenantName}`)
+      router.push('/dashboard')
     })
   }
 
@@ -92,56 +84,23 @@ export function TenantHeaderActions({ tenantId, tenantName, tenantSlug, status }
     })
   }
 
-  function doDelete() {
-    startTransition(async () => {
-      const res = await deleteTenant(tenantId)
-      if (!res.success) {
-        toast.error(res.error ?? 'Errore')
-        return
-      }
-      toast.success('Tenant eliminato.')
-      setConfirmDel(false)
-      router.push('/admin/tenants')
-    })
-  }
-
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={impersonate} disabled={pending}>
-          <LogIn /> Impersona
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" onClick={impersonate} disabled={pending}>
+        <LogIn /> Impersona
+      </Button>
+      <Button size="sm" variant="outline" onClick={exportData} disabled={pending}>
+        <Download /> Esporta dati
+      </Button>
+      {isActive ? (
+        <Button size="sm" variant="outline" onClick={suspend} disabled={pending}>
+          <Archive /> Sospendi
         </Button>
-        <Button size="sm" variant="outline" onClick={exportData} disabled={pending}>
-          <Download /> Esporta dati
+      ) : (
+        <Button size="sm" variant="outline" onClick={reactivate} disabled={pending}>
+          <CheckCircle2 /> Riattiva
         </Button>
-        {isActive ? (
-          <Button size="sm" variant="outline" onClick={suspend} disabled={pending}>
-            <Archive /> Sospendi
-          </Button>
-        ) : (
-          <Button size="sm" variant="outline" onClick={reactivate} disabled={pending}>
-            <CheckCircle2 /> Riattiva
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => setConfirmDel(true)}
-          disabled={pending}
-        >
-          <Trash2 /> Elimina
-        </Button>
-      </div>
-
-      <TypeNameConfirm
-        open={confirmDel}
-        onOpenChange={setConfirmDel}
-        title="Elimina tenant"
-        description="Questa azione è irreversibile e cancellerà definitivamente il tenant e i suoi dati."
-        confirmName={tenantName}
-        loading={pending}
-        onConfirm={doDelete}
-      />
-    </>
+      )}
+    </div>
   )
 }

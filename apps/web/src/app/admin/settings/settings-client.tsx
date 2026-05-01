@@ -47,7 +47,7 @@ function Toggle({ checked, onChange, id, label }: ToggleProps) {
         'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
         checked
           ? 'bg-emerald-500'
-          : 'bg-zinc-300 dark:bg-zinc-700'
+          : 'bg-zinc-300 '
       )}
     >
       <span
@@ -189,7 +189,7 @@ export function SettingsClient({
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
-        <nav className="flex flex-row gap-1 overflow-x-auto rounded-xl border bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:flex-col">
+        <nav className="flex flex-row gap-1 overflow-x-auto rounded-xl border bg-white p-2 shadow-sm   lg:flex-col">
           {SECTIONS.map((s) => {
             const Icon = s.icon
             const active = section === s.id
@@ -201,8 +201,8 @@ export function SettingsClient({
                 className={cn(
                   'flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                   active
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                    : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    ? 'bg-zinc-900 text-white '
+                    : 'text-zinc-700 hover:bg-zinc-100  '
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -214,13 +214,13 @@ export function SettingsClient({
 
         <div className="min-w-0">
           {section === 'flags' ? (
-            <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="rounded-xl border bg-white p-6 shadow-sm  ">
               <h2 className="mb-4 text-lg font-semibold">Feature Flags</h2>
               <div className="space-y-4">
                 {Object.keys(flags).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nessuna flag configurata.</p>
                 ) : (
-                  <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  <ul className="divide-y divide-zinc-100">
                     {Object.entries(flags).map(([k, v]) => (
                       <li key={k} className="flex items-center justify-between py-3">
                         <div>
@@ -253,7 +253,7 @@ export function SettingsClient({
                   </ul>
                 )}
 
-                <div className="flex items-end gap-2 border-t pt-4 dark:border-zinc-800">
+                <div className="flex items-end gap-2 border-t pt-4 ">
                   <div className="flex-1">
                     <Label htmlFor="new-flag">Aggiungi flag</Label>
                     <Input
@@ -284,7 +284,7 @@ export function SettingsClient({
           ) : null}
 
           {section === 'maintenance' ? (
-            <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="rounded-xl border bg-white p-6 shadow-sm  ">
               <h2 className="mb-4 text-lg font-semibold">Manutenzione</h2>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -323,18 +323,18 @@ export function SettingsClient({
           ) : null}
 
           {section === 'email' ? (
-            <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="rounded-xl border bg-white p-6 shadow-sm  ">
               <h2 className="mb-4 text-lg font-semibold">Email Templates</h2>
               {templates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nessun template trovato.</p>
               ) : (
-                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                <ul className="divide-y divide-zinc-100">
                   {templates.map((t) => (
                     <li key={t.id}>
                       <button
                         type="button"
                         onClick={() => openTemplate(t)}
-                        className="flex w-full items-center justify-between py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                        className="flex w-full items-center justify-between py-3 text-left hover:bg-zinc-50 /50"
                       >
                         <div className="px-1">
                           <p className="font-medium">{t.name}</p>
@@ -344,8 +344,8 @@ export function SettingsClient({
                           className={cn(
                             'mr-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
                             t.is_active
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-zinc-100 text-zinc-600  '
                           )}
                         >
                           {t.is_active ? 'Attivo' : 'Inattivo'}
@@ -359,7 +359,7 @@ export function SettingsClient({
           ) : null}
 
           {section === 'branding' ? (
-            <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="rounded-xl border bg-white p-6 shadow-sm  ">
               <h2 className="mb-4 text-lg font-semibold">Branding di default</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -423,7 +423,7 @@ export function SettingsClient({
           ) : null}
 
           {section === 'security' ? (
-            <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="rounded-xl border bg-white p-6 shadow-sm  ">
               <h2 className="mb-4 text-lg font-semibold">Sicurezza</h2>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -486,7 +486,7 @@ export function SettingsClient({
       >
         {editingTpl ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-md border p-3 dark:border-zinc-800">
+            <div className="flex items-center justify-between rounded-md border p-3 ">
               <div>
                 <p className="text-sm font-medium">Template attivo</p>
                 <p className="text-xs text-muted-foreground">
@@ -526,7 +526,7 @@ export function SettingsClient({
                   {editingTpl.variables.map((v) => (
                     <span
                       key={v}
-                      className="rounded-full bg-zinc-100 px-2 py-0.5 font-mono text-[11px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                      className="rounded-full bg-zinc-100 px-2 py-0.5 font-mono text-[11px] text-zinc-700  "
                     >
                       {`{{${v}}}`}
                     </span>

@@ -93,7 +93,7 @@ export default function HelpPage() {
         {CARDS.map((c) => (
           <div
             key={c.title}
-            className="flex flex-col rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            className="flex flex-col rounded-xl border bg-white p-6 shadow-sm  "
           >
             <div className="text-4xl leading-none">{c.emoji}</div>
             <h2 className="mt-3 text-lg font-semibold">{c.title}</h2>
@@ -101,7 +101,7 @@ export default function HelpPage() {
             {c.href ? (
               <Link
                 href={c.href}
-                className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 hover:underline dark:text-white"
+                className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 hover:underline"
               >
                 {c.cta ?? 'Vai alla sezione'}
                 <ArrowRight className="h-4 w-4" />
@@ -111,9 +111,9 @@ export default function HelpPage() {
         ))}
       </div>
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="rounded-xl border bg-white p-6 shadow-sm  ">
         <h2 className="mb-4 text-lg font-semibold">Scorciatoie da tastiera</h2>
-        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        <ul className="divide-y divide-zinc-100">
           {SHORTCUTS.map((s) => (
             <li
               key={s.label}
@@ -124,7 +124,7 @@ export default function HelpPage() {
                 {s.keys.map((k) => (
                   <kbd
                     key={k}
-                    className="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono text-xs text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                    className="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono text-xs text-zinc-700 shadow-sm   "
                   >
                     {k}
                   </kbd>

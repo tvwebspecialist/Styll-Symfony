@@ -1,36 +1,41 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getProfile, getSubscription, type ProfileData } from '@/lib/actions/profilo'
+import { resolveActiveProfile } from '@/lib/tenant-context'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ProfiloClient } from '@/components/dashboard/profilo/ProfiloClient'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ProfiloPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  console.log('profilo user:', user?.id)
-  if (!user) redirect('/login')
+  const ctx = await resolveActiveProfile()
+  if (!ctx) redirect('/login')
 
   const [profile, subscription] = await Promise.all([
-    getProfile(user.id),
+    getProfile(ctx.profileId),
     getSubscription(),
   ])
 
-  console.log('profilo result:', JSON.stringify(profile))
-  console.log('profilo error or null?:', profile === null ? 'NULL' : 'OK')
-
-  const safeProfile: ProfileData = profile ?? {
-    id: user.id,
-    email: user.email ?? null,
-    fullName: (user.user_metadata?.full_name as string | undefined) ?? null,
-    avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
-    phone: null,
-    bio: null,
-    language: 'it',
-    timezone: 'Europe/Rome',
-    notificationPreferences: {},
+  let safeProfile: ProfileData
+  if (profile) {
+    safeProfile = profile
+  } else {
+    const db = createAdminClient()
+    const { data: fallback } = await db
+      .from('profiles')
+      .select('email, full_name, avatar_url')
+      .eq('id', ctx.profileId)
+      .maybeSingle()
+    safeProfile = {
+      id: ctx.profileId,
+      email: fallback?.email ?? null,
+      fullName: fallback?.full_name ?? null,
+      avatarUrl: fallback?.avatar_url ?? null,
+      phone: null,
+      bio: null,
+      language: 'it',
+      timezone: 'Europe/Rome',
+      notificationPreferences: {},
+    }
   }
 
   return <ProfiloClient profile={safeProfile} subscription={subscription} />

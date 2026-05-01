@@ -268,6 +268,22 @@
   --divider: #F0F0F0;
 }
 
+/* ─── Admin (super-admin area) — light only ──────────────────── */
+:root {
+  --admin-bg: #F0F0F6;
+  --admin-surface: #FFFFFF;
+  --admin-surface-2: #F7F7FC;
+  --admin-border: rgba(0, 0, 0, 0.08);
+  --admin-border-strong: rgba(0, 0, 0, 0.14);
+  --admin-text: #111118;
+  --admin-text-muted: #52525e;
+  --admin-text-subtle: #8888a0;
+  --admin-accent: #E94560;
+  --admin-active-bg: #111118;
+  --admin-active-fg: #FFFFFF;
+  --admin-hover-bg: rgba(0, 0, 0, 0.04);
+}
+
 @keyframes tabFadeIn {
   from {
     opacity: 0;
@@ -340,5 +356,96 @@
     padding-left: 0 !important;
     border-top: 1px solid #F0F0F0;
     padding-top: 16px !important;
+  }
+}
+
+.clienti-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.clienti-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.clienti-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 1024px) {
+  .clienti-header {
+    flex-direction: column !important;
+  }
+  .clienti-header > div:last-child {
+    width: 100% !important;
+  }
+  .clienti-header > div:last-child button {
+    flex: 1 !important;
+  }
+  .clienti-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .clienti-filters {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  .clienti-filters::-webkit-scrollbar { display: none; }
+  .clienti-desktop { display: none !important; }
+  .clienti-mobile { display: flex !important; }
+}
+
+/* ─── Safe Area & Mobile App Utilities ─────────────────────────
+ * Supports iOS notch / home indicator via env(safe-area-inset-*)
+ * Requires <meta viewport content="viewport-fit=cover">
+ * ------------------------------------------------------------ */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Onboarding shell — mobile full-screen layout */
+.onboarding-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  padding: max(env(safe-area-inset-top, 0px), 0px) 0 0;
+}
+
+.onboarding-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background-color: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+}
+
+/* Tap target enforcement */
+.tap-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Subtle press animation for buttons */
+@media (hover: none) {
+  .styll-btn-primary:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+  .styll-btn-secondary:active {
+    transform: scale(0.97);
   }
 }

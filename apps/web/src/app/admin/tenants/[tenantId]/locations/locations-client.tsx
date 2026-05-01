@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, Power } from 'lucide-react'
+import { Plus, Pencil, Trash2, Power, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { AdminTable, type AdminTableColumn } from '@/components/admin/admin-table'
@@ -137,7 +137,14 @@ export function LocationsClient({
       key: 'name',
       header: 'Nome',
       sortValue: (r) => r.name.toLowerCase(),
-      accessor: (r) => <span className="font-medium">{r.name}</span>,
+      accessor: (r) => (
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <MapPin className="h-4 w-4" />
+          </div>
+          <span className="font-medium">{r.name}</span>
+        </div>
+      ),
     },
     {
       key: 'address',

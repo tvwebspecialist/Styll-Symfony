@@ -9,9 +9,13 @@ import {
   deleteAccount,
   type ActiveSession,
 } from '@/lib/actions/profilo'
+import { useShadowMode } from '@/lib/hooks/use-shadow-mode'
 import { outlineButtonStyle, StyledInput, Field, Toast } from '../ui'
 
+const SHADOW_TOOLTIP = 'Non disponibile in modalità shadow'
+
 export function PrivacySicurezza({ email }: { email: string }) {
+  const { active: isShadow } = useShadowMode()
   const [sessions, setSessions] = React.useState<ActiveSession[]>([])
   const [loading, setLoading] = React.useState(true)
   const [exporting, setExporting] = React.useState(false)
@@ -126,7 +130,16 @@ export function PrivacySicurezza({ email }: { email: string }) {
                     </div>
                   </div>
                 </div>
-                <button onClick={() => handleTerminate()} style={outlineButtonStyle}>
+                <button
+                  onClick={() => handleTerminate()}
+                  disabled={isShadow}
+                  title={isShadow ? SHADOW_TOOLTIP : undefined}
+                  style={{
+                    ...outlineButtonStyle,
+                    opacity: isShadow ? 0.5 : 1,
+                    cursor: isShadow ? 'not-allowed' : 'pointer',
+                  }}
+                >
                   Termina sessione
                 </button>
               </div>
@@ -166,15 +179,17 @@ export function PrivacySicurezza({ email }: { email: string }) {
         {!confirmOpen ? (
           <button
             onClick={() => setConfirmOpen(true)}
+            disabled={isShadow}
+            title={isShadow ? SHADOW_TOOLTIP : undefined}
             style={{
-              background: '#DC2626',
-              color: '#FFFFFF',
+              background: isShadow ? '#F3F3F3' : '#DC2626',
+              color: isShadow ? '#B0B0B0' : '#FFFFFF',
               border: 'none',
               borderRadius: 10,
               padding: '10px 20px',
               fontSize: 14,
               fontWeight: 600,
-              cursor: 'pointer',
+              cursor: isShadow ? 'not-allowed' : 'pointer',
             }}
           >
             Elimina account

@@ -20,10 +20,10 @@ const TABS = [
 ]
 
 const STATUS_BADGE: Record<string, string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  suspended: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  deleted: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  inactive: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  active: 'bg-emerald-100 text-emerald-700',
+  suspended: 'bg-amber-100 text-amber-700',
+  deleted: 'bg-red-100 text-red-700',
+  inactive: 'bg-zinc-100 text-zinc-700  ',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -143,7 +143,7 @@ export default async function TenantDetailLayout({
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+    <div className="rounded-xl border bg-white p-5 ">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
     </div>

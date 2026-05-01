@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getTenantOwnerInfo } from '@/app/admin/actions'
 import { OverviewClient } from './overview-client'
+import { TenantOwnerCard } from './tenant-owner-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,17 +22,23 @@ export default async function TenantOverviewPage({
     .maybeSingle()
   if (!tenant) notFound()
 
-  const { data: sub } = await db
-    .from('tenant_subscriptions')
-    .select('status, current_period_start, current_period_end, plan:subscription_plans(name, price_monthly)')
-    .eq('tenant_id', tenantId)
-    .maybeSingle()
+  const [{ data: sub }, ownerRes] = await Promise.all([
+    db
+      .from('tenant_subscriptions')
+      .select(
+        'status, current_period_start, current_period_end, plan:subscription_plans(name, price_monthly)',
+      )
+      .eq('tenant_id', tenantId)
+      .maybeSingle(),
+    getTenantOwnerInfo(tenantId),
+  ])
 
   const planRel = (sub?.plan ?? null) as
     | { name: string; price_monthly: number }
     | { name: string; price_monthly: number }[]
     | null
   const plan = Array.isArray(planRel) ? planRel[0] : planRel
+  const owner = ownerRes.success ? ownerRes.data ?? null : null
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -52,7 +60,9 @@ export default async function TenantOverviewPage({
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+        <TenantOwnerCard tenantId={tenantId} owner={owner} />
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm ">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Abbonamento</h2>
             <Link
@@ -88,7 +98,7 @@ export default async function TenantOverviewPage({
           </dl>
         </div>
 
-        <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm ">
           <h2 className="text-sm font-semibold">Metadati</h2>
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="ID" value={<span className="font-mono text-xs">{tenant.id}</span>} />
@@ -109,7 +119,7 @@ export default async function TenantOverviewPage({
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 border-b py-1.5 last:border-b-0 dark:border-zinc-800">
+    <div className="flex items-start justify-between gap-3 border-b py-1.5 last:border-b-0 ">
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-right text-sm">{value}</dd>
     </div>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -13,6 +13,14 @@ export const metadata: Metadata = {
   title: "Styll — Il tuo salone, organizzato.",
   description:
     "La piattaforma all-in-one per barbieri e parrucchieri: prenotazioni, team e fidelizzazione clienti.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({

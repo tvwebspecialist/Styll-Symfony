@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Lock } from 'lucide-react'
 import type { ProfileData } from '@/lib/actions/profilo'
 import { updateProfile, updatePassword, uploadAvatar } from '@/lib/actions/profilo'
+import { useShadowMode } from '@/lib/hooks/use-shadow-mode'
 import {
   Field,
   StyledInput,
@@ -15,6 +16,7 @@ import {
 } from '../ui'
 
 const BIO_MAX = 200
+const SHADOW_TOOLTIP = 'Non disponibile in modalità shadow'
 
 export function DatiPersonali({
   profile,
@@ -29,6 +31,7 @@ export function DatiPersonali({
   onAvatarChange: (url: string | null) => void
   onFullNameChange: (name: string) => void
 }) {
+  const { active: isShadow } = useShadowMode()
   const [phone, setPhone] = React.useState(profile.phone ?? '')
   const [bio, setBio] = React.useState(profile.bio ?? '')
   const [language, setLanguage] = React.useState(profile.language || 'it')
@@ -263,7 +266,15 @@ export function DatiPersonali({
             </div>
             <button
               onClick={() => setPwdOpen(true)}
-              style={{ ...outlineButtonStyle, padding: '8px 16px', fontSize: 13 }}
+              disabled={isShadow}
+              title={isShadow ? SHADOW_TOOLTIP : undefined}
+              style={{
+                ...outlineButtonStyle,
+                padding: '8px 16px',
+                fontSize: 13,
+                opacity: isShadow ? 0.5 : 1,
+                cursor: isShadow ? 'not-allowed' : 'pointer',
+              }}
             >
               Modifica
             </button>

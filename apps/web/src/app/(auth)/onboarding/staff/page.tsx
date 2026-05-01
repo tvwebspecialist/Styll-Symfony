@@ -80,8 +80,7 @@ export default function OnboardingStaffPage() {
         return
       }
       onboardingStorage.clear()
-      router.push('/onboarding/complete')
-      router.refresh()
+      window.location.href = '/onboarding/complete'
     })
   }
 
@@ -126,19 +125,24 @@ export default function OnboardingStaffPage() {
               value={m.name}
               onChange={(e) => update(idx, { name: e.target.value })}
               placeholder="Nome"
-              className="styll-input flex-1 px-3 py-2 text-sm"
+              autoComplete="name"
+              autoCapitalize="words"
+              className="styll-input flex-1 px-3 py-3 text-base"
             />
             <input
               type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="off"
               value={m.email}
               onChange={(e) => update(idx, { email: e.target.value })}
               placeholder="email@esempio.com"
-              className="styll-input flex-[1.4] px-3 py-2 text-sm"
+              className="styll-input flex-[1.4] px-3 py-3 text-base"
             />
             <select
               value={m.role}
               onChange={(e) => update(idx, { role: e.target.value as StaffRole })}
-              className="styll-input px-3 py-2 text-sm"
+              className="styll-input px-3 py-3 text-base"
             >
               {ROLES.map((r) => (
                 <option key={r.value} value={r.value}>

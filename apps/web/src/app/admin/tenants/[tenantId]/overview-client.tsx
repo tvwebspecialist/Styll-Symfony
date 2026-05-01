@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { JsonEditor } from '@/components/admin/json-editor'
+import { ImageUpload } from '@/components/admin/image-upload'
 import { updateTenant } from '@/app/admin/actions'
 
 interface TenantData {
@@ -84,7 +85,7 @@ export function OverviewClient({ tenant }: { tenant: TenantData }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+      <div className="rounded-xl border bg-white p-5 ">
         <h2 className="mb-4 text-sm font-semibold">Dettagli</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="md:col-span-2 flex flex-col gap-1.5">
@@ -142,8 +143,15 @@ export function OverviewClient({ tenant }: { tenant: TenantData }) {
             </div>
           </div>
           <div className="md:col-span-2 flex flex-col gap-1.5">
-            <Label htmlFor="o-logo">Logo URL</Label>
-            <Input id="o-logo" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
+            <Label>Logo</Label>
+            <ImageUpload
+              bucket="tenants"
+              pathPrefix={tenant.id}
+              value={logoUrl || null}
+              onChange={(url) => setLogoUrl(url ?? '')}
+              shape="square"
+              size={96}
+            />
           </div>
           <div className="md:col-span-2 flex flex-col gap-1.5">
             <Label htmlFor="o-font">Font family</Label>
@@ -156,12 +164,12 @@ export function OverviewClient({ tenant }: { tenant: TenantData }) {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+      <div className="rounded-xl border bg-white p-5 ">
         <h2 className="text-sm font-semibold">Feature flags</h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Le impostazioni vengono salvate in <code className="font-mono">settings.feature_flags</code>.
         </p>
-        <div className="mt-3 flex flex-col divide-y dark:divide-zinc-800">
+        <div className="mt-3 flex flex-col divide-y">
           {FEATURE_FLAGS.map((f) => {
             const enabled = !!flags[f.key]
             return (
@@ -177,7 +185,7 @@ export function OverviewClient({ tenant }: { tenant: TenantData }) {
                   type="button"
                   onClick={() => toggleFlag(f.key)}
                   className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                    enabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
+                    enabled ? 'bg-emerald-500' : 'bg-zinc-300 '
                   }`}
                   aria-pressed={enabled}
                   aria-label={f.label}
@@ -194,7 +202,7 @@ export function OverviewClient({ tenant }: { tenant: TenantData }) {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+      <div className="rounded-xl border bg-white p-5 ">
         <h2 className="text-sm font-semibold">Settings (JSON avanzato)</h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Modifica diretta del campo settings. <code className="font-mono">feature_flags</code> verrà

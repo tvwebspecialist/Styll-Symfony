@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Check } from 'lucide-react'
+import { Check, ArrowRight } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
 
@@ -39,88 +39,119 @@ export default async function OnboardingCompletePage() {
     ? `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.app'}/${slug}`
     : ''
 
+  const checklist = [
+    'Negozio configurato',
+    'Servizi aggiunti',
+    'App attivata',
+    'Prova di 14 giorni iniziata',
+  ]
+
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-center px-6 py-12"
+      className="flex min-h-[100dvh] flex-col"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <div className="flex w-full max-w-xl flex-col items-center text-center">
-        <div
-          className="mb-6 flex h-[72px] w-[72px] items-center justify-center rounded-full"
-          style={{ backgroundColor: '#000000', color: '#ffffff' }}
+      {/* ── Header bar ───────────────────────────────────── */}
+      <div
+        className="flex items-center justify-center px-5 py-4"
+        style={{ borderBottom: '1px solid var(--color-border)' }}
+      >
+        <span
+          className="text-xl font-bold tracking-tight"
+          style={{ color: 'var(--color-fg)' }}
         >
-          <Check className="h-9 w-9" strokeWidth={3} />
-        </div>
+          Styll
+        </span>
+      </div>
 
-        <h1
-          className="font-bold tracking-tight"
-          style={{ color: 'var(--color-fg)', fontSize: 32 }}
-        >
-          Sei dentro, {firstName}.
-        </h1>
-        <p
-          className="mt-2 text-base"
-          style={{ color: 'var(--color-fg-secondary)' }}
-        >
-          La tua app è attiva. I clienti possono già prenotare.
-        </p>
-
-        {publicUrl && (
+      {/* ── Content ──────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
+        <div className="flex w-full max-w-md flex-col items-center text-center">
+          {/* Success icon */}
           <div
-            className="mt-8 flex w-full items-center justify-between gap-3 rounded-[12px] px-4 py-3 text-sm"
-            style={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border)',
-            }}
+            className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
+            style={{ backgroundColor: '#000000', color: '#ffffff' }}
           >
-            <code
-              className="truncate font-semibold"
-              style={{ color: 'var(--color-fg)' }}
-            >
-              {publicUrl}
-            </code>
-            <CopyButton value={publicUrl} />
+            <Check className="h-10 w-10" strokeWidth={2.5} />
           </div>
-        )}
 
-        <div className="mt-6 grid w-full grid-cols-1 gap-2 sm:grid-cols-3">
-          <ShareCta>📸 Story Instagram</ShareCta>
-          <ShareCta>📱 QR Code</ShareCta>
-          <ShareCta>💬 WhatsApp</ShareCta>
-        </div>
+          <h1
+            className="font-bold tracking-tight"
+            style={{ color: 'var(--color-fg)', fontSize: 'clamp(26px, 7vw, 36px)' }}
+          >
+            Sei dentro, {firstName}.
+          </h1>
+          <p
+            className="mt-3 text-base leading-relaxed"
+            style={{ color: 'var(--color-fg-secondary)', fontSize: 15 }}
+          >
+            La tua app è attiva.{' '}
+            <span style={{ color: 'var(--color-fg)' }}>I clienti possono già prenotare.</span>
+          </p>
 
-        <ul
-          className="mt-8 flex flex-col gap-2 text-sm"
-          style={{ color: 'var(--color-fg-secondary)' }}
-        >
-          {[
-            'Negozio configurato',
-            'Servizi aggiunti',
-            'App attivata',
-            'Prova di 14 giorni iniziata',
-          ].map((label) => (
-            <li key={label} className="flex items-center gap-2">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full"
-                style={{ backgroundColor: '#000', color: '#fff' }}
+          {/* Public URL card */}
+          {publicUrl && (
+            <div
+              className="mt-8 flex w-full items-center gap-3 rounded-[14px] px-4 py-3.5"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <code
+                className="flex-1 truncate text-left text-sm font-semibold"
+                style={{ color: 'var(--color-fg)' }}
               >
-                <Check className="h-3 w-3" strokeWidth={3} />
-              </span>
-              {label}
-            </li>
-          ))}
-        </ul>
+                {publicUrl}
+              </code>
+              <CopyButton value={publicUrl} />
+            </div>
+          )}
 
+          {/* Share CTAs */}
+          <div className="mt-5 grid w-full grid-cols-3 gap-2">
+            {(['📸 Story', '📱 QR Code', '💬 WhatsApp'] as const).map((label) => (
+              <ShareCta key={label}>{label}</ShareCta>
+            ))}
+          </div>
+
+          {/* Checklist */}
+          <ul className="mt-8 flex w-full flex-col gap-2.5 text-left">
+            {checklist.map((label) => (
+              <li
+                key={label}
+                className="flex items-center gap-3 rounded-[12px] px-4 py-3"
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+              >
+                <span
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
+                  style={{ backgroundColor: '#000', color: '#fff' }}
+                >
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                </span>
+                <span className="text-sm font-medium" style={{ color: 'var(--color-fg)' }}>
+                  {label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* ── Sticky CTA footer ─────────────────────────────── */}
+      <div
+        className="onboarding-footer px-6 pt-4"
+        style={{ borderTop: '1px solid var(--color-border)' }}
+      >
         <Link
           href="/dashboard"
-          className="styll-btn-primary mt-10 inline-flex items-center justify-center px-8 py-4 text-base font-bold"
-          style={{ fontSize: 16 }}
+          className="tap-target styll-btn-primary flex w-full items-center justify-center gap-2 py-4 text-base font-bold"
         >
-          Vai alla dashboard →
+          Vai alla dashboard
+          <ArrowRight className="h-4 w-4" />
         </Link>
-
         <p
-          className="mt-4 text-xs"
+          className="mt-3 pb-1 text-center text-xs"
           style={{ color: 'var(--color-fg-muted)' }}
         >
           Hai clienti da importare? Importa da Fresha o CSV.
@@ -134,7 +165,7 @@ function ShareCta({ children }: { children: React.ReactNode }) {
   return (
     <button
       type="button"
-      className="rounded-[12px] border px-3 py-2.5 text-xs font-semibold transition-colors hover:bg-[color:var(--color-bg-secondary)]"
+      className="tap-target rounded-[12px] border py-2.5 text-xs font-semibold transition-colors hover:bg-[color:var(--color-bg-secondary)]"
       style={{
         borderColor: 'var(--color-border)',
         color: 'var(--color-fg)',
@@ -146,5 +177,4 @@ function ShareCta({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Client component for clipboard copy
 import { CopyButton } from '@/components/onboarding/copy-button'

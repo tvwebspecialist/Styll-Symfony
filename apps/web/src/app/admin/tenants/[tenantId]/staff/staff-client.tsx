@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, Power } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,6 +11,7 @@ import { AdminModal, ConfirmDialog } from '@/components/admin/admin-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ImageUpload } from '@/components/admin/image-upload'
 import { createStaff, updateStaff, deleteStaff } from '@/app/admin/actions'
 
 interface Profile {
@@ -25,6 +27,7 @@ interface Staff {
   bio: string | null
   is_active: boolean
   created_at: string
+  photo_url?: string | null
   profile?: { full_name: string | null; email: string | null } | null
 }
 
@@ -35,9 +38,10 @@ interface FormState {
   role: string
   bio: string
   is_active: boolean
+  photo_url: string | null
 }
 
-const EMPTY: FormState = { profile_id: '', role: 'staff', bio: '', is_active: true }
+const EMPTY: FormState = { profile_id: '', role: 'staff', bio: '', is_active: true, photo_url: null }
 
 export function StaffClient({
   tenantId,
@@ -67,6 +71,7 @@ export function StaffClient({
       role: s.role,
       bio: s.bio ?? '',
       is_active: s.is_active,
+      photo_url: s.photo_url ?? null,
     })
     setOpen(true)
   }
@@ -89,6 +94,7 @@ export function StaffClient({
         role: form.role,
         bio: form.bio.trim() || null,
         is_active: form.is_active,
+        photo_url: form.photo_url,
       }
       const res = editing
         ? await updateStaff(tenantId, editing.id, payload)
@@ -134,9 +140,20 @@ export function StaffClient({
       header: 'Nome',
       sortValue: (r) => r.profile?.full_name?.toLowerCase() ?? '',
       accessor: (r) => (
-        <div>
-          <div className="font-medium">{r.profile?.full_name ?? '—'}</div>
-          <div className="text-xs text-muted-foreground">{r.profile?.email ?? ''}</div>
+        <div className="flex items-center gap-2.5">
+          <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
+            {r.photo_url ? (
+              <Image src={r.photo_url} alt="" fill sizes="32px" className="object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
+                {(r.profile?.full_name ?? '?').slice(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="font-medium">{r.profile?.full_name ?? '—'}</div>
+            <div className="text-xs text-muted-foreground">{r.profile?.email ?? ''}</div>
+          </div>
         </div>
       ),
     },
@@ -270,6 +287,16 @@ export function StaffClient({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="st-bio">Bio</Label>
             <Input id="st-bio" value={form.bio} onChange={(e) => patch('bio', e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Foto profilo</Label>
+            <ImageUpload
+              bucket="avatars"
+              pathPrefix={form.profile_id || 'staff'}
+              value={form.photo_url}
+              onChange={(url) => patch('photo_url', url)}
+              size={80}
+            />
           </div>
           <div className="flex items-center gap-2">
             <input

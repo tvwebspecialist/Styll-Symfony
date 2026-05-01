@@ -81,11 +81,11 @@ export function GlobalSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-xs text-zinc-500 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-xs text-zinc-500 shadow-sm hover:bg-zinc-50    "
       >
         <Search className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">Cerca…</span>
-        <kbd className="ml-2 hidden rounded border bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 sm:inline dark:border-zinc-700 dark:bg-zinc-800">
+        <kbd className="ml-2 hidden rounded border bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 sm:inline  ">
           ⌘K
         </kbd>
       </button>
@@ -96,17 +96,17 @@ export function GlobalSearch() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl dark:bg-zinc-900"
+            className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl "
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 border-b px-4 py-3 dark:border-zinc-700">
+            <div className="flex items-center gap-2 border-b px-4 py-3 ">
               <Search className="h-4 w-4 text-zinc-400" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Cerca tenants, utenti, servizi…"
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 "
               />
               {loading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
             </div>
@@ -162,7 +162,7 @@ export function GlobalSearch() {
                 </SearchSection>
               )}
             </div>
-            <div className="border-t bg-zinc-50 px-4 py-2 text-[10px] text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="border-t bg-zinc-50 px-4 py-2 text-[10px] text-zinc-400  ">
               ESC per chiudere · ⌘K per riaprire
             </div>
           </div>
@@ -205,12 +205,12 @@ function SearchRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800'
+        'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm hover:bg-zinc-100 '
       )}
     >
       <Icon className="h-4 w-4 text-zinc-400" />
       <div className="flex-1 truncate">
-        <div className="truncate text-zinc-900 dark:text-zinc-100">{title}</div>
+        <div className="truncate text-zinc-900 ">{title}</div>
         {subtitle && (
           <div className="truncate text-[11px] text-zinc-500">{subtitle}</div>
         )}

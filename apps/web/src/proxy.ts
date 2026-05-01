@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const PROTECTED_PREFIXES = ['/dashboard', '/admin']
 const AUTH_PAGES = ['/login', '/register']
 const ONBOARDING_PREFIX = '/onboarding'
+const ONBOARDING_COMPLETE = '/onboarding/complete'
 const LEGACY_COMPLETE = '/register/complete'
 
 export async function proxy(request: NextRequest) {
@@ -99,7 +100,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (completed && isOnboarding) {
+    if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
