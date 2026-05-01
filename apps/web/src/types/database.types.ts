@@ -12,8 +12,95 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          tenant_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       appointment_products: {
         Row: {
           appointment_id: string
@@ -202,6 +289,57 @@ export type Database = {
           },
         ]
       }
+      client_analytics: {
+        Row: {
+          avg_frequency_days: number | null
+          churn_status: string
+          client_id: string
+          computed_at: string
+          days_since_last_visit: number | null
+          last_visit_date: string | null
+          tenant_id: string
+          total_visits: number
+          updated_at: string
+        }
+        Insert: {
+          avg_frequency_days?: number | null
+          churn_status?: string
+          client_id: string
+          computed_at?: string
+          days_since_last_visit?: number | null
+          last_visit_date?: string | null
+          tenant_id: string
+          total_visits?: number
+          updated_at?: string
+        }
+        Update: {
+          avg_frequency_days?: number | null
+          churn_status?: string
+          client_id?: string
+          computed_at?: string
+          days_since_last_visit?: number | null
+          last_visit_date?: string | null
+          tenant_id?: string
+          total_visits?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_analytics_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_analytics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_loyalty: {
         Row: {
           available_points: number
@@ -368,6 +506,42 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          body: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+          subject: string
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+          subject: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          subject?: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           address: string | null
@@ -380,6 +554,7 @@ export type Database = {
           longitude: number | null
           name: string
           phone: string | null
+          photo_url: string | null
           tenant_id: string
           updated_at: string
           zip_code: string | null
@@ -395,6 +570,7 @@ export type Database = {
           longitude?: number | null
           name: string
           phone?: string | null
+          photo_url?: string | null
           tenant_id: string
           updated_at?: string
           zip_code?: string | null
@@ -410,6 +586,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           phone?: string | null
+          photo_url?: string | null
           tenant_id?: string
           updated_at?: string
           zip_code?: string | null
@@ -603,6 +780,54 @@ export type Database = {
           },
         ]
       }
+      portfolio_photos: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          is_visible: boolean
+          photo_url: string
+          service_tags: string[]
+          staff_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          photo_url: string
+          service_tags?: string[]
+          staff_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_visible?: boolean
+          photo_url?: string
+          service_tags?: string[]
+          staff_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_photos_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_photos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_inventory: {
         Row: {
           id: string
@@ -660,6 +885,7 @@ export type Database = {
           brand: string | null
           category: string | null
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
           name: string
@@ -674,6 +900,7 @@ export type Database = {
           brand?: string | null
           category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -688,6 +915,7 @@ export type Database = {
           brand?: string | null
           category?: string | null
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -711,30 +939,54 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string
+          email: string | null
           full_name: string | null
           id: string
+          is_superadmin: boolean
+          language: string | null
+          notification_preferences: Json
+          onboarding_completed: boolean | null
           phone: string | null
+          timezone: string | null
           updated_at: string
           user_type: string
+          work_mode: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id: string
+          is_superadmin?: boolean
+          language?: string | null
+          notification_preferences?: Json
+          onboarding_completed?: boolean | null
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_type: string
+          work_mode?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string | null
           id?: string
+          is_superadmin?: boolean
+          language?: string | null
+          notification_preferences?: Json
+          onboarding_completed?: boolean | null
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_type?: string
+          work_mode?: string | null
         }
         Relationships: []
       }
@@ -850,6 +1102,7 @@ export type Database = {
       services: {
         Row: {
           category: string | null
+          color: string | null
           created_at: string
           description: string | null
           display_order: number
@@ -863,6 +1116,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          color?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -876,6 +1130,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          color?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -1072,6 +1327,60 @@ export type Database = {
           slug?: string
         }
         Relationships: []
+      }
+      team_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          created_by: string
+          email: string
+          expires_at: string
+          id: string
+          role: string
+          status: string
+          tenant_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by: string
+          email: string
+          expires_at?: string
+          id?: string
+          role?: string
+          status?: string
+          tenant_id: string
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          role?: string
+          status?: string
+          tenant_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenant_subscriptions: {
         Row: {
@@ -1270,7 +1579,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_tenant_id: { Args: never; Returns: string }
+      generate_invitation_token: { Args: never; Returns: string }
+      get_invitation_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          email: string
+          expires_at: string
+          id: string
+          is_expired: boolean
+          role: string
+          status: string
+          tenant_id: string
+          tenant_name: string
+        }[]
+      }
       get_my_tenant_id: { Args: never; Returns: string }
+      is_superadmin: { Args: never; Returns: boolean }
+      recompute_all_client_analytics: { Args: never; Returns: number }
+      recompute_client_analytics: {
+        Args: { p_client_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
@@ -1399,6 +1729,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
