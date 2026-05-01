@@ -112,7 +112,7 @@ export default function OnboardingStep3Page() {
               type="button"
               onClick={() => togglePresetTab(t.key)}
               className={cn(
-                'rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors'
+                'rounded-full border px-4 py-2 text-xs font-semibold transition-colors active:scale-[0.97]'
               )}
               style={{
                 backgroundColor: active ? '#000000' : '#ffffff',
@@ -135,7 +135,7 @@ export default function OnboardingStep3Page() {
               type="button"
               onClick={() => toggleService(p.id)}
               aria-pressed={active}
-              className="flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors"
+              className="flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors active:scale-[0.97]"
               style={{
                 backgroundColor: active ? '#000000' : '#ffffff',
                 color: active ? '#ffffff' : 'var(--color-fg)',

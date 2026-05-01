@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { getActiveTenantId } from '@/lib/tenant-context'
 import { VenditeTabs } from '@/components/dashboard/vendite/VenditeTabs'
 
 export const dynamic = 'force-dynamic'
@@ -13,16 +13,7 @@ export default async function VenditePage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const db = createAdminClient()
-  const { data: staff } = await db
-    .from('staff_members')
-    .select('tenant_id')
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle()
-
-  const tenantId = staff?.tenant_id
+  const tenantId = await getActiveTenantId()
   if (!tenantId) redirect('/onboarding/step-1')
 
   return (

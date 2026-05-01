@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Breadcrumbs } from '@/components/admin/breadcrumbs'
+import { listPlanOptions } from '@/app/admin/actions'
 import { TenantsClient, type TenantRow } from './tenants-client'
 
 export const dynamic = 'force-dynamic'
@@ -30,26 +31,45 @@ export default async function TenantsPage() {
     return map
   }
 
-  const [services, staff, locations] = await Promise.all([
+  const [services, staff, locations, plans] = await Promise.all([
     countBy('services'),
     countBy('staff_members'),
     countBy('locations'),
+    listPlanOptions(),
   ])
 
-  let plansMap: Record<string, { plan_name: string | null; status: string | null }> = {}
+  // Active staff per tenant (a tenant is "orphan" if 0)
+  const activeStaffMap: Record<string, number> = {}
+  if (ids.length > 0) {
+    const { data: activeStaff } = await db
+      .from('staff_members')
+      .select('tenant_id')
+      .in('tenant_id', ids)
+      .eq('is_active', true)
+    for (const r of (activeStaff ?? []) as Array<{ tenant_id: string }>) {
+      activeStaffMap[r.tenant_id] = (activeStaffMap[r.tenant_id] ?? 0) + 1
+    }
+  }
+
+  let plansMap: Record<string, { plan_id: string | null; plan_name: string | null; status: string | null }> = {}
   if (ids.length > 0) {
     const { data: subs } = await db
       .from('tenant_subscriptions')
-      .select('tenant_id, status, plan:subscription_plans(name)')
+      .select('tenant_id, plan_id, status, plan:subscription_plans(name)')
       .in('tenant_id', ids)
     plansMap = {}
     for (const r of (subs ?? []) as Array<{
       tenant_id: string
+      plan_id: string | null
       status: string | null
       plan: { name: string } | { name: string }[] | null
     }>) {
       const p = Array.isArray(r.plan) ? r.plan[0] : r.plan
-      plansMap[r.tenant_id] = { plan_name: p?.name ?? null, status: r.status ?? null }
+      plansMap[r.tenant_id] = {
+        plan_id: r.plan_id ?? null,
+        plan_name: p?.name ?? null,
+        status: r.status ?? null,
+      }
     }
   }
 
@@ -67,7 +87,9 @@ export default async function TenantsPage() {
     created_at: t.created_at,
     services_count: services[t.id] ?? 0,
     staff_count: staff[t.id] ?? 0,
+    active_staff_count: activeStaffMap[t.id] ?? 0,
     locations_count: locations[t.id] ?? 0,
+    plan_id: plansMap[t.id]?.plan_id ?? null,
     plan_name: plansMap[t.id]?.plan_name ?? null,
     subscription_status: plansMap[t.id]?.status ?? null,
   }))
@@ -81,7 +103,7 @@ export default async function TenantsPage() {
           Gestisci tutti gli account business della piattaforma.
         </p>
       </div>
-      <TenantsClient initialTenants={rows} />
+      <TenantsClient initialTenants={rows} plans={plans} />
     </div>
   )
 }

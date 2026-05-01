@@ -215,12 +215,12 @@ export function UsersClient({
   function doImpersonate(p: Profile) {
     startTransition(async () => {
       const res = await impersonateUser(p.id)
-      if (!res.success || !res.url) {
+      if (!res.success) {
         toast.error(res.error ?? 'Errore')
         return
       }
-      window.open(res.url, '_blank', 'noopener,noreferrer')
-      toast.success('Magic link aperto in una nuova scheda')
+      toast.success('Stai impersonando l\'utente')
+      router.push('/dashboard')
     })
   }
 
@@ -304,7 +304,7 @@ export function UsersClient({
       header: '',
       className: 'w-10',
       accessor: (r) => (
-        <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-full w-8 h-8 inline-flex items-center justify-center text-xs font-semibold">
+        <span className="bg-zinc-200  text-zinc-700  rounded-full w-8 h-8 inline-flex items-center justify-center text-xs font-semibold">
           {initialsFor(r)}
         </span>
       ),
@@ -332,7 +332,7 @@ export function UsersClient({
             e.stopPropagation()
             openTenantsFor(r)
           }}
-          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-200   "
         >
           <UsersIcon className="h-3 w-3" />
           Tenant
@@ -346,11 +346,11 @@ export function UsersClient({
       sortValue: (r) => (r.is_superadmin ? 1 : 0),
       accessor: (r) =>
         r.is_superadmin ? (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
             Sì
           </span>
         ) : (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600  ">
             No
           </span>
         ),
@@ -362,11 +362,11 @@ export function UsersClient({
       sortValue: (r) => (r.onboarding_completed ? 1 : 0),
       accessor: (r) =>
         r.onboarding_completed ? (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
             Completato
           </span>
         ) : (
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
             In corso
           </span>
         ),
@@ -440,7 +440,7 @@ export function UsersClient({
         <button
           type="button"
           onClick={openInvite}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-800   "
         >
           <Plus className="h-4 w-4" />
           Invita utente
@@ -668,11 +668,11 @@ export function UsersClient({
                     <td className="px-3 py-2 text-xs text-muted-foreground">{ut.role}</td>
                     <td className="px-3 py-2">
                       {ut.is_active ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                           Attivo
                         </span>
                       ) : (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600  ">
                           Inattivo
                         </span>
                       )}

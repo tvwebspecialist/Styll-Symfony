@@ -68,7 +68,7 @@ export function BottomNav() {
         style={{
           display: 'none',
           position: 'fixed',
-          bottom: 16,
+          bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
           left: 16,
           right: 16,
           height: 64,
@@ -167,7 +167,7 @@ export function BottomNav() {
           zIndex: 70,
           background: '#FFFFFF',
           borderRadius: '20px 20px 0 0',
-          padding: '16px 16px 32px',
+          padding: `16px 16px max(32px, env(safe-area-inset-bottom, 32px))`,
           transform: open ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           boxShadow: open ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',

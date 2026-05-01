@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { getActiveTenantId } from '@/lib/tenant-context'
 
 function startOfDay(d: Date): Date {
   const x = new Date(d)
@@ -30,20 +30,7 @@ function daysAgo(n: number): Date {
 }
 
 export async function getCurrentTenantId(): Promise<string | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-  const db = createAdminClient()
-  const { data } = await db
-    .from('staff_members')
-    .select('tenant_id')
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle()
-  return data?.tenant_id ?? null
+  return getActiveTenantId()
 }
 
 export interface RiepilogoData {

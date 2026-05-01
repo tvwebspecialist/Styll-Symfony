@@ -17,7 +17,7 @@ const DESKTOP_STYLE: React.CSSProperties = {
 const MOBILE_STYLE: React.CSSProperties = {
   margin: 0,
   paddingTop: 76,
-  paddingBottom: 96,
+  paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
   paddingLeft: 16,
   paddingRight: 16,
   background: 'transparent',

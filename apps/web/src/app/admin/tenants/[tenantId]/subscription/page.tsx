@@ -24,7 +24,7 @@ export default async function TenantSubscriptionPage({
   ])
 
   return (
-    <div className="rounded-xl border bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800">
+    <div className="rounded-xl border bg-white p-5 ">
       <h2 className="text-sm font-semibold">Abbonamento</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Gestisci il piano attivo e le date di rinnovo per questo tenant.

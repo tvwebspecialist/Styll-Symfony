@@ -77,7 +77,7 @@ export default function OnboardingStep1Page() {
         <button
           type="button"
           onClick={() => setShowGmb(true)}
-          className="flex w-full items-center justify-center gap-3 rounded-[12px] border border-dashed bg-white px-4 py-3 text-sm font-medium transition-colors hover:bg-[color:var(--color-bg-secondary)]"
+          className="flex w-full items-center justify-center gap-3 rounded-[12px] border border-dashed bg-white px-4 py-3.5 text-sm font-medium transition-colors active:scale-[0.97] hover:bg-[color:var(--color-bg-secondary)]"
           style={{ borderColor: 'var(--color-fg-muted)', color: 'var(--color-fg)' }}
         >
           <GoogleIcon className="h-4 w-4" />
@@ -91,6 +91,8 @@ export default function OnboardingStep1Page() {
           value={state.name}
           onChange={(v) => handleChange('name', v)}
           placeholder="es. Marco's Barbershop"
+          autoComplete="organization"
+          autoCapitalize="words"
         />
 
         <div>
@@ -124,11 +126,15 @@ export default function OnboardingStep1Page() {
             value={state.city}
             onChange={(v) => handleChange('city', v)}
             placeholder="Milano"
+            autoComplete="address-level2"
+            autoCapitalize="words"
           />
           <Field
             id="phone"
             label="Telefono"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             value={state.phone}
             onChange={(v) => handleChange('phone', v)}
             placeholder="+39 ..."
@@ -142,6 +148,8 @@ export default function OnboardingStep1Page() {
           value={state.address}
           onChange={(v) => handleChange('address', v)}
           placeholder="Via Roma 12"
+          autoComplete="street-address"
+          autoCapitalize="words"
         />
       </div>
 
@@ -157,6 +165,9 @@ function Field({
   onChange,
   placeholder,
   type = 'text',
+  inputMode,
+  autoComplete,
+  autoCapitalize,
   required,
 }: {
   id: string
@@ -165,6 +176,9 @@ function Field({
   onChange: (v: string) => void
   placeholder?: string
   type?: string
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+  autoComplete?: string
+  autoCapitalize?: string
   required?: boolean
 }) {
   return (
@@ -188,7 +202,10 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="styll-input w-full px-4 py-3 text-sm"
+        inputMode={inputMode}
+        autoComplete={autoComplete}
+        autoCapitalize={autoCapitalize}
+        className="styll-input w-full px-4 py-3.5 text-base"
       />
     </div>
   )

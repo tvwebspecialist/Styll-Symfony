@@ -87,7 +87,7 @@ function ModeCard({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      className="relative flex flex-col gap-3 rounded-[12px] border p-6 text-left transition-all hover:border-black"
+      className="relative flex flex-col gap-3 rounded-[12px] border p-6 text-left transition-all active:scale-[0.97] hover:border-black"
       style={{
         backgroundColor: selected ? '#000000' : '#ffffff',
         color: selected ? '#ffffff' : 'var(--color-fg)',

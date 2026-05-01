@@ -2,9 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
 
 export interface ActionResult {
   success: boolean
@@ -560,19 +562,47 @@ export async function resetUserPassword(
 
 export async function impersonateUser(
   userId: string
-): Promise<ActionResult & { url?: string }> {
+): Promise<ActionResult> {
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const { data: u } = await db.auth.admin.getUserById(userId)
-  const email = u?.user?.email
-  if (!email) return { success: false, error: 'Utente senza email.' }
-  const { data, error } = await db.auth.admin.generateLink({ type: 'magiclink', email })
-  if (error) return { success: false, error: error.message }
-  const url = data?.properties?.action_link
-  if (!url) return { success: false, error: 'Link non generato.' }
-  await logAdminAction(auth.id, 'user.impersonated', 'user', userId)
-  return { success: true, url }
+
+  const { data: membership } = await db
+    .from('staff_members')
+    .select('tenant_id, tenant:tenants(id, business_name)')
+    .eq('profile_id', userId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const tenantId = membership?.tenant_id as string | undefined
+  if (!tenantId) {
+    return {
+      success: false,
+      error: "L'utente non ha un tenant attivo da impersonare.",
+    }
+  }
+
+  const tenantRel = (membership?.tenant ?? null) as
+    | { id: string; business_name: string }
+    | { id: string; business_name: string }[]
+    | null
+  const tenant = Array.isArray(tenantRel) ? tenantRel[0] : tenantRel
+
+  const cookieStore = await cookies()
+  cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 4,
+  })
+
+  await logAdminAction(auth.id, 'user.impersonated', 'user', userId, tenantId, {
+    business_name: tenant?.business_name ?? null,
+  })
+  return { success: true }
 }
 
 export async function getUserTenants(
@@ -1285,4 +1315,789 @@ export async function listTenantsOnPlan(planId: string): Promise<{
     .filter((x): x is TenantOnPlan => x !== null)
 
   return { success: true, data: rows }
+}
+
+// =====================================================
+// TENANT CLIENTS (admin CRUD + seed)
+// =====================================================
+
+export interface TenantClientInput {
+  full_name: string
+  email?: string | null
+  phone?: string | null
+}
+
+export async function createTenantClient(
+  tenantId: string,
+  input: TenantClientInput
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  if (!input.full_name?.trim()) return { success: false, error: 'Nome obbligatorio.' }
+  const db = createAdminClient()
+  const { error } = await db.from('clients').insert({
+    tenant_id: tenantId,
+    full_name: input.full_name.trim(),
+    email: input.email?.trim() || null,
+    phone: input.phone?.trim() || null,
+    marketing_consent: true,
+    preferred_contact_channel: 'whatsapp',
+    tags: '["active"]',
+  })
+  if (error) return { success: false, error: error.message }
+  await logAdminAction(auth.id, 'client.created', 'client', null, tenantId, {
+    name: input.full_name,
+  })
+  revalidatePath(`/admin/tenants/${tenantId}/clients`)
+  return { success: true }
+}
+
+export async function deleteTenantClient(
+  tenantId: string,
+  clientId: string
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const { error } = await db.from('clients').delete().eq('id', clientId).eq('tenant_id', tenantId)
+  if (error) return { success: false, error: error.message }
+  await logAdminAction(auth.id, 'client.deleted', 'client', clientId, tenantId)
+  revalidatePath(`/admin/tenants/${tenantId}/clients`)
+  return { success: true }
+}
+
+const DEMO_FIRST_NAMES = [
+  'Marco', 'Giulia', 'Andrea', 'Sara', 'Luca', 'Chiara', 'Davide', 'Elena',
+  'Matteo', 'Francesca', 'Alessandro', 'Valentina', 'Simone', 'Laura',
+  'Diego', 'Marta', 'Riccardo', 'Serena', 'Paolo', 'Roberta',
+]
+const DEMO_LAST_NAMES = [
+  'Rossi', 'Bianchi', 'Russo', 'Ferrari', 'Esposito', 'Romano', 'Colombo',
+  'Ricci', 'Marino', 'Bruno', 'Conti', 'De Luca', 'Costa', 'Greco', 'Galli',
+  'Moretti', 'Fontana', 'Barbieri', 'Mancini', 'Pellegrini',
+]
+const DEMO_DOMAINS = ['email.it', 'gmail.com', 'libero.it', 'outlook.it']
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function randomPhone(): string {
+  const n = 1000000 + Math.floor(Math.random() * 8999999)
+  return `+39 3${Math.floor(Math.random() * 9)}${Math.floor(Math.random() * 10)} ${n}`
+}
+
+export async function seedDemoClients(
+  tenantId: string,
+  count: number = 10
+): Promise<ActionResult & { inserted?: number }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const rows = Array.from({ length: Math.min(Math.max(count, 1), 50) }, () => {
+    const first = pick(DEMO_FIRST_NAMES)
+    const last = pick(DEMO_LAST_NAMES)
+    const slug = `${first.toLowerCase()}.${last.toLowerCase().replace(/\s+/g, '')}`
+    const suffix = Math.floor(Math.random() * 1000)
+    return {
+      tenant_id: tenantId,
+      full_name: `${first} ${last}`,
+      email: `${slug}${suffix}@${pick(DEMO_DOMAINS)}`,
+      phone: randomPhone(),
+      marketing_consent: true,
+      preferred_contact_channel: 'whatsapp',
+      tags: '["active"]',
+    }
+  })
+  const { error, data } = await db.from('clients').insert(rows).select('id')
+  if (error) return { success: false, error: error.message }
+  await logAdminAction(auth.id, 'client.seeded', 'client', null, tenantId, {
+    count: data?.length ?? rows.length,
+  })
+  revalidatePath(`/admin/tenants/${tenantId}/clients`)
+  return { success: true, inserted: data?.length ?? rows.length }
+}
+
+// =====================================================
+// TENANT CLIENT — UPDATE
+// =====================================================
+
+export interface TenantClientUpdateInput {
+  full_name?: string | null
+  email?: string | null
+  phone?: string | null
+  tags?: string[] | null
+  marketing_consent?: boolean | null
+}
+
+export async function updateTenantClient(
+  tenantId: string,
+  clientId: string,
+  input: TenantClientUpdateInput
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const patch: Record<string, unknown> = {}
+  if (input.full_name !== undefined) patch.full_name = input.full_name?.trim() || null
+  if (input.email !== undefined) patch.email = input.email?.trim() || null
+  if (input.phone !== undefined) patch.phone = input.phone?.trim() || null
+  if (input.tags !== undefined) {
+    patch.tags = input.tags ? JSON.stringify(input.tags) : null
+  }
+  if (input.marketing_consent !== undefined) patch.marketing_consent = !!input.marketing_consent
+  const { error } = await db
+    .from('clients')
+    .update(patch)
+    .eq('id', clientId)
+    .eq('tenant_id', tenantId)
+  if (error) return { success: false, error: error.message }
+  await logAdminAction(auth.id, 'client.updated', 'client', clientId, tenantId, {
+    fields: Object.keys(patch),
+  })
+  revalidatePath(`/admin/tenants/${tenantId}/clients`)
+  return { success: true }
+}
+
+// =====================================================
+// TENANT CLIENT — DETAILED READ (with tags + consent)
+// =====================================================
+
+export interface TenantClientDetailedRow {
+  id: string
+  full_name: string | null
+  phone: string | null
+  email: string | null
+  tags: string[]
+  marketing_consent: boolean
+  profile_id: string | null
+  avatar_url: string | null
+  created_at: string
+}
+
+function parseTags(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map((t) => String(t))
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed.map((t) => String(t)) : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+export async function listTenantClientsDetailed(
+  tenantId: string
+): Promise<{ success: boolean; data?: TenantClientDetailedRow[]; error?: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('clients')
+    .select('id, full_name, phone, email, tags, marketing_consent, profile_id, created_at, profile:profiles(avatar_url)')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) return { success: false, error: error.message }
+  const rows = (data ?? []).map((r) => {
+    const x = r as unknown as {
+      id: string
+      full_name: string | null
+      phone: string | null
+      email: string | null
+      tags: unknown
+      marketing_consent: boolean | null
+      profile_id: string | null
+      created_at: string
+      profile?: { avatar_url: string | null } | { avatar_url: string | null }[] | null
+    }
+    const prof = Array.isArray(x.profile) ? x.profile[0] : x.profile
+    return {
+      id: x.id,
+      full_name: x.full_name,
+      phone: x.phone,
+      email: x.email,
+      tags: parseTags(x.tags),
+      marketing_consent: !!x.marketing_consent,
+      profile_id: x.profile_id,
+      avatar_url: prof?.avatar_url ?? null,
+      created_at: x.created_at,
+    }
+  })
+  return { success: true, data: rows }
+}
+
+// =====================================================
+// TENANT APPOINTMENTS — DETAILED READ (admin)
+// =====================================================
+
+export interface TenantAppointmentDetailedRow {
+  id: string
+  start_time: string
+  end_time: string
+  status: string
+  client_id: string
+  client_name: string | null
+  staff_id: string
+  staff_name: string | null
+  location_id: string
+  service_names: string[]
+  total_price: number
+}
+
+export async function listTenantAppointmentsDetailed(
+  tenantId: string
+): Promise<{ success: boolean; data?: TenantAppointmentDetailedRow[]; error?: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('appointments')
+    .select(
+      'id, start_time, end_time, status, client_id, location_id, staff_id, client:clients(full_name), staff:staff_members(profile:profiles(full_name)), appointment_services(price_at_booking, services(name))'
+    )
+    .eq('tenant_id', tenantId)
+    .order('start_time', { ascending: false })
+    .limit(200)
+  if (error) return { success: false, error: error.message }
+  const rows = (data ?? []).map((raw) => {
+    const r = raw as unknown as {
+      id: string
+      start_time: string
+      end_time: string
+      status: string
+      client_id: string
+      staff_id: string
+      location_id: string
+      client: { full_name: string | null } | { full_name: string | null }[] | null
+      staff:
+        | { profile: { full_name: string | null } | { full_name: string | null }[] | null }
+        | { profile: { full_name: string | null } | { full_name: string | null }[] | null }[]
+        | null
+      appointment_services:
+        | Array<{
+            price_at_booking: number | null
+            services: { name: string | null } | { name: string | null }[] | null
+          }>
+        | null
+    }
+    const client = Array.isArray(r.client) ? r.client[0] : r.client
+    const staffOuter = Array.isArray(r.staff) ? r.staff[0] : r.staff
+    const staffProfile = staffOuter
+      ? Array.isArray(staffOuter.profile)
+        ? staffOuter.profile[0]
+        : staffOuter.profile
+      : null
+    const services = (r.appointment_services ?? []).map((as) => {
+      const sv = Array.isArray(as.services) ? as.services[0] : as.services
+      return { name: sv?.name ?? null, price: Number(as.price_at_booking ?? 0) }
+    })
+    return {
+      id: r.id,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      status: r.status,
+      client_id: r.client_id,
+      client_name: client?.full_name ?? null,
+      staff_id: r.staff_id,
+      staff_name: staffProfile?.full_name ?? null,
+      location_id: r.location_id,
+      service_names: services.map((s) => s.name).filter((n): n is string => !!n),
+      total_price: services.reduce((s, x) => s + x.price, 0),
+    }
+  })
+  return { success: true, data: rows }
+}
+
+// =====================================================
+// TENANT APPOINTMENT FORM HELPERS (clients/staff/services/locations)
+// =====================================================
+
+export interface AppointmentFormOptions {
+  clients: Array<{ id: string; full_name: string | null; email: string | null }>
+  staff: Array<{ id: string; name: string | null; role: string | null }>
+  services: Array<{ id: string; name: string; price: number; duration_minutes: number }>
+  locations: Array<{ id: string; name: string }>
+}
+
+export async function getAppointmentFormOptions(
+  tenantId: string
+): Promise<{ success: boolean; data?: AppointmentFormOptions; error?: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const [clients, staff, services, locations] = await Promise.all([
+    db
+      .from('clients')
+      .select('id, full_name, email')
+      .eq('tenant_id', tenantId)
+      .order('full_name', { ascending: true })
+      .limit(500),
+    db
+      .from('staff_members')
+      .select('id, role, profile:profiles(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .limit(100),
+    db
+      .from('services')
+      .select('id, name, price, duration_minutes')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .limit(200),
+    db.from('locations').select('id, name').eq('tenant_id', tenantId).limit(50),
+  ])
+  if (clients.error) return { success: false, error: clients.error.message }
+  if (staff.error) return { success: false, error: staff.error.message }
+  if (services.error) return { success: false, error: services.error.message }
+  if (locations.error) return { success: false, error: locations.error.message }
+  const staffRows = (staff.data ?? []).map((row) => {
+    const r = row as {
+      id: string
+      role: string | null
+      profile: { full_name: string | null } | { full_name: string | null }[] | null
+    }
+    const p = Array.isArray(r.profile) ? r.profile[0] : r.profile
+    return { id: r.id, name: p?.full_name ?? null, role: r.role }
+  })
+  return {
+    success: true,
+    data: {
+      clients: (clients.data ?? []) as Array<{
+        id: string
+        full_name: string | null
+        email: string | null
+      }>,
+      staff: staffRows,
+      services: (services.data ?? []).map((s) => {
+        const r = s as {
+          id: string
+          name: string
+          price: number
+          duration_minutes: number
+        }
+        return {
+          id: r.id,
+          name: r.name,
+          price: Number(r.price ?? 0),
+          duration_minutes: Number(r.duration_minutes ?? 0),
+        }
+      }),
+      locations: (locations.data ?? []) as Array<{ id: string; name: string }>,
+    },
+  }
+}
+
+// =============================================================
+// IMAGE UPLOAD (admin only)
+// =============================================================
+
+const ALLOWED_BUCKETS = ['tenants', 'locations', 'avatars'] as const
+type AllowedBucket = (typeof ALLOWED_BUCKETS)[number]
+
+export async function uploadAdminImage(
+  formData: FormData,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+
+  const file = formData.get('file')
+  const bucket = String(formData.get('bucket') ?? '')
+  const pathPrefix = String(formData.get('pathPrefix') ?? 'misc')
+
+  if (!(file instanceof File)) return { success: false, error: 'File mancante.' }
+  if (!ALLOWED_BUCKETS.includes(bucket as AllowedBucket)) {
+    return { success: false, error: 'Bucket non valido.' }
+  }
+  if (file.size > 1024 * 1024) {
+    return { success: false, error: 'File troppo grande (max 1 MB dopo compressione).' }
+  }
+
+  const db = createAdminClient()
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const safePrefix = pathPrefix.replace(/[^a-zA-Z0-9_-]/g, '') || 'misc'
+  const path = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const buf = Buffer.from(await file.arrayBuffer())
+
+  const { error: upErr } = await db.storage
+    .from(bucket)
+    .upload(path, buf, { contentType: file.type || 'image/jpeg', upsert: false })
+  if (upErr) return { success: false, error: upErr.message }
+
+  const { data: pub } = db.storage.from(bucket).getPublicUrl(path)
+  return { success: true, url: pub.publicUrl }
+}
+
+// =====================================================
+// TENANT IMPERSONATION (SHADOW MODE)
+// =====================================================
+
+export async function startTenantImpersonation(
+  tenantId: string,
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+
+  const db = createAdminClient()
+  const { data: t } = await db
+    .from('tenants')
+    .select('id, business_name')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (!t) return { success: false, error: 'Tenant non trovato.' }
+
+  const { count: activeStaff } = await db
+    .from('staff_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+  if ((activeStaff ?? 0) === 0) {
+    return {
+      success: false,
+      error: 'Tenant senza proprietario. Assegna prima un owner.',
+    }
+  }
+
+  const cookieStore = await cookies()
+  cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 4, // 4h max
+  })
+
+  await logAdminAction(auth.id, 'tenant.impersonation_started', 'tenant', tenantId, tenantId, {
+    business_name: t.business_name,
+  })
+  return { success: true }
+}
+
+export async function stopTenantImpersonation(): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Sessione non valida.' }
+
+  const cookieStore = await cookies()
+  const previous = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
+  cookieStore.delete(IMPERSONATE_COOKIE)
+
+  if (previous) {
+    await logAdminAction(user.id, 'tenant.impersonation_stopped', 'tenant', previous, previous)
+  }
+  return { success: true }
+}
+
+// =====================================================
+// SUBSCRIPTION PLANS (lite list for selectors)
+// =====================================================
+
+export interface PlanOption {
+  id: string
+  name: string
+  price_monthly: number | null
+}
+
+export async function listPlanOptions(): Promise<PlanOption[]> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return []
+  const db = createAdminClient()
+  const { data } = await db
+    .from('subscription_plans')
+    .select('id, name, price_monthly')
+    .order('price_monthly', { ascending: true, nullsFirst: true })
+  return (data ?? []) as PlanOption[]
+}
+
+// =====================================================
+// GLOBAL OVERVIEW (revenue, appts, top tenants)
+// =====================================================
+
+export interface TopTenantRow {
+  id: string
+  business_name: string
+  logo_url: string | null
+  primary_color: string | null
+  total_revenue: number
+  appointments_30d: number
+}
+
+export interface AdminGlobalOverview {
+  total_revenue: number
+  active_tenants: number
+  appointments_30d: number
+  top_tenants: TopTenantRow[]
+}
+
+export async function getAdminGlobalOverview(): Promise<{
+  success: boolean
+  data?: AdminGlobalOverview
+  error?: string
+}> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+
+  const d30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [paymentsRes, activeRes, appts30Res, tenantsRes] = await Promise.all([
+    db
+      .from('payments')
+      .select('tenant_id, amount, status')
+      .in('status', ['paid', 'completed']),
+    db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    db
+      .from('appointments')
+      .select('id, tenant_id, start_time')
+      .gte('start_time', d30),
+    db.from('tenants').select('id, business_name, logo_url, primary_color'),
+  ])
+
+  const payments = (paymentsRes.data ?? []) as Array<{
+    tenant_id: string
+    amount: number | null
+  }>
+  const apptsRows = (appts30Res.data ?? []) as Array<{ tenant_id: string }>
+  const tenants = (tenantsRes.data ?? []) as Array<{
+    id: string
+    business_name: string
+    logo_url: string | null
+    primary_color: string | null
+  }>
+
+  const revenueByTenant = new Map<string, number>()
+  let totalRevenue = 0
+  for (const p of payments) {
+    const amt = Number(p.amount ?? 0)
+    totalRevenue += amt
+    revenueByTenant.set(p.tenant_id, (revenueByTenant.get(p.tenant_id) ?? 0) + amt)
+  }
+
+  const apptsByTenant = new Map<string, number>()
+  for (const a of apptsRows) {
+    apptsByTenant.set(a.tenant_id, (apptsByTenant.get(a.tenant_id) ?? 0) + 1)
+  }
+
+  const tenantById = new Map(tenants.map((t) => [t.id, t]))
+  const top: TopTenantRow[] = Array.from(revenueByTenant.entries())
+    .map(([tenantId, rev]) => {
+      const t = tenantById.get(tenantId)
+      return {
+        id: tenantId,
+        business_name: t?.business_name ?? '—',
+        logo_url: t?.logo_url ?? null,
+        primary_color: t?.primary_color ?? null,
+        total_revenue: rev,
+        appointments_30d: apptsByTenant.get(tenantId) ?? 0,
+      }
+    })
+    .sort((a, b) => b.total_revenue - a.total_revenue)
+    .slice(0, 5)
+
+  return {
+    success: true,
+    data: {
+      total_revenue: totalRevenue,
+      active_tenants: activeRes.count ?? 0,
+      appointments_30d: apptsRows.length,
+      top_tenants: top,
+    },
+  }
+}
+
+// =====================================================
+// ORPHAN TENANTS MAINTENANCE
+// =====================================================
+
+/**
+ * Assigns the current superadmin as `owner` of the given tenant,
+ * but ONLY if the tenant has no active staff members (orphan).
+ */
+export async function assignTenantOwnerToMe(
+  tenantId: string,
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+
+  const { count: activeCount } = await db
+    .from('staff_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+  if ((activeCount ?? 0) > 0) {
+    return {
+      success: false,
+      error: 'Il tenant ha già almeno uno staff member attivo.',
+    }
+  }
+
+  const { data: existing } = await db
+    .from('staff_members')
+    .select('id, is_active')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', auth.id)
+    .maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await db
+      .from('staff_members')
+      .update({ role: 'owner', is_active: true })
+      .eq('id', existing.id)
+    if (error) return { success: false, error: error.message }
+  } else {
+    const { error } = await db.from('staff_members').insert({
+      tenant_id: tenantId,
+      profile_id: auth.id,
+      role: 'owner',
+      is_active: true,
+    })
+    if (error) return { success: false, error: error.message }
+  }
+
+  await logAdminAction(auth.id, 'tenant.owner_self_assigned', 'tenant', tenantId, tenantId)
+  revalidatePath('/admin/tenants')
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  return { success: true }
+}
+
+/**
+ * Assigns an existing user (by email) as the `owner` of a tenant.
+ *
+ * Behavior:
+ * - If the tenant is orphan (no active staff), simply attach the user as owner.
+ * - If the tenant already has active owners, demote them to `manager` and
+ *   promote the new user to owner. This is the "Cambia proprietario" flow.
+ *
+ * Returns a specific, user-facing error if the email is not registered.
+ */
+export async function assignTenantOwnerByEmail(
+  tenantId: string,
+  email: string,
+): Promise<ActionResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const trimmed = email.trim().toLowerCase()
+  if (!trimmed) return { success: false, error: 'Email mancante.' }
+  const db = createAdminClient()
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('id, email')
+    .eq('email', trimmed)
+    .maybeSingle()
+  if (!profile?.id) {
+    return {
+      success: false,
+      error: 'Utente non trovato. Invitalo prima nella sezione Utenti.',
+    }
+  }
+
+  // Detect existing active owners to know whether this is an assignment or a change.
+  const { data: currentOwners } = await db
+    .from('staff_members')
+    .select('id, profile_id')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'owner')
+    .eq('is_active', true)
+
+  const previousOwners = (currentOwners ?? []) as Array<{
+    id: string
+    profile_id: string
+  }>
+  const isChange = previousOwners.some((o) => o.profile_id !== profile.id)
+
+  // Demote any existing owner that is not the new one.
+  for (const o of previousOwners) {
+    if (o.profile_id === profile.id) continue
+    const { error } = await db
+      .from('staff_members')
+      .update({ role: 'manager' })
+      .eq('id', o.id)
+    if (error) return { success: false, error: error.message }
+  }
+
+  // Upsert the new owner row.
+  const { data: existing } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', profile.id)
+    .maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await db
+      .from('staff_members')
+      .update({ role: 'owner', is_active: true })
+      .eq('id', existing.id)
+    if (error) return { success: false, error: error.message }
+  } else {
+    const { error } = await db.from('staff_members').insert({
+      tenant_id: tenantId,
+      profile_id: profile.id,
+      role: 'owner',
+      is_active: true,
+    })
+    if (error) return { success: false, error: error.message }
+  }
+
+  await logAdminAction(
+    auth.id,
+    isChange ? 'tenant.owner_changed' : 'tenant.owner_assigned_by_email',
+    'tenant',
+    tenantId,
+    tenantId,
+    { email: trimmed },
+  )
+  revalidatePath('/admin/tenants')
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  return { success: true }
+}
+
+/**
+ * Returns the current active owner of a tenant (full_name + email + avatar).
+ */
+export async function getTenantOwnerInfo(tenantId: string): Promise<{
+  success: boolean
+  data?: {
+    profileId: string
+    fullName: string | null
+    email: string | null
+    avatarUrl: string | null
+  } | null
+  error?: string
+}> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('staff_members')
+    .select('profile_id, profile:profiles(id, full_name, email, avatar_url)')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'owner')
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) return { success: false, error: error.message }
+  if (!data) return { success: true, data: null }
+  const p = (Array.isArray(data.profile) ? data.profile[0] : data.profile) as
+    | { id: string; full_name: string | null; email: string | null; avatar_url: string | null }
+    | null
+  return {
+    success: true,
+    data: p
+      ? {
+          profileId: p.id,
+          fullName: p.full_name,
+          email: p.email,
+          avatarUrl: p.avatar_url,
+        }
+      : null,
+  }
 }

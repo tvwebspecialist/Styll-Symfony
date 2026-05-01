@@ -3,7 +3,11 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { Bell, HelpCircle, User as UserIcon } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+
+interface MobileTopBarProps {
+  fullName?: string | null
+  avatarUrl?: string | null
+}
 
 function computeInitials(fullName: string | null | undefined): string {
   if (!fullName) return ''
@@ -11,42 +15,10 @@ function computeInitials(fullName: string | null | undefined): string {
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('')
 }
 
-export function MobileTopBar() {
-  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null)
-  const [fullName, setFullName] = React.useState<string | null>(null)
+export function MobileTopBar({ fullName, avatarUrl }: MobileTopBarProps) {
   const [imgError, setImgError] = React.useState(false)
 
-  React.useEffect(() => {
-    let active = true
-    const supabase = createClient()
-    ;(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || !active) return
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('avatar_url, full_name')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (!active) return
-
-      const profileAvatar = (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null
-      const profileName = (profile as { full_name?: string | null } | null)?.full_name ?? null
-      const metaAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? null
-      const metaName = (user.user_metadata?.full_name as string | undefined) ?? null
-
-      setAvatarUrl(profileAvatar ?? metaAvatar ?? null)
-      setFullName(profileName ?? metaName ?? null)
-    })()
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const initials = computeInitials(fullName)
+  const initials = computeInitials(fullName ?? null)
   const showImage = !!avatarUrl && !imgError
 
   return (
