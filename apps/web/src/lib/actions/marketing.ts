@@ -20,59 +20,59 @@ const EMPTY: RetentionData = { rischio: [], winback: [], persi: [] }
 
 export async function getRetentionData(tenantId: string): Promise<RetentionData> {
   try {
-    const db  = createAdminClient()
-    const now = Date.now()
-    const DAY = 86_400_000
+    const db = createAdminClient()
 
-    // Fetch all completed, non-deleted appointments for the tenant (newest first)
-    const { data: appts, error: apptError } = await db
-      .from('appointments')
-      .select('id, client_id, start_time')
+    // ── 1. Pre-computed churn analytics: only at-risk clients ─────────────────
+    const { data: analyticsRows, error: analyticsError } = await db
+      .from('client_analytics')
+      .select('client_id, churn_status, days_since_last_visit, avg_frequency_days')
       .eq('tenant_id', tenantId)
-      .eq('status', 'completed')
-      .is('deleted_at', null)
-      .order('start_time', { ascending: false })
+      .in('churn_status', ['yellow', 'red'])
 
-    if (apptError) {
-      console.error('[getRetentionData] appointments error:', apptError)
+    if (analyticsError) {
+      console.error('[getRetentionData] analytics error:', analyticsError)
       return EMPTY
     }
 
-    if (!appts || appts.length === 0) return EMPTY
+    if (!analyticsRows || analyticsRows.length === 0) return EMPTY
 
-    // Keep only the latest completed appointment per client
-    const latestByClient = new Map<string, { id: string; client_id: string; start_time: string }>()
-    for (const appt of appts) {
-      if (!appt.client_id) continue
-      if (!latestByClient.has(appt.client_id)) latestByClient.set(appt.client_id, appt)
+    // ── 2. Classify each row into a segment ───────────────────────────────────
+    const grouped: Record<'rischio' | 'winback' | 'persi', Array<{ clientId: string; days: number }>> = {
+      rischio: [],
+      winback: [],
+      persi:   [],
     }
 
-    // Classify by segment (only clients who have been absent >45 days)
-    const cutoff45  = 45  * DAY
-    const cutoff90  = 90  * DAY
-    const cutoff180 = 180 * DAY
-
-    type SegmentInfo = { apptId: string; days: number; segment: 'rischio' | 'winback' | 'persi' }
-    const segmented = new Map<string, SegmentInfo>()
-
-    for (const [clientId, appt] of latestByClient) {
-      const elapsed = now - new Date(appt.start_time).getTime()
-      if (elapsed < cutoff45) continue
-
+    for (const row of analyticsRows) {
+      const days = row.days_since_last_visit ?? 0
       let segment: 'rischio' | 'winback' | 'persi'
-      if      (elapsed <= cutoff90)  segment = 'rischio'
-      else if (elapsed <= cutoff180) segment = 'winback'
-      else                           segment = 'persi'
 
-      segmented.set(clientId, { apptId: appt.id, days: Math.floor(elapsed / DAY), segment })
+      if (row.churn_status === 'yellow') {
+        segment = 'rischio'
+      } else {
+        // red — winback if still within 3× personal frequency, otherwise persi
+        const avg = row.avg_frequency_days
+        segment = avg != null && days <= avg * 3 ? 'winback' : 'persi'
+      }
+
+      grouped[segment].push({ clientId: row.client_id, days })
     }
 
-    if (segmented.size === 0) return EMPTY
+    // ── 3. Sort by absence (desc) and cap at 50 per segment ───────────────────
+    for (const seg of ['rischio', 'winback', 'persi'] as const) {
+      grouped[seg].sort((a, b) => b.days - a.days)
+      grouped[seg] = grouped[seg].slice(0, 50)
+    }
 
-    const clientIds = [...segmented.keys()]
-    const apptIds   = [...segmented.values()].map((v) => v.apptId)
+    const clientIds = [
+      ...grouped.rischio.map((r) => r.clientId),
+      ...grouped.winback.map((r) => r.clientId),
+      ...grouped.persi.map((r)   => r.clientId),
+    ]
 
-    // Fetch client names (exclude deleted)
+    if (clientIds.length === 0) return EMPTY
+
+    // ── 4. Client names (exclude soft-deleted) ─────────────────────────────────
     const { data: clients, error: clientError } = await db
       .from('clients')
       .select('id, full_name')
@@ -85,13 +85,38 @@ export async function getRetentionData(tenantId: string): Promise<RetentionData>
       return EMPTY
     }
 
-    // Fetch service names for the latest appointment of each retention client
-    // TODO: join con appointment_services + services se serve più granularità
-    const { data: apptSvcs } = await db
-      .from('appointment_services')
-      .select('appointment_id, services(name)')
+    const clientNameMap = new Map<string, string>(
+      (clients ?? []).map((c) => [c.id, c.full_name as string]),
+    )
+
+    // ── 5. Last completed appointment per client (needed only for lastService) ─
+    const { data: appts } = await db
+      .from('appointments')
+      .select('id, client_id')
       .eq('tenant_id', tenantId)
-      .in('appointment_id', apptIds)
+      .in('client_id', clientIds)
+      .eq('status', 'completed')
+      .is('deleted_at', null)
+      .order('start_time', { ascending: false })
+
+    const latestApptByClient = new Map<string, string>() // client_id → appt_id
+    for (const appt of appts ?? []) {
+      if (!appt.client_id) continue
+      if (!latestApptByClient.has(appt.client_id)) {
+        latestApptByClient.set(appt.client_id, appt.id)
+      }
+    }
+
+    const apptIds = [...latestApptByClient.values()]
+
+    // ── 6. Service names for those appointments ────────────────────────────────
+    const { data: apptSvcs } = apptIds.length
+      ? await db
+          .from('appointment_services')
+          .select('appointment_id, services(name)')
+          .eq('tenant_id', tenantId)
+          .in('appointment_id', apptIds)
+      : { data: [] as { appointment_id: string; services: { name: string } | { name: string }[] | null }[] }
 
     const serviceByAppt = new Map<string, string>()
     for (const row of apptSvcs ?? []) {
@@ -101,28 +126,23 @@ export async function getRetentionData(tenantId: string): Promise<RetentionData>
       if (name) serviceByAppt.set(row.appointment_id, name)
     }
 
-    const clientNameMap = new Map<string, string>(
-      (clients ?? []).map((c) => [c.id, c.full_name as string])
-    )
-
+    // ── 7. Assemble result (already sorted + capped in step 3) ────────────────
     const result: RetentionData = { rischio: [], winback: [], persi: [] }
 
-    for (const [clientId, info] of segmented) {
-      const name = clientNameMap.get(clientId)
-      if (!name) continue // deleted client — skip
-
-      result[info.segment].push({
-        id:             clientId,
-        name,
-        daysSinceVisit: info.days,
-        lastService:    serviceByAppt.get(info.apptId) ?? null,
-        segment:        info.segment,
-      })
-    }
-
-    // Sort each segment: most at-risk (longest absence) first
     for (const seg of ['rischio', 'winback', 'persi'] as const) {
-      result[seg].sort((a, b) => b.daysSinceVisit - a.daysSinceVisit)
+      for (const { clientId, days } of grouped[seg]) {
+        const name = clientNameMap.get(clientId)
+        if (!name) continue // deleted client — skip
+
+        const apptId = latestApptByClient.get(clientId)
+        result[seg].push({
+          id:             clientId,
+          name,
+          daysSinceVisit: days,
+          lastService:    apptId ? (serviceByAppt.get(apptId) ?? null) : null,
+          segment:        seg,
+        })
+      }
     }
 
     return result

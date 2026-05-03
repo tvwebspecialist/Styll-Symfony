@@ -7,6 +7,18 @@ import { getCurrentTenantId } from './vendite'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
 
+type DbChurnStatus = 'unknown' | 'green' | 'yellow' | 'red'
+
+function mapDbChurnToUi(s: DbChurnStatus | string | null | undefined): ChurnStatus {
+  switch (s) {
+    case 'green':   return 'active'
+    case 'yellow':  return 'warning'
+    case 'red':     return 'danger'
+    case 'unknown':
+    default:        return 'inactive'
+  }
+}
+
 export interface ClienteRow {
   id: string
   fullName: string
@@ -67,13 +79,6 @@ function parseTags(raw: unknown): string[] {
   return []
 }
 
-function churnFromDays(days: number | null): ChurnStatus {
-  if (days === null) return 'inactive'
-  if (days <= 30) return 'active'
-  if (days <= 60) return 'warning'
-  if (days <= 90) return 'danger'
-  return 'inactive'
-}
 
 export async function getClienti(): Promise<{
   clienti: ClienteRow[]
@@ -84,7 +89,7 @@ export async function getClienti(): Promise<{
 
   const db = createAdminClient()
 
-  const [clientsRes, apptRes, loyaltyRes] = await Promise.all([
+  const [clientsRes, apptRes, loyaltyRes, analyticsRes] = await Promise.all([
     db
       .from('clients')
       .select('id, full_name, email, phone, tags')
@@ -98,11 +103,27 @@ export async function getClienti(): Promise<{
       .from('client_loyalty')
       .select('client_id, total_points, last_visit_date')
       .eq('tenant_id', tenantId),
+    db
+      .from('client_analytics')
+      .select('client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits')
+      .eq('tenant_id', tenantId),
   ])
 
   const clients = (clientsRes.data ?? []) as ClientRow[]
   const appts = (apptRes.data ?? []) as AppointmentRow[]
   const loyalty = (loyaltyRes.data ?? []) as LoyaltyRow[]
+
+  type AnalyticsRow = {
+    client_id: string
+    churn_status: string | null
+    days_since_last_visit: number | null
+    avg_frequency_days: number | null
+    last_visit_date: string | null
+    total_visits: number
+  }
+  const analyticsMap = new Map<string, AnalyticsRow>(
+    ((analyticsRes.data ?? []) as AnalyticsRow[]).map((a) => [a.client_id, a]),
+  )
 
   const completedIds = appts.filter((a) => a.status === 'completed').map((a) => a.id)
 
@@ -159,30 +180,37 @@ export async function getClienti(): Promise<{
   const DAY = 86_400_000
 
   const clienti: ClienteRow[] = clients.map((c) => {
+    const analytics = analyticsMap.get(c.id)
     const visits = (visitsByClient.get(c.id) ?? []).sort((a, b) => a.getTime() - b.getTime())
-    const totalVisits = visits.length
     const loyaltyRow = loyaltyByClient.get(c.id)
+
+    // Prefer pre-computed analytics when available; fall back to local calc for
+    // brand-new clients not yet processed by the trigger/cron.
     const lastVisitDate =
-      visits.length > 0
-        ? visits[visits.length - 1].toISOString()
-        : loyaltyRow?.last_visit_date ?? null
+      analytics?.last_visit_date ??
+      (visits.length > 0 ? visits[visits.length - 1].toISOString() : loyaltyRow?.last_visit_date ?? null)
 
-    const daysSince = lastVisitDate
-      ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY)
-      : null
+    const daysSince =
+      analytics?.days_since_last_visit ??
+      (lastVisitDate ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY) : null)
 
-    let frequency: number | null = null
-    if (visits.length >= 2) {
-      const span = visits[visits.length - 1].getTime() - visits[0].getTime()
-      frequency = Math.round(span / DAY / (visits.length - 1))
-    }
+    const frequency =
+      analytics?.avg_frequency_days != null
+        ? Math.round(analytics.avg_frequency_days)
+        : visits.length >= 2
+          ? Math.round(
+              (visits[visits.length - 1].getTime() - visits[0].getTime()) / DAY / (visits.length - 1),
+            )
+          : null
+
+    const totalVisits = analytics?.total_visits ?? visits.length
 
     return {
       id: c.id,
       fullName: c.full_name,
       email: c.email,
       phone: c.phone,
-      churn: churnFromDays(daysSince),
+      churn: mapDbChurnToUi(analytics?.churn_status),
       lastVisit: lastVisitDate,
       daysSinceLastVisit: daysSince,
       visitFrequencyDays: frequency,
@@ -220,7 +248,7 @@ export interface ClienteAnalytics {
   lastVisitDate: string | null
   daysSinceLastVisit: number | null
   avgDaysBetweenVisits: number | null
-  churnStatus: 'green' | 'yellow' | 'red'
+  churnStatus: 'green' | 'yellow' | 'red' | 'unknown'
   churnDelayDays: number
   vipScore: number
   lastApptTotal: number
@@ -327,6 +355,14 @@ export async function getClienteDettaglio(
 
   if (!clientRow) return null
 
+  // ── 1.5. Pre-computed churn analytics ───────────────────────────────────────
+  const { data: analyticsRow } = await db
+    .from('client_analytics')
+    .select('churn_status, days_since_last_visit, avg_frequency_days, last_visit_date')
+    .eq('tenant_id', tenantId)
+    .eq('client_id', clienteId)
+    .maybeSingle()
+
   // ── 2. Appointments ─────────────────────────────────────────────────────────
   const { data: rawAppts } = await db
     .from('appointments')
@@ -427,10 +463,17 @@ export async function getClienteDettaglio(
     ? (svcsByAppt.get(lastCompletedAppt.id) ?? []).reduce((s, x) => s + x.price, 0)
     : 0
 
-  // Churn
-  let churnStatus: 'green' | 'yellow' | 'red' = 'green'
+  // Churn — read from pre-computed client_analytics; fall back to local JS calc
+  // only when the analytics row is absent (brand-new client, pending backfill).
+  const dbChurnStatus = (analyticsRow?.churn_status ?? 'unknown') as DbChurnStatus
+  let churnStatus: 'green' | 'yellow' | 'red' | 'unknown' = dbChurnStatus
   let churnDelayDays = 0
-  if (daysSince !== null) {
+  if (analyticsRow?.days_since_last_visit != null && analyticsRow?.avg_frequency_days != null) {
+    churnDelayDays = Math.max(
+      0,
+      Math.round(analyticsRow.days_since_last_visit - analyticsRow.avg_frequency_days),
+    )
+  } else if (analyticsRow == null && daysSince !== null) {
     const threshold = avgDays ?? 30
     if (daysSince > threshold * 1.5) {
       churnStatus = 'red'
@@ -438,6 +481,8 @@ export async function getClienteDettaglio(
     } else if (daysSince > threshold) {
       churnStatus = 'yellow'
       churnDelayDays = Math.round(daysSince - threshold)
+    } else {
+      churnStatus = 'green'
     }
   }
 

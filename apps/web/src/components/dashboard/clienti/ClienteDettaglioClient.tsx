@@ -186,7 +186,9 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
   const churnBarBg =
     analytics.churnStatus === 'red'
       ? 'linear-gradient(15deg, #6b0a0a 39%, #c41818 61%)'
-      : 'linear-gradient(15deg, #7a5200 39%, #c47a00 61%)'
+      : analytics.churnStatus === 'yellow'
+        ? 'linear-gradient(15deg, #7a5200 39%, #c47a00 61%)'
+        : '#9ca3af'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -255,7 +257,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         </div>
 
         {/* ── 2. CHURN ALERT BAR (conditional) ────────────────────────────────── */}
-        {analytics.churnStatus !== 'green' && (
+        {analytics.churnStatus !== 'green' && analytics.churnStatus !== 'unknown' && (
           <div style={{ background: churnBarBg, borderRadius: 16, padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
