@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
     >
       <Link
         href="/"
-        className="text-2xl font-bold tracking-tight"
+        className="hidden lg:block text-2xl font-bold tracking-tight"
         style={{ color: 'var(--color-fg)' }}
       >
         Styll
@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
 
       <header className="mt-6 mb-7">
         <h1
-          className="font-bold tracking-tight"
+          className="auth-heading font-bold tracking-tight"
           style={{ color: 'var(--color-fg)', fontSize: 26 }}
         >
           Password dimenticata?

@@ -19,27 +19,52 @@ export function AuthSplitLayout({
 }: AuthSplitLayoutProps) {
   return (
     <div
-      className="flex min-h-screen flex-col lg:flex-row"
-      style={{ backgroundColor: 'var(--color-bg)' }}
+      className="flex flex-col lg:flex-row"
+      style={{ minHeight: '100dvh', backgroundColor: 'var(--color-bg)' }}
     >
       {/* Header mobile */}
       <div
-        className="flex items-center justify-between border-b px-6 py-4 lg:hidden"
-        style={{ borderColor: 'var(--color-border)' }}
+        className="flex items-center justify-between px-5 lg:hidden"
+        style={{
+          paddingTop: 'max(16px, env(safe-area-inset-top, 16px))',
+          paddingBottom: 16,
+        }}
       >
         <Link
           href="/"
-          className="text-lg font-bold tracking-tight"
-          style={{ color: 'var(--color-fg)' }}
+          className="text-xl font-bold tracking-tight"
+          style={{ color: 'var(--color-fg)', letterSpacing: '-0.02em' }}
         >
           Styll
         </Link>
-        {mobileTopRight}
+        {mobileTopRight && (
+          <div
+            style={{
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 100,
+              padding: '7px 14px',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            {mobileTopRight}
+          </div>
+        )}
       </div>
 
       {/* Form */}
-      <main className="flex flex-1 items-center justify-center px-6 py-12 lg:w-[60%] lg:px-12">
-        <div className="w-full" style={{ maxWidth: 440 }}>
+      <main
+        className="flex flex-1 flex-col lg:w-[60%] lg:items-center lg:justify-center lg:px-12"
+        style={{ overflowY: 'auto' }}
+      >
+        <div
+          className="mx-auto w-full"
+          style={{
+            maxWidth: 440,
+            padding: '32px 24px',
+            paddingBottom: 'max(32px, env(safe-area-inset-bottom, 32px))',
+          }}
+        >
           {children}
         </div>
       </main>

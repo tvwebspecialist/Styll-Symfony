@@ -2101,3 +2101,238 @@ export async function getTenantOwnerInfo(tenantId: string): Promise<{
       : null,
   }
 }
+
+// =====================================================
+// CLIENT IMPORT (concierge / migration)
+// =====================================================
+
+import type {
+  ImportClientsInput,
+  ImportClientsResult,
+  ImportError,
+} from '@/lib/actions/clienti'
+import {
+  normalizePhone,
+  normalizeEmail,
+  parseDateOfBirth,
+  parseBooleanField,
+  parseCsvTags,
+} from '@/lib/utils/client-import-utils'
+
+/**
+ * Variant of importClients for superadmin concierge mode.
+ * Operates on an explicit tenantId (skips getCurrentTenantId),
+ * tags imported rows with 'concierge', and logs to admin_audit_log.
+ */
+export async function importClientsForTenant(
+  tenantId: string,
+  input: ImportClientsInput,
+): Promise<ImportClientsResult> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) {
+    return { success: false, error: auth.error, imported: 0, skipped: 0, errors: [] }
+  }
+  if (!tenantId) {
+    return { success: false, error: 'Tenant ID mancante', imported: 0, skipped: 0, errors: [] }
+  }
+  if (!input.rows || input.rows.length === 0) {
+    return { success: false, error: 'Nessuna riga', imported: 0, skipped: 0, errors: [] }
+  }
+  if (input.rows.length > 10_000) {
+    return { success: false, error: 'Massimo 10.000 righe', imported: 0, skipped: 0, errors: [] }
+  }
+  const hasName = Object.values(input.mapping).includes('full_name')
+  if (!hasName) {
+    return { success: false, error: 'Mappa la colonna Nome', imported: 0, skipped: 0, errors: [] }
+  }
+
+  const db = createAdminClient()
+
+  const { data: tenantRow } = await db
+    .from('tenants')
+    .select('id, business_name')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (!tenantRow) {
+    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+  }
+
+  const { data: existing } = await db
+    .from('clients')
+    .select('id, email, phone')
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+
+  const existingByEmail = new Map<string, string>()
+  const existingByPhone = new Map<string, string>()
+  ;(existing ?? []).forEach((c) => {
+    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
+    if (c.phone) { const norm = normalizePhone(c.phone); if (norm) existingByPhone.set(norm, c.id) }
+  })
+
+  const errors: ImportError[] = []
+  const toInsert: Array<Record<string, unknown>> = []
+  let skipped = 0
+
+  const inv: Partial<Record<string, string>> = {}
+  for (const [orig, styll] of Object.entries(input.mapping)) {
+    if (styll !== 'ignore') inv[styll] = orig
+  }
+
+  for (let i = 0; i < input.rows.length; i++) {
+    const row = input.rows[i]
+    const rowNum = i + 1
+
+    const rawName = inv.full_name ? row[inv.full_name] ?? '' : ''
+    const fullName = rawName.trim()
+    if (!fullName) { errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' }); continue }
+
+    const rawEmail = inv.email ? row[inv.email] ?? '' : ''
+    const email = rawEmail ? normalizeEmail(rawEmail) : null
+    if (rawEmail && !email) errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
+
+    const rawPhone = inv.phone ? row[inv.phone] ?? '' : ''
+    const phone = rawPhone ? normalizePhone(rawPhone) : null
+    if (rawPhone && !phone) errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
+
+    const dupId = (email && existingByEmail.get(email)) || (phone && existingByPhone.get(phone)) || null
+    if (dupId) { skipped++; continue }
+
+    const rawDob = inv.date_of_birth ? row[inv.date_of_birth] ?? '' : ''
+    const dob = rawDob ? parseDateOfBirth(rawDob) : null
+
+    const rawTags = inv.tags ? row[inv.tags] ?? '' : ''
+    const tagsArr = parseCsvTags(rawTags)
+    if (tagsArr.length === 0) tagsArr.push('imported')
+    if (!tagsArr.includes('concierge')) tagsArr.push('concierge')
+
+    const rawConsent = inv.marketing_consent ? row[inv.marketing_consent] ?? '' : ''
+    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
+
+    toInsert.push({
+      tenant_id: tenantId,
+      full_name: fullName,
+      email,
+      phone,
+      date_of_birth: dob,
+      marketing_consent: marketingConsent,
+      preferred_contact_channel: 'whatsapp',
+      tags: JSON.stringify(tagsArr),
+    })
+  }
+
+  let imported = 0
+  if (toInsert.length > 0) {
+    for (let i = 0; i < toInsert.length; i += 500) {
+      const chunk = toInsert.slice(i, i + 500)
+      const { error, count } = await db.from('clients').insert(chunk, { count: 'exact' })
+      if (error) { errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` }); break }
+      imported += count ?? chunk.length
+    }
+  }
+
+  const status: 'completed' | 'partial' | 'failed' =
+    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+
+  const { data: jobRow } = await db
+    .from('client_import_jobs')
+    .insert({
+      tenant_id: tenantId,
+      initiated_by: auth.id,
+      source: input.source,
+      filename: input.filename ?? null,
+      total_rows: input.rows.length,
+      imported_count: imported,
+      skipped_count: skipped,
+      error_count: errors.length,
+      errors: errors.slice(0, 100) as unknown as Record<string, unknown>[],
+      status,
+    })
+    .select('id')
+    .single()
+
+  await logAdminAction(auth.id, 'client.import.concierge', 'tenant', tenantId, tenantId, {
+    tenant_name: tenantRow.business_name,
+    source: input.source,
+    filename: input.filename ?? null,
+    total: input.rows.length,
+    imported,
+    skipped,
+    errors: errors.length,
+  })
+
+  revalidatePath(`/admin/tenants/${tenantId}/migration`)
+  revalidatePath(`/admin/tenants/${tenantId}/clients`)
+
+  return {
+    success: imported > 0 || errors.length === 0,
+    jobId: jobRow?.id,
+    imported,
+    skipped,
+    errors,
+  }
+}
+
+export interface ImportJobRow {
+  id: string
+  source: string | null
+  filename: string | null
+  total_rows: number
+  imported_count: number
+  skipped_count: number
+  error_count: number
+  status: string
+  initiated_by: string | null
+  initiator_email: string | null
+  created_at: string
+}
+
+export async function listTenantImportJobs(
+  tenantId: string,
+): Promise<{ success: boolean; data?: ImportJobRow[]; error?: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('client_import_jobs')
+    .select('id, source, filename, total_rows, imported_count, skipped_count, error_count, status, initiated_by, created_at')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error) return { success: false, error: error.message }
+
+  const userIds = [...new Set((data ?? []).map((j) => j.initiated_by).filter((x): x is string => Boolean(x)))]
+  const emailMap = new Map<string, string>()
+  if (userIds.length > 0) {
+    const { data: profs } = await db.from('profiles').select('id, email').in('id', userIds)
+    ;(profs ?? []).forEach((p) => { if (p.email) emailMap.set(p.id, p.email) })
+  }
+
+  const rows: ImportJobRow[] = (data ?? []).map((j) => ({
+    ...j,
+    initiator_email: j.initiated_by ? (emailMap.get(j.initiated_by) ?? null) : null,
+  }))
+
+  return { success: true, data: rows }
+}
+
+export async function getImportJobErrors(
+  tenantId: string,
+  jobId: string,
+): Promise<{ success: boolean; errors?: ImportError[]; error?: string }> {
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
+
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('client_import_jobs')
+    .select('errors')
+    .eq('tenant_id', tenantId)
+    .eq('id', jobId)
+    .maybeSingle()
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, errors: (data?.errors ?? []) as ImportError[] }
+}

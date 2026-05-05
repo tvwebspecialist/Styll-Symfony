@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { UserMinus, RefreshCw, UserX, CheckCircle } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 import { Card } from '@/components/dashboard/vendite/ui'
 import { getRetentionData, type RetentionData, type RetentionClient } from '@/lib/actions/marketing'
 
@@ -11,24 +11,17 @@ interface RetentionProps {
 
 type Segment = 'rischio' | 'winback' | 'persi'
 
-const SUB_TABS: { key: Segment; label: string; activeColor: string; activeBg: string }[] = [
-  { key: 'rischio', label: 'A rischio', activeColor: '#854D0E', activeBg: '#FEF9C3' },
-  { key: 'winback', label: 'Win-back',  activeColor: '#9A3412', activeBg: '#FFF7ED' },
-  { key: 'persi',   label: 'Persi',     activeColor: '#991B1B', activeBg: '#FEF2F2' },
+/** Single source of truth for segment metadata */
+const SEG_META: {
+  key:        Segment
+  label:      string
+  iconBg:     string
+  iconColor:  string
+}[] = [
+  { key: 'rischio', label: 'A rischio',     iconBg: '#FEF9C3', iconColor: '#854D0E' },
+  { key: 'winback', label: 'Da recuperare', iconBg: '#FFF7ED', iconColor: '#9A3412' },
+  { key: 'persi',   label: 'Persi',         iconBg: '#FEF2F2', iconColor: '#991B1B' },
 ]
-
-const KPI_META = [
-  { label: 'A rischio',     seg: 'rischio' as Segment, Icon: UserMinus,  iconBg: '#FEF9C3', iconColor: '#854D0E' },
-  { label: 'Da recuperare', seg: 'winback' as Segment, Icon: RefreshCw,  iconBg: '#FFF7ED', iconColor: '#9A3412' },
-  { label: 'Persi',         seg: 'persi'   as Segment, Icon: UserX,      iconBg: '#FEF2F2', iconColor: '#991B1B' },
-]
-
-const CARD_BASE: React.CSSProperties = {
-  background:   '#FFFFFF',
-  border:       '1px solid #F0F0F0',
-  borderRadius: 16,
-  padding:      20,
-}
 
 const EMPTY_MESSAGES: Record<Segment, string> = {
   rischio: 'Nessun cliente a rischio al momento.',
@@ -42,90 +35,149 @@ const ACTION_LABELS: Record<Segment, string> = {
   persi:   'Recupero',
 }
 
+/** Colore hover leggermente più scuro per il bottone azione */
+const BTN_HOVER_BG: Record<Segment, string> = {
+  rischio: '#FEF08A',
+  winback: '#FED7AA',
+  persi:   '#FECACA',
+}
+
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+const SEG_CONFIG = {
+  rischio: {
+    img:             '/img/Churn_yellow.png',
+    activeGradient:  'linear-gradient(135deg, #FEFCE8 0%, #FEF9C3 100%)',
+    activeBorder:    '#FDE68A',
+    accentColor:     '#854D0E',
+  },
+  winback: {
+    img:             '/img/Churn_red.png',
+    activeGradient:  'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
+    activeBorder:    '#FCA5A5',
+    accentColor:     '#991B1B',
+  },
+  persi: {
+    img:             '/img/Churn_black.png',
+    activeGradient:  'linear-gradient(135deg, #F5F5F5 0%, #E5E5E5 100%)',
+    activeBorder:    '#A3A3A3',
+    accentColor:     '#404040',
+  },
+} as const
+
 function KpiCardItem({
-  label, count, Icon, iconBg, iconColor,
+  label, count, segment, isActive, onClick,
 }: {
-  label: string
-  count: number
-  Icon:  React.ComponentType<{ size?: number; color?: string }>
-  iconBg:    string
-  iconColor: string
+  label:    string
+  count:    number
+  segment:  Segment
+  isActive: boolean
+  onClick:  () => void
 }) {
-  const [hov, setHov] = React.useState(false)
+  const [hovered, setHovered] = React.useState(false)
+  const cfg    = SEG_CONFIG[segment]
+  const lifted = hovered || isActive
+
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        ...CARD_BASE,
+        position:   'relative',
         flex:       1,
-        minWidth:   0,
-        cursor:     'default',
-        transition: 'transform 200ms ease, box-shadow 200ms ease',
-        transform:  hov ? 'translateY(-2px)' : 'translateY(0)',
-        boxShadow:  hov
-          ? '0 4px 12px rgba(0,0,0,0.06)'
-          : '0 1px 3px rgba(10,13,18,0.04)',
+        minWidth:   240,
+        height:     140,
+        padding:    '20px 24px',
+        borderRadius: 20,
+        border:     `1px solid ${isActive ? cfg.activeBorder : '#F0F0F0'}`,
+        background: isActive ? cfg.activeGradient : '#FFFFFF',
+        cursor:     'pointer',
+        textAlign:  'left',
+        overflow:   'hidden',
+        transition: 'all 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+        boxShadow:  isActive
+          ? '0 8px 24px rgba(0,0,0,0.06)'
+          : hovered
+            ? '0 4px 12px rgba(0,0,0,0.05)'
+            : '0 1px 3px rgba(10,13,18,0.04)',
       }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
     >
-      <div
-        style={{
-          width:          40,
-          height:         40,
-          borderRadius:   100,
-          background:     iconBg,
-          display:        'flex',
-          alignItems:     'center',
-          justifyContent: 'center',
-          marginBottom:   16,
-        }}
-      >
-        <Icon size={18} color={iconColor} />
-      </div>
-      <p
-        style={{
+      {/* Testo sinistra */}
+      <div style={{ position: 'relative', zIndex: 2, maxWidth: '60%' }}>
+        <p style={{
           margin:        0,
           fontSize:      11,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
-          color:         '#B0B0B0',
-          fontWeight:    500,
-          marginBottom:  8,
+          color:         isActive ? cfg.accentColor : '#B0B0B0',
+          fontWeight:    600,
+          marginBottom:  12,
+        }}>
+          {label}
+        </p>
+        <p style={{
+          margin:        0,
+          fontSize:      40,
+          fontWeight:    700,
+          color:         isActive ? cfg.accentColor : '#222222',
+          lineHeight:    1,
+          letterSpacing: '-0.02em',
+        }}>
+          {count}
+        </p>
+      </div>
+
+      {/* Sfera 3D destra */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cfg.img}
+        alt=""
+        aria-hidden
+        style={{
+          position:      'absolute',
+          right:         lifted ? -8 : -24,
+          top:           '50%',
+          width:         140,
+          height:        140,
+          transform:     lifted
+            ? 'translateY(-50%) scale(0.95) rotate(-6deg)'
+            : 'translateY(-50%) scale(1.05) rotate(0deg)',
+          opacity:       lifted ? 1 : 0.85,
+          transition:    'all 350ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          filter:        lifted ? 'drop-shadow(0 8px 20px rgba(0,0,0,0.15))' : 'none',
+          pointerEvents: 'none',
+          zIndex:        1,
+          objectFit:     'contain',
         }}
-      >
-        {label}
-      </p>
-      <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: '#222222', lineHeight: 1.1 }}>
-        {count}
-      </p>
-    </div>
+      />
+    </button>
   )
 }
 
 function KpiCardSkeleton() {
   return (
-    <Card style={{ flex: 1, minWidth: 0, padding: 20 }}>
-      <div style={{ background: '#F4F4F4', height: 40, width: 40, borderRadius: 100 }} />
-      <div style={{ background: '#F4F4F4', height: 12, width: '50%', borderRadius: 4, marginTop: 16 }} />
-      <div style={{ background: '#F4F4F4', height: 28, width: '40%', borderRadius: 6, marginTop: 12 }} />
+    <Card style={{ flex: '1 1 240px', minWidth: 240, height: 140, padding: 20 }}>
+      <div style={{ background: '#F4F4F4', height: 12, width: '40%', borderRadius: 4 }} />
+      <div style={{ background: '#F4F4F4', height: 36, width: '30%', borderRadius: 6, marginTop: 16 }} />
     </Card>
   )
 }
 
 function ClientRow({ client, segment }: { client: RetentionClient; segment: Segment }) {
-  const st = SUB_TABS.find((t) => t.key === segment)!
+  const meta     = SEG_META.find((m) => m.key === segment)!
+  const [hov, setHov] = React.useState(false)
+
   return (
     <div
       style={{
         background:   '#FFFFFF',
         border:       '1px solid #F0F0F0',
         borderRadius: 12,
-        padding:      '14px 16px',
-        marginBottom: 8,
+        padding:      '16px 20px',
         display:      'flex',
         alignItems:   'center',
         gap:          12,
@@ -134,16 +186,16 @@ function ClientRow({ client, segment }: { client: RetentionClient; segment: Segm
       {/* Avatar */}
       <div
         style={{
-          width:          36,
-          height:         36,
+          width:          40,
+          height:         40,
           borderRadius:   100,
-          background:     '#F5F5F5',
+          background:     meta.iconBg,
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
-          fontSize:       12,
+          fontSize:       13,
           fontWeight:     700,
-          color:          '#222222',
+          color:          meta.iconColor,
           flexShrink:     0,
         }}
       >
@@ -151,42 +203,63 @@ function ClientRow({ client, segment }: { client: RetentionClient; segment: Segm
       </div>
 
       {/* Info */}
-      <div style={{ flex: 1 }}>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222222' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            margin:       0,
+            fontSize:     15,
+            fontWeight:   600,
+            color:        '#222222',
+            whiteSpace:   'nowrap',
+            overflow:     'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
           {client.name}
         </p>
-        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#B0B0B0' }}>
-          Ultimo: {client.lastService ?? 'N/D'} · {client.daysSinceVisit} giorni fa
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize:     11,
+              fontWeight:   600,
+              borderRadius: 100,
+              padding:      '2px 8px',
+              background:   meta.iconBg,
+              color:        meta.iconColor,
+              flexShrink:   0,
+            }}
+          >
+            {client.daysSinceVisit} giorni
+          </span>
+          <span
+            style={{
+              fontSize:     12,
+              color:        '#B0B0B0',
+              whiteSpace:   'nowrap',
+              overflow:     'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            · ultimo: {client.lastService ?? 'N/D'}
+          </span>
+        </div>
       </div>
-
-      {/* Segment badge */}
-      <span
-        style={{
-          fontSize:     11,
-          fontWeight:   600,
-          borderRadius: 100,
-          padding:      '3px 10px',
-          background:   st.activeBg,
-          color:        st.activeColor,
-          flexShrink:   0,
-        }}
-      >
-        {st.label}
-      </span>
 
       {/* Action button */}
       <button
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
         style={{
           fontSize:     12,
-          fontWeight:   500,
+          fontWeight:   600,
           borderRadius: 8,
-          padding:      '7px 12px',
+          padding:      '7px 14px',
           border:       'none',
           cursor:       'pointer',
-          background:   '#222222',
-          color:        '#FFFFFF',
+          background:   hov ? BTN_HOVER_BG[segment] : meta.iconBg,
+          color:        meta.iconColor,
           flexShrink:   0,
+          transition:   'background 150ms ease',
         }}
       >
         {ACTION_LABELS[segment]}
@@ -209,17 +282,25 @@ export function Retention({ tenantId }: RetentionProps) {
     return () => { cancelled = true }
   }, [tenantId])
 
+  // Auto-select first non-empty segment after data loads
+  React.useEffect(() => {
+    if (!data) return
+    if (data[active].length === 0) {
+      const firstNonEmpty = (['rischio', 'winback', 'persi'] as Segment[])
+        .find((s) => data[s].length > 0)
+      if (firstNonEmpty) setActive(firstNonEmpty)
+    }
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ---------- loading ---------- */
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* KPI skeletons */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <KpiCardSkeleton />
           <KpiCardSkeleton />
           <KpiCardSkeleton />
         </div>
-        {/* List skeletons */}
         <Card>
           {[0, 1, 2].map((i) => (
             <div
@@ -245,62 +326,89 @@ export function Retention({ tenantId }: RetentionProps) {
 
   const clients: RetentionClient[] = data?.[active] ?? []
 
+  const otherSegmentsWithClients = (['rischio', 'winback', 'persi'] as Segment[])
+    .filter((s) => s !== active && counts[s] > 0)
+  const totalOthers = otherSegmentsWithClients.reduce((sum, s) => sum + counts[s], 0)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── KPI row ── */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {KPI_META.map(({ label, seg, Icon, iconBg, iconColor }) => (
+      {/* ── Header Pulse ── */}
+      <div
+        style={{
+          display:      'flex',
+          alignItems:   'center',
+          gap:          12,
+          padding:      '12px 16px',
+          background:   '#FAFAFA',
+          border:       '1px solid #F0F0F0',
+          borderRadius: 12,
+        }}
+      >
+        <div
+          style={{
+            width:          32,
+            height:         32,
+            borderRadius:   100,
+            background:     '#FFFFFF',
+            border:         '1px solid #F0F0F0',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            flexShrink:     0,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/Churn_yellow.png" alt="" width={20} height={20} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#222222' }}>
+            Pulse — il radar dei tuoi clienti
+          </p>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#B0B0B0' }}>
+            Ogni cliente ha il suo ritmo. Qui trovi chi sta deviando dalle sue abitudini.
+          </p>
+        </div>
+      </div>
+
+      {/* ── KPI / filtri (cliccabili) ── */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {SEG_META.map(({ key, label }) => (
           <KpiCardItem
-            key={seg}
+            key={key}
             label={label}
-            count={counts[seg]}
-            Icon={Icon}
-            iconBg={iconBg}
-            iconColor={iconColor}
+            count={counts[key]}
+            segment={key}
+            isActive={active === key}
+            onClick={() => setActive(key)}
           />
         ))}
       </div>
 
-      {/* ── Sub-tab bar ── */}
-      <div style={{ display: 'flex', gap: 6 }}>
-        {SUB_TABS.map(({ key, label, activeColor, activeBg }) => {
-          const isActive = active === key
-          return (
-            <button
-              key={key}
-              onClick={() => setActive(key)}
-              style={{
-                fontSize:     13,
-                fontWeight:   500,
-                padding:      '7px 14px',
-                borderRadius: 100,
-                border:       `1px solid ${isActive ? activeBg : '#E9E9E9'}`,
-                background:   isActive ? activeBg : '#FFFFFF',
-                color:        isActive ? activeColor : '#888888',
-                cursor:       'pointer',
-                transition:   'all 120ms ease',
-              }}
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ── Client list ── */}
+      {/* ── Lista clienti ── */}
       {clients.length === 0 ? (
-        <Card style={{ padding: 48, textAlign: 'center' }}>
-          <CheckCircle size={32} color="#16A34A" />
-          <p style={{ margin: '12px 0 0', fontSize: 16, fontWeight: 700, color: '#222222' }}>
-            Tutto bene!
-          </p>
-          <p style={{ margin: '8px 0 0', fontSize: 14, color: '#B0B0B0' }}>
-            {EMPTY_MESSAGES[active]}
-          </p>
-        </Card>
+        totalOthers > 0 ? (
+          <Card style={{ padding: 40, textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#222222' }}>
+              Nessun cliente in questo segmento
+            </p>
+            <p style={{ margin: '6px 0 0', fontSize: 13, color: '#B0B0B0' }}>
+              Hai però {totalOthers} {totalOthers === 1 ? 'cliente' : 'clienti'} in altri segmenti — clicca le card sopra per vederli.
+            </p>
+          </Card>
+        ) : (
+          <Card style={{ padding: 48, textAlign: 'center' }}>
+            <CheckCircle size={32} color="#16A34A" />
+            <p style={{ margin: '12px 0 0', fontSize: 16, fontWeight: 700, color: '#222222' }}>
+              Tutto bene!
+            </p>
+            <p style={{ margin: '8px 0 0', fontSize: 14, color: '#B0B0B0' }}>
+              {EMPTY_MESSAGES[active]}
+            </p>
+          </Card>
+        )
       ) : (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {clients.map((client) => (
             <ClientRow key={client.id} client={client} segment={active} />
           ))}

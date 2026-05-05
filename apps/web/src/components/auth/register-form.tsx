@@ -18,9 +18,22 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+function validate(fullName: string, email: string, password: string, password2: string): string[] {
+  const errs: string[] = []
+  if (fullName.trim().length < 2) errs.push('Inserisci il tuo nome completo')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push('Email non valida')
+  if (password.length < 8) errs.push('La password deve avere almeno 8 caratteri')
+  if (password !== password2) errs.push('Le password non corrispondono')
+  return errs
+}
+
 export function RegisterForm() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const fullNameRef = useRef<HTMLInputElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const password2Ref = useRef<HTMLInputElement>(null)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -32,14 +45,10 @@ export function RegisterForm() {
 
   const initials = useMemo(() => getInitials(fullName), [fullName])
 
-  const validation = useMemo(() => {
-    const errs: string[] = []
-    if (fullName.trim().length < 2) errs.push('Inserisci il tuo nome completo')
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push('Email non valida')
-    if (password.length < 8) errs.push('La password deve avere almeno 8 caratteri')
-    if (password !== password2) errs.push('Le password non corrispondono')
-    return errs
-  }, [fullName, email, password, password2])
+  const validation = useMemo(
+    () => validate(fullName, email, password, password2),
+    [fullName, email, password, password2]
+  )
 
   const isValid = validation.length === 0
 
@@ -68,19 +77,25 @@ export function RegisterForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isValid) {
-      toast.error(validation[0])
+    const effectiveFullName = fullName || fullNameRef.current?.value || ''
+    const effectiveEmail = email || emailRef.current?.value || ''
+    const effectivePassword = password || passwordRef.current?.value || ''
+    const effectivePassword2 = password2 || password2Ref.current?.value || ''
+
+    const errors = validate(effectiveFullName, effectiveEmail, effectivePassword, effectivePassword2)
+    if (errors.length > 0) {
+      toast.error(errors[0])
       return
     }
 
     startTransition(async () => {
       const supabase = createClient()
-      const cleanName = fullName.trim()
-      const cleanEmail = email.trim().toLowerCase()
+      const cleanName = effectiveFullName.trim()
+      const cleanEmail = effectiveEmail.trim().toLowerCase()
 
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
-        password,
+        password: effectivePassword,
         options: {
           data: { full_name: cleanName },
         },
@@ -220,10 +235,12 @@ export function RegisterForm() {
           id="fullName"
           autoComplete="name"
           required
+          ref={fullNameRef}
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           placeholder="Marco Rossi"
           className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
         />
       </label>
 
@@ -239,10 +256,12 @@ export function RegisterForm() {
           type="email"
           autoComplete="email"
           required
+          ref={emailRef}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@esempio.com"
           className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
         />
       </label>
 
@@ -260,17 +279,19 @@ export function RegisterForm() {
             autoComplete="new-password"
             required
             minLength={8}
+            ref={passwordRef}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Almeno 8 caratteri"
             className="styll-input w-full px-4 py-3 pr-11 text-sm"
+            style={{ fontSize: 16 }}
           />
           <button
             type="button"
             onClick={() => setShowPw((v) => !v)}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 hover:bg-[color:var(--color-bg-secondary)]"
-            style={{ color: 'var(--color-fg-secondary)' }}
+            style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -289,10 +310,12 @@ export function RegisterForm() {
           type={showPw ? 'text' : 'password'}
           autoComplete="new-password"
           required
+          ref={password2Ref}
           value={password2}
           onChange={(e) => setPassword2(e.target.value)}
           placeholder="Ripeti la password"
           className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
         />
         {password2 && password !== password2 && (
           <span
@@ -306,10 +329,11 @@ export function RegisterForm() {
 
       <button
         type="submit"
-        disabled={isPending || !isValid}
+        disabled={isPending}
         className={cn(
           'styll-btn-primary mt-2 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm'
         )}
+        style={{ minHeight: 52 }}
       >
         {isPending ? (
           <>

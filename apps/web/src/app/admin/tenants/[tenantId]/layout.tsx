@@ -14,6 +14,7 @@ const TABS = [
   { href: '/locations', label: 'Sedi' },
   { href: '/working-hours', label: 'Orari' },
   { href: '/clients', label: 'Clienti' },
+  { href: '/migration', label: 'Migrazione' },
   { href: '/appointments', label: 'Appuntamenti' },
   { href: '/subscription', label: 'Abbonamento' },
   { href: '/audit', label: 'Audit Log' },

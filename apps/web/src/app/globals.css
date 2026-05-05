@@ -449,3 +449,32 @@
     transform: scale(0.97);
   }
 }
+
+/* ─── Auth mobile optimizations ─────────────────────────── */
+@media (max-width: 1024px) {
+  /* Riduci il gap tra gli elementi del form su schermi piccoli */
+  .auth-form-gap {
+    gap: 14px !important;
+  }
+
+  /* Titoli auth più compatti su mobile */
+  .auth-heading {
+    font-size: 24px !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* Google button più alto su mobile per essere più cliccabile */
+  .auth-google-btn {
+    min-height: 52px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  /* iPhone SE e schermi molto piccoli */
+  .auth-form-gap {
+    gap: 12px !important;
+  }
+  .auth-heading {
+    font-size: 22px !important;
+  }
+}

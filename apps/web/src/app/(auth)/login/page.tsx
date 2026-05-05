@@ -42,15 +42,52 @@ export default function LoginPage() {
     >
       <Link
         href="/"
-        className="text-2xl font-bold tracking-tight"
+        className="hidden lg:block text-2xl font-bold tracking-tight"
         style={{ color: 'var(--color-fg)' }}
       >
         Styll
       </Link>
 
+      {/* Mobile hero — hidden su desktop */}
+      <div className="mb-6 lg:hidden">
+        <div
+          style={{
+            background: 'var(--color-bg-secondary)',
+            borderRadius: 16,
+            padding: '20px 20px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              background: '#222222',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: '#fff', fontSize: 20 }}>✂️</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#222222' }}>
+              Bentornato su Styll
+            </div>
+            <div style={{ fontSize: 13, color: '#B0B0B0', marginTop: 2 }}>
+              Il tuo salone ti aspetta.
+            </div>
+          </div>
+        </div>
+      </div>
+
       <header className="mt-6 mb-7">
         <h1
-          className="font-bold tracking-tight"
+          className="auth-heading font-bold tracking-tight"
           style={{ color: 'var(--color-fg)', fontSize: 26 }}
         >
           Bentornato.

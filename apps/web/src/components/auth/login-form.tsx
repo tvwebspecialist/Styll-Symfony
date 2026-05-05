@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -16,18 +16,26 @@ export function LoginForm() {
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
 
   const initialError = searchParams.get('error')
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!email || !password) return
+  function handleSubmit() {
+    console.log('HANDLE SUBMIT CALLED')
+    const emailValue = emailRef.current?.value || email
+    const passwordValue = passwordRef.current?.value || password
+    if (!emailValue || !passwordValue) {
+      toast.error('Inserisci email e password')
+      return
+    }
     startTransition(async () => {
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
+        email: emailValue.trim().toLowerCase(),
+        password: passwordValue,
       })
+      console.log('LOGIN RESULT:', { error: error ? { message: error.message, status: error.status } : null, emailValue })
       if (error) {
         toast.error(
           error.message.toLowerCase().includes('invalid')
@@ -37,13 +45,14 @@ export function LoginForm() {
         return
       }
       const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+      console.log('LOGIN SUCCESS — REDIRECT TO:', redirectTo)
       router.push(redirectTo)
       router.refresh()
     })
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form className="flex flex-col gap-4">
       {initialError && (
         <div
           className="rounded-md px-3 py-2 text-xs"
@@ -69,10 +78,12 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
+          ref={emailRef}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@esempio.com"
           className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
         />
       </label>
 
@@ -98,17 +109,19 @@ export function LoginForm() {
             type={showPw ? 'text' : 'password'}
             autoComplete="current-password"
             required
+            ref={passwordRef}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             className="styll-input w-full px-4 py-3 pr-11 text-sm"
+            style={{ fontSize: 16 }}
           />
           <button
             type="button"
-            onClick={() => setShowPw((v) => !v)}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPw((v) => !v) }}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 hover:bg-[color:var(--color-bg-secondary)]"
-            style={{ color: 'var(--color-fg-secondary)' }}
+            style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -116,11 +129,13 @@ export function LoginForm() {
       </label>
 
       <button
-        type="submit"
-        disabled={isPending || !email || !password}
+        type="button"
+        disabled={isPending}
+        onClick={handleSubmit}
         className={cn(
           'styll-btn-primary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm'
         )}
+        style={{ minHeight: 52 }}
       >
         {isPending ? (
           <>

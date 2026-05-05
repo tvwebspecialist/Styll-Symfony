@@ -738,3 +738,252 @@ export async function addClienteNota(
   revalidatePath(`/dashboard/clienti/${clienteId}`)
   return {}
 }
+
+export async function createCliente(input: {
+  fullName: string
+  email?: string | null
+  phone?: string | null
+  preferredChannel?: 'whatsapp' | 'email' | 'sms'
+  marketingConsent?: boolean
+}): Promise<{ success: boolean; error?: string; clienteId?: string }> {
+  const trimmed = input.fullName?.trim()
+  if (!trimmed) return { success: false, error: 'Nome obbligatorio' }
+
+  const tenantId = await getCurrentTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+  const { data, error } = await db.from('clients').insert({
+    tenant_id: tenantId,
+    full_name: trimmed,
+    email: input.email?.trim() || null,
+    phone: input.phone?.trim() || null,
+    preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
+    marketing_consent: input.marketingConsent ?? true,
+    tags: '["active"]',
+  }).select('id').single()
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/dashboard/clienti')
+  return { success: true, clienteId: data?.id }
+}
+
+// ─── Import clienti da CSV ─────────────────────────────────────
+
+export type ImportColumn =
+  | 'full_name'
+  | 'email'
+  | 'phone'
+  | 'date_of_birth'
+  | 'notes'
+  | 'tags'
+  | 'marketing_consent'
+  | 'ignore'
+
+export interface ImportRow {
+  [key: string]: string
+}
+
+export interface ImportClientsInput {
+  source: 'fresha' | 'treatwell' | 'booksy' | 'csv_generic'
+  filename?: string
+  mapping: Record<string, ImportColumn>
+  rows: ImportRow[]
+  duplicateStrategy: 'skip' | 'merge'
+}
+
+export interface ImportError {
+  rowIndex: number
+  field?: string
+  message: string
+}
+
+export interface ImportClientsResult {
+  success: boolean
+  error?: string
+  jobId?: string
+  imported: number
+  skipped: number
+  errors: ImportError[]
+}
+
+import {
+  normalizePhone,
+  normalizeEmail,
+  parseDateOfBirth,
+  parseBooleanField,
+  parseCsvTags,
+} from '@/lib/utils/client-import-utils'
+
+export {
+  normalizePhone,
+  normalizeEmail,
+  parseDateOfBirth,
+  parseBooleanField,
+  parseCsvTags,
+}
+
+export async function importClients(
+  input: ImportClientsInput,
+): Promise<ImportClientsResult> {
+  const tenantId = await getCurrentTenantId()
+  if (!tenantId) {
+    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Non autenticato', imported: 0, skipped: 0, errors: [] }
+  }
+
+  if (!input.rows || input.rows.length === 0) {
+    return { success: false, error: 'Nessuna riga da importare', imported: 0, skipped: 0, errors: [] }
+  }
+  if (input.rows.length > 10_000) {
+    return { success: false, error: 'Massimo 10.000 righe per file', imported: 0, skipped: 0, errors: [] }
+  }
+
+  const hasName = Object.values(input.mapping).includes('full_name')
+  if (!hasName) {
+    return { success: false, error: 'Devi mappare almeno la colonna Nome', imported: 0, skipped: 0, errors: [] }
+  }
+
+  const db = createAdminClient()
+
+  const { data: existing } = await db
+    .from('clients')
+    .select('id, email, phone')
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+
+  const existingByEmail = new Map<string, string>()
+  const existingByPhone = new Map<string, string>()
+  ;(existing ?? []).forEach((c) => {
+    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
+    if (c.phone) {
+      const norm = normalizePhone(c.phone)
+      if (norm) existingByPhone.set(norm, c.id)
+    }
+  })
+
+  const errors: ImportError[] = []
+  const toInsert: Array<{
+    tenant_id: string
+    full_name: string
+    email: string | null
+    phone: string | null
+    date_of_birth: string | null
+    marketing_consent: boolean
+    preferred_contact_channel: string
+    tags: string
+  }> = []
+  let skipped = 0
+
+  const inverseMapping: Partial<Record<ImportColumn, string>> = {}
+  for (const [orig, styll] of Object.entries(input.mapping)) {
+    if (styll !== 'ignore') inverseMapping[styll] = orig
+  }
+
+  for (let i = 0; i < input.rows.length; i++) {
+    const row = input.rows[i]
+    const rowNum = i + 1
+
+    const rawName = inverseMapping.full_name ? row[inverseMapping.full_name] ?? '' : ''
+    const fullName = rawName.trim()
+    if (!fullName) {
+      errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' })
+      continue
+    }
+
+    const rawEmail = inverseMapping.email ? row[inverseMapping.email] ?? '' : ''
+    const email = rawEmail ? normalizeEmail(rawEmail) : null
+    if (rawEmail && !email) {
+      errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
+    }
+
+    const rawPhone = inverseMapping.phone ? row[inverseMapping.phone] ?? '' : ''
+    const phone = rawPhone ? normalizePhone(rawPhone) : null
+    if (rawPhone && !phone) {
+      errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
+    }
+
+    const dupId =
+      (email && existingByEmail.get(email)) ||
+      (phone && existingByPhone.get(phone)) ||
+      null
+    if (dupId) {
+      skipped++
+      continue
+    }
+
+    const rawDob = inverseMapping.date_of_birth ? row[inverseMapping.date_of_birth] ?? '' : ''
+    const dob = rawDob ? parseDateOfBirth(rawDob) : null
+
+    const rawTagsVal = inverseMapping.tags ? row[inverseMapping.tags] ?? '' : ''
+    const tagsArr = parseCsvTags(rawTagsVal)
+    if (tagsArr.length === 0) tagsArr.push('imported')
+
+    const rawConsent = inverseMapping.marketing_consent
+      ? row[inverseMapping.marketing_consent] ?? ''
+      : ''
+    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
+
+    toInsert.push({
+      tenant_id: tenantId,
+      full_name: fullName,
+      email,
+      phone,
+      date_of_birth: dob,
+      marketing_consent: marketingConsent,
+      preferred_contact_channel: 'whatsapp',
+      tags: JSON.stringify(tagsArr),
+    })
+  }
+
+  let imported = 0
+  if (toInsert.length > 0) {
+    for (let i = 0; i < toInsert.length; i += 500) {
+      const chunk = toInsert.slice(i, i + 500)
+      const { error, count } = await db
+        .from('clients')
+        .insert(chunk, { count: 'exact' })
+      if (error) {
+        errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
+        break
+      }
+      imported += count ?? chunk.length
+    }
+  }
+
+  const status: 'completed' | 'partial' | 'failed' =
+    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+
+  const { data: jobRow } = await db
+    .from('client_import_jobs')
+    .insert({
+      tenant_id: tenantId,
+      initiated_by: user.id,
+      source: input.source,
+      filename: input.filename ?? null,
+      total_rows: input.rows.length,
+      imported_count: imported,
+      skipped_count: skipped,
+      error_count: errors.length,
+      errors: errors.slice(0, 100) as unknown as Record<string, unknown>[],
+      status,
+    })
+    .select('id')
+    .single()
+
+  revalidatePath('/dashboard/clienti')
+
+  return {
+    success: imported > 0 || errors.length === 0,
+    jobId: jobRow?.id,
+    imported,
+    skipped,
+    errors,
+  }
+}

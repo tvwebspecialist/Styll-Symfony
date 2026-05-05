@@ -1,6 +1,21 @@
-import { Activity } from 'lucide-react'
+import React from 'react'
+import { Activity, Upload } from 'lucide-react'
 
 import { getAuditLog } from '@/app/admin/actions'
+
+const ACTION_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
+  'client.import.concierge': { label: 'Import concierge clienti', icon: Upload },
+}
+
+function ActionIcon({ action }: { action: string }) {
+  const cfg = ACTION_LABELS[action]
+  const Icon = cfg?.icon ?? Activity
+  return (
+    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      <Icon className="h-3.5 w-3.5" />
+    </div>
+  )
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -33,12 +48,12 @@ export default async function TenantAuditPage({
                 key={e.id}
                 className="flex gap-3 rounded-lg border p-3 "
               >
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Activity className="h-3.5 w-3.5" />
-                </div>
+                <ActionIcon action={e.action} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-mono text-xs font-semibold">{e.action}</span>
+                    <span className="font-mono text-xs font-semibold">
+                      {ACTION_LABELS[e.action]?.label ?? e.action}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {new Date(e.created_at).toLocaleString('it-IT')}
                     </span>

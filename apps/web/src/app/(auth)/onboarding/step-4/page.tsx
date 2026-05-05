@@ -120,6 +120,7 @@ export default function OnboardingStep4Page() {
                 value={row.open_time}
                 onChange={(e) => updateRow(idx, { open_time: e.target.value })}
                 className="styll-input w-[90px] min-w-0 px-2 py-2 text-sm disabled:opacity-50 sm:w-[110px] sm:px-3"
+                style={{ fontSize: 16 }}
               />
               <span style={{ color: 'var(--color-fg-muted)' }}>–</span>
               <input
@@ -128,6 +129,7 @@ export default function OnboardingStep4Page() {
                 value={row.close_time}
                 onChange={(e) => updateRow(idx, { close_time: e.target.value })}
                 className="styll-input w-[90px] min-w-0 px-2 py-2 text-sm disabled:opacity-50 sm:w-[110px] sm:px-3"
+                style={{ fontSize: 16 }}
               />
             </div>
           </div>

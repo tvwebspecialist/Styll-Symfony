@@ -61,12 +61,6 @@ function yearsAsClient(iso: string): number {
   return Math.max(0, new Date().getFullYear() - new Date(iso).getFullYear())
 }
 
-function vipScoreGradient(score: number): string {
-  if (score <= 30) return 'linear-gradient(90deg, #e07060 0%, #c85a47 100%)'
-  if (score <= 60) return 'linear-gradient(90deg, #e8c587 0%, #e07060 100%)'
-  return 'linear-gradient(90deg, #e8c587 0%, #c85a47 100%)'
-}
-
 function tierBadgeStyle(tier: LoyaltyInfo['tier']): React.CSSProperties {
   const map: Record<LoyaltyInfo['tier'], React.CSSProperties> = {
     bronze: { background: 'linear-gradient(135deg, #cd7f32 0%, #a0522d 100%)', color: '#fff' },
@@ -310,17 +304,55 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
             <span style={{ fontSize: 12.5, color: '#5e5e5b' }}>Ultimo: € {analytics.lastApptTotal}</span>
           </div>
 
-          {/* VIP Score */}
+          {/* Stato Churn (Pulse) */}
           <div style={{ width: 280, height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
-            <Star size={14} color="#9a968b" style={{ position: 'absolute', top: 16, right: 16 }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#222', letterSpacing: '1.1px', textTransform: 'uppercase' }}>VIP Score</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={
+                analytics.churnStatus === 'green'  ? '/img/Churn_green.png'  :
+                analytics.churnStatus === 'yellow' ? '/img/Churn_yellow.png' :
+                analytics.churnStatus === 'red'    ? '/img/Churn_red.png'    :
+                                                     '/img/Churn_black.png'
+              }
+              alt=""
+              width={20}
+              height={20}
+              style={{ position: 'absolute', top: 16, right: 16 }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#222', letterSpacing: '1.1px', textTransform: 'uppercase' }}>Stato cliente</span>
             <div>
-              <span style={{ fontSize: 48, fontWeight: 500, color: '#222', letterSpacing: '-2px', lineHeight: 1 }}>{analytics.vipScore}</span>
-              <span style={{ fontSize: 28, fontWeight: 400, color: '#c3c3c3', letterSpacing: '-1px' }}> /100</span>
+              <span style={{ fontSize: 32, fontWeight: 700, color: '#222', letterSpacing: '-1px', lineHeight: 1 }}>
+                {
+                  analytics.churnStatus === 'green'  ? 'Attivo'     :
+                  analytics.churnStatus === 'yellow' ? 'In ritardo' :
+                  analytics.churnStatus === 'red'    ? 'A rischio'  :
+                                                       'Nuovo'
+                }
+              </span>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#9a968b' }}>
+                {analytics.avgDaysBetweenVisits != null
+                  ? `Frequenza ogni ${Math.round(analytics.avgDaysBetweenVisits)}gg`
+                  : 'Dati insufficienti'}
+              </p>
             </div>
-            <div style={{ height: 8, background: '#e5e2d9', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ width: `${analytics.vipScore}%`, height: '100%', background: vipScoreGradient(analytics.vipScore), borderRadius: 4 }} />
-            </div>
+            {analytics.avgDaysBetweenVisits != null && analytics.daysSinceLastVisit != null ? (
+              (() => {
+                const ratio = Math.min(1.5, analytics.daysSinceLastVisit / analytics.avgDaysBetweenVisits)
+                const pct   = Math.min(100, (ratio / 1.5) * 100)
+                const barColor =
+                  analytics.churnStatus === 'green'  ? '#10B981' :
+                  analytics.churnStatus === 'yellow' ? '#F59E0B' :
+                  analytics.churnStatus === 'red'    ? '#EF4444' :
+                                                       '#9CA3AF'
+                return (
+                  <div style={{ height: 6, background: '#e5e2d9', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 4, transition: 'width 300ms ease' }} />
+                  </div>
+                )
+              })()
+            ) : (
+              <div style={{ height: 6, background: '#e5e2d9', borderRadius: 4 }} />
+            )}
           </div>
         </div>
 

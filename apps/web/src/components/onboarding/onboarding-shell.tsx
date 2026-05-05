@@ -184,6 +184,7 @@ export function NavFooter({
           onClick={onNext}
           disabled={nextDisabled || nextLoading}
           className="tap-target styll-btn-primary px-6 py-3 text-sm"
+          style={{ minHeight: 52 }}
         >
           {nextLoading ? 'Salvataggio…' : nextLabel}
         </button>

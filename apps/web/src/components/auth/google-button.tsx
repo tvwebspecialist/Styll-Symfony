@@ -77,9 +77,10 @@ export function GoogleButton({
       aria-label={ariaLabel ?? label}
       className={cn(
         variant === 'primary' ? 'styll-btn-primary' : 'styll-btn-secondary',
-        'flex w-full items-center justify-center gap-3 px-4 py-3 text-sm',
+        'auth-google-btn flex w-full items-center justify-center gap-3 px-4 py-3 text-sm',
         className
       )}
+      style={{ fontWeight: 600 }}
     >
       {isPending ? (
         <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
