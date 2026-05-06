@@ -63,7 +63,7 @@ export function Prodotti({ tenantId }: { tenantId: string }) {
           Icon={Package}
           title="Nessun prodotto venduto"
           subtitle="Aggiungi prodotti al catalogo per iniziare a tracciare le vendite."
-          cta={{ label: 'Vai al Catalogo', href: '/dashboard/catalogo' }}
+          cta={{ label: 'Vai al Catalogo', href: '/catalogo' }}
         />
       ) : (
         <div style={{ overflowX: 'auto' }}>

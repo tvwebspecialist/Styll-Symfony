@@ -652,7 +652,7 @@ function ApptDetailModal({ appt, onClose }: { appt: CalendarioAppointment; onClo
           {appt.notes && <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {appt.notes}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href={`/dashboard/clienti/${appt.client_id}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: '1px solid #E9E9E9', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', textDecoration: 'none' }}>
+          <Link href={`/clienti/${appt.client_id}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: '1px solid #E9E9E9', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', textDecoration: 'none' }}>
             Vai al cliente
           </Link>
           <button type="button" style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -682,7 +682,7 @@ function NewApptModal({ date, hour, onClose }: { date: string; hour: number; onC
         <p style={{ margin: '0 0 18px', fontSize: 13, color: '#9CA3AF', lineHeight: 1.6 }}>
           La creazione guidata degli appuntamenti sarà presto disponibile. Per ora, usa la sezione Vendite.
         </p>
-        <Link href="/dashboard/vendite" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', borderRadius: 10, background: '#111827', color: '#FFF', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
+        <Link href="/vendite" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', borderRadius: 10, background: '#111827', color: '#FFF', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
           Vai alle Vendite
         </Link>
       </div>

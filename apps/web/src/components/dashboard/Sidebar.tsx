@@ -33,26 +33,26 @@ const SECTIONS: NavSection[] = [
   {
     label: 'Operatività',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: House, exact: true },
-      { label: 'Calendario', href: '/dashboard/calendario', icon: Calendar },
-      { label: 'Clienti', href: '/dashboard/clienti', icon: User },
-      { label: 'Vendite', href: '/dashboard/vendite', icon: ShoppingBag },
+      { label: 'Dashboard', href: '/', icon: House, exact: true },
+      { label: 'Calendario', href: '/calendario', icon: Calendar },
+      { label: 'Clienti', href: '/clienti', icon: User },
+      { label: 'Vendite', href: '/vendite', icon: ShoppingBag },
     ],
   },
   {
     label: 'Crescita',
     items: [
-      { label: 'Loyalty', href: '/dashboard/loyalty', icon: Trophy },
-      { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
-      { label: 'Team', href: '/dashboard/team', icon: Users },
+      { label: 'Loyalty', href: '/loyalty', icon: Trophy },
+      { label: 'Marketing', href: '/marketing', icon: Megaphone },
+      { label: 'Team', href: '/team', icon: Users },
     ],
   },
   {
     label: 'Configurazione',
     items: [
-      { label: 'Catalogo', href: '/dashboard/catalogo', icon: Scissors },
-      { label: 'La mia App', href: '/dashboard/app', icon: Smartphone },
-      { label: 'Impostazioni', href: '/dashboard/impostazioni', icon: Settings },
+      { label: 'Catalogo', href: '/catalogo', icon: Scissors },
+      { label: 'La mia App', href: '/app', icon: Smartphone },
+      { label: 'Impostazioni', href: '/impostazioni', icon: Settings },
     ],
   },
 ]
@@ -145,7 +145,7 @@ export function Sidebar({ currentPath }: SidebarProps) {
           </div>
         </div>
         <Link
-          href="/dashboard/impostazioni/piano"
+          href="/impostazioni/piano"
           style={{
             display: 'inline-flex',
             alignItems: 'center',

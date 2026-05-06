@@ -188,7 +188,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Back link */}
       <Link
-        href="/dashboard/clienti"
+        href="/clienti"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#5e5e5b', textDecoration: 'none', fontWeight: 500, alignSelf: 'flex-start' }}
       >
         <ChevronLeft size={15} />Tutti i clienti
