@@ -15,6 +15,7 @@ export default async function CalendarioPage({
 }) {
   const params = await searchParams
   const weekParam = typeof params.week === 'string' ? params.week : null
+  const dayParam  = typeof params.day  === 'string' ? params.day  : null
   const staffParam = typeof params.staff === 'string' ? params.staff : null
 
   const supabase = await createClient()
@@ -37,7 +38,8 @@ export default async function CalendarioPage({
     .maybeSingle()
 
   const isManagerOrOwner = ['owner', 'manager'].includes(myStaff?.role ?? '')
-  const weekStart = getWeekMonday(weekParam)
+  // When in day view, use the day itself as the week start so we load that week's data
+  const weekStart = getWeekMonday(dayParam ?? weekParam)
 
   // Non-manager/owner staff can only see their own appointments
   const selectedStaffId = staffParam ?? (isManagerOrOwner ? null : (myStaff?.id ?? null))
@@ -48,6 +50,7 @@ export default async function CalendarioPage({
     <CalendarioClient
       tenantId={tenantId}
       weekStart={weekStart}
+      dayView={dayParam}
       data={data}
       currentStaffId={myStaff?.id ?? null}
       isManagerOrOwner={isManagerOrOwner}

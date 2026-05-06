@@ -22,7 +22,6 @@ export interface StaffMemberRow {
 
 export interface TeamData {
   staffMembers: StaffMemberRow[]
-  allServices: { id: string; name: string; category: string | null; is_active: boolean }[]
   currentStaff: { staffId: string; role: string } | null
 }
 
@@ -30,7 +29,7 @@ export interface TeamData {
 
 export async function getTeamData(): Promise<TeamData> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { staffMembers: [], allServices: [], currentStaff: null }
+  if (!tenantId) return { staffMembers: [], currentStaff: null }
 
   const supabase = await createClient()
   const {
@@ -39,7 +38,7 @@ export async function getTeamData(): Promise<TeamData> {
 
   const db = createAdminClient()
 
-  const [staffRes, locsRes, allServicesRes, currentStaffRes] = await Promise.all([
+  const [staffRes, locsRes, currentStaffRes] = await Promise.all([
     db
       .from('staff_members')
       .select('id, profile_id, role, is_active, profiles(full_name, email, avatar_url)')
@@ -47,11 +46,6 @@ export async function getTeamData(): Promise<TeamData> {
       .is('deleted_at', null)
       .order('role', { ascending: true }),
     db.from('locations').select('id, name').eq('tenant_id', tenantId).eq('is_active', true),
-    db
-      .from('services')
-      .select('id, name, category, is_active')
-      .eq('tenant_id', tenantId)
-      .order('display_order', { ascending: true }),
     user
       ? db
           .from('staff_members')
@@ -66,23 +60,15 @@ export async function getTeamData(): Promise<TeamData> {
 
   const rawStaff = staffRes.data ?? []
   const locations = locsRes.data ?? []
-  const allServices = allServicesRes.data ?? []
 
   const staffIds = rawStaff.map((sm) => sm.id)
   const locMap = new Map((locations ?? []).map((l) => [l.id, l.name]))
 
-  // Load staff_locations and staff_services without tenant_id (join tables)
-  const [staffLocsRes, staffServicesRes] = await Promise.all([
-    staffIds.length > 0
-      ? db.from('staff_locations').select('staff_id, location_id').in('staff_id', staffIds)
-      : Promise.resolve({ data: [] }),
-    staffIds.length > 0
-      ? db.from('staff_services').select('staff_id, service_id').in('staff_id', staffIds)
-      : Promise.resolve({ data: [] }),
-  ])
+  const staffLocsRes = staffIds.length > 0
+    ? await db.from('staff_locations').select('staff_id, location_id').in('staff_id', staffIds)
+    : { data: [] }
 
   const staffLocs = staffLocsRes.data ?? []
-  const staffServices = staffServicesRes.data ?? []
 
   const staffMembers: StaffMemberRow[] = rawStaff.map((sm) => {
     const profile = (sm.profiles as any) ?? {}
@@ -90,7 +76,6 @@ export async function getTeamData(): Promise<TeamData> {
       .filter((sl) => sl.staff_id === sm.id)
       .map((sl) => locMap.get(sl.location_id) ?? '')
       .filter(Boolean)
-    const myServiceCount = (staffServices as any[]).filter((ss) => ss.staff_id === sm.id).length
     return {
       id: sm.id,
       profileId: sm.profile_id ?? null,
@@ -100,7 +85,7 @@ export async function getTeamData(): Promise<TeamData> {
       email: profile.email ?? null,
       avatarUrl: profile.avatar_url ?? null,
       locationNames: myLocs as string[],
-      serviceCount: myServiceCount,
+      serviceCount: 0,
     }
   })
 
@@ -109,16 +94,7 @@ export async function getTeamData(): Promise<TeamData> {
     ? { staffId: currentStaffData.id as string, role: currentStaffData.role as string }
     : null
 
-  return {
-    staffMembers,
-    allServices: (allServices ?? []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      category: (s as any).category ?? null,
-      is_active: (s as any).is_active ?? true,
-    })),
-    currentStaff,
-  }
+  return { staffMembers, currentStaff }
 }
 
 // ─── getStaffServices ─────────────────────────────────────────────────────────

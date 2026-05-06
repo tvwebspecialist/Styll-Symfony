@@ -204,7 +204,7 @@ export async function updateAppointmentStatus(
 export async function getCalendarioFormOptions(tenantId: string): Promise<{
   clients: Array<{ id: string; full_name: string | null }>
   staff: Array<{ id: string; full_name: string | null }>
-  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null }>
+  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number }>
 }> {
   const db = createAdminClient()
 
@@ -213,6 +213,7 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       .from('clients')
       .select('id, full_name')
       .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
       .order('full_name'),
     db
       .from('staff_members')
@@ -222,9 +223,9 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       .is('deleted_at', null),
     db
       .from('services')
-      .select('id, name, duration_minutes, category')
+      .select('id, name, duration_minutes, category, price')
       .eq('tenant_id', tenantId)
-      .is('deleted_at', null)
+      .eq('is_active', true)
       .order('name'),
   ])
 
@@ -239,6 +240,7 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       name: string
       duration_minutes: number
       category: string | null
+      price: number
     }>),
   }
 }
