@@ -3,6 +3,70 @@ import { createServerClient } from '@supabase/ssr'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// ─── Subdomain routing ────────────────────────────────────────────────────────
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+const SKIP_SUBDOMAINS = new Set(['www', 'admin'])
+
+type TenantType = 'landing' | 'app' | 'dashboard'
+
+function parseTenant(subdomain: string): { type: TenantType; slug: string } | null {
+  if (subdomain.endsWith('-dashboard')) {
+    const slug = subdomain.slice(0, -'-dashboard'.length)
+    if (!slug) return null
+    return { type: 'dashboard', slug }
+  }
+  if (subdomain.endsWith('-app')) {
+    const slug = subdomain.slice(0, -'-app'.length)
+    if (!slug) return null
+    return { type: 'app', slug }
+  }
+  return { type: 'landing', slug: subdomain }
+}
+
+function getSubdomain(host: string): string | null {
+  if (host.endsWith(`.${ROOT_DOMAIN}`)) {
+    return host.slice(0, -(ROOT_DOMAIN.length + 1))
+  }
+  if (host.endsWith('.localhost:3000')) {
+    return host.slice(0, -'.localhost:3000'.length)
+  }
+  return null
+}
+
+function resolveTenantRewrite(request: NextRequest): URL | null {
+  const host = request.headers.get('host') ?? ''
+  const { pathname } = request.nextUrl
+
+  const subdomain = getSubdomain(host)
+
+  if (subdomain && !SKIP_SUBDOMAINS.has(subdomain)) {
+    const parsed = parseTenant(subdomain)
+    if (parsed) {
+      const url = request.nextUrl.clone()
+      url.pathname = `/_tenant/${parsed.type}/${parsed.slug}${pathname}`
+      return url
+    }
+  }
+
+  // Dev localhost query-param fallback
+  if (process.env.NODE_ENV === 'development' && host === 'localhost:3000') {
+    const tenantSlug = request.nextUrl.searchParams.get('_tenant_slug')
+    const tenantType = request.nextUrl.searchParams.get('_tenant_type') as TenantType | null
+    if (tenantSlug && tenantType && ['landing', 'app', 'dashboard'].includes(tenantType)) {
+      const url = request.nextUrl.clone()
+      url.pathname = `/_tenant/${tenantType}/${tenantSlug}${pathname}`
+      url.searchParams.delete('_tenant_slug')
+      url.searchParams.delete('_tenant_type')
+      return url
+    }
+  }
+
+  return null
+}
+
+// ─── Auth guard (original proxy logic) ───────────────────────────────────────
+
 const PROTECTED_PREFIXES = ['/dashboard', '/admin']
 const AUTH_PAGES = ['/login', '/register']
 const ONBOARDING_PREFIX = '/onboarding'
@@ -10,6 +74,9 @@ const ONBOARDING_COMPLETE = '/onboarding/complete'
 const LEGACY_COMPLETE = '/register/complete'
 
 export async function proxy(request: NextRequest) {
+  // Resolve tenant rewrite before running auth guards
+  const tenantRewriteUrl = resolveTenantRewrite(request)
+
   const response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -113,11 +180,20 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Apply subdomain rewrite, carrying over Supabase session cookies
+  if (tenantRewriteUrl) {
+    const rewriteResponse = NextResponse.rewrite(tenantRewriteUrl)
+    response.cookies.getAll().forEach((cookie) => {
+      rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    return rewriteResponse
+  }
+
   return response
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|auth/callback|.*\\.(?:png|jpg|jpeg|svg|ico|css|js|gif|webp)$).*)',
   ],
 }
