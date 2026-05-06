@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getActiveTenantId } from '@/lib/tenant-context'
 
 export interface CalendarioAppointment {
   id: string
@@ -163,4 +164,127 @@ export async function getCalendarioData(
     workingHours: (wh ?? []) as CalendarioWorkingHour[],
     overrides: (ov ?? []) as CalendarioOverride[],
   }
+}
+
+// ── New server actions ─────────────────────────────────────────────────────
+
+type RawStaffOption = {
+  id: string
+  profiles: { full_name: string | null } | null
+}
+
+export async function updateAppointmentStatus(
+  appointmentId: string,
+  status: string,
+  notes: string | null
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: appt } = await db
+    .from('appointments')
+    .select('tenant_id')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt || appt.tenant_id !== tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const { error } = await db
+    .from('appointments')
+    .update({ status, notes })
+    .eq('id', appointmentId)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
+export async function getCalendarioFormOptions(tenantId: string): Promise<{
+  clients: Array<{ id: string; full_name: string | null }>
+  staff: Array<{ id: string; full_name: string | null }>
+  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null }>
+}> {
+  const db = createAdminClient()
+
+  const [{ data: clients }, { data: staffRows }, { data: services }] = await Promise.all([
+    db
+      .from('clients')
+      .select('id, full_name')
+      .eq('tenant_id', tenantId)
+      .order('full_name'),
+    db
+      .from('staff_members')
+      .select('id, profiles(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .is('deleted_at', null),
+    db
+      .from('services')
+      .select('id, name, duration_minutes, category')
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .order('name'),
+  ])
+
+  return {
+    clients: ((clients ?? []) as Array<{ id: string; full_name: string | null }>),
+    staff: ((staffRows ?? []) as unknown as RawStaffOption[]).map((s) => ({
+      id: s.id,
+      full_name: s.profiles?.full_name ?? null,
+    })),
+    services: ((services ?? []) as Array<{
+      id: string
+      name: string
+      duration_minutes: number
+      category: string | null
+    }>),
+  }
+}
+
+export async function createAppointment(input: {
+  tenantId: string
+  clientId: string
+  staffId: string
+  serviceIds: string[]
+  startTime: string
+  endTime: string
+  notes?: string | null
+  status?: string
+}): Promise<{ success: boolean; appointmentId?: string; error?: string }> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== input.tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const db = createAdminClient()
+
+  const { data: appt, error } = await db
+    .from('appointments')
+    .insert({
+      tenant_id: input.tenantId,
+      client_id: input.clientId,
+      staff_id: input.staffId,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      notes: input.notes ?? null,
+      status: input.status ?? 'confirmed',
+      booking_source: 'manual',
+    })
+    .select('id')
+    .single()
+
+  if (error || !appt) return { success: false, error: error?.message ?? 'Errore sconosciuto' }
+
+  if (input.serviceIds.length > 0) {
+    await db.from('appointment_services').insert(
+      input.serviceIds.map((serviceId) => ({
+        appointment_id: appt.id,
+        service_id: serviceId,
+      }))
+    )
+  }
+
+  return { success: true, appointmentId: appt.id }
 }
