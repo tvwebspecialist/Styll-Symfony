@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Users, Mail, MapPin, X } from 'lucide-react'
+import { Loader2, Users, Mail, MapPin, X, Pencil, Trash2, UserCheck } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
-import { inviteTeamMember } from '@/lib/actions/team'
+import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -180,6 +181,132 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+function EditModal({ member, onClose }: { member: StaffMemberRow; onClose: () => void }) {
+  const [role, setRole] = React.useState<string>(member.role)
+  const [isActive, setIsActive] = React.useState(member.isActive)
+  const [loading, setLoading] = React.useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const result = await updateStaffRole(
+        member.id,
+        role as 'owner' | 'manager' | 'staff' | 'receptionist',
+        isActive
+      )
+      if (result.success) {
+        toast.success('Membro aggiornato')
+        onClose()
+      } else {
+        toast.error(result.error || 'Errore durante l\'aggiornamento')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-fg-secondary)' }}>Ruolo</label>
+        <select
+          className="styll-input"
+          style={{ padding: '10px 12px', fontSize: 15, width: '100%' }}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          disabled={loading}
+        >
+          <option value="owner">Titolare</option>
+          <option value="manager">Manager</option>
+          <option value="staff">Staff</option>
+          <option value="receptionist">Receptionist</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--color-border)' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-fg)' }}>Stato account</div>
+          <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginTop: 2 }}>
+            {isActive ? 'Membro attivo — può accedere alla dashboard' : 'Membro disattivato — accesso bloccato'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsActive((v) => !v)}
+          disabled={loading}
+          style={{
+            width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
+            background: isActive ? '#222222' : '#D1D5DB',
+            position: 'relative', flexShrink: 0, transition: 'background 200ms',
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 3, width: 18, height: 18, borderRadius: '50%', background: '#FFF',
+            left: isActive ? 23 : 3, transition: 'left 200ms',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          }} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+        <button type="button" onClick={onClose} className="styll-btn-secondary" style={{ flex: 1, padding: '12px 16px', fontSize: 14, minHeight: 44 }} disabled={loading}>
+          Annulla
+        </button>
+        <button type="submit" disabled={loading} className="styll-btn-primary" style={{ flex: 2, padding: '12px 16px', fontSize: 14, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {loading && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+          {loading ? 'Salvataggio...' : 'Salva modifiche'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Remove Modal ─────────────────────────────────────────────────────────────
+
+function RemoveModal({ member, onClose }: { member: StaffMemberRow; onClose: () => void }) {
+  const [loading, setLoading] = React.useState(false)
+
+  async function handleRemove() {
+    setLoading(true)
+    try {
+      const result = await removeStaffMember(member.id)
+      if (result.success) {
+        toast.success(`${member.fullName ?? 'Membro'} rimosso dal team`)
+        onClose()
+      } else {
+        toast.error(result.error || 'Errore durante la rimozione')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ padding: '16px', background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA' }}>
+        <p style={{ fontSize: 14, color: '#7F1D1D', margin: 0, lineHeight: 1.6 }}>
+          Stai per rimuovere <strong>{member.fullName ?? 'questo membro'}</strong> dal team. L&apos;operazione è reversibile solo contattando il supporto.
+        </p>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button type="button" onClick={onClose} className="styll-btn-secondary" style={{ flex: 1, padding: '12px 16px', fontSize: 14, minHeight: 44 }} disabled={loading}>
+          Annulla
+        </button>
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={loading}
+          style={{ flex: 2, padding: '12px 16px', fontSize: 14, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#DC2626', color: '#FFF', border: 'none', borderRadius: 12, cursor: loading ? 'wait' : 'pointer', fontWeight: 600 }}
+        >
+          {loading && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+          {loading ? 'Rimozione...' : 'Rimuovi dal team'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Staff Card ───────────────────────────────────────────────────────────────
 
 const ROLE_BADGE_STYLES: Record<string, { background: string; color: string }> = {
@@ -192,9 +319,19 @@ const ROLE_BADGE_STYLES: Record<string, { background: string; color: string }> =
 function StaffCard({
   member,
   canEdit,
+  isOwner,
+  isSelf,
+  onEdit,
+  onRemove,
+  onBecomeStaff,
 }: {
   member: StaffMemberRow
   canEdit: boolean
+  isOwner: boolean
+  isSelf: boolean
+  onEdit: (m: StaffMemberRow) => void
+  onRemove: (m: StaffMemberRow) => void
+  onBecomeStaff: (m: StaffMemberRow) => void
 }) {
   const roleStyle = ROLE_BADGE_STYLES[member.role] ?? { background: '#F3F4F6', color: '#374151' }
 
@@ -266,6 +403,54 @@ function StaffCard({
           {member.isActive ? 'Attivo' : 'Inattivo'}
         </span>
       </div>
+
+      {/* Action buttons (only for canEdit, not on self for remove/become) */}
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 6, paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
+          {isOwner && !isSelf && (
+            <button
+              type="button"
+              onClick={() => onBecomeStaff(member)}
+              title={`Diventa ${member.fullName ?? 'staff'}`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                background: '#F0FDF4', color: '#15803d', border: '1px solid #BBF7D0',
+                borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', flex: 1,
+              }}
+            >
+              <UserCheck size={13} />
+              Diventa
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onEdit(member)}
+            title="Modifica membro"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+              background: '#F9FAFB', color: '#374151', border: '1px solid var(--color-border)',
+              borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', flex: 1,
+            }}
+          >
+            <Pencil size={13} />
+            Modifica
+          </button>
+          {isOwner && !isSelf && (
+            <button
+              type="button"
+              onClick={() => onRemove(member)}
+              title="Rimuovi dal team"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px',
+                background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -273,10 +458,23 @@ function StaffCard({
 // ─── TeamClient ───────────────────────────────────────────────────────────────
 
 export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allServices'>) {
+  const router = useRouter()
   const [inviteOpen, setInviteOpen] = React.useState(false)
+  const [editMember, setEditMember] = React.useState<StaffMemberRow | null>(null)
+  const [removeMember, setRemoveMember] = React.useState<StaffMemberRow | null>(null)
 
-  const canEdit =
-    currentStaff?.role === 'owner' || currentStaff?.role === 'manager'
+  const canEdit = currentStaff?.role === 'owner' || currentStaff?.role === 'manager'
+  const isOwner = currentStaff?.role === 'owner'
+
+  async function handleBecomeStaff(member: StaffMemberRow) {
+    const result = await startStaffView(member.id, member.fullName ?? 'Staff')
+    if (result.success) {
+      router.push('/calendario')
+      router.refresh()
+    } else {
+      toast.error(result.error ?? 'Errore nell\'attivazione della staff view')
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -367,6 +565,11 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
               key={member.id}
               member={member}
               canEdit={canEdit}
+              isOwner={isOwner}
+              isSelf={currentStaff?.staffId === member.id}
+              onEdit={setEditMember}
+              onRemove={setRemoveMember}
+              onBecomeStaff={handleBecomeStaff}
             />
           ))}
         </div>
@@ -381,6 +584,32 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
         size="sm"
       >
         <InviteModal onClose={() => setInviteOpen(false)} />
+      </StyllModal>
+
+      {/* Edit modal */}
+      <StyllModal
+        open={editMember !== null}
+        onClose={() => setEditMember(null)}
+        title="Modifica membro"
+        description={`Modifica ruolo e stato di ${editMember?.fullName ?? 'questo membro'}.`}
+        size="sm"
+      >
+        {editMember && (
+          <EditModal member={editMember} onClose={() => setEditMember(null)} />
+        )}
+      </StyllModal>
+
+      {/* Remove modal */}
+      <StyllModal
+        open={removeMember !== null}
+        onClose={() => setRemoveMember(null)}
+        title="Rimuovi membro"
+        description="Questa azione rimuoverà il membro dal team."
+        size="sm"
+      >
+        {removeMember && (
+          <RemoveModal member={removeMember} onClose={() => setRemoveMember(null)} />
+        )}
       </StyllModal>
     </div>
   )

@@ -1,6 +1,7 @@
 'use server'
 
 import { randomBytes } from 'crypto'
+import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/server'
@@ -269,4 +270,136 @@ export async function inviteTeamMember(
     const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio'
     return { success: false, error: errorMessage }
   }
+}
+
+// ─── updateStaffRole ──────────────────────────────────────────────────────────
+
+export async function updateStaffRole(
+  staffId: string,
+  role: 'owner' | 'manager' | 'staff' | 'receptionist',
+  isActive?: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: currentStaff } = await db
+    .from('staff_members')
+    .select('role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!currentStaff || !(['owner', 'manager'] as string[]).includes(currentStaff.role)) {
+    return { success: false, error: 'Non hai i permessi per modificare i membri' }
+  }
+
+  const updates: Record<string, unknown> = { role }
+  if (typeof isActive === 'boolean') updates.is_active = isActive
+
+  const { error } = await db
+    .from('staff_members')
+    .update(updates)
+    .eq('id', staffId)
+    .eq('tenant_id', tenantId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/dashboard/team')
+  return { success: true }
+}
+
+// ─── removeStaffMember ────────────────────────────────────────────────────────
+
+export async function removeStaffMember(staffId: string): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: currentStaff } = await db
+    .from('staff_members')
+    .select('id, role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!currentStaff || currentStaff.role !== 'owner') {
+    return { success: false, error: 'Solo il titolare può rimuovere i membri' }
+  }
+  if (currentStaff.id === staffId) {
+    return { success: false, error: 'Non puoi rimuovere te stesso' }
+  }
+
+  const { error } = await db
+    .from('staff_members')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', staffId)
+    .eq('tenant_id', tenantId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/dashboard/team')
+  return { success: true }
+}
+
+// ─── startStaffView ───────────────────────────────────────────────────────────
+
+const STAFF_VIEW_COOKIE = 'styll_staff_view'
+
+export async function startStaffView(
+  staffId: string,
+  staffName: string
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: currentStaff } = await db
+    .from('staff_members')
+    .select('role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (currentStaff?.role !== 'owner') {
+    return { success: false, error: 'Solo il titolare può attivare la staff view' }
+  }
+
+  const cookieStore = await cookies()
+  cookieStore.set(STAFF_VIEW_COOKIE, JSON.stringify({ staffId, staffName, tenantId }), {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 8, // 8 ore
+    path: '/',
+  })
+
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+// ─── stopStaffView ────────────────────────────────────────────────────────────
+
+export async function stopStaffView(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.delete(STAFF_VIEW_COOKIE)
+  revalidatePath('/dashboard')
 }
