@@ -40,7 +40,7 @@ export function MobileTopBar({ fullName, avatarUrl }: MobileTopBarProps) {
       }}
     >
       <Link
-        href="/dashboard/profilo"
+        href="/profilo"
         aria-label="Profilo"
         style={{
           width: 48,

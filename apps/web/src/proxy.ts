@@ -55,7 +55,7 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
     const tenantType = request.nextUrl.searchParams.get('_tenant_type') as TenantType | null
     if (tenantSlug && tenantType && ['landing', 'app', 'dashboard'].includes(tenantType)) {
       const url = request.nextUrl.clone()
-      url.pathname = `/_tenant/${tenantType}/${tenantSlug}${pathname}`
+      url.pathname = `/tenant/${tenantType}/${tenantSlug}${pathname}`
       url.searchParams.delete('_tenant_slug')
       url.searchParams.delete('_tenant_type')
       return url
@@ -168,15 +168,71 @@ export async function proxy(request: NextRequest) {
     }
 
     if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      const db = createAdminClient()
+      const { data: staffRow } = await db
+        .from('staff_members')
+        .select('tenant_id')
+        .eq('profile_id', user.id)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (staffRow?.tenant_id) {
+        const { data: tenantRow } = await db
+          .from('tenants')
+          .select('slug')
+          .eq('id', staffRow.tenant_id)
+          .maybeSingle()
+        if (tenantRow?.slug) {
+          const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+          const redirectUrl = request.nextUrl.clone()
+          redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
+          redirectUrl.pathname = '/'
+          redirectUrl.port = ''
+          return NextResponse.redirect(redirectUrl)
+        }
+      }
+      const fallbackUrl = request.nextUrl.clone()
+      fallbackUrl.pathname = '/dashboard'
+      return NextResponse.redirect(fallbackUrl)
     }
 
     if (isAuthPage) {
-      const url = request.nextUrl.clone()
-      url.pathname = completed ? '/dashboard' : '/onboarding/step-1'
-      return NextResponse.redirect(url)
+      if (completed) {
+        const db = createAdminClient()
+        const { data: staffRow } = await db
+          .from('staff_members')
+          .select('tenant_id')
+          .eq('profile_id', user.id)
+          .eq('is_active', true)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        if (staffRow?.tenant_id) {
+          const { data: tenantRow } = await db
+            .from('tenants')
+            .select('slug')
+            .eq('id', staffRow.tenant_id)
+            .maybeSingle()
+          if (tenantRow?.slug) {
+            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+            const redirectUrl = request.nextUrl.clone()
+            redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
+            redirectUrl.pathname = '/'
+            redirectUrl.port = ''
+            return NextResponse.redirect(redirectUrl)
+          }
+        }
+        const fallbackUrl = request.nextUrl.clone()
+        fallbackUrl.pathname = '/dashboard'
+        return NextResponse.redirect(fallbackUrl)
+      } else {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding/step-1'
+        return NextResponse.redirect(url)
+      }
     }
   }
 

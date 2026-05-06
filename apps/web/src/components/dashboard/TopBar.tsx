@@ -189,7 +189,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
           </button>
 
           <Link
-            href="/dashboard/profilo"
+            href="/profilo"
             aria-label="Profilo"
             style={{
               width: 50,

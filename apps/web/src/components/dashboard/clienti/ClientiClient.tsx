@@ -430,7 +430,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
           filtered.map((c, i) => (
             <Link
               key={c.id}
-              href={`/dashboard/clienti/${c.id}`}
+              href={`/clienti/${c.id}`}
               style={{
                 display:             'grid',
                 gridTemplateColumns: '2.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.4fr',
@@ -515,7 +515,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
           filtered.map((c) => (
             <Link
               key={c.id}
-              href={`/dashboard/clienti/${c.id}`}
+              href={`/clienti/${c.id}`}
               style={{
                 display:        'flex',
                 alignItems:     'center',

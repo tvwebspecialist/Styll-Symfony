@@ -29,19 +29,19 @@ interface NavItem {
 }
 
 const MAIN_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
-  { label: 'Calendario', href: '/dashboard/calendario', icon: Calendar },
-  { label: 'Clienti', href: '/dashboard/clienti', icon: Users },
-  { label: 'Vendite', href: '/dashboard/vendite', icon: ShoppingBag },
+  { label: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true },
+  { label: 'Calendario', href: '/calendario', icon: Calendar },
+  { label: 'Clienti', href: '/clienti', icon: Users },
+  { label: 'Vendite', href: '/vendite', icon: ShoppingBag },
 ]
 
 const DRAWER_GRID: NavItem[] = [
-  { label: 'Loyalty', href: '/dashboard/loyalty', icon: Trophy },
-  { label: 'Marketing', href: '/dashboard/marketing', icon: Megaphone },
-  { label: 'Team', href: '/dashboard/team', icon: Users },
-  { label: 'Catalogo', href: '/dashboard/catalogo', icon: Scissors },
-  { label: 'La mia App', href: '/dashboard/app', icon: Smartphone },
-  { label: 'Impostazioni', href: '/dashboard/impostazioni', icon: Settings },
+  { label: 'Loyalty', href: '/loyalty', icon: Trophy },
+  { label: 'Marketing', href: '/marketing', icon: Megaphone },
+  { label: 'Team', href: '/team', icon: Users },
+  { label: 'Catalogo', href: '/catalogo', icon: Scissors },
+  { label: 'La mia App', href: '/app', icon: Smartphone },
+  { label: 'Impostazioni', href: '/impostazioni', icon: Settings },
 ]
 
 function isActive(path: string, item: NavItem): boolean {
@@ -246,7 +246,7 @@ export function BottomNav() {
         <div style={{ height: 1, background: '#F0F0F0', margin: '8px 0 12px' }} />
 
         <Link
-          href="/dashboard/profilo"
+          href="/profilo"
           onClick={() => setOpen(false)}
           style={{
             display: 'flex',
