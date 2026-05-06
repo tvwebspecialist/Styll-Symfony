@@ -111,6 +111,13 @@ function getMonthYearLabel(weekStart: string): string {
   return m.charAt(0).toUpperCase() + m.slice(1) + ', ' + end.getFullYear()
 }
 
+function getDayLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  const dow = DAYS_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1] ?? DAYS_ABBR[d.getDay()]
+  const m = MONTHS_IT[d.getMonth()]!
+  return `${dow}, ${d.getDate()} ${m.charAt(0).toUpperCase() + m.slice(1)} ${d.getFullYear()}`
+}
+
 function isHourWorking(
   staffId: string,
   dayIndex: number,
@@ -199,15 +206,15 @@ function CurrentTimeIndicator() {
 // ── Gauge SVG ──────────────────────────────────────────────────────────────
 
 function GaugeSVG({ value, total }: { value: number; total: number }) {
-  const r = 44, cx = 56, cy = 52
+  const r = 52, cx = 64, cy = 60
   const circum = Math.PI * r
   const pct = total > 0 ? Math.min(value / total, 1) : 0
   const d = `M ${cx - r} ${cy} A ${r} ${r} 0 0 0 ${cx + r} ${cy}`
   return (
-    <svg viewBox={`0 0 ${cx * 2} ${cy + 8}`} width={cx * 2} height={cy + 8} style={{ display: 'block' }}>
-      <path d={d} fill="none" stroke="#E5E7EB" strokeWidth="8" strokeLinecap="round" />
+    <svg viewBox={`0 0 ${cx * 2} ${cy + 10}`} width={cx * 2} height={cy + 10} style={{ display: 'block' }}>
+      <path d={d} fill="none" stroke="#E5E7EB" strokeWidth="10" strokeLinecap="round" />
       {pct > 0 && (
-        <path d={d} fill="none" stroke="#111827" strokeWidth="8" strokeLinecap="round"
+        <path d={d} fill="none" stroke="#111827" strokeWidth="10" strokeLinecap="round"
           strokeDasharray={`${pct * circum} ${circum}`} />
       )}
     </svg>
@@ -465,7 +472,7 @@ function ApptDetailModal({
 interface FormOptions {
   clients:  Array<{ id: string; full_name: string | null }>
   staff:    Array<{ id: string; full_name: string | null }>
-  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null }>
+  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number }>
 }
 
 function NewApptModal({
@@ -623,6 +630,7 @@ function NewApptModal({
 interface Props {
   tenantId: string
   weekStart: string
+  dayView?: string | null
   data: CalendarioData
   currentStaffId: string | null
   isManagerOrOwner: boolean
@@ -634,6 +642,7 @@ interface Props {
 export function CalendarioClient({
   tenantId,
   weekStart,
+  dayView,
   data,
   currentStaffId,
   isManagerOrOwner,
@@ -641,11 +650,12 @@ export function CalendarioClient({
 }: Props) {
   const router = useRouter()
 
-  const [view, setView]             = React.useState<CalendarView>('Settimana')
+  const [view, setView]             = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
   const [detailAppt, setDetailAppt] = React.useState<CalendarioAppointment | null>(null)
   const [newApptCell, setNewApptCell] = React.useState<{ date: string; hour: number } | null>(null)
 
-  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr  = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const activeDayStr = dayView ?? todayStr
 
   // 6-column week (Mon–Sat)
   const dayDates = React.useMemo(
@@ -675,9 +685,16 @@ export function CalendarioClient({
   }, [data.staff])
 
   function navigate(dir: -1 | 1) {
-    const p = new URLSearchParams({ week: addDays(weekStart, dir * 7) })
-    if (selectedStaffId) p.set('staff', selectedStaffId)
-    router.push(`/calendario?${p}`)
+    if (view === 'Giorno') {
+      const newDay = addDays(activeDayStr, dir)
+      const p = new URLSearchParams({ day: newDay })
+      if (selectedStaffId) p.set('staff', selectedStaffId)
+      router.push(`/calendario?${p}`)
+    } else {
+      const p = new URLSearchParams({ week: addDays(weekStart, dir * 7) })
+      if (selectedStaffId) p.set('staff', selectedStaffId)
+      router.push(`/calendario?${p}`)
+    }
   }
 
   function navigateToDate(dateStr: string) {
@@ -686,10 +703,29 @@ export function CalendarioClient({
     router.push(`/calendario?${p}`)
   }
 
+  function handleViewChange(v: CalendarView) {
+    setView(v)
+    if (v === 'Giorno') {
+      const p = new URLSearchParams({ day: todayStr })
+      if (selectedStaffId) p.set('staff', selectedStaffId)
+      router.push(`/calendario?${p}`)
+    } else if (v === 'Settimana') {
+      const p = new URLSearchParams({ week: weekStart })
+      if (selectedStaffId) p.set('staff', selectedStaffId)
+      router.push(`/calendario?${p}`)
+    }
+  }
+
   function selectStaff(id: string | null) {
-    const p = new URLSearchParams({ week: weekStart })
-    if (id) p.set('staff', id)
-    router.push(`/calendario?${p}`)
+    if (view === 'Giorno') {
+      const p = new URLSearchParams({ day: activeDayStr })
+      if (id) p.set('staff', id)
+      router.push(`/calendario?${p}`)
+    } else {
+      const p = new URLSearchParams({ week: weekStart })
+      if (id) p.set('staff', id)
+      router.push(`/calendario?${p}`)
+    }
   }
 
   function isCellWorking(date: string, hour: number, dayIdx: number): boolean {
@@ -699,6 +735,109 @@ export function CalendarioClient({
       : data.staff
     return check.some((s) =>
       isHourWorking(s.id, dayIdx, date, hour, data.workingHours, data.overrides)
+    )
+  }
+
+  // Shared renderer for a single day column (used in both week and day views)
+  function renderDayColumn(date: string, dayIdx: number, isFullWidth: boolean) {
+    const dayAppts = data.appointments.filter((a) => a.start_time.slice(0, 10) === date)
+    const todayCol = isToday(date)
+    return (
+      <div key={date} style={{ flex: 1, borderRight: isFullWidth ? 'none' : dayIdx < 5 ? '1px solid #F0F0F0' : 'none', background: todayCol ? 'rgba(17,24,39,0.015)' : 'transparent' }}>
+        <div style={{ position: 'relative' }}>
+          {HOURS.map((h) => {
+            const working = isCellWorking(date, h, dayIdx)
+            return (
+              <div
+                key={h}
+                onClick={() => setNewApptCell({ date, hour: h })}
+                style={{ height: HOUR_HEIGHT, borderBottom: '1px solid #F9FAFB', background: working ? 'transparent' : 'rgba(0,0,0,0.012)', cursor: 'pointer' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(17,24,39,0.04)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = working ? 'transparent' : 'rgba(0,0,0,0.012)' }}
+              />
+            )
+          })}
+
+          {dayAppts.map((appt) => {
+            const { top, height } = getApptPosition(appt)
+            const col       = getCategoryColor(appt.services[0]?.category)
+            const dur       = getDurationMin(appt)
+            const compact   = height <= 48
+            const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
+            const isDone    = appt.status === 'completed' || appt.status === 'cancelled'
+            const textDeco  = appt.status === 'cancelled' ? 'line-through' as const : 'none' as const
+            const blockBg   = todayCol ? '#2a2a2a' : '#FFFFFF'
+            const textColor = todayCol ? '#FFFFFF' : '#111827'
+            const subColor  = todayCol ? '#A0A0A0' : '#6B7280'
+            let opacity = 1
+            if (appt.status === 'cancelled') opacity = 0.32
+            else if (appt.status === 'completed') opacity = 0.55
+            else if (appt.status === 'pending')   opacity = 0.72
+
+            return (
+              <div
+                key={appt.id}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); setDetailAppt(appt) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setDetailAppt(appt) } }}
+                style={{
+                  position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
+                  background: blockBg, borderRadius: 10, opacity,
+                  borderLeft: `3px solid ${col.border}`,
+                  padding: compact ? '3px 6px' : '6px 8px',
+                  cursor: 'pointer', overflow: 'hidden', zIndex: 2,
+                  transition: 'transform 80ms ease',
+                }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.transform = 'scale(1.02)'; el.style.zIndex = '10' }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.transform = 'scale(1)'; el.style.zIndex = '2' }}
+              >
+                {compact ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                      {appt.client_name}
+                    </span>
+                    <span style={{ fontSize: 9, color: subColor, flexShrink: 0 }}>
+                      {formatTime(appt.start_time)}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 100, background: todayCol ? '#444' : col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: todayCol ? '#fff' : col.text, flexShrink: 0 }}>
+                        {getInitials(appt.client_name)}
+                      </div>
+                      {isDone ? (
+                        <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: todayCol ? 'rgba(255,255,255,0.15)' : sb.bg, color: todayCol ? '#fff' : sb.text, whiteSpace: 'nowrap' }}>
+                          {STATUS_LABELS[appt.status] ?? appt.status}
+                        </span>
+                      ) : (
+                        <span
+                          style={{ color: subColor, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); setDetailAppt(appt) }}
+                        >
+                          ···
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 1 }}>
+                      {appt.client_name}
+                    </div>
+                    <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
+                      {formatTime(appt.start_time)}–{formatTime(appt.end_time)} · {dur}min
+                    </div>
+                    {height > 62 && appt.services.length > 0 && (
+                      <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
+                        {appt.services.map((s) => s.name).join(' + ')}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     )
   }
 
@@ -717,13 +856,13 @@ export function CalendarioClient({
             fontSize: 36, fontWeight: 500, color: '#222222',
             letterSpacing: '-0.9px', lineHeight: 'normal',
           }}>
-            {getMonthYearLabel(weekStart)}
+            {view === 'Giorno' ? getDayLabel(activeDayStr) : getMonthYearLabel(weekStart)}
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* View toggle */}
             <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 100, padding: 3 }}>
               {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
-                <button key={v} type="button" onClick={() => setView(v)}
+                <button key={v} type="button" onClick={() => handleViewChange(v)}
                   style={{
                     padding: '6px 16px', borderRadius: 100, border: 'none',
                     background: view === v ? '#111827' : 'transparent',
@@ -741,7 +880,7 @@ export function CalendarioClient({
                 <ChevronLeft size={14} color="#374151" />
               </button>
               <span style={{ padding: '0 16px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
-                Settimana
+                {view === 'Giorno' ? 'Giorno' : 'Settimana'}
               </span>
               <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
                 style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -784,16 +923,61 @@ export function CalendarioClient({
         {/* Calendar card */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', overflow: 'hidden' }}>
 
-          {/* Non-settimana placeholder */}
-          {view !== 'Settimana' ? (
+          {view === 'Mese' ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <span style={{ fontSize: 36 }}>🗓️</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Prossimamente</span>
-              <span style={{ fontSize: 13, color: '#9CA3AF' }}>La vista {view.toLowerCase()} sarà disponibile presto.</span>
+              <span style={{ fontSize: 13, color: '#9CA3AF' }}>La vista mese sarà disponibile presto.</span>
             </div>
+          ) : view === 'Giorno' ? (
+            <>
+              {/* Day header — single column */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
+                <div style={{ width: TIME_COL_W, flexShrink: 0, borderRight: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>Ora</span>
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', padding: isToday(activeDayStr) ? 0 : '6px 4px' }}>
+                  {isToday(activeDayStr) ? (
+                    <div style={{ flex: 1, background: '#111827', borderRadius: 10, padding: '25px 19px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15, margin: '4px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#FFFFFF' }}>
+                        {(() => { const d = new Date(activeDayStr + 'T12:00:00'); return DAYS_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1] ?? '' })()}
+                      </span>
+                      <span style={{ fontSize: 26, fontWeight: 700, color: '#FFFFFF', lineHeight: 1 }}>
+                        {new Date(activeDayStr + 'T12:00:00').getDate()}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 15 }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>
+                        {(() => { const d = new Date(activeDayStr + 'T12:00:00'); return DAYS_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1] ?? '' })()}
+                      </span>
+                      <span style={{ fontSize: 26, fontWeight: 700, color: '#222222', lineHeight: 1 }}>
+                        {new Date(activeDayStr + 'T12:00:00').getDate()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Scrollable single-day grid */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', position: 'relative' }}>
+                  <CurrentTimeIndicator />
+                  <div style={{ width: TIME_COL_W, flexShrink: 0, borderRight: '1px solid #F0F0F0' }}>
+                    {HOURS.map((h) => (
+                      <div key={h} style={{ height: HOUR_HEIGHT, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 5, borderBottom: '1px solid #F9FAFB' }}>
+                        <span style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>{formatHour(h)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ flex: 1, display: 'flex' }}>
+                    {renderDayColumn(activeDayStr, 0, true)}
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <>
-              {/* Day headers */}
+              {/* Day headers — week view */}
               <div style={{ display: 'flex', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
                 <div style={{ width: TIME_COL_W, flexShrink: 0, borderRight: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>Ora</span>
@@ -801,16 +985,16 @@ export function CalendarioClient({
                 {dayDates.map((date, i) => {
                   const tod = isToday(date)
                   return (
-                    <div key={date} style={{ flex: 1, borderRight: i < 5 ? '1px solid #F0F0F0' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 4px' }}>
+                    <div key={date} style={{ flex: 1, borderRight: i < 5 ? '1px solid #F0F0F0' : 'none', display: 'flex', alignItems: 'stretch', justifyContent: 'stretch', padding: tod ? 0 : '6px 4px' }}>
                       {tod ? (
-                        <div style={{ background: '#111827', borderRadius: 10, padding: '25px 19px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15 }}>
+                        <div style={{ flex: 1, background: '#111827', borderRadius: 10, padding: '25px 19px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15, margin: '4px' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: '#FFFFFF' }}>{DAYS_FULL[i]}</span>
                           <span style={{ fontSize: 26, fontWeight: 700, color: '#FFFFFF', lineHeight: 1 }}>
                             {new Date(date + 'T12:00:00').getDate()}
                           </span>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15, padding: '25px 19px' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 15 }}>
                           <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>{DAYS_FULL[i]}</span>
                           <span style={{ fontSize: 26, fontWeight: 700, color: '#222222', lineHeight: 1 }}>
                             {new Date(date + 'T12:00:00').getDate()}
@@ -822,12 +1006,10 @@ export function CalendarioClient({
                 })}
               </div>
 
-              {/* Scrollable grid */}
+              {/* Scrollable week grid */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 <div style={{ display: 'flex', position: 'relative' }}>
                   <CurrentTimeIndicator />
-
-                  {/* Hour labels */}
                   <div style={{ width: TIME_COL_W, flexShrink: 0, borderRight: '1px solid #F0F0F0' }}>
                     {HOURS.map((h) => (
                       <div key={h} style={{ height: HOUR_HEIGHT, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 5, borderBottom: '1px solid #F9FAFB' }}>
@@ -835,114 +1017,8 @@ export function CalendarioClient({
                       </div>
                     ))}
                   </div>
-
-                  {/* Day columns */}
                   <div style={{ flex: 1, display: 'flex' }}>
-                    {dayDates.map((date, dayIdx) => {
-                      const dayAppts = data.appointments.filter((a) => a.start_time.slice(0, 10) === date)
-                      const todayCol = isToday(date)
-                      return (
-                        <div key={date} style={{ flex: 1, borderRight: dayIdx < 5 ? '1px solid #F0F0F0' : 'none', background: todayCol ? 'rgba(17,24,39,0.015)' : 'transparent' }}>
-                          <div style={{ position: 'relative' }}>
-                            {HOURS.map((h) => {
-                              const working = isCellWorking(date, h, dayIdx)
-                              return (
-                                <div
-                                  key={h}
-                                  onClick={() => setNewApptCell({ date, hour: h })}
-                                  style={{ height: HOUR_HEIGHT, borderBottom: '1px solid #F9FAFB', background: working ? 'transparent' : 'rgba(0,0,0,0.012)', cursor: 'pointer' }}
-                                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(17,24,39,0.04)' }}
-                                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = working ? 'transparent' : 'rgba(0,0,0,0.012)' }}
-                                />
-                              )
-                            })}
-
-                            {dayAppts.map((appt) => {
-                              const { top, height } = getApptPosition(appt)
-                              const col       = getCategoryColor(appt.services[0]?.category)
-                              const dur       = getDurationMin(appt)
-                              const compact   = height <= 48
-                              const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
-                              const isDone    = appt.status === 'completed' || appt.status === 'cancelled'
-                              const textDeco  = appt.status === 'cancelled' ? 'line-through' as const : 'none' as const
-                              const blockBg   = todayCol ? '#2a2a2a' : '#FFFFFF'
-                              const textColor = todayCol ? '#FFFFFF' : '#111827'
-                              const subColor  = todayCol ? '#A0A0A0' : '#6B7280'
-                              let opacity = 1
-                              if (appt.status === 'cancelled') opacity = 0.32
-                              else if (appt.status === 'completed') opacity = 0.55
-                              else if (appt.status === 'pending')   opacity = 0.72
-
-                              return (
-                                <div
-                                  key={appt.id}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={(e) => { e.stopPropagation(); setDetailAppt(appt) }}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setDetailAppt(appt) } }}
-                                  style={{
-                                    position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
-                                    background: blockBg, borderRadius: 10, opacity,
-                                    borderLeft: `3px solid ${col.border}`,
-                                    padding: compact ? '3px 6px' : '6px 8px',
-                                    cursor: 'pointer', overflow: 'hidden', zIndex: 2,
-                                    transition: 'transform 80ms ease',
-                                  }}
-                                  onMouseEnter={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.transform = 'scale(1.02)'; el.style.zIndex = '10' }}
-                                  onMouseLeave={(e) => { const el = e.currentTarget as HTMLDivElement; el.style.transform = 'scale(1)'; el.style.zIndex = '2' }}
-                                >
-                                  {compact ? (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                                        {appt.client_name}
-                                      </span>
-                                      <span style={{ fontSize: 9, color: subColor, flexShrink: 0 }}>
-                                        {formatTime(appt.start_time)}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      {/* Top row: avatar + status badge or dots */}
-                                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-                                        <div style={{ width: 20, height: 20, borderRadius: 100, background: todayCol ? '#444' : col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: todayCol ? '#fff' : col.text, flexShrink: 0 }}>
-                                          {getInitials(appt.client_name)}
-                                        </div>
-                                        {isDone ? (
-                                          <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: todayCol ? 'rgba(255,255,255,0.15)' : sb.bg, color: todayCol ? '#fff' : sb.text, whiteSpace: 'nowrap' }}>
-                                            {STATUS_LABELS[appt.status] ?? appt.status}
-                                          </span>
-                                        ) : (
-                                          <span
-                                            style={{ color: subColor, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-                                            onClick={(e) => { e.stopPropagation(); setDetailAppt(appt) }}
-                                          >
-                                            ···
-                                          </span>
-                                        )}
-                                      </div>
-                                      {/* Client name */}
-                                      <div style={{ fontSize: 11, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 1 }}>
-                                        {appt.client_name}
-                                      </div>
-                                      {/* Time */}
-                                      <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
-                                        {formatTime(appt.start_time)}–{formatTime(appt.end_time)} · {dur}min
-                                      </div>
-                                      {/* Services */}
-                                      {height > 62 && appt.services.length > 0 && (
-                                        <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
-                                          {appt.services.map((s) => s.name).join(' + ')}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
+                    {dayDates.map((date, dayIdx) => renderDayColumn(date, dayIdx, false))}
                   </div>
                 </div>
               </div>
@@ -986,11 +1062,16 @@ export function CalendarioClient({
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
             <GaugeSVG value={completedToday} total={todayAppts.length} />
-            <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
-              <span style={{ fontSize: 26, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{todayAppts.length}</span>
+            <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
+              <span style={{ fontFamily: 'Outfit, sans-serif', fontSize: 32, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{todayAppts.length}</span>
             </div>
           </div>
-          <p style={{ margin: '4px 0 10px', fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>Appuntamenti</p>
+          <p style={{ margin: '4px 0 8px', fontSize: 11, color: '#9CA3AF', textAlign: 'center' }}>Appuntamenti totali</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 100, background: '#F3F4F6', color: '#374151' }}>
+              {completedToday}/{todayAppts.length} completati
+            </span>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: 100, background: '#111827', flexShrink: 0 }} />
