@@ -14,6 +14,7 @@ import {
   updateAppointmentStatus,
   createAppointment,
   getCalendarioFormOptions,
+  getStaffLocations,
 } from '@/lib/actions/calendario'
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -497,12 +498,15 @@ function NewApptModal({
   const [clientId, setClientId]         = React.useState('')
   const [serviceId, setServiceId]       = React.useState('')
   const [staffId, setStaffId]           = React.useState(currentStaffId ?? '')
+  const [locationId, setLocationId]     = React.useState('')
+  const [locations, setLocations]       = React.useState<Array<{ id: string; name: string }>>([])
   const [apptDate, setApptDate]         = React.useState(date)
   const [apptTime, setApptTime]         = React.useState(`${String(hour).padStart(2, '0')}:00`)
   const [notes, setNotes]               = React.useState('')
   const [submitting, setSubmitting]     = React.useState(false)
   const [error, setError]               = React.useState<string | null>(null)
 
+  // Load form options once
   React.useEffect(() => {
     getCalendarioFormOptions(tenantId)
       .then((opts) => {
@@ -514,9 +518,25 @@ function NewApptModal({
       .catch(() => setLoading(false))
   }, [tenantId, currentStaffId])
 
+  // Reload locations whenever selected staff changes
+  React.useEffect(() => {
+    if (!staffId) return
+    getStaffLocations(staffId, tenantId).then((locs) => {
+      setLocations(locs)
+      if (locs.length === 1) {
+        setLocationId(locs[0].id)
+      } else if (locs.length > 1) {
+        setLocationId((prev) => (locs.find((l) => l.id === prev) ? prev : locs[0].id))
+      } else {
+        setLocationId('')
+      }
+    })
+  }, [staffId, tenantId])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!clientId || !serviceId || !staffId) { setError('Seleziona cliente, servizio e staff'); return }
+    if (!locationId) { setError('Configura almeno una location per questo membro dello staff'); return }
     setSubmitting(true)
     setError(null)
     const svc = options?.services.find((s) => s.id === serviceId)
@@ -525,6 +545,7 @@ function NewApptModal({
     const end   = new Date(start.getTime() + dur * 60000)
     const res = await createAppointment({
       tenantId, clientId, staffId,
+      locationId,
       serviceIds: [serviceId],
       startTime: start.toISOString(),
       endTime:   end.toISOString(),
@@ -604,6 +625,23 @@ function NewApptModal({
                 </select>
               </div>
             )}
+            {/* Location selector */}
+            {locations.length === 0 && staffId ? (
+              <div style={{ marginBottom: 12, padding: '10px 12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8 }}>
+                <p style={{ margin: 0, fontSize: 12, color: '#c2410c' }}>
+                  ⚠️ Questo membro dello staff non ha location assegnate. Configura almeno una location.
+                </p>
+              </div>
+            ) : locations.length > 1 ? (
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Location</label>
+                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} style={inputStyle} required>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null /* single location: auto-assigned, no UI needed */}
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Note (opzionale)</label>
               <textarea
@@ -614,8 +652,8 @@ function NewApptModal({
               />
             </div>
             {error && <p style={{ margin: '0 0 10px', fontSize: 12, color: '#dc2626' }}>{error}</p>}
-            <button type="submit" disabled={submitting}
-              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 14, fontWeight: 600, cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+            <button type="submit" disabled={submitting || !locationId}
+              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 14, fontWeight: 600, cursor: (submitting || !locationId) ? 'not-allowed' : 'pointer', opacity: (submitting || !locationId) ? 0.5 : 1 }}>
               {submitting ? 'Creazione…' : 'Crea appuntamento'}
             </button>
           </form>

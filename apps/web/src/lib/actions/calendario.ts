@@ -245,10 +245,26 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
   }
 }
 
+export async function getStaffLocations(
+  staffId: string,
+  tenantId: string,
+): Promise<Array<{ id: string; name: string }>> {
+  const db = createAdminClient()
+  const { data } = await db
+    .from('staff_locations')
+    .select('locations(id, name)')
+    .eq('staff_id', staffId)
+  const rows = (data ?? []) as unknown as Array<{ locations: { id: string; name: string } | null }>
+  return rows
+    .map((r) => r.locations)
+    .filter((l): l is { id: string; name: string } => l !== null)
+}
+
 export async function createAppointment(input: {
   tenantId: string
   clientId: string
   staffId: string
+  locationId: string
   serviceIds: string[]
   startTime: string
   endTime: string
@@ -259,6 +275,9 @@ export async function createAppointment(input: {
   if (!activeTenantId || activeTenantId !== input.tenantId) {
     return { success: false, error: 'Non autorizzato' }
   }
+  if (!input.locationId) {
+    return { success: false, error: 'Location non selezionata' }
+  }
 
   const db = createAdminClient()
 
@@ -268,6 +287,7 @@ export async function createAppointment(input: {
       tenant_id: input.tenantId,
       client_id: input.clientId,
       staff_id: input.staffId,
+      location_id: input.locationId,
       start_time: input.startTime,
       end_time: input.endTime,
       notes: input.notes ?? null,

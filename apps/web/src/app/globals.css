@@ -478,3 +478,26 @@
     font-size: 22px !important;
   }
 }
+
+/* ─── Global Focus Visible ───────────────────────────────────────────────────
+ * Assicura che ogni elemento interattivo abbia un outline visibile
+ * quando navigato via tastiera (WCAG 2.1 AA — criterio 2.4.7)
+ * ─────────────────────────────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid #222222;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Prefers Reduced Motion ─────────────────────────────────────────────────
+ * Rispetta le preferenze utente per animazioni ridotte
+ * (WCAG 2.1 AAA — criterio 2.3.3 / best practice per accessibilità)
+ * ─────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

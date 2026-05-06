@@ -13,6 +13,15 @@ export const metadata: Metadata = {
   title: "Styll — Il tuo salone, organizzato.",
   description:
     "La piattaforma all-in-one per barbieri e parrucchieri: prenotazioni, team e fidelizzazione clienti.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Styll",
+  },
+  icons: {
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -20,7 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  themeColor: "#222222",
 };
 
 export default function RootLayout({
