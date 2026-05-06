@@ -44,7 +44,7 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
     const parsed = parseTenant(subdomain)
     if (parsed) {
       const url = request.nextUrl.clone()
-      url.pathname = `/_tenant/${parsed.type}/${parsed.slug}${pathname}`
+      url.pathname = `/tenant/${parsed.type}/${parsed.slug}${pathname}`
       return url
     }
   }
