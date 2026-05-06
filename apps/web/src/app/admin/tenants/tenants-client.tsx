@@ -323,7 +323,8 @@ export function TenantsClient({
         return
       }
       toast.success(`Stai visualizzando ${t.business_name}`)
-      router.push('/dashboard')
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+      window.location.href = `https://${t.slug}-dashboard.${rootDomain}`
     })
   }
 
