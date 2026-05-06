@@ -77,6 +77,10 @@ export async function proxy(request: NextRequest) {
   // Resolve tenant rewrite before running auth guards
   const tenantRewriteUrl = resolveTenantRewrite(request)
 
+  // On subdomain requests, skip auth-page redirects to avoid redirect loops.
+  // Auth is enforced by the tenant layout itself.
+  const isSubdomainRequest = tenantRewriteUrl !== null
+
   const response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -90,11 +94,16 @@ export async function proxy(request: NextRequest) {
         setAll(
           cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
         ) {
+          const cookieDomain =
+            process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, {
+              ...options,
+              ...(cookieDomain ? { domain: cookieDomain } : {}),
+            })
           )
         },
       },
@@ -161,13 +170,13 @@ export async function proxy(request: NextRequest) {
 
     const completed = !!profile?.onboarding_completed
 
-    if (!completed && isProtected && !isAdmin) {
+    if (!completed && isProtected && !isAdmin && !isSubdomainRequest) {
       const url = request.nextUrl.clone()
       url.pathname = '/onboarding/step-1'
       return NextResponse.redirect(url)
     }
 
-    if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE) {
+    if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
       const db = createAdminClient()
       const { data: staffRow } = await db
         .from('staff_members')
@@ -198,7 +207,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(fallbackUrl)
     }
 
-    if (isAuthPage) {
+    if (isAuthPage && !isSubdomainRequest) {
       if (completed) {
         const db = createAdminClient()
         const { data: staffRow } = await db
