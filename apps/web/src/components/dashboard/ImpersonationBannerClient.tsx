@@ -1,18 +1,16 @@
 'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
 import { stopTenantImpersonation } from '@/app/admin/actions'
 
 export function StopImpersonationButton() {
-  const router = useRouter()
   const [pending, startTransition] = React.useTransition()
 
   function handle() {
     startTransition(async () => {
       await stopTenantImpersonation()
-      router.push('/admin/tenants')
-      router.refresh()
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+      window.location.href = `https://${rootDomain}/admin`
     })
   }
 

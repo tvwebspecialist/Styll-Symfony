@@ -590,6 +590,11 @@ export async function impersonateUser(
     | null
   const tenant = Array.isArray(tenantRel) ? tenantRel[0] : tenantRel
 
+  const cookieDomain =
+    process.env.NODE_ENV === 'production'
+      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
+      : undefined
+
   const cookieStore = await cookies()
   cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
     httpOnly: true,
@@ -597,6 +602,7 @@ export async function impersonateUser(
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 4,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   })
 
   await logAdminAction(auth.id, 'user.impersonated', 'user', userId, tenantId, {
@@ -1761,6 +1767,11 @@ export async function startTenantImpersonation(
     }
   }
 
+  const cookieDomain =
+    process.env.NODE_ENV === 'production'
+      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
+      : undefined
+
   const cookieStore = await cookies()
   cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
     httpOnly: true,
@@ -1768,6 +1779,7 @@ export async function startTenantImpersonation(
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 4, // 4h max
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   })
 
   await logAdminAction(auth.id, 'tenant.impersonation_started', 'tenant', tenantId, tenantId, {
@@ -1783,9 +1795,21 @@ export async function stopTenantImpersonation(): Promise<ActionResult> {
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Sessione non valida.' }
 
+  const cookieDomain =
+    process.env.NODE_ENV === 'production'
+      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
+      : undefined
+
   const cookieStore = await cookies()
   const previous = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
-  cookieStore.delete(IMPERSONATE_COOKIE)
+  cookieStore.set(IMPERSONATE_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 0,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
+  })
 
   if (previous) {
     await logAdminAction(user.id, 'tenant.impersonation_stopped', 'tenant', previous, previous)
