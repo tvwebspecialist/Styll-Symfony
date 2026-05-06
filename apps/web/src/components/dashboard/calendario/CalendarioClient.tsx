@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Plus, X } from 'lucide-react'
 import type {
   CalendarioAppointment,
   CalendarioData,
@@ -18,6 +18,7 @@ const HOUR_START = 8
 const HOUR_END = 20
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+const DAYS_FULL  = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 const MONTHS_IT = [
   'Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
   'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre',
@@ -346,13 +347,17 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
               ))}
             </div>
             {/* Week nav */}
-            {([-1, 1] as const).map((dir) => (
-              <button key={dir} type="button" onClick={() => navigate(dir)}
-                aria-label={dir === -1 ? 'Settimana precedente' : 'Settimana successiva'}
-                style={{ width: 32, height: 32, borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                {dir === -1 ? <ChevronLeft size={15} color="#374151" /> : <ChevronRight size={15} color="#374151" />}
+            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden' }}>
+              <button type="button" onClick={() => navigate(-1)} aria-label="Settimana precedente"
+                style={{ width: 32, height: 32, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronLeft size={15} color="#374151" />
               </button>
-            ))}
+              <span style={{ padding: '0 14px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>Settimana</span>
+              <button type="button" onClick={() => navigate(1)} aria-label="Settimana successiva"
+                style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronRight size={15} color="#374151" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -395,13 +400,26 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
             {dayDates.map((date, i) => {
               const today = isToday(date)
               return (
-                <div key={date} style={{ flex: 1, height: 52, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRight: i < 6 ? '1px solid #F0F0F0' : 'none', gap: 2 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: today ? '#111827' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    {DAYS_SHORT[i]}
-                  </span>
-                  <span style={{ width: 28, height: 28, borderRadius: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, background: today ? '#111827' : 'transparent', color: today ? '#FFF' : '#111827' }}>
-                    {new Date(date + 'T12:00:00').getDate()}
-                  </span>
+                <div key={date} style={{ flex: 1, height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: i < 6 ? '1px solid #F0F0F0' : 'none' }}>
+                  {today ? (
+                    <div style={{ background: '#111827', borderRadius: 12, padding: '6px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#FFFFFF', letterSpacing: '0.02em' }}>
+                        {DAYS_FULL[i]}
+                      </span>
+                      <span style={{ fontSize: 20, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.1 }}>
+                        {new Date(date + 'T12:00:00').getDate()}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 500, color: '#9CA3AF' }}>
+                        {DAYS_FULL[i]}
+                      </span>
+                      <span style={{ fontSize: 20, fontWeight: 700, color: '#111827', lineHeight: 1.1 }}>
+                        {new Date(date + 'T12:00:00').getDate()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -460,6 +478,7 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
                           const subColor   = todayCol ? '#A0A0A0' : '#6B7280'
                           const accentCol  = todayCol ? '#555' : col.border
 
+                          const isDone = appt.status === 'completed' || appt.status === 'cancelled'
                           return (
                             <div key={appt.id} role="button" tabIndex={0}
                               onClick={(e) => { e.stopPropagation(); setDetailAppt(appt) }}
@@ -487,14 +506,20 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
                                 </div>
                               ) : (
                                 <>
-                                  {/* Status badge */}
+                                  {/* Top-right: status badge (done) or three-dot menu (active) */}
                                   <div style={{ position: 'absolute', top: 5, right: 6 }}>
-                                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: todayCol ? 'rgba(255,255,255,0.15)' : sb.bg, color: todayCol ? '#fff' : sb.text, whiteSpace: 'nowrap' }}>
-                                      {STATUS_LABELS[appt.status] ?? appt.status}
-                                    </span>
+                                    {isDone ? (
+                                      <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: todayCol ? 'rgba(255,255,255,0.15)' : sb.bg, color: todayCol ? '#fff' : sb.text, whiteSpace: 'nowrap' }}>
+                                        {STATUS_LABELS[appt.status] ?? appt.status}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: subColor, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                        <MoreHorizontal size={13} />
+                                      </span>
+                                    )}
                                   </div>
                                   {/* Avatar + name */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, paddingRight: 58 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, paddingRight: 52 }}>
                                     <div style={{ width: 18, height: 18, borderRadius: 100, background: todayCol ? '#444' : col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, fontWeight: 700, color: todayCol ? '#fff' : col.text, flexShrink: 0, border: `1px solid ${todayCol ? '#555' : col.border + '40'}` }}>
                                       {getInitials(appt.client_name)}
                                     </div>
@@ -504,12 +529,12 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
                                   </div>
                                   {/* Time */}
                                   <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
-                                    {formatTime(appt.start_time)} · {dur}min
+                                    {formatTime(appt.start_time)} · {formatTime(appt.end_time)} · {dur}min
                                   </div>
                                   {/* Service */}
                                   {height > 62 && appt.services.length > 0 && (
                                     <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3 }}>
-                                      {appt.services.map((s) => s.name).join(', ')}
+                                      {appt.services.map((s) => s.name).join(' + ')}
                                     </div>
                                   )}
                                 </>
@@ -533,8 +558,8 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
         {/* Card 1 — Nuovo appuntamento */}
         <div style={{ background: '#111827', borderRadius: 16, padding: '18px 18px 20px', position: 'relative' }}>
           <button type="button" onClick={() => setNewApptCell({ date: todayStr, hour: 9 })}
-            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 100, background: '#2563eb', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <Plus size={18} color="#FFF" />
+            style={{ position: 'absolute', top: 12, right: 12, width: 48, height: 48, borderRadius: 14, background: '#2563eb', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}>
+            <Plus size={22} color="#FFF" strokeWidth={2.5} />
           </button>
           <p style={{ margin: '0 0 5px', fontSize: 14, fontWeight: 700, color: '#FFF', paddingRight: 44 }}>
             Nuovo appuntamento
@@ -572,6 +597,16 @@ export function CalendarioClient({ weekStart, data, isManagerOrOwner, selectedSt
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: 100, background: '#D1D5DB', flexShrink: 0 }} />
               <span style={{ fontSize: 12, color: '#9CA3AF' }}>{remainingToday} rimanenti</span>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 2 }}>Revenue Giornata</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>—</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 2 }}>Scontrino medio</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>—</div>
             </div>
           </div>
         </div>
