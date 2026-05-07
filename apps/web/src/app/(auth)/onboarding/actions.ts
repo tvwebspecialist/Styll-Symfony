@@ -149,13 +149,16 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
       createdTenantId = tenantId // track for rollback
 
       // Every tenant must have exactly one owner record.
-      const { error: sErr } = await db.from('staff_members').insert({
+      const { data: newOwner, error: sErr } = await db.from('staff_members').insert({
         tenant_id: tenantId,
         profile_id: user.id,
         role: 'owner',
         is_active: true,
-      })
-      if (sErr) throw new Error(`Creazione owner fallita: ${sErr.message}`)
+      }).select('id').single()
+      if (sErr || !newOwner) throw new Error(`Creazione owner fallita: ${sErr?.message ?? 'Errore sconosciuto'}`)
+      if (newOwner.id) {
+        ;(ownerStaff as typeof ownerStaff) = { id: newOwner.id, tenant_id: tenantId }
+      }
     }
 
     // 3) Location (single main location, upsert)
@@ -181,8 +184,20 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         .eq('id', existingLoc.id)
       if (lErr) throw new Error(lErr.message)
     } else {
-      const { error: lErr } = await db.from('locations').insert(locationPayload)
-      if (lErr) throw new Error(lErr.message)
+      const { data: newLoc, error: lErr } = await db.from('locations').insert(locationPayload).select('id').single()
+      if (lErr || !newLoc) throw new Error(lErr?.message ?? 'Impossibile creare location')
+      existingLoc = { id: newLoc.id }
+    }
+
+    // 3b) Link owner to location via staff_locations
+    const locationId = existingLoc!.id
+    if (ownerStaff?.id && locationId) {
+      const { error: slErr } = await db.from('staff_locations').insert({
+        tenant_id: tenantId,
+        staff_id: ownerStaff.id,
+        location_id: locationId,
+      })
+      if (slErr) throw new Error(`Errore collegamento staff a location: ${slErr.message}`)
     }
 
     // 4) Services — full reset and re-insert
