@@ -304,12 +304,21 @@ export async function createAppointment(input: {
   if (error || !appt) return { success: false, error: error?.message ?? 'Errore sconosciuto' }
 
   if (input.serviceIds.length > 0) {
-    await db.from('appointment_services').insert(
+    const { data: svcPrices } = await db
+      .from('services')
+      .select('id, price')
+      .in('id', input.serviceIds)
+
+    const { error: asErr } = await db.from('appointment_services').insert(
       input.serviceIds.map((serviceId) => ({
         appointment_id: appt.id,
         service_id: serviceId,
+        tenant_id: input.tenantId,
+        price_at_booking: svcPrices?.find((s) => s.id === serviceId)?.price ?? 0,
       }))
     )
+
+    if (asErr) return { success: false, error: `Errore salvataggio servizi: ${asErr.message}` }
   }
 
   return { success: true, appointmentId: appt.id }
