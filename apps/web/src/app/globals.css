@@ -249,6 +249,8 @@
   --layout-gap: 16px;
   --bottom-nav-height: 80px;
   --mobile-topbar-height: 88px;
+  --mobile-simple-topbar-height: 96px;
+  --mobile-home-topbar-height: 224px;
   --sidebar-item-text: #222222;
   --sidebar-item-inactive: #B0B0B0;
   --sidebar-item-active-bg: #222222;
@@ -452,8 +454,8 @@
   }
 }
 
-/* ─── Mobile TopBar — Glass Morphism (Home) ──────────────────
- * Used by TopBarHome.tsx on the dashboard home page.
+/* ─── Mobile TopBar — Glass Morphism ─────────────────────────
+ * Used by dashboard mobile headers.
  * backdrop-filter requires viewportFit=cover in the <meta> tag,
  * which is already set in layout.tsx via the `viewport` export.
  * ------------------------------------------------------------ */
@@ -464,16 +466,59 @@
   right: 0;
   z-index: 100;
   width: 100%;
+  box-sizing: border-box;
   -webkit-backdrop-filter: blur(28px) saturate(210%);
   backdrop-filter: blur(28px) saturate(210%);
-  background: rgba(250, 251, 253, 0.78);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.68)),
+    rgba(250, 251, 253, 0.72);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.62);
   border-bottom-left-radius: 24px;
   border-bottom-right-radius: 24px;
   box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.05),
-    0 8px 32px rgba(0, 0, 0, 0.08);
+    inset 0 -1px 0 rgba(255, 255, 255, 0.45),
+    0 1px 0 rgba(15, 23, 42, 0.04),
+    0 12px 40px rgba(15, 23, 42, 0.11);
   padding-top: env(safe-area-inset-top);
   overflow: hidden;
+  transform: translateZ(0);
+  isolation: isolate;
+}
+
+.topbar-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.95), transparent 32%),
+    radial-gradient(circle at 88% 12%, rgba(226, 232, 240, 0.6), transparent 28%);
+}
+
+.topbar-glass > * {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.topbar-glass--simple {
+  min-height: calc(var(--mobile-simple-topbar-height) + env(safe-area-inset-top, 0px));
+}
+
+.topbar-glass--home {
+  min-height: calc(var(--mobile-home-topbar-height) + env(safe-area-inset-top, 0px));
+}
+
+.mobile-only.topbar-glass {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-only.topbar-glass {
+    display: block !important;
+  }
 }
 
 /* Hide desktop greeting on mobile — TopBarHome glass topbar shows it instead */

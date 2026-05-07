@@ -2,6 +2,7 @@
 
 import { Bell } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { getDashboardSection } from '@/lib/dashboard-path'
 
 const PAGE_NAMES: Record<string, string> = {
   calendario: 'Calendario',
@@ -23,9 +24,8 @@ interface TopBarSimpleProps {
 
 export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
   const pathname = usePathname()
-  const segments = pathname.split('/').filter(Boolean)
-  const lastSegment = segments[segments.length - 1] ?? ''
-  const pageTitle = PAGE_NAMES[lastSegment] ?? 'Dashboard'
+  const section = getDashboardSection(pathname)
+  const pageTitle = section ? PAGE_NAMES[section] ?? 'Dashboard' : 'Dashboard'
 
   const initials = fullName
     .split(' ')
@@ -35,9 +35,11 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
     .toUpperCase()
 
   return (
-    <div className="mobile-only topbar-glass">
+    <div className="mobile-only topbar-glass topbar-glass--simple">
       <div
         style={{
+          width: '100%',
+          boxSizing: 'border-box',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -98,6 +100,10 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
             color: '#111111',
             letterSpacing: '-0.2px',
             whiteSpace: 'nowrap',
+            maxWidth: 'calc(100% - 136px)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            textAlign: 'center',
           }}
         >
           {pageTitle}
@@ -111,14 +117,15 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
             width: 44,
             height: 44,
             borderRadius: '50%',
-            background: 'rgba(0,0,0,0.07)',
-            border: 'none',
+            background: 'rgba(255,255,255,0.62)',
+            border: '1px solid rgba(255,255,255,0.7)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
             position: 'relative',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
           }}
         >
           <Bell size={20} color="#111111" strokeWidth={1.8} />

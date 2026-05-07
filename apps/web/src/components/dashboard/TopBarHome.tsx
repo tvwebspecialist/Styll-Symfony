@@ -22,9 +22,11 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
   const displaySubtitle = subtitle || 'Nessun appuntamento oggi'
 
   return (
-    <div className="mobile-only topbar-glass">
+    <div className="mobile-only topbar-glass topbar-glass--home">
       <div
         style={{
+          width: '100%',
+          boxSizing: 'border-box',
           paddingLeft: 20,
           paddingRight: 20,
           paddingTop: 14,
@@ -84,13 +86,14 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               width: 44,
               height: 44,
               borderRadius: '50%',
-              background: 'rgba(0,0,0,0.07)',
-              border: 'none',
+              background: 'rgba(255,255,255,0.62)',
+              border: '1px solid rgba(255,255,255,0.7)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
             }}
           >
             <Bell size={21} color="#111111" strokeWidth={1.8} />
@@ -145,11 +148,13 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              background: 'rgba(0,0,0,0.07)',
+              background: 'rgba(255,255,255,0.66)',
+              border: '1px solid rgba(255,255,255,0.78)',
               borderRadius: 50,
               paddingLeft: 16,
               paddingRight: 16,
               height: 44,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 5px 18px rgba(15,23,42,0.07)',
             }}
           >
             <Search size={17} color="#888888" strokeWidth={2} />
@@ -174,13 +179,14 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               width: 44,
               height: 44,
               borderRadius: '50%',
-              background: 'rgba(0,0,0,0.07)',
-              border: 'none',
+              background: 'rgba(255,255,255,0.62)',
+              border: '1px solid rgba(255,255,255,0.7)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
             }}
           >
             <SlidersHorizontal size={18} color="#111111" strokeWidth={1.8} />
