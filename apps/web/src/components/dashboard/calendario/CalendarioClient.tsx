@@ -748,9 +748,20 @@ export function CalendarioClient({
 }: Props) {
   const router = useRouter()
 
+  const [isMobile, setIsMobile]     = React.useState(false)
   const [view, setView]             = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
   const [detailAppt, setDetailAppt] = React.useState<CalendarioAppointment | null>(null)
   const [newApptCell, setNewApptCell] = React.useState<{ date: string; hour: number } | null>(null)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)')
+    const handleChange = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    setIsMobile(mql.matches)
+    mql.addEventListener('change', handleChange)
+    return () => mql.removeEventListener('change', handleChange)
+  }, [])
+
+  const effectiveView: CalendarView = isMobile ? 'Giorno' : view
 
   const todayStr  = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
   const activeDayStr = dayView ?? todayStr
@@ -940,73 +951,102 @@ export function CalendarioClient({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 168px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 96px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
 
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
-          <h1 style={{
-            margin: 0, fontFamily: 'Outfit, sans-serif',
-            fontSize: 36, fontWeight: 500, color: '#222222',
-            letterSpacing: '-0.9px', lineHeight: 'normal',
-          }}>
-            {view === 'Giorno' ? getDayLabel(activeDayStr) : getMonthYearLabel(weekStart)}
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* View toggle */}
-            <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 100, padding: 3 }}>
-              {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
-                <button key={v} type="button" onClick={() => handleViewChange(v)}
-                  style={{
-                    padding: '6px 16px', borderRadius: 100, border: 'none',
-                    background: view === v ? '#111827' : 'transparent',
-                    fontSize: 13, fontWeight: view === v ? 600 : 400,
-                    color: view === v ? '#FFF' : '#9CA3AF', cursor: 'pointer',
-                  }}>
-                  {v}
-                </button>
-              ))}
-            </div>
-            {/* Today button */}
+        {isMobile ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0, gap: 8 }}>
             <button
               type="button"
               onClick={() => {
-                if (view === 'Giorno') {
-                  const p = new URLSearchParams({ day: todayStr })
-                  if (selectedStaffId) p.set('staff', selectedStaffId)
-                  router.push(`/calendario?${p}`)
-                } else {
-                  const p = new URLSearchParams({ week: todayStr })
-                  if (selectedStaffId) p.set('staff', selectedStaffId)
-                  router.push(`/calendario?${p}`)
-                }
+                const p = new URLSearchParams({ day: todayStr })
+                if (selectedStaffId) p.set('staff', selectedStaffId)
+                router.push(`/calendario?${p}`)
               }}
-              style={{ padding: '6px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              style={{ padding: '8px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               Oggi
             </button>
-            {/* Navigator */}
-            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden' }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#222222', flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {getDayLabel(activeDayStr)}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden', flexShrink: 0 }}>
               <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
-                style={{ width: 32, height: 32, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronLeft size={14} color="#374151" />
+                style={{ width: 40, height: 40, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronLeft size={16} color="#374151" />
               </button>
-              <span style={{ padding: '0 14px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
-                {getNavLabel(view, weekStart, activeDayStr)}
-              </span>
               <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
-                style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronRight size={14} color="#374151" />
+                style={{ width: 40, height: 40, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronRight size={16} color="#374151" />
               </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
+            <h1 style={{
+              margin: 0, fontFamily: 'Outfit, sans-serif',
+              fontSize: 36, fontWeight: 500, color: '#222222',
+              letterSpacing: '-0.9px', lineHeight: 'normal',
+            }}>
+              {effectiveView === 'Giorno' ? getDayLabel(activeDayStr) : getMonthYearLabel(weekStart)}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* View toggle */}
+              <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 100, padding: 3 }}>
+                {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => handleViewChange(v)}
+                    style={{
+                      padding: '6px 16px', borderRadius: 100, border: 'none',
+                      background: view === v ? '#111827' : 'transparent',
+                      fontSize: 13, fontWeight: view === v ? 600 : 400,
+                      color: view === v ? '#FFF' : '#9CA3AF', cursor: 'pointer',
+                    }}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+              {/* Today button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (effectiveView === 'Giorno') {
+                    const p = new URLSearchParams({ day: todayStr })
+                    if (selectedStaffId) p.set('staff', selectedStaffId)
+                    router.push(`/calendario?${p}`)
+                  } else {
+                    const p = new URLSearchParams({ week: todayStr })
+                    if (selectedStaffId) p.set('staff', selectedStaffId)
+                    router.push(`/calendario?${p}`)
+                  }
+                }}
+                style={{ padding: '6px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Oggi
+              </button>
+              {/* Navigator */}
+              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden' }}>
+                <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
+                  style={{ width: 32, height: 32, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <ChevronLeft size={14} color="#374151" />
+                </button>
+                <span style={{ padding: '0 14px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
+                  {getNavLabel(effectiveView, weekStart, activeDayStr)}
+                </span>
+                <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
+                  style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <ChevronRight size={14} color="#374151" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Staff filter pills */}
         {isManagerOrOwner && data.staff.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', marginBottom: 10, flexShrink: 0, scrollbarWidth: 'none' }}>
             <button type="button" onClick={() => selectStaff(null)} style={{
               padding: '4px 12px', borderRadius: 100,
               border: `1.5px solid ${!selectedStaffId ? '#111827' : '#E5E7EB'}`,
@@ -1037,13 +1077,13 @@ export function CalendarioClient({
         {/* Calendar card */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', overflow: 'hidden' }}>
 
-          {view === 'Mese' ? (
+          {effectiveView === 'Mese' ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <span style={{ fontSize: 36 }}>🗓️</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Prossimamente</span>
               <span style={{ fontSize: 13, color: '#9CA3AF' }}>La vista mese sarà disponibile presto.</span>
             </div>
-          ) : view === 'Giorno' ? (
+          ) : effectiveView === 'Giorno' ? (
             <>
               {/* Day header — single column */}
               <div style={{ display: 'flex', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
@@ -1141,8 +1181,8 @@ export function CalendarioClient({
         </div>
       </div>
 
-      {/* ── RIGHT SIDEBAR ── */}
-      <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
+      {/* ── RIGHT SIDEBAR (desktop only) ── */}
+      {!isMobile && <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
 
         {/* Card 1 — Nuovo appuntamento */}
         <div style={{ background: '#111827', borderRadius: 16, padding: 18, position: 'relative' }}>
@@ -1230,7 +1270,26 @@ export function CalendarioClient({
             <p style={{ margin: 0, fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>Nessuno slot libero oggi</p>
           </div>
         )}
-      </div>
+      </div>}
+
+      {/* ── Mobile FAB — new appointment ── */}
+      {isMobile && (
+        <button
+          type="button"
+          onClick={() => setNewApptCell({ date: activeDayStr, hour: 9 })}
+          aria-label="Nuovo appuntamento"
+          style={{
+            position: 'fixed', bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))', right: 16,
+            width: 52, height: 52, borderRadius: 100,
+            background: '#2563eb', border: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', zIndex: 40,
+            boxShadow: '0 4px 16px rgba(37,99,235,0.45)',
+          }}
+        >
+          <Plus size={24} color="#FFF" strokeWidth={2.5} />
+        </button>
+      )}
 
       {/* ── Modals ── */}
       {detailAppt && (
