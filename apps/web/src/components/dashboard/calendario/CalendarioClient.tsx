@@ -106,6 +106,27 @@ function getInitials(name: string): string {
   return name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
 }
 
+function getNavLabel(view: CalendarView, weekStart: string, activeDayStr: string): string {
+  if (view === 'Giorno') {
+    const d = new Date(activeDayStr + 'T12:00:00')
+    return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`
+  }
+  if (view === 'Settimana') {
+    const s = new Date(weekStart + 'T12:00:00')
+    const e = new Date(weekStart + 'T12:00:00')
+    e.setDate(e.getDate() + 5)
+    const sDay = s.getDate()
+    const eDay = e.getDate()
+    const eMon = MONTHS_SHORT[e.getMonth()]
+    return s.getMonth() === e.getMonth()
+      ? `${sDay}–${eDay} ${eMon}`
+      : `${sDay} ${MONTHS_SHORT[s.getMonth()]}–${eDay} ${eMon}`
+  }
+  const d = new Date(weekStart + 'T12:00:00')
+  const m = MONTHS_IT[d.getMonth()]!
+  return `${m.charAt(0).toUpperCase() + m.slice(1)} ${d.getFullYear()}`
+}
+
 function getMonthYearLabel(weekStart: string): string {
   const end = new Date(weekStart + 'T12:00:00')
   end.setDate(end.getDate() + 5)
@@ -844,9 +865,8 @@ export function CalendarioClient({
             const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
             const isDone    = appt.status === 'completed' || appt.status === 'cancelled'
             const textDeco  = appt.status === 'cancelled' ? 'line-through' as const : 'none' as const
-            const blockBg   = todayCol ? '#2a2a2a' : '#FFFFFF'
-            const textColor = todayCol ? '#FFFFFF' : '#111827'
-            const subColor  = todayCol ? '#A0A0A0' : '#6B7280'
+            const textColor = '#111827'
+            const subColor  = '#6B7280'
             let opacity = 1
             if (appt.status === 'cancelled') opacity = 0.32
             else if (appt.status === 'completed') opacity = 0.55
@@ -882,7 +902,7 @@ export function CalendarioClient({
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <div style={{ width: 26, height: 26, borderRadius: 100, background: serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 100, background: serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0, border: '1.5px solid rgba(255,255,255,0.6)' }}>
                         {getInitials(appt.client_name)}
                       </div>
                       {isDone ? (
@@ -898,7 +918,7 @@ export function CalendarioClient({
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: textColor, textDecoration: textDeco, whiteSpace: 'normal', lineHeight: 1.2, marginBottom: 1, wordBreak: 'break-word' }}>
                       {appt.client_name}
                     </div>
                     <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
@@ -949,14 +969,32 @@ export function CalendarioClient({
                 </button>
               ))}
             </div>
+            {/* Today button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (view === 'Giorno') {
+                  const p = new URLSearchParams({ day: todayStr })
+                  if (selectedStaffId) p.set('staff', selectedStaffId)
+                  router.push(`/calendario?${p}`)
+                } else {
+                  const p = new URLSearchParams({ week: todayStr })
+                  if (selectedStaffId) p.set('staff', selectedStaffId)
+                  router.push(`/calendario?${p}`)
+                }
+              }}
+              style={{ padding: '6px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Oggi
+            </button>
             {/* Navigator */}
             <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden' }}>
               <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
                 style={{ width: 32, height: 32, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <ChevronLeft size={14} color="#374151" />
               </button>
-              <span style={{ padding: '0 16px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
-                {view === 'Giorno' ? 'Giorno' : 'Settimana'}
+              <span style={{ padding: '0 14px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
+                {getNavLabel(view, weekStart, activeDayStr)}
               </span>
               <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
                 style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
