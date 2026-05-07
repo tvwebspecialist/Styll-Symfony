@@ -1,8 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
-import { Bell, HelpCircle, User as UserIcon } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 interface TopBarSimpleProps {
@@ -29,146 +28,117 @@ function getPageName(pathname: string): string {
   return PAGE_NAMES[lastSegment] ?? 'Dashboard'
 }
 
-function computeInitials(fullName: string | null | undefined): string {
-  if (!fullName) return ''
-  const parts = fullName.trim().split(/\s+/).slice(0, 2)
-  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('')
-}
-
 export function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
   const pathname = usePathname() ?? ''
   const [imgError, setImgError] = React.useState(false)
   const pageName = getPageName(pathname)
-  const isSettings = pathname.includes('/impostazioni')
-  const initials = computeInitials(fullName)
+  const firstLetter = fullName ? fullName.trim()[0]?.toUpperCase() ?? '' : ''
   const showImage = !!avatarUrl && !imgError
 
-  return (
-    <div
-      className="mobile-only"
-      style={{
-        display: 'none',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 100,
-        background: '#FFFFFF',
-        borderBottom: '1px solid #F0F0F0',
-        paddingTop: 'max(12px, env(safe-area-inset-top))',
-        paddingBottom: 12,
-        paddingLeft: 'max(16px, env(safe-area-inset-left))',
-        paddingRight: 'max(16px, env(safe-area-inset-right))',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+  // TODO: help button for /impostazioni
+  // const isSettings = pathname.includes('/impostazioni')
 
-        {/* Avatar */}
-        <Link
-          href="/profilo"
-          aria-label="Profilo"
+  return (
+    <div className="mobile-only topbar-glass" style={{ display: 'none' }}>
+      {/* Inner row — padding and flex layout live here, NOT on the glass shell */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'relative',
+          paddingLeft: 20,
+          paddingRight: 20,
+          paddingTop: 12,
+          paddingBottom: 14,
+        }}
+      >
+      {/* Avatar */}
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl as string}
+          alt="Avatar"
+          referrerPolicy="no-referrer"
+          onError={() => setImgError(true)}
           style={{
             width: 36,
             height: 36,
             borderRadius: '50%',
-            background: '#E9E9E9',
+            border: '2px solid rgba(255,255,255,0.8)',
+            objectFit: 'cover',
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            background: '#e5e5e5',
+            color: '#555',
+            fontSize: 16,
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
-            textDecoration: 'none',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#222222',
+            border: '2px solid rgba(255,255,255,0.8)',
             flexShrink: 0,
           }}
         >
-          {showImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl as string}
-              alt="Avatar"
-              referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-            />
-          ) : initials ? (
-            <span style={{ lineHeight: 1, display: 'block' }}>{initials}</span>
-          ) : (
-            <UserIcon size={18} color="#222222" />
-          )}
-        </Link>
-
-        {/* Page title */}
-        <h1
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            margin: 0,
-            fontSize: 16,
-            fontWeight: 600,
-            color: '#222222',
-            fontFamily: 'Outfit, sans-serif',
-            letterSpacing: '-0.3px',
-          }}
-        >
-          {pageName}
-        </h1>
-
-        {/* Right actions: Help (settings only) + Bell */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {isSettings && (
-            <button
-              type="button"
-              aria-label="Aiuto"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: '#F5F5F5',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <HelpCircle size={18} color="#555555" />
-            </button>
-          )}
-          <button
-            type="button"
-            aria-label="Notifiche"
-            style={{
-              position: 'relative',
-              width: 36,
-              height: 36,
-              borderRadius: '50%',
-              background: '#F5F5F5',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <Bell size={18} color="#222222" />
-            <span
-              style={{
-                position: 'absolute',
-                top: 7,
-                right: 7,
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: '#DC2626',
-                border: '1.5px solid #FFFFFF',
-              }}
-            />
-          </button>
+          {firstLetter}
         </div>
+      )}
 
-      </div>
+      {/* Page title — absolutely centred so it stays visually centred regardless of side element widths */}
+      <span
+        style={{
+          position: 'absolute',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: 17,
+          fontWeight: 600,
+          color: '#1a1a1a',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {pageName}
+      </span>
+
+      {/* Bell button */}
+      <button
+        type="button"
+        aria-label="Notifiche"
+        style={{
+          position: 'relative',
+          background: 'rgba(0,0,0,0.06)',
+          border: 'none',
+          borderRadius: '50%',
+          width: 36,
+          height: 36,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        <Bell size={18} color="#1a1a1a" />
+        {/* Badge — always visible (not yet wired to real data) */}
+        <span
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: '#ef4444',
+          }}
+        />
+      </button>
     </div>
+  </div>
   )
 }
