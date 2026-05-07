@@ -17,6 +17,7 @@ export interface CalendarioAppointment {
     id: string
     name: string
     category: string | null
+    color: string | null
     duration_minutes: number
   }>
 }
@@ -63,6 +64,7 @@ type RawApptService = {
     id: string
     name: string
     category: string | null
+    color: string | null
     duration_minutes: number
   } | null
 }
@@ -96,7 +98,7 @@ export async function getCalendarioData(
   let apptQuery = db
     .from('appointments')
     .select(
-      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(services(id, name, category, duration_minutes))'
+      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(services(id, name, category, color, duration_minutes))'
     )
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
@@ -146,6 +148,7 @@ export async function getCalendarioData(
         id: as.services!.id,
         name: as.services!.name,
         category: as.services!.category,
+        color: as.services!.color,
         duration_minutes: as.services!.duration_minutes,
       })),
   }))
