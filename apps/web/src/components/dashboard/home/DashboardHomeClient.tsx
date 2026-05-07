@@ -3,6 +3,7 @@
 import * as React from 'react'
 import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { KPIRow } from './KPIRow'
+import { MiniCalendar } from './MiniCalendar'
 import { NextAppointmentCard } from './NextAppointmentCard'
 import { AgendaList } from './AgendaList'
 import { ChurnAlert } from './ChurnAlert'
@@ -14,23 +15,21 @@ interface Props {
   basePath: string
 }
 
-function getGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 12) return 'Buongiorno'
-  if (h < 18) return 'Buon pomeriggio'
-  return 'Buonasera'
-}
-
-function todayFull(): string {
-  return new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
+function getDynamicSummary(appointmentsCount: number, totalPrice: number): string {
+  const apptPart =
+    appointmentsCount === 0
+      ? 'Nessun appuntamento oggi'
+      : appointmentsCount === 1
+        ? '1 appuntamento oggi'
+        : `${appointmentsCount} appuntamenti oggi`
+  const revPart = totalPrice > 0 ? `, €${totalPrice} ricavi stimati` : ''
+  return apptPart + revPart
 }
 
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekSlots, weekStats, atRiskClients } = data
+  const { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, atRiskClients } = data
+  const firstName = staffName ? staffName.split(' ')[0] : null
+  const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
 
   // Next upcoming appointment (not yet completed/cancelled)
   const nextAppt =
@@ -46,33 +45,42 @@ export function DashboardHomeClient({ data, basePath }: Props) {
       <div>
         <p
           style={{
-            fontSize: 24,
-            fontWeight: 500,
+            fontSize: 50,
+            fontWeight: 800,
             color: '#222222',
             margin: 0,
             fontFamily: 'Outfit, sans-serif',
+            letterSpacing: '-1.25px',
+            lineHeight: 1.1,
           }}
         >
-          {getGreeting()}{staffName ? `, ${staffName}` : ''}
+          {firstName ? `Ciao ${firstName}` : 'Ciao'}
         </p>
-        <p style={{ fontSize: 14, color: '#B0B0B0', margin: '4px 0 0', fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize' }}>
-          {capitalize(todayFull())}
+        <p
+          style={{
+            fontSize: 36,
+            fontWeight: 500,
+            color: '#222222',
+            margin: '4px 0 0',
+            fontFamily: 'Outfit, sans-serif',
+            letterSpacing: '-0.9px',
+            lineHeight: '125.735%',
+          }}
+        >
+          {getDynamicSummary(todayAppointments.length, totalPrice)}
         </p>
       </div>
 
       {/* KPI row */}
       <KPIRow appointments={todayAppointments} />
 
-      {/* Row 2: Next appointment + Agenda */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
-        }}
-      >
-        <NextAppointmentCard appointment={nextAppt} basePath={basePath} />
-        <AgendaList appointments={todayAppointments} basePath={basePath} />
+      {/* Row 2: Mini calendar + Next appointment */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <MiniCalendar weekAppointments={weekAppointments} basePath={basePath} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <NextAppointmentCard appointment={nextAppt} basePath={basePath} />
+          <AgendaList appointments={todayAppointments} basePath={basePath} />
+        </div>
       </div>
 
       {/* Row 3: Churn + Heatmap */}
