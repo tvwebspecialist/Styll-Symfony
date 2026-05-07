@@ -58,6 +58,10 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+  /* TopBar glass tokens */
+  --topbar-blur: blur(24px) saturate(200%);
+  --topbar-glass-bg: rgba(248, 250, 252, 0.82);
 }
 
 @theme inline {
@@ -244,7 +248,7 @@
   --topbar-height: 88px;
   --layout-gap: 16px;
   --bottom-nav-height: 80px;
-  --mobile-topbar-height: 72px;
+  --mobile-topbar-height: 88px;
   --sidebar-item-text: #222222;
   --sidebar-item-inactive: #B0B0B0;
   --sidebar-item-active-bg: #222222;
@@ -447,21 +451,19 @@
  * which is already set in layout.tsx via the `viewport` export.
  * ------------------------------------------------------------ */
 .topbar-glass {
-  background: rgba(248, 250, 252, 0.9);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  -webkit-backdrop-filter: var(--topbar-blur);
+  backdrop-filter: var(--topbar-blur);
+  background: var(--topbar-glass-bg);
   border-bottom-left-radius: 20px;
   border-bottom-right-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-@media (prefers-color-scheme: dark) {
-  .topbar-glass {
-    background: rgba(15, 23, 42, 0.9);
-    border-bottom-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  }
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  padding-top: env(safe-area-inset-top);
+  width: 100%;
 }
 
 /* Hide desktop greeting on mobile — TopBarHome glass topbar shows it instead */
