@@ -403,6 +403,44 @@
   .clienti-mobile { display: flex !important; }
 }
 
+/* ─── Dashboard Home — Responsive Typography & Layout ───────
+ * CSS classes for DashboardHomeClient, KPIRow, MiniCalendar.
+ * Media queries override inline styles where needed.
+ * --------------------------------------------------------- */
+
+/* Greeting title: 50px desktop → 28px mobile */
+@media (max-width: 768px) {
+  .dashboard-greeting-title {
+    font-size: 28px !important;
+    letter-spacing: -0.7px !important;
+  }
+  .dashboard-greeting-sub {
+    font-size: 18px !important;
+    letter-spacing: -0.45px !important;
+  }
+  /* Row 2 (mini-cal + agenda): side-by-side → stacked */
+  .dashboard-row2 {
+    grid-template-columns: 1fr !important;
+  }
+  /* KPI pills: smaller value + less padding */
+  .kpi-pill-value {
+    font-size: 18px !important;
+  }
+  .kpi-pill-card {
+    padding: 10px 14px !important;
+  }
+  /* Mini calendar: less padding + smaller day cells */
+  .mini-calendar-wrap {
+    padding: 14px 14px 12px !important;
+  }
+  .mini-calendar-day-label {
+    font-size: 9px !important;
+  }
+  .mini-calendar-day-number {
+    font-size: 15px !important;
+  }
+}
+
 /* ─── Safe Area & Mobile App Utilities ─────────────────────────
  * Supports iOS notch / home indicator via env(safe-area-inset-*)
  * Requires <meta viewport content="viewport-fit=cover">

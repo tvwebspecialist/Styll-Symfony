@@ -16,10 +16,10 @@ const DESKTOP_STYLE: React.CSSProperties = {
 
 const MOBILE_STYLE: React.CSSProperties = {
   margin: 0,
-  paddingTop: 76,
+  paddingTop: 'calc(var(--mobile-topbar-height) + max(4px, env(safe-area-inset-top)))',
   paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
-  paddingLeft: 16,
-  paddingRight: 16,
+  paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))',
+  paddingRight: 'max(16px, env(safe-area-inset-right, 16px))',
   background: 'transparent',
   borderRadius: 0,
   height: 'auto',

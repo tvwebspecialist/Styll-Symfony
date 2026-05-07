@@ -35,6 +35,7 @@ export function KPIRow({ appointments }: KPIRowProps) {
       {pills.map((pill) => (
         <div
           key={pill.label}
+          className="kpi-pill-card"
           style={{
             flex: '1 1 120px',
             background: '#FFFFFF',
@@ -43,7 +44,7 @@ export function KPIRow({ appointments }: KPIRowProps) {
             padding: '14px 20px',
           }}
         >
-          <p style={{ fontSize: 28, fontWeight: 700, color: '#222222', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+          <p className="kpi-pill-value" style={{ fontSize: 28, fontWeight: 700, color: '#222222', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
             {pill.value}
           </p>
           <p style={{ fontSize: 12, color: '#B0B0B0', margin: '4px 0 0', fontFamily: 'Outfit, sans-serif' }}>
