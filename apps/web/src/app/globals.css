@@ -272,6 +272,16 @@
   --divider: #F0F0F0;
 }
 
+/* ─── Mobile / Desktop visibility toggle ─────────────────── */
+.mobile-only  { display: none; }
+.desktop-only { display: flex; }
+
+@media (max-width: 1024px) {
+  .mobile-only  { display: flex !important; }
+  .desktop-only { display: none !important; }
+}
+/* ────────────────────────────────────────────────────────── */
+
 /* ─── Admin (super-admin area) — light only ──────────────────── */
 :root {
   --admin-bg: #F0F0F6;
@@ -307,16 +317,7 @@
   .desktop-sidebar { display: none !important; }
   .desktop-topbar { display: none !important; }
 }
-@media (max-width: 768px) {
-  .mobile-only {
-    display: flex !important;
-  }
-}
-@media (min-width: 769px) {
-  .mobile-only {
-    display: none !important;
-  }
-}
+
 
 @media (max-width: 1024px) {
   .vendite-header {
