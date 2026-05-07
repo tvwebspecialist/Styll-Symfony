@@ -748,10 +748,11 @@ export function CalendarioClient({
 }: Props) {
   const router = useRouter()
 
-  const [isMobile, setIsMobile]     = React.useState(false)
-  const [view, setView]             = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
-  const [detailAppt, setDetailAppt] = React.useState<CalendarioAppointment | null>(null)
-  const [newApptCell, setNewApptCell] = React.useState<{ date: string; hour: number } | null>(null)
+  const [isMobile, setIsMobile]         = React.useState(false)
+  const [view, setView]                 = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
+  const [isTransitioning, setIsTransitioning] = React.useState(false)
+  const [detailAppt, setDetailAppt]     = React.useState<CalendarioAppointment | null>(null)
+  const [newApptCell, setNewApptCell]   = React.useState<{ date: string; hour: number } | null>(null)
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)')
@@ -813,16 +814,21 @@ export function CalendarioClient({
   }
 
   function handleViewChange(v: CalendarView) {
-    setView(v)
-    if (v === 'Giorno') {
-      const p = new URLSearchParams({ day: todayStr })
-      if (selectedStaffId) p.set('staff', selectedStaffId)
-      router.push(`/calendario?${p}`)
-    } else if (v === 'Settimana') {
-      const p = new URLSearchParams({ week: weekStart })
-      if (selectedStaffId) p.set('staff', selectedStaffId)
-      router.push(`/calendario?${p}`)
-    }
+    if (v === view) return
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setView(v)
+      setIsTransitioning(false)
+      if (v === 'Giorno') {
+        const p = new URLSearchParams({ day: todayStr })
+        if (selectedStaffId) p.set('staff', selectedStaffId)
+        router.push(`/calendario?${p}`)
+      } else if (v === 'Settimana') {
+        const p = new URLSearchParams({ week: weekStart })
+        if (selectedStaffId) p.set('staff', selectedStaffId)
+        router.push(`/calendario?${p}`)
+      }
+    }, 150)
   }
 
   function selectStaff(id: string | null) {
@@ -1032,44 +1038,51 @@ export function CalendarioClient({
             </div>
 
             {/* RIGHT: Navigator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 type="button"
                 onClick={() => navigate(-1)}
                 aria-label="Precedente"
                 style={{
                   display: 'flex',
-                  padding: 10,
                   justifyContent: 'center',
                   alignItems: 'center',
                   width: 36,
                   height: 36,
                   border: '1px solid #E5E7EB',
                   borderRadius: 8,
-                  background: 'transparent',
+                  background: '#FFFFFF',
                   cursor: 'pointer',
                   fontSize: 18,
-                  color: '#374151',
+                  color: '#222222',
                   boxSizing: 'border-box',
                   flexShrink: 0,
+                  transition: 'background 200ms ease',
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F5F5' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#FFFFFF' }}
               >
                 ‹
               </button>
               <div style={{
                 display: 'flex',
-                padding: '0 24px',
+                padding: '10px 24px',
                 justifyContent: 'center',
                 alignItems: 'center',
+                background: '#F5F5F5',
+                borderRadius: 10,
                 fontFamily: 'Outfit, sans-serif',
                 fontSize: 14,
                 fontWeight: 500,
                 color: '#222222',
-                minWidth: 90,
+                minWidth: 120,
                 textAlign: 'center',
                 whiteSpace: 'nowrap',
+                opacity: isTransitioning ? 0 : 1,
+                transform: isTransitioning ? 'translateX(-8px)' : 'translateX(0)',
+                transition: 'opacity 300ms ease, transform 300ms ease',
               }}>
-                {getNavLabel(effectiveView, weekStart, activeDayStr)}
+                {view}
               </div>
               <button
                 type="button"
@@ -1077,20 +1090,22 @@ export function CalendarioClient({
                 aria-label="Successiva"
                 style={{
                   display: 'flex',
-                  padding: 10,
                   justifyContent: 'center',
                   alignItems: 'center',
                   width: 36,
                   height: 36,
                   border: '1px solid #E5E7EB',
                   borderRadius: 8,
-                  background: 'transparent',
+                  background: '#FFFFFF',
                   cursor: 'pointer',
                   fontSize: 18,
-                  color: '#374151',
+                  color: '#222222',
                   boxSizing: 'border-box',
                   flexShrink: 0,
+                  transition: 'background 200ms ease',
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F5F5F5' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#FFFFFF' }}
               >
                 ›
               </button>
