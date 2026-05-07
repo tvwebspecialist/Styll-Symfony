@@ -410,6 +410,15 @@ function ApptDetailModal({
         {editing ? (
           <div>
             <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizi</label>
+              {appt.services.map(s => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color || '#888', flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: '#374151' }}>{s.name} · {s.duration_minutes}min</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Stato</label>
               <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} style={inputStyle}>
                 {Object.entries(STATUS_LABELS).map(([val, lbl]) => (
@@ -822,7 +831,7 @@ export function CalendarioClient({
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setDetailAppt(appt) } }}
                 style={{
                   position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
-                  background: todayCol ? blockBg : (col.bg || blockBg), borderRadius: 10, opacity,
+                  background: col.bg || blockBg, borderRadius: 10, opacity,
                   borderLeft: `3px solid ${col.border}`,
                   padding: compact ? '3px 6px' : '6px 8px',
                   cursor: 'pointer', overflow: 'hidden', zIndex: 2,
@@ -843,7 +852,7 @@ export function CalendarioClient({
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <div style={{ width: 26, height: 26, borderRadius: 100, background: todayCol ? '#444' : serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: todayCol ? '#fff' : '#fff', flexShrink: 0 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 100, background: serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {getInitials(appt.client_name)}
                       </div>
                       {isDone ? (
