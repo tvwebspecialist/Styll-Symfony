@@ -18,7 +18,7 @@ import {
 } from '@/lib/actions/calendario'
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const HOUR_HEIGHT = 64
+const HOUR_HEIGHT = 120
 const HOUR_START = 8
 const HOUR_END = 20
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
@@ -801,7 +801,7 @@ export function CalendarioClient({
             const serviceColor = appt.services[0]?.color || '#888888'
             const col = { border: serviceColor, bg: todayCol ? serviceColor : serviceColor + '26' }
             const dur       = getDurationMin(appt)
-            const compact   = height <= 48
+            const compact   = height <= 50
             const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
             const isDone    = appt.status === 'completed' || appt.status === 'cancelled'
             const textDeco  = appt.status === 'cancelled' ? 'line-through' as const : 'none' as const
@@ -843,7 +843,7 @@ export function CalendarioClient({
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 100, background: todayCol ? '#444' : serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: todayCol ? '#fff' : '#fff', flexShrink: 0 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 100, background: todayCol ? '#444' : serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: todayCol ? '#fff' : '#fff', flexShrink: 0 }}>
                         {getInitials(appt.client_name)}
                       </div>
                       {isDone ? (
@@ -865,7 +865,7 @@ export function CalendarioClient({
                     <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
                       {formatTime(appt.start_time)}–{formatTime(appt.end_time)} · {dur}min
                     </div>
-                    {height > 62 && appt.services.length > 0 && (
+                    {appt.services.length > 0 && (
                       <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
                         {appt.services.map((s) => s.name).join(' + ')}
                       </div>
