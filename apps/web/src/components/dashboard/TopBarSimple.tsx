@@ -39,19 +39,20 @@ export function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
   // const isSettings = pathname.includes('/impostazioni')
 
   return (
-    <div
-      className="mobile-only topbar-glass"
-      style={{
-        display: 'none',
-        position: 'relative',
-        paddingLeft: 20,
-        paddingRight: 20,
-        paddingTop: 12,
-        paddingBottom: 14,
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}
-    >
+    <div className="mobile-only topbar-glass" style={{ display: 'none' }}>
+      {/* Inner row — padding and flex layout live here, NOT on the glass shell */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'relative',
+          paddingLeft: 20,
+          paddingRight: 20,
+          paddingTop: 12,
+          paddingBottom: 14,
+        }}
+      >
       {/* Avatar */}
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -138,5 +139,6 @@ export function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
         />
       </button>
     </div>
+  </div>
   )
 }

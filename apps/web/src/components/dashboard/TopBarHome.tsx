@@ -19,20 +19,18 @@ export function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
   const displaySubtitle = ready ? subtitle : ''
 
   return (
-    <div
-      className="mobile-only topbar-glass"
-      style={{ display: 'none', paddingLeft: 20, paddingRight: 20, paddingBottom: 16 }}
-    >
-      {/* ROW 1: avatar left, bell right */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 14,
-          paddingTop: 12,
-        }}
-      >
+    <div className="mobile-only topbar-glass" style={{ display: 'none' }}>
+      {/* Inner wrapper — padding lives here, NOT on the glass shell */}
+      <div style={{ paddingLeft: 20, paddingRight: 20, paddingBottom: 16, paddingTop: 12 }}>
+        {/* ROW 1: avatar left, bell right */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 14,
+          }}
+        >
         {/* Avatar */}
         {showImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -167,5 +165,6 @@ export function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
         </button>
       </div>
     </div>
+  </div>
   )
 }
