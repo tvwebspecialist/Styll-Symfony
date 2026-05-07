@@ -292,7 +292,7 @@ export async function createAppointment(input: {
       end_time: input.endTime,
       notes: input.notes ?? null,
       status: input.status ?? 'confirmed',
-      booking_source: 'manual',
+      booking_source: 'dashboard_owner',
     })
     .select('id')
     .single()
