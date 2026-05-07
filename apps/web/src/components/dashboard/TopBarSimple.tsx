@@ -1,13 +1,7 @@
 'use client'
 
-import * as React from 'react'
 import { Bell } from 'lucide-react'
 import { usePathname } from 'next/navigation'
-
-interface TopBarSimpleProps {
-  fullName?: string | null
-  avatarUrl?: string | null
-}
 
 const PAGE_NAMES: Record<string, string> = {
   calendario: 'Calendario',
@@ -19,28 +13,29 @@ const PAGE_NAMES: Record<string, string> = {
   impostazioni: 'Impostazioni',
   profilo: 'Profilo',
   loyalty: 'Loyalty',
-  app: 'La mia App',
+  app: 'App',
 }
 
-function getPageName(pathname: string): string {
-  const parts = pathname.split('/').filter(Boolean)
-  const lastSegment = parts[parts.length - 1] ?? ''
-  return PAGE_NAMES[lastSegment] ?? 'Dashboard'
+interface TopBarSimpleProps {
+  fullName: string
+  avatarUrl: string | null
 }
 
-export function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
-  const pathname = usePathname() ?? ''
-  const [imgError, setImgError] = React.useState(false)
-  const pageName = getPageName(pathname)
-  const firstLetter = fullName ? fullName.trim()[0]?.toUpperCase() ?? '' : ''
-  const showImage = !!avatarUrl && !imgError
+export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
+  const pathname = usePathname()
+  const segments = pathname.split('/').filter(Boolean)
+  const lastSegment = segments[segments.length - 1] ?? ''
+  const pageTitle = PAGE_NAMES[lastSegment] ?? 'Dashboard'
 
-  // TODO: help button for /impostazioni
-  // const isSettings = pathname.includes('/impostazioni')
+  const initials = fullName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
   return (
-    <div className="mobile-only topbar-glass" style={{ display: 'none' }}>
-      {/* Inner row — padding and flex layout live here, NOT on the glass shell */}
+    <div className="mobile-only topbar-glass">
       <div
         style={{
           display: 'flex',
@@ -49,96 +44,98 @@ export function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
           position: 'relative',
           paddingLeft: 20,
           paddingRight: 20,
-          paddingTop: 12,
-          paddingBottom: 14,
+          paddingTop: 14,
+          paddingBottom: 16,
         }}
       >
-      {/* Avatar */}
-      {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={avatarUrl as string}
-          alt="Avatar"
-          referrerPolicy="no-referrer"
-          onError={() => setImgError(true)}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            border: '2px solid rgba(255,255,255,0.8)',
-            objectFit: 'cover',
-            flexShrink: 0,
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: '#e5e5e5',
-            color: '#555',
-            fontSize: 16,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2px solid rgba(255,255,255,0.8)',
-            flexShrink: 0,
-          }}
-        >
-          {firstLetter}
-        </div>
-      )}
+        {/* AVATAR — left */}
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt={fullName}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2.5px solid rgba(255,255,255,0.9)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              flexShrink: 0,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              border: '2.5px solid rgba(255,255,255,0.9)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              fontSize: 15,
+              fontWeight: 700,
+              color: '#ffffff',
+              letterSpacing: '0.5px',
+            }}
+          >
+            {initials}
+          </div>
+        )}
 
-      {/* Page title — absolutely centred so it stays visually centred regardless of side element widths */}
-      <span
-        style={{
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontSize: 17,
-          fontWeight: 600,
-          color: '#1a1a1a',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {pageName}
-      </span>
-
-      {/* Bell button */}
-      <button
-        type="button"
-        aria-label="Notifiche"
-        style={{
-          position: 'relative',
-          background: 'rgba(0,0,0,0.06)',
-          border: 'none',
-          borderRadius: '50%',
-          width: 36,
-          height: 36,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <Bell size={18} color="#1a1a1a" />
-        {/* Badge — always visible (not yet wired to real data) */}
+        {/* PAGE TITLE — absolute center */}
         <span
           style={{
             position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: '#ef4444',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 17,
+            fontWeight: 700,
+            color: '#111111',
+            letterSpacing: '-0.2px',
+            whiteSpace: 'nowrap',
           }}
-        />
-      </button>
+        >
+          {pageTitle}
+        </span>
+
+        {/* BELL — right */}
+        <button
+          type="button"
+          aria-label="Notifiche"
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.07)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            position: 'relative',
+          }}
+        >
+          <Bell size={20} color="#111111" strokeWidth={1.8} />
+          <span
+            style={{
+              position: 'absolute',
+              top: 9,
+              right: 9,
+              width: 9,
+              height: 9,
+              borderRadius: '50%',
+              background: '#ef4444',
+              border: '1.5px solid rgba(250,251,253,0.9)',
+            }}
+          />
+        </button>
+      </div>
     </div>
-  </div>
   )
 }
