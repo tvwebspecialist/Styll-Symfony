@@ -328,7 +328,7 @@ function ApptDetailModal({
   const [editing, setEditing]       = React.useState(false)
   const [editStatus, setEditStatus] = React.useState(appt.status)
   const [editNotes, setEditNotes]   = React.useState(appt.notes ?? '')
-  const [editServiceIds, setEditServiceIds] = React.useState<string[]>(appt.services.map(s => s.id))
+  const [editServiceId, setEditServiceId]   = React.useState<string>(appt.services[0]?.id ?? '')
   const [saving, setSaving]         = React.useState(false)
   const [saveError, setSaveError]   = React.useState<string | null>(null)
   const [options, setOptions]       = React.useState<FormOptions | null>(null)
@@ -350,7 +350,7 @@ function ApptDetailModal({
     setSaveError(null)
     const res = await updateAppointmentStatus(appt.id, editStatus, editNotes || null)
     if (!res.success) { setSaveError(res.error ?? 'Errore durante il salvataggio'); setSaving(false); return }
-    const svcRes = await updateAppointmentServices(appt.id, editServiceIds, tenantId)
+    const svcRes = await updateAppointmentServices(appt.id, editServiceId ? [editServiceId] : [], tenantId)
     setSaving(false)
     if (!svcRes.success) { setSaveError(svcRes.error ?? 'Errore nell\'aggiornamento servizi'); return }
     onUpdated()
@@ -397,20 +397,20 @@ function ApptDetailModal({
         </div>
 
         {/* Services */}
-        {appt.services.length > 0 && (
-          <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
-            {appt.services.map((s) => {
-              const dotColor = s.color || '#888888'
-              return (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 100, background: dotColor, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, flex: 1 }}>{s.name}</span>
-                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>{s.duration_minutes} min</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
+          {appt.services.length > 0 ? appt.services.map((s) => {
+            const dotColor = s.color || '#888888'
+            return (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+                <div style={{ width: 8, height: 8, borderRadius: 100, background: dotColor, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, flex: 1 }}>{s.name}</span>
+                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{s.duration_minutes} min</span>
+              </div>
+            )
+          }) : (
+            <span style={{ fontSize: 13, color: '#9CA3AF' }}>Nessun servizio associato</span>
+          )}
+        </div>
 
         {/* Time */}
         <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#374151' }}>
@@ -424,23 +424,18 @@ function ApptDetailModal({
           <div>
             {options && options.services.length > 0 && (
               <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizi</label>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizio</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {options.services.map((s) => {
-                    const isChecked = editServiceIds.includes(s.id)
                     const svcColor = s.color || '#888'
                     return (
                       <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 0' }}>
                         <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditServiceIds([...editServiceIds, s.id])
-                            } else {
-                              setEditServiceIds(editServiceIds.filter(id => id !== s.id))
-                            }
-                          }}
+                          type="radio"
+                          name="edit_service"
+                          value={s.id}
+                          checked={editServiceId === s.id}
+                          onChange={() => setEditServiceId(s.id)}
                           style={{ cursor: 'pointer' }}
                         />
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: svcColor, flexShrink: 0 }} />
@@ -845,7 +840,7 @@ export function CalendarioClient({
             const serviceColor = appt.services[0]?.color || '#888888'
             const col = { border: serviceColor, bg: serviceColor + '26' }
             const dur       = getDurationMin(appt)
-            const compact   = height <= 50
+            const compact   = height <= 36
             const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
             const isDone    = appt.status === 'completed' || appt.status === 'cancelled'
             const textDeco  = appt.status === 'cancelled' ? 'line-through' as const : 'none' as const
@@ -909,11 +904,9 @@ export function CalendarioClient({
                     <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
                       {formatTime(appt.start_time)}–{formatTime(appt.end_time)} · {dur}min
                     </div>
-                    {appt.services.length > 0 && (
-                      <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
-                        {appt.services.map((s) => s.name).join(' + ')}
-                      </div>
-                    )}
+                    <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
+                      {appt.services.length > 0 ? appt.services.map((s) => s.name).join(' + ') : '–'}
+                    </div>
                   </>
                 )}
               </div>
