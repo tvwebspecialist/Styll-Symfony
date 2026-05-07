@@ -107,7 +107,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     // This week's appointments for heatmap + mini calendar
     db
       .from('appointments')
-      .select('id, start_time, end_time, status, client_id, clients(full_name), appointment_services(price_at_booking)')
+      .select('id, start_time, end_time, status, client_id, clients(full_name), appointment_services(price_at_booking, services(name))')
       .eq('tenant_id', tenantId)
       .gte('start_time', `${weekMondayStr}T00:00:00`)
       .lte('start_time', `${weekSundayStr}T23:59:59`)
@@ -197,9 +197,10 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     client_count_prev: prevClientIds.size,
   }
 
-  // Week appointments for mini calendar (same shape as TodayAppointment, no service names needed)
+  // Week appointments for mini calendar
   const weekAppointments: TodayAppointment[] = (weekRes.data ?? []).map((appt: any) => {
     const services: any[] = appt.appointment_services ?? []
+    const serviceNames = services.map((s: any) => s.services?.name ?? '').filter(Boolean)
     const totalPrice = services.reduce((sum: number, s: any) => sum + (s.price_at_booking ?? 0), 0)
     return {
       id: appt.id,
@@ -208,7 +209,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       status: appt.status,
       client_id: appt.client_id,
       client_name: appt.clients?.full_name ?? 'Cliente',
-      service_names: [],
+      service_names: serviceNames,
       total_price: totalPrice,
     }
   })
