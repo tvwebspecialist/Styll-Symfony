@@ -16,15 +16,15 @@ const DESKTOP_STYLE: React.CSSProperties = {
 }
 
 /**
- * Home topbar (glass morphism):
- *   paddingTop = max(12px, safe-area) + ~61px content + 12px paddingBottom
- *   ≈ 73px + safe-area → use calc(85px + max(0px, env(safe-area-inset-top)))
+ * Home topbar (glass morphism) — new Apple-style taller layout:
+ *   paddingTop = max(12px, safe-area) + content (28px×1.2 h1 + 16px×1.4 p + 8px gap + 40px search) + 12px paddingBottom
+ *   content ≈ 34 + 22 + 8 + 40 = 104px → total = 116px + max(12px, safe-area)
  *
  * Simple topbar (other pages):
  *   paddingTop = max(12px, safe-area) + ~36px content + 12px paddingBottom
  *   ≈ 60px + safe-area → use calc(64px + max(0px, env(safe-area-inset-top)))
  */
-const MOBILE_HOME_PADDING_TOP = 'calc(85px + max(0px, env(safe-area-inset-top)))'
+const MOBILE_HOME_PADDING_TOP = 'calc(116px + max(12px, env(safe-area-inset-top)))'
 const MOBILE_SIMPLE_PADDING_TOP = 'calc(64px + max(0px, env(safe-area-inset-top)))'
 
 function isHomePage(pathname: string): boolean {
