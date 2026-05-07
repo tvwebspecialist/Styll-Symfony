@@ -18,7 +18,7 @@ export default async function DashboardPage({
   const data = await getDashboardHomeData()
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <DashboardHomeClient data={data} basePath={`/tenant/dashboard/${slug}`} />
     </div>
   )
