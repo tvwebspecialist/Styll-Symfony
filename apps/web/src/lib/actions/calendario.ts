@@ -207,7 +207,7 @@ export async function updateAppointmentStatus(
 export async function getCalendarioFormOptions(tenantId: string): Promise<{
   clients: Array<{ id: string; full_name: string | null }>
   staff: Array<{ id: string; full_name: string | null }>
-  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number }>
+  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
 }> {
   const db = createAdminClient()
 
@@ -226,7 +226,7 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       .is('deleted_at', null),
     db
       .from('services')
-      .select('id, name, duration_minutes, category, price')
+      .select('id, name, duration_minutes, category, price, color')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name'),
@@ -244,6 +244,7 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       duration_minutes: number
       category: string | null
       price: number
+      color: string | null
     }>),
   }
 }
@@ -312,4 +313,51 @@ export async function createAppointment(input: {
   }
 
   return { success: true, appointmentId: appt.id }
+}
+
+export async function updateAppointmentServices(
+  appointmentId: string,
+  serviceIds: string[],
+  tenantId: string
+): Promise<{ success: boolean; error?: string }> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const db = createAdminClient()
+
+  const { data: appt } = await db
+    .from('appointments')
+    .select('tenant_id')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt || appt.tenant_id !== tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  await db.from('appointment_services').delete().eq('appointment_id', appointmentId)
+
+  if (serviceIds.length > 0) {
+    const { data: services } = await db
+      .from('services')
+      .select('id, price')
+      .in('id', serviceIds)
+
+    const rows = serviceIds.map((serviceId) => {
+      const service = services?.find((s) => s.id === serviceId)
+      return {
+        appointment_id: appointmentId,
+        service_id: serviceId,
+        price_at_booking: service?.price ?? 0,
+        tenant_id: tenantId,
+      }
+    })
+
+    const { error } = await db.from('appointment_services').insert(rows)
+    if (error) return { success: false, error: error.message }
+  }
+
+  return { success: true }
 }

@@ -15,6 +15,7 @@ import {
   createAppointment,
   getCalendarioFormOptions,
   getStaffLocations,
+  updateAppointmentServices,
 } from '@/lib/actions/calendario'
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -317,16 +318,26 @@ function ApptDetailModal({
   appt,
   onClose,
   onUpdated,
+  tenantId,
 }: {
   appt: CalendarioAppointment
   onClose: () => void
   onUpdated: () => void
+  tenantId: string
 }) {
   const [editing, setEditing]       = React.useState(false)
   const [editStatus, setEditStatus] = React.useState(appt.status)
   const [editNotes, setEditNotes]   = React.useState(appt.notes ?? '')
+  const [editServiceIds, setEditServiceIds] = React.useState<string[]>(appt.services.map(s => s.id))
   const [saving, setSaving]         = React.useState(false)
   const [saveError, setSaveError]   = React.useState<string | null>(null)
+  const [options, setOptions]       = React.useState<FormOptions | null>(null)
+
+  React.useEffect(() => {
+    getCalendarioFormOptions(tenantId)
+      .then((opts) => setOptions(opts))
+      .catch(() => setOptions(null))
+  }, [tenantId])
 
   const sc  = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
   const col = getCategoryColor(appt.services[0]?.category)
@@ -338,8 +349,10 @@ function ApptDetailModal({
     setSaving(true)
     setSaveError(null)
     const res = await updateAppointmentStatus(appt.id, editStatus, editNotes || null)
+    if (!res.success) { setSaveError(res.error ?? 'Errore durante il salvataggio'); setSaving(false); return }
+    const svcRes = await updateAppointmentServices(appt.id, editServiceIds, tenantId)
     setSaving(false)
-    if (!res.success) { setSaveError(res.error ?? 'Errore durante il salvataggio'); return }
+    if (!svcRes.success) { setSaveError(svcRes.error ?? 'Errore nell\'aggiornamento servizi'); return }
     onUpdated()
     onClose()
   }
@@ -409,15 +422,37 @@ function ApptDetailModal({
         {/* Edit form or action buttons */}
         {editing ? (
           <div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizi</label>
-              {appt.services.map(s => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color || '#888', flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#374151' }}>{s.name} · {s.duration_minutes}min</span>
+            {options && options.services.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizi</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {options.services.map((s) => {
+                    const isChecked = editServiceIds.includes(s.id)
+                    const svcColor = s.color || '#888'
+                    return (
+                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 0' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditServiceIds([...editServiceIds, s.id])
+                            } else {
+                              setEditServiceIds(editServiceIds.filter(id => id !== s.id))
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: svcColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{s.name}</span>
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>{s.duration_minutes}m</span>
+                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>€{s.price}</span>
+                      </label>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Stato</label>
               <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} style={inputStyle}>
@@ -482,7 +517,7 @@ function ApptDetailModal({
 interface FormOptions {
   clients:  Array<{ id: string; full_name: string | null }>
   staff:    Array<{ id: string; full_name: string | null }>
-  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number }>
+  services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
 }
 
 function NewApptModal({
@@ -808,7 +843,7 @@ export function CalendarioClient({
           {dayAppts.map((appt) => {
             const { top, height } = getApptPosition(appt)
             const serviceColor = appt.services[0]?.color || '#888888'
-            const col = { border: serviceColor, bg: todayCol ? serviceColor : serviceColor + '26' }
+            const col = { border: serviceColor, bg: serviceColor + '26' }
             const dur       = getDurationMin(appt)
             const compact   = height <= 50
             const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
@@ -831,7 +866,7 @@ export function CalendarioClient({
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setDetailAppt(appt) } }}
                 style={{
                   position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
-                  background: col.bg || blockBg, borderRadius: 10, opacity,
+                  background: col.bg, borderRadius: 10, opacity,
                   borderLeft: `3px solid ${col.border}`,
                   padding: compact ? '3px 6px' : '6px 8px',
                   cursor: 'pointer', overflow: 'hidden', zIndex: 2,
@@ -1172,6 +1207,7 @@ export function CalendarioClient({
           appt={detailAppt}
           onClose={() => setDetailAppt(null)}
           onUpdated={() => router.refresh()}
+          tenantId={tenantId}
         />
       )}
       {newApptCell && (
