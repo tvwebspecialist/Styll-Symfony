@@ -9,6 +9,7 @@ import { AgendaList } from './AgendaList'
 import { ChurnAlert } from './ChurnAlert'
 import { WeekHeatmap } from './WeekHeatmap'
 import { WeekStats } from './WeekStats'
+import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 
 interface Props {
   data: DashboardHomeData
@@ -31,6 +32,14 @@ export function DashboardHomeClient({ data, basePath }: Props) {
   const firstName = staffName ? staffName.split(' ')[0] : null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
 
+  // Populate the TopBarHome store so the mobile glass topbar shows real data
+  const { setHomeData } = useDashboardHomeStore()
+  React.useEffect(() => {
+    const greeting = firstName ? `Ciao ${firstName}` : 'Ciao'
+    const subtitle = getDynamicSummary(todayAppointments.length, totalPrice)
+    setHomeData(greeting, subtitle)
+  }, [firstName, todayAppointments.length, totalPrice, setHomeData])
+
   // Next upcoming appointment (not yet completed/cancelled)
   const nextAppt =
     todayAppointments.find(
@@ -41,8 +50,8 @@ export function DashboardHomeClient({ data, basePath }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Greeting */}
-      <div>
+      {/* Greeting — hidden on mobile (shown in TopBarHome glass topbar instead) */}
+      <div className="dashboard-home-greeting">
         <p
           className="dashboard-greeting-title"
           style={{
