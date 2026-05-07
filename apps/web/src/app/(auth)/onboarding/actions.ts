@@ -170,7 +170,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
       phone: step1.phone || null,
       is_active: true,
     }
-    const { data: existingLoc } = await db
+    let { data: existingLoc } = await db
       .from('locations')
       .select('id')
       .eq('tenant_id', tenantId)
