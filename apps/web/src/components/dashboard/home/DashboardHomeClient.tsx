@@ -44,6 +44,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
       {/* Greeting */}
       <div>
         <p
+          className="dashboard-greeting-title"
           style={{
             fontSize: 50,
             fontWeight: 800,
@@ -57,6 +58,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
           {firstName ? `Ciao ${firstName}` : 'Ciao'}
         </p>
         <p
+          className="dashboard-greeting-sub"
           style={{
             fontSize: 36,
             fontWeight: 500,
@@ -75,7 +77,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
       <KPIRow appointments={todayAppointments} />
 
       {/* Row 2: Mini calendar + Next appointment */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="dashboard-row2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <MiniCalendar weekAppointments={weekAppointments} basePath={basePath} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <NextAppointmentCard appointment={nextAppt} basePath={basePath} />

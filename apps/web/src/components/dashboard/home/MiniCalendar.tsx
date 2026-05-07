@@ -82,7 +82,7 @@ export function MiniCalendar({ weekAppointments, basePath }: Props) {
   }
 
   return (
-    <div style={{
+    <div className="mini-calendar-wrap" style={{
       background: '#FFFFFF',
       border: '1px solid #E9E9E9',
       borderRadius: 20,
@@ -156,7 +156,7 @@ export function MiniCalendar({ weekAppointments, basePath }: Props) {
                 outlineOffset: -2,
               }}
             >
-              <span style={{
+              <span className="mini-calendar-day-label" style={{
                 fontSize: 11,
                 fontWeight: 500,
                 color: isSelected ? 'rgba(255,255,255,0.6)' : '#9CA3AF',
@@ -165,7 +165,7 @@ export function MiniCalendar({ weekAppointments, basePath }: Props) {
               }}>
                 {DAY_LABELS[i]}
               </span>
-              <span style={{
+              <span className="mini-calendar-day-number" style={{
                 fontSize: 20,
                 fontWeight: 700,
                 color: isSelected ? '#FFFFFF' : '#111827',
