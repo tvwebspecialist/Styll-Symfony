@@ -39,6 +39,7 @@ export interface AtRiskClient {
 export interface DashboardHomeData {
   staffName: string | null
   todayAppointments: TodayAppointment[]
+  weekAppointments: TodayAppointment[]
   weekSlots: WeekSlot[]
   weekStats: WeekStats
   atRiskClients: AtRiskClient[]
@@ -49,6 +50,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const empty: DashboardHomeData = {
     staffName: null,
     todayAppointments: [],
+    weekAppointments: [],
     weekSlots: [],
     weekStats: { revenue: 0, revenue_prev: 0, client_count: 0, client_count_prev: 0 },
     atRiskClients: [],
@@ -102,14 +104,15 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .not('status', 'eq', 'cancelled')
       .order('start_time', { ascending: true }),
 
-    // This week's appointments for heatmap
+    // This week's appointments for heatmap + mini calendar
     db
       .from('appointments')
-      .select('start_time, appointment_services(price_at_booking)')
+      .select('id, start_time, end_time, status, client_id, clients(full_name), appointment_services(price_at_booking)')
       .eq('tenant_id', tenantId)
       .gte('start_time', `${weekMondayStr}T00:00:00`)
       .lte('start_time', `${weekSundayStr}T23:59:59`)
-      .not('status', 'eq', 'cancelled'),
+      .not('status', 'eq', 'cancelled')
+      .order('start_time', { ascending: true }),
 
     // Previous week for stats
     db
@@ -194,6 +197,22 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     client_count_prev: prevClientIds.size,
   }
 
+  // Week appointments for mini calendar (same shape as TodayAppointment, no service names needed)
+  const weekAppointments: TodayAppointment[] = (weekRes.data ?? []).map((appt: any) => {
+    const services: any[] = appt.appointment_services ?? []
+    const totalPrice = services.reduce((sum: number, s: any) => sum + (s.price_at_booking ?? 0), 0)
+    return {
+      id: appt.id,
+      start_time: appt.start_time,
+      end_time: appt.end_time ?? appt.start_time,
+      status: appt.status,
+      client_id: appt.client_id,
+      client_name: appt.clients?.full_name ?? 'Cliente',
+      service_names: [],
+      total_price: totalPrice,
+    }
+  })
+
   // At-risk clients
   const atRiskClients: AtRiskClient[] = (atRiskRes.data ?? []).map((row: any) => ({
     client_id: row.client_id,
@@ -203,5 +222,5 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     churn_status: row.churn_status as 'red' | 'yellow',
   }))
 
-  return { staffName, todayAppointments, weekSlots, weekStats, atRiskClients }
+  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, atRiskClients }
 }

@@ -985,61 +985,35 @@ export function CalendarioClient({
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
-            <h1 style={{
-              margin: 0, fontFamily: 'Outfit, sans-serif',
-              fontSize: 36, fontWeight: 500, color: '#222222',
-              letterSpacing: '-0.9px', lineHeight: 'normal',
-            }}>
-              {effectiveView === 'Giorno' ? getDayLabel(activeDayStr) : getMonthYearLabel(weekStart)}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* View toggle */}
-              <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 100, padding: 3 }}>
-                {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
-                  <button key={v} type="button" onClick={() => handleViewChange(v)}
-                    style={{
-                      padding: '6px 16px', borderRadius: 100, border: 'none',
-                      background: view === v ? '#111827' : 'transparent',
-                      fontSize: 13, fontWeight: view === v ? 600 : 400,
-                      color: view === v ? '#FFF' : '#9CA3AF', cursor: 'pointer',
-                    }}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-              {/* Today button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (effectiveView === 'Giorno') {
-                    const p = new URLSearchParams({ day: todayStr })
-                    if (selectedStaffId) p.set('staff', selectedStaffId)
-                    router.push(`/calendario?${p}`)
-                  } else {
-                    const p = new URLSearchParams({ week: todayStr })
-                    if (selectedStaffId) p.set('staff', selectedStaffId)
-                    router.push(`/calendario?${p}`)
-                  }
-                }}
-                style={{ padding: '6px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                Oggi
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 16 }}>
+            {/* LEFT: view toggle — individual pills */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
+                <button key={v} type="button" onClick={() => handleViewChange(v)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 32, border: 'none', cursor: 'pointer',
+                    fontSize: 14, fontWeight: 500,
+                    background: view === v ? '#111827' : '#F3F4F6',
+                    color: view === v ? '#FFFFFF' : '#111827',
+                    transition: 'background 150ms ease, color 150ms ease',
+                  }}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            {/* RIGHT: navigator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
+                style={{ width: 36, height: 36, borderRadius: 32, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronLeft size={14} color="#374151" />
               </button>
-              {/* Navigator */}
-              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden' }}>
-                <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
-                  style={{ width: 32, height: 32, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <ChevronLeft size={14} color="#374151" />
-                </button>
-                <span style={{ padding: '0 14px', fontSize: 12, fontWeight: 500, color: '#374151', whiteSpace: 'nowrap' }}>
-                  {getNavLabel(effectiveView, weekStart, activeDayStr)}
-                </span>
-                <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
-                  style={{ width: 32, height: 32, border: 'none', borderLeft: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <ChevronRight size={14} color="#374151" />
-                </button>
-              </div>
+              <span style={{ minWidth: 90, textAlign: 'center', padding: '0 8px', fontSize: 14, fontWeight: 500, color: '#111827', whiteSpace: 'nowrap' }}>
+                {getNavLabel(effectiveView, weekStart, activeDayStr)}
+              </span>
+              <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
+                style={{ width: 36, height: 36, borderRadius: 32, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <ChevronRight size={14} color="#374151" />
+              </button>
             </div>
           </div>
         )}
