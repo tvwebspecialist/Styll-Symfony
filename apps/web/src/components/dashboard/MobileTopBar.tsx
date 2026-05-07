@@ -1,8 +1,8 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { TopBarHome } from './TopBarHome'
-import { TopBarSimple } from './TopBarSimple'
+import TopBarHome from './TopBarHome'
+import TopBarSimple from './TopBarSimple'
 
 interface MobileTopBarProps {
   fullName?: string | null
@@ -22,10 +22,12 @@ function isHomePage(pathname: string): boolean {
 
 export function MobileTopBar({ fullName, avatarUrl }: MobileTopBarProps) {
   const pathname = usePathname() ?? ''
+  const name = fullName ?? 'Utente'
+  const avatar = avatarUrl ?? null
 
   if (isHomePage(pathname)) {
-    return <TopBarHome fullName={fullName} avatarUrl={avatarUrl} />
+    return <TopBarHome fullName={name} avatarUrl={avatar} />
   }
 
-  return <TopBarSimple fullName={fullName} avatarUrl={avatarUrl} />
+  return <TopBarSimple fullName={name} avatarUrl={avatar} />
 }
