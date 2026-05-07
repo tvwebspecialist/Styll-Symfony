@@ -985,36 +985,117 @@ export function CalendarioClient({
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0, gap: 16 }}>
-            {/* LEFT: view toggle — individual pills */}
-            <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexShrink: 0 }}>
+
+            {/* LEFT: Month/Year */}
+            <h1 style={{
+              margin: 0,
+              color: '#222222',
+              fontFamily: 'Outfit, sans-serif',
+              fontSize: 36,
+              fontWeight: 500,
+              lineHeight: 'normal',
+              letterSpacing: '-0.9px',
+            }}>
+              {getMonthYearLabel(weekStart)}
+            </h1>
+
+            {/* CENTER: View toggle */}
+            <div style={{ display: 'flex', padding: 10, gap: 10, alignItems: 'center', borderRadius: 10, background: '#F6F6F6' }}>
               {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
-                <button key={v} type="button" onClick={() => handleViewChange(v)}
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => handleViewChange(v)}
                   style={{
-                    padding: '8px 16px', borderRadius: 32, border: 'none', cursor: 'pointer',
-                    fontSize: 14, fontWeight: 500,
-                    background: view === v ? '#111827' : '#F3F4F6',
-                    color: view === v ? '#FFFFFF' : '#111827',
-                    transition: 'background 150ms ease, color 150ms ease',
-                  }}>
+                    display: 'flex',
+                    padding: '0 24px',
+                    width: view === v ? 112 : undefined,
+                    height: 32,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    borderRadius: view === v ? 10 : undefined,
+                    background: view === v ? '#222222' : 'transparent',
+                    color: view === v ? '#FFFFFF' : '#222222',
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    lineHeight: 'normal',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxSizing: 'border-box',
+                  }}
+                >
                   {v}
                 </button>
               ))}
             </div>
-            {/* RIGHT: navigator */}
+
+            {/* RIGHT: Navigator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
-                style={{ width: 36, height: 36, borderRadius: 32, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronLeft size={14} color="#374151" />
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                aria-label="Precedente"
+                style={{
+                  display: 'flex',
+                  padding: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: 36,
+                  height: 36,
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  color: '#374151',
+                  boxSizing: 'border-box',
+                  flexShrink: 0,
+                }}
+              >
+                ‹
               </button>
-              <span style={{ minWidth: 90, textAlign: 'center', padding: '0 8px', fontSize: 14, fontWeight: 500, color: '#111827', whiteSpace: 'nowrap' }}>
+              <div style={{
+                display: 'flex',
+                padding: '0 24px',
+                justifyContent: 'center',
+                alignItems: 'center',
+                fontFamily: 'Outfit, sans-serif',
+                fontSize: 14,
+                fontWeight: 500,
+                color: '#222222',
+                minWidth: 90,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+              }}>
                 {getNavLabel(effectiveView, weekStart, activeDayStr)}
-              </span>
-              <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
-                style={{ width: 36, height: 36, borderRadius: 32, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronRight size={14} color="#374151" />
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(1)}
+                aria-label="Successiva"
+                style={{
+                  display: 'flex',
+                  padding: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: 36,
+                  height: 36,
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  color: '#374151',
+                  boxSizing: 'border-box',
+                  flexShrink: 0,
+                }}
+              >
+                ›
               </button>
             </div>
+
           </div>
         )}
 
