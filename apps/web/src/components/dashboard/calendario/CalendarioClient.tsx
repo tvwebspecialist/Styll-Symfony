@@ -387,10 +387,10 @@ function ApptDetailModal({
         {appt.services.length > 0 && (
           <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
             {appt.services.map((s) => {
-              const sc2 = getCategoryColor(s.category)
+              const dotColor = s.color || '#888888'
               return (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 100, background: sc2.border, flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: 100, background: dotColor, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, flex: 1 }}>{s.name}</span>
                   <span style={{ fontSize: 12, color: '#9CA3AF' }}>{s.duration_minutes} min</span>
                 </div>
@@ -798,7 +798,8 @@ export function CalendarioClient({
 
           {dayAppts.map((appt) => {
             const { top, height } = getApptPosition(appt)
-            const col       = getCategoryColor(appt.services[0]?.category)
+            const serviceColor = appt.services[0]?.color || '#888888'
+            const col = { border: serviceColor, bg: todayCol ? serviceColor : serviceColor + '26' }
             const dur       = getDurationMin(appt)
             const compact   = height <= 48
             const sb        = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
@@ -821,7 +822,7 @@ export function CalendarioClient({
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setDetailAppt(appt) } }}
                 style={{
                   position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
-                  background: blockBg, borderRadius: 10, opacity,
+                  background: todayCol ? blockBg : (col.bg || blockBg), borderRadius: 10, opacity,
                   borderLeft: `3px solid ${col.border}`,
                   padding: compact ? '3px 6px' : '6px 8px',
                   cursor: 'pointer', overflow: 'hidden', zIndex: 2,
@@ -842,7 +843,7 @@ export function CalendarioClient({
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 100, background: todayCol ? '#444' : col.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: todayCol ? '#fff' : col.text, flexShrink: 0 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 100, background: todayCol ? '#444' : serviceColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: todayCol ? '#fff' : '#fff', flexShrink: 0 }}>
                         {getInitials(appt.client_name)}
                       </div>
                       {isDone ? (
