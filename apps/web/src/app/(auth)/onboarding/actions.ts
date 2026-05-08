@@ -91,7 +91,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
     if (profileError) throw new Error('Errore sincronizzazione profilo: ' + profileError.message)
 
     // 1) Find existing owner record (re-run = update, not re-create)
-    const { data: ownerStaff } = await db
+    let { data: ownerStaff } = await db
       .from('staff_members')
       .select('id, tenant_id')
       .eq('profile_id', user.id)
