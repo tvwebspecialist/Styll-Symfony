@@ -1,6 +1,7 @@
 'use client'
 
 import { Bell } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getDashboardSection } from '@/lib/dashboard-path'
 
@@ -46,48 +47,55 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
           position: 'relative',
           paddingLeft: 20,
           paddingRight: 20,
-          paddingTop: 14,
-          paddingBottom: 16,
+          paddingTop: 10,
+          paddingBottom: 12,
         }}
       >
         {/* AVATAR — left */}
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt={fullName}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '2.5px solid rgba(255,255,255,0.9)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-              flexShrink: 0,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-              border: '2.5px solid rgba(255,255,255,0.9)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              fontSize: 15,
-              fontWeight: 700,
-              color: '#ffffff',
-              letterSpacing: '0.5px',
-            }}
-          >
-            {initials}
-          </div>
-        )}
+        <Link
+          href="/profilo"
+          aria-label="Profilo"
+          style={{ display: 'block', borderRadius: '50%', flexShrink: 0 }}
+        >
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt={fullName}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2.5px solid rgba(255,255,255,0.9)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                cursor: 'pointer',
+                display: 'block',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+                border: '2.5px solid rgba(255,255,255,0.9)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 15,
+                fontWeight: 700,
+                color: '#ffffff',
+                letterSpacing: '0.5px',
+                cursor: 'pointer',
+              }}
+            >
+              {initials}
+            </div>
+          )}
+        </Link>
 
         {/* PAGE TITLE — absolute center */}
         <span
