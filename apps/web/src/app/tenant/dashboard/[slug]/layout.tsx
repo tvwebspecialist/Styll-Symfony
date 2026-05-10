@@ -5,7 +5,7 @@ import { MobileTopBar } from '@/components/dashboard/MobileTopBar'
 import { BottomNav } from '@/components/dashboard/BottomNav'
 import { MainContent } from '@/components/dashboard/MainContent'
 import { ImpersonationBanner } from '@/components/dashboard/ImpersonationBanner'
-import { StaffViewBanner } from '@/components/dashboard/StaffViewBanner'
+import { StaffImpersonationBanner } from '@/components/dashboard/StaffImpersonationBanner'
 import { ShadowModeProvider } from '@/lib/hooks/use-shadow-mode'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getImpersonationState, resolveActiveProfile } from '@/lib/tenant-context'
@@ -115,7 +115,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     >
       <div style={{ minHeight: '100vh', background: '#F5F5F5' }}>
         <ImpersonationBanner />
-        <StaffViewBanner />
+        <StaffImpersonationBanner />
         <TopBar
           fullName={displayName}
           avatarUrl={ownerProfile?.avatar_url ?? null}
