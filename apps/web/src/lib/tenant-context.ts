@@ -2,6 +2,62 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
+export const IMPERSONATE_STAFF_COOKIE = 'styll_impersonate_staff'
+
+export interface StaffImpersonationState {
+  active: boolean
+  staffMemberId: string | null
+  staffName: string | null
+  staffRole: string | null
+}
+
+/**
+ * Returns the impersonated staff_member from the cookie,
+ * but only if the current user is an owner or manager of the same tenant.
+ */
+export async function getStaffImpersonationState(): Promise<StaffImpersonationState> {
+  const none: StaffImpersonationState = { active: false, staffMemberId: null, staffName: null, staffRole: null }
+
+  const cookieStore = await cookies()
+  const staffMemberId = cookieStore.get(IMPERSONATE_STAFF_COOKIE)?.value ?? null
+  if (!staffMemberId) return none
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return none
+
+  const db = createAdminClient()
+
+  const { data: targetStaff } = await db
+    .from('staff_members')
+    .select('tenant_id, role, profiles(full_name)')
+    .eq('id', staffMemberId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!targetStaff) return none
+
+  const { data: callerStaff } = await db
+    .from('staff_members')
+    .select('role')
+    .eq('tenant_id', targetStaff.tenant_id)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!callerStaff || !(['owner', 'manager'] as string[]).includes(callerStaff.role)) return none
+
+  const profile = targetStaff.profiles as { full_name?: string | null } | null
+  return {
+    active: true,
+    staffMemberId,
+    staffName: profile?.full_name ?? null,
+    staffRole: targetStaff.role,
+  }
+}
+
 export const IMPERSONATE_COOKIE = 'styll_impersonate_tenant'
 
 /**
