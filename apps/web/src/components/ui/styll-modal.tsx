@@ -40,13 +40,14 @@ export function StyllModal({
       <DialogPrimitive.Portal>
         {/* Backdrop */}
         <DialogPrimitive.Backdrop
-          className="fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+          className="fixed inset-0 isolate z-[200] bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
         />
 
         {/* Popup */}
         <DialogPrimitive.Popup
           className={cn(
-            'fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
+            'styll-modal-popup',
+            'fixed top-1/2 left-1/2 z-[201] -translate-x-1/2 -translate-y-1/2',
             'w-[calc(100vw-2rem)]',
             'flex flex-col',
             'rounded-3xl bg-white shadow-2xl',
@@ -58,6 +59,9 @@ export function StyllModal({
           )}
           style={{ maxWidth }}
         >
+          {/* Drag handle — visible on mobile only */}
+          <div className="styll-modal-drag-handle" aria-hidden="true" />
+
           {/* Header */}
           <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 shrink-0">
             <div className="min-w-0">

@@ -26,6 +26,7 @@
   --color-primary: #000000;
   --color-primary-fg: #ffffff;
   --color-primary-hover: #171717;
+  --color-primary-rgb: 0, 0, 0;
 
   /* Colors - Border */
   --color-border: #e5e5e5;
@@ -249,7 +250,7 @@
   --layout-gap: 16px;
   --bottom-nav-height: 80px;
   --mobile-topbar-height: 88px;
-  --mobile-simple-topbar-height: 96px;
+  --mobile-simple-topbar-height: 82px;
   --mobile-home-topbar-height: 224px;
   --sidebar-item-text: #222222;
   --sidebar-item-inactive: #B0B0B0;
@@ -281,6 +282,15 @@
 @media (max-width: 1024px) {
   .mobile-only  { display: flex !important; }
   .desktop-only { display: none !important; }
+}
+
+/* Block-level show/hide (for table vs card-list switching) */
+.mobile-block  { display: none; }
+.desktop-block { display: block; }
+
+@media (max-width: 1024px) {
+  .mobile-block  { display: flex !important; }   /* card lists use flex */
+  .desktop-block { display: none !important; }
 }
 /* ────────────────────────────────────────────────────────── */
 
@@ -390,31 +400,7 @@
   gap: 8px;
 }
 
-@media (max-width: 1024px) {
-  .clienti-header {
-    flex-direction: column !important;
-  }
-  .clienti-header > div:last-child {
-    width: 100% !important;
-  }
-  .clienti-header > div:last-child button {
-    flex: 1 !important;
-  }
-  .clienti-toolbar {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-  .clienti-filters {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    scrollbar-width: none;
-    margin: 0 -16px;
-    padding: 0 16px;
-  }
-  .clienti-filters::-webkit-scrollbar { display: none; }
-  .clienti-desktop { display: none !important; }
-  .clienti-mobile { display: flex !important; }
-}
+
 
 /* ─── Dashboard Home — Responsive Typography & Layout ───────
  * CSS classes for DashboardHomeClient, KPIRow, MiniCalendar.
@@ -466,6 +452,7 @@
   right: 0;
   z-index: 100;
   width: 100%;
+  height: auto;
   box-sizing: border-box;
   -webkit-backdrop-filter: blur(28px) saturate(210%);
   backdrop-filter: blur(28px) saturate(210%);
@@ -504,11 +491,11 @@
 }
 
 .topbar-glass--simple {
-  min-height: calc(var(--mobile-simple-topbar-height) + env(safe-area-inset-top, 0px));
+  height: auto;
 }
 
 .topbar-glass--home {
-  min-height: calc(var(--mobile-home-topbar-height) + env(safe-area-inset-top, 0px));
+  height: auto;
 }
 
 .mobile-only.topbar-glass {
@@ -624,3 +611,78 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Dashboard page titles — uniform mobile style ──────────────────────────
+ * All dashboard h1.dashboard-page-title get 28px/700/--color-fg/margin:0
+ * on mobile, overriding any inline fontSize that differs (e.g. 22px on Clienti).
+ * ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .dashboard-page-title {
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    color: var(--color-fg) !important;
+    margin: 0 !important;
+  }
+}
+
+/* ─── Aiuto AI Chat animations ───────────────────────────────────────────────── */
+@keyframes aiuto-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes aiuto-dot-bounce {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes aiuto-slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.aiuto-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-fg-muted);
+  animation: aiuto-dot-bounce 1.2s ease-in-out infinite;
+}
+
+/* ─── Modal / Dialog — z-index & mobile bottom sheet ────────────────────────
+ * Backdrops sit at 200, panels at 201 — always above topbar (100) and bottom
+ * nav (50-70). On mobile the panel becomes a detached bottom sheet.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* Drag handle pill — hidden on desktop, shown on mobile inside bottom sheet */
+.styll-modal-drag-handle {
+  display: none;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #D1D5DB;
+  margin: 12px auto 4px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 1024px) {
+  .styll-modal-drag-handle {
+    display: block;
+  }
+
+  /* Bottom-sheet positioning for all modal popups */
+  .styll-modal-popup {
+    top: auto !important;
+    left: 16px !important;
+    right: 16px !important;
+    bottom: 16px !important;
+    transform: none !important;
+    width: calc(100vw - 32px) !important;
+    max-width: none !important;
+    border-radius: 20px !important;
+    max-height: calc(90dvh - 32px) !important;
+  }
+}
+

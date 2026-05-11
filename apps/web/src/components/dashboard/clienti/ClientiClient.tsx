@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Plus, Search, Upload, FileDown, Code, Printer, X } from 'lucide-react'
+import { ChevronRight, MoreHorizontal, Plus, Search, Upload, FileDown, Code, Printer, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ChurnStatus, ClienteRow } from '@/lib/actions/clienti'
 import { createCliente } from '@/lib/actions/clienti'
@@ -30,6 +30,26 @@ const FILTERS: { key: 'all' | ChurnStatus; label: string; color: string }[] = [
   { key: 'danger',   label: 'A rischio',       color: '#DC2626' },
   { key: 'inactive', label: 'Inattivi',        color: '#222222' },
 ]
+
+const CHURN_BORDER: Record<ChurnStatus, string> = {
+  active:   '#16A34A',
+  warning:  '#D97706',
+  danger:   '#DC2626',
+  inactive: '#D1D5DB',
+}
+const CHURN_AVATAR_BG: Record<ChurnStatus, string> = {
+  active:   'rgba(22,163,74,0.1)',
+  warning:  'rgba(217,119,6,0.08)',
+  danger:   'rgba(220,38,38,0.08)',
+  inactive: '#F3F4F6',
+}
+const CHURN_AVATAR_COLOR: Record<ChurnStatus, string> = {
+  active:   '#15803D',
+  warning:  '#92400E',
+  danger:   '#B91C1C',
+  inactive: '#6B7280',
+}
+
 
 function initials(name: string): string {
   return (
@@ -113,6 +133,7 @@ const inputStyle: React.CSSProperties = {
 /* ─── Component ─────────────────────────────────────────────────────────── */
 
 export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
+  const [isMobile,    setIsMobile]    = React.useState(false)
   const [filter,      setFilter]      = React.useState<'all' | ChurnStatus>('all')
   const [query,       setQuery]       = React.useState('')
   const [optionsOpen, setOptionsOpen] = React.useState(false)
@@ -129,6 +150,14 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
   const router     = useRouter()
   const optionsRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    setIsMobile(mql.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
 
   /* Click-outside + Escape for dropdown */
   React.useEffect(() => {
@@ -222,351 +251,457 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* ── Header ── */}
-      <div className="clienti-header">
-        <div>
-          <h1
-            style={{
-              fontSize:   28,
-              fontWeight: 700,
-              color:      '#222222',
-              margin:     0,
-              display:    'flex',
-              alignItems: 'baseline',
-              gap:        10,
-              flexWrap:   'wrap',
-            }}
-          >
-            Elenco dei clienti
-            <span style={{ fontSize: 18, color: '#B0B0B0', fontWeight: 600 }}>{clienti.length}</span>
-          </h1>
-          <p style={{ fontSize: 14, color: '#B0B0B0', margin: '4px 0 0' }}>
-            Gestisci i tuoi clienti, monitora il churn e fidelizzazione.
-          </p>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-          {/* Opzioni + dropdown */}
-          <div ref={optionsRef} style={{ position: 'relative' }}>
-            <button
-              type="button"
-              onClick={() => setOptionsOpen((o) => !o)}
-              style={{
-                padding:      '10px 16px',
-                borderRadius: 12,
-                border:       '1px solid #E9E9E9',
-                background:   '#FFFFFF',
-                fontSize:     14,
-                fontWeight:   500,
-                color:        '#222222',
-                cursor:       'pointer',
-              }}
-            >
-              Opzioni
-            </button>
-
-            {optionsOpen && (
-              <div
+      {isMobile ? (
+        /* ══ MOBILE LAYOUT ═════════════════════════════════════════════════ */
+        <>
+          {/* Compact page header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h1 className="dashboard-page-title" style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>
+                Clienti
+              </h1>
+              <span style={{
+                fontSize: 12, fontWeight: 600, color: 'var(--color-fg-muted)',
+                background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                borderRadius: 100, padding: '2px 8px',
+              }}>
+                {clienti.length}
+              </span>
+            </div>
+            <div ref={optionsRef} style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setOptionsOpen((o) => !o)}
                 style={{
-                  position:     'absolute',
-                  top:          'calc(100% + 6px)',
-                  right:        0,
-                  background:   '#FFFFFF',
-                  border:       '1px solid #F0F0F0',
-                  borderRadius: 12,
-                  boxShadow:    '0 4px 20px rgba(0,0,0,0.08)',
-                  zIndex:       100,
-                  minWidth:     210,
-                  overflow:     'hidden',
-                  padding:      '4px 0',
+                  width: 36, height: 36, borderRadius: 10,
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
                 }}
               >
-                {dropdownItem('import', <Upload size={15} color="#B0B0B0" />, 'Importa clienti', () => { setOptionsOpen(false); setImportOpen(true) })}
-                {dropdownItem('csv',    <FileDown size={15} color="#B0B0B0" />, 'Esporta in CSV',  () => exportClientsToCSV(clienti))}
-                {dropdownItem('json',   <Code size={15} color="#B0B0B0" />,    'Esporta in JSON', () => exportClientsToJSON(clienti))}
-                {dropdownItem('print',  <Printer size={15} color="#B0B0B0" />, 'Stampa elenco',   () => window.print())}
-              </div>
+                <MoreHorizontal size={18} color="var(--color-fg-secondary)" />
+              </button>
+              {optionsOpen && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                  background: '#FFFFFF', border: '1px solid #F0F0F0',
+                  borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                  zIndex: 100, minWidth: 210, overflow: 'hidden', padding: '4px 0',
+                }}>
+                  {dropdownItem('import', <Upload size={15} color="#B0B0B0" />, 'Importa clienti', () => { setOptionsOpen(false); setImportOpen(true) })}
+                  {dropdownItem('csv',    <FileDown size={15} color="#B0B0B0" />, 'Esporta in CSV',  () => exportClientsToCSV(clienti))}
+                  {dropdownItem('json',   <Code size={15} color="#B0B0B0" />,    'Esporta in JSON', () => exportClientsToJSON(clienti))}
+                  {dropdownItem('print',  <Printer size={15} color="#B0B0B0" />, 'Stampa elenco',   () => window.print())}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 16px', borderRadius: 100,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-bg-secondary)',
+            boxShadow: '0 2px 8px rgba(64,79,104,0.06)',
+          }}>
+            <Search size={16} style={{ color: 'var(--color-fg-muted)', flexShrink: 0 }} />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cerca cliente..."
+              style={{
+                border: 'none', background: 'transparent', outline: 'none',
+                fontSize: 14, color: 'var(--color-fg)', width: '100%',
+              }}
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery('')}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
+                <X size={14} color="var(--color-fg-muted)" />
+              </button>
             )}
           </div>
 
-          {/* Aggiungi cliente */}
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+            {FILTERS.map((f) => {
+              const active = filter === f.key
+              const count  = counts[f.key]
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setFilter(f.key)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '7px 14px', borderRadius: 100,
+                    border: active ? 'none' : '1px solid var(--color-border)',
+                    background: active ? 'var(--color-fg)' : 'var(--color-bg)',
+                    color: active ? '#FFFFFF' : 'var(--color-fg-secondary)',
+                    fontSize: 13, fontWeight: active ? 600 : 400,
+                    whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  {f.label}
+                  <span style={{ fontSize: 11, fontWeight: 600, opacity: active ? 0.65 : 0.45 }}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Client list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filtered.length === 0 ? (
+              <div style={{
+                padding: 32, textAlign: 'center', color: 'var(--color-fg-muted)', fontSize: 14,
+                background: 'var(--color-bg)', borderRadius: 14, border: '1px solid var(--color-border)',
+              }}>
+                Nessun cliente trovato.
+              </div>
+            ) : (
+              filtered.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/clienti/${c.id}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '13px 16px',
+                    background: 'var(--color-bg)',
+                    borderRadius: 14,
+                    border: '1px solid var(--color-border)',
+                    borderLeft: `3px solid ${CHURN_BORDER[c.churn]}`,
+                    textDecoration: 'none', color: 'inherit',
+                  }}
+                >
+                  <div style={{
+                    width: 46, height: 46, borderRadius: '50%',
+                    background: CHURN_AVATAR_BG[c.churn],
+                    color: CHURN_AVATAR_COLOR[c.churn],
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15, fontWeight: 700, flexShrink: 0,
+                  }}>
+                    {initials(c.fullName)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.fullName}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--color-fg-muted)', marginTop: 3 }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>{formatLastVisit(c.lastVisit, c.daysSinceLastVisit)}</span>
+                      <span style={{ opacity: 0.35 }}>·</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>{c.totalVisits} visite</span>
+                      <span style={{ opacity: 0.35 }}>·</span>
+                      <span style={{ fontWeight: 600, color: 'var(--color-fg-secondary)', whiteSpace: 'nowrap' }}>{formatEuro(c.totalSpent)}</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} color="var(--color-fg-muted)" style={{ flexShrink: 0 }} />
+                </Link>
+              ))
+            )}
+          </div>
+
+          {/* FAB — Aggiungi cliente */}
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
+            aria-label="Aggiungi cliente"
             style={{
-              display:      'inline-flex',
-              alignItems:   'center',
-              gap:          6,
-              padding:      '10px 16px',
-              borderRadius: 12,
-              border:       'none',
-              background:   '#1A1A1A',
-              fontSize:     14,
-              fontWeight:   600,
-              color:        '#FFFFFF',
-              cursor:       'pointer',
+              position: 'fixed',
+              bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))',
+              right: 20,
+              width: 52, height: 52, borderRadius: 100,
+              background: 'var(--color-fg)', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', zIndex: 40,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
             }}
           >
-            Aggiungi cliente
-            <Plus size={16} />
+            <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
           </button>
-        </div>
-      </div>
-
-      {/* ── Filters + search ── */}
-      <div className="clienti-toolbar">
-        <div className="clienti-filters">
-          {FILTERS.map((f) => {
-            const active = filter === f.key
-            const count  = counts[f.key]
-            return (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFilter(f.key)}
+        </>
+      ) : (
+        /* ══ DESKTOP LAYOUT ════════════════════════════════════════════════ */
+        <>
+          {/* Header */}
+          <div className="clienti-header">
+            <div>
+              <h1
+                className="dashboard-page-title"
                 style={{
-                  display:     'inline-flex',
-                  alignItems:  'center',
-                  gap:         8,
-                  padding:     '6px 14px 6px 6px',
-                  borderRadius: 100,
-                  border:      active ? '1px solid #222222' : '1px solid #E9E9E9',
-                  background:  active ? '#222222' : '#FFFFFF',
-                  color:       active ? '#FFFFFF' : '#222222',
-                  fontSize:    13,
-                  fontWeight:  500,
-                  cursor:      'pointer',
-                  whiteSpace:  'nowrap',
-                  flexShrink:  0,
+                  fontSize:   28,
+                  fontWeight: 700,
+                  color:      '#222222',
+                  margin:     0,
+                  display:    'flex',
+                  alignItems: 'baseline',
+                  gap:        10,
+                  flexWrap:   'wrap',
                 }}
               >
-                <span
+                Elenco dei clienti
+                <span style={{ fontSize: 18, color: '#B0B0B0', fontWeight: 600 }}>{clienti.length}</span>
+              </h1>
+              <p style={{ fontSize: 14, color: '#B0B0B0', margin: '4px 0 0' }}>
+                Gestisci i tuoi clienti, monitora il churn e fidelizzazione.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              {/* Opzioni + dropdown */}
+              <div ref={optionsRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setOptionsOpen((o) => !o)}
                   style={{
-                    width:          22,
-                    height:         22,
-                    borderRadius:   100,
-                    background:     f.color,
-                    display:        'inline-flex',
-                    alignItems:     'center',
-                    justifyContent: 'center',
-                    color:          '#FFFFFF',
-                    fontSize:       11,
-                    fontWeight:     700,
+                    padding:      '10px 16px',
+                    borderRadius: 12,
+                    border:       '1px solid #E9E9E9',
+                    background:   '#FFFFFF',
+                    fontSize:     14,
+                    fontWeight:   500,
+                    color:        '#222222',
+                    cursor:       'pointer',
                   }}
                 >
-                  {count}
-                </span>
-                {f.label}
+                  Opzioni
+                </button>
+
+                {optionsOpen && (
+                  <div
+                    style={{
+                      position:     'absolute',
+                      top:          'calc(100% + 6px)',
+                      right:        0,
+                      background:   '#FFFFFF',
+                      border:       '1px solid #F0F0F0',
+                      borderRadius: 12,
+                      boxShadow:    '0 4px 20px rgba(0,0,0,0.08)',
+                      zIndex:       100,
+                      minWidth:     210,
+                      overflow:     'hidden',
+                      padding:      '4px 0',
+                    }}
+                  >
+                    {dropdownItem('import', <Upload size={15} color="#B0B0B0" />, 'Importa clienti', () => { setOptionsOpen(false); setImportOpen(true) })}
+                    {dropdownItem('csv',    <FileDown size={15} color="#B0B0B0" />, 'Esporta in CSV',  () => exportClientsToCSV(clienti))}
+                    {dropdownItem('json',   <Code size={15} color="#B0B0B0" />,    'Esporta in JSON', () => exportClientsToJSON(clienti))}
+                    {dropdownItem('print',  <Printer size={15} color="#B0B0B0" />, 'Stampa elenco',   () => window.print())}
+                  </div>
+                )}
+              </div>
+
+              {/* Aggiungi cliente */}
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                style={{
+                  display:      'inline-flex',
+                  alignItems:   'center',
+                  gap:          6,
+                  padding:      '10px 16px',
+                  borderRadius: 12,
+                  border:       'none',
+                  background:   '#1A1A1A',
+                  fontSize:     14,
+                  fontWeight:   600,
+                  color:        '#FFFFFF',
+                  cursor:       'pointer',
+                }}
+              >
+                Aggiungi cliente
+                <Plus size={16} />
               </button>
-            )
-          })}
-        </div>
-
-        <div
-          style={{
-            display:      'flex',
-            alignItems:   'center',
-            gap:          8,
-            background:   '#FFFFFF',
-            border:       '1px solid #E9E9E9',
-            borderRadius: 12,
-            padding:      '8px 12px',
-            minWidth:     220,
-          }}
-        >
-          <Search size={16} color="#B0B0B0" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca cliente..."
-            style={{
-              border:     'none',
-              outline:    'none',
-              fontSize:   14,
-              color:      '#222222',
-              background: 'transparent',
-              flex:       1,
-              minWidth:   0,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* ── Desktop table ── */}
-      <div
-        className="clienti-desktop"
-        style={{ background: '#FFFFFF', borderRadius: 16, border: '1px solid #F0F0F0', overflow: 'hidden' }}
-      >
-        <div
-          style={{
-            display:             'grid',
-            gridTemplateColumns: '2.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.4fr',
-            gap:                 16,
-            padding:             '14px 20px',
-            fontSize:            11,
-            fontWeight:          600,
-            textTransform:       'uppercase',
-            letterSpacing:       '0.06em',
-            color:               '#B0B0B0',
-            borderBottom:        '1px solid #F0F0F0',
-            background:          '#FAFAFA',
-          }}
-        >
-          <div>Cliente</div>
-          <div>Stato</div>
-          <div>Ultima visita</div>
-          <div>Frequenza</div>
-          <div>Visite</div>
-          <div>Speso</div>
-          <div></div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#B0B0B0', fontSize: 14 }}>
-            Nessun cliente trovato.
+            </div>
           </div>
-        ) : (
-          filtered.map((c, i) => (
-            <Link
-              key={c.id}
-              href={`/clienti/${c.id}`}
+
+          {/* Filters + search */}
+          <div className="clienti-toolbar">
+            <div className="clienti-filters">
+              {FILTERS.map((f) => {
+                const active = filter === f.key
+                const count  = counts[f.key]
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFilter(f.key)}
+                    style={{
+                      display:     'inline-flex',
+                      alignItems:  'center',
+                      gap:         8,
+                      padding:     '6px 14px 6px 6px',
+                      borderRadius: 100,
+                      border:      active ? '1px solid #222222' : '1px solid #E9E9E9',
+                      background:  active ? '#222222' : '#FFFFFF',
+                      color:       active ? '#FFFFFF' : '#222222',
+                      fontSize:    13,
+                      fontWeight:  500,
+                      cursor:      'pointer',
+                      whiteSpace:  'nowrap',
+                      flexShrink:  0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width:          22,
+                        height:         22,
+                        borderRadius:   100,
+                        background:     f.color,
+                        display:        'inline-flex',
+                        alignItems:     'center',
+                        justifyContent: 'center',
+                        color:          '#FFFFFF',
+                        fontSize:       11,
+                        fontWeight:     700,
+                      }}
+                    >
+                      {count}
+                    </span>
+                    {f.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div
+              style={{
+                display:      'flex',
+                alignItems:   'center',
+                gap:          8,
+                background:   '#FFFFFF',
+                border:       '1px solid #E9E9E9',
+                borderRadius: 12,
+                padding:      '8px 12px',
+                minWidth:     220,
+              }}
+            >
+              <Search size={16} color="#B0B0B0" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cerca cliente..."
+                style={{
+                  border:     'none',
+                  outline:    'none',
+                  fontSize:   14,
+                  color:      '#222222',
+                  background: 'transparent',
+                  flex:       1,
+                  minWidth:   0,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Desktop table */}
+          <div
+            style={{ background: '#FFFFFF', borderRadius: 16, border: '1px solid #F0F0F0', overflow: 'hidden' }}
+          >
+            <div
               style={{
                 display:             'grid',
                 gridTemplateColumns: '2.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.4fr',
                 gap:                 16,
-                alignItems:          'center',
                 padding:             '14px 20px',
-                width:               '100%',
-                background:          '#FFFFFF',
-                borderTop:           i === 0 ? 'none' : '1px solid #F0F0F0',
-                cursor:              'pointer',
-                textAlign:           'left',
-                whiteSpace:          'nowrap',
-                textDecoration:      'none',
-                color:               'inherit',
+                fontSize:            11,
+                fontWeight:          600,
+                textTransform:       'uppercase',
+                letterSpacing:       '0.06em',
+                color:               '#B0B0B0',
+                borderBottom:        '1px solid #F0F0F0',
+                background:          '#FAFAFA',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = '#FAFAFA')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#FFFFFF')}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <div
+              <div>Cliente</div>
+              <div>Stato</div>
+              <div>Ultima visita</div>
+              <div>Frequenza</div>
+              <div>Visite</div>
+              <div>Speso</div>
+              <div></div>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#B0B0B0', fontSize: 14 }}>
+                Nessun cliente trovato.
+              </div>
+            ) : (
+              filtered.map((c, i) => (
+                <Link
+                  key={c.id}
+                  href={`/clienti/${c.id}`}
                   style={{
-                    width:          40,
-                    height:         40,
-                    borderRadius:   100,
-                    background:     '#F0F0F0',
-                    color:          '#222222',
-                    display:        'flex',
-                    alignItems:     'center',
-                    justifyContent: 'center',
-                    fontSize:       13,
-                    fontWeight:     600,
-                    flexShrink:     0,
+                    display:             'grid',
+                    gridTemplateColumns: '2.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.4fr',
+                    gap:                 16,
+                    alignItems:          'center',
+                    padding:             '14px 20px',
+                    width:               '100%',
+                    background:          '#FFFFFF',
+                    borderTop:           i === 0 ? 'none' : '1px solid #F0F0F0',
+                    cursor:              'pointer',
+                    textAlign:           'left',
+                    whiteSpace:          'nowrap',
+                    textDecoration:      'none',
+                    color:               'inherit',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#FAFAFA')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#FFFFFF')}
                 >
-                  {initials(c.fullName)}
-                </div>
-                <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#222222', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.fullName}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <div
+                      style={{
+                        width:          40,
+                        height:         40,
+                        borderRadius:   100,
+                        background:     '#F0F0F0',
+                        color:          '#222222',
+                        display:        'flex',
+                        alignItems:     'center',
+                        justifyContent: 'center',
+                        fontSize:       13,
+                        fontWeight:     600,
+                        flexShrink:     0,
+                      }}
+                    >
+                      {initials(c.fullName)}
+                    </div>
+                    <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#222222', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.fullName}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#B0B0B0', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.email ?? '—'}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: '#B0B0B0', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {c.email ?? '—'}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={CHURN_IMG[c.churn]} alt={CHURN_LABEL[c.churn]} width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: '#222222' }}>{CHURN_LABEL[c.churn]}</span>
                   </div>
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={CHURN_IMG[c.churn]} alt={CHURN_LABEL[c.churn]} width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: '#222222' }}>{CHURN_LABEL[c.churn]}</span>
-              </div>
-
-              <div style={{ fontSize: 13, color: '#222222' }}>{formatLastVisit(c.lastVisit, c.daysSinceLastVisit)}</div>
-              <div style={{ fontSize: 13, color: '#222222' }}>{formatFrequency(c.visitFrequencyDays)}</div>
-              <div style={{ fontSize: 13, color: '#222222' }}>{c.totalVisits}</div>
-              <div style={{ fontSize: 13, color: '#222222', fontWeight: 600 }}>{formatEuro(c.totalSpent)}</div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <ChevronRight size={18} color="#B0B0B0" />
-              </div>
-            </Link>
-          ))
-        )}
-      </div>
-
-      {/* ── Mobile list ── */}
-      <div className="clienti-mobile" style={{ display: 'none', flexDirection: 'column', gap: 10 }}>
-        {filtered.length === 0 ? (
-          <div
-            style={{
-              padding:      32,
-              textAlign:    'center',
-              color:        '#B0B0B0',
-              fontSize:     14,
-              background:   '#FFFFFF',
-              borderRadius: 14,
-              border:       '1px solid #F0F0F0',
-            }}
-          >
-            Nessun cliente trovato.
+                  <div style={{ fontSize: 13, color: '#222222' }}>{formatLastVisit(c.lastVisit, c.daysSinceLastVisit)}</div>
+                  <div style={{ fontSize: 13, color: '#222222' }}>{formatFrequency(c.visitFrequencyDays)}</div>
+                  <div style={{ fontSize: 13, color: '#222222' }}>{c.totalVisits}</div>
+                  <div style={{ fontSize: 13, color: '#222222', fontWeight: 600 }}>{formatEuro(c.totalSpent)}</div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <ChevronRight size={18} color="#B0B0B0" />
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
-        ) : (
-          filtered.map((c) => (
-            <Link
-              key={c.id}
-              href={`/clienti/${c.id}`}
-              style={{
-                display:        'flex',
-                alignItems:     'center',
-                gap:            12,
-                padding:        '14px 14px',
-                background:     '#FFFFFF',
-                borderRadius:   14,
-                border:         '1px solid #F0F0F0',
-                width:          '100%',
-                textAlign:      'left',
-                cursor:         'pointer',
-                textDecoration: 'none',
-                color:          'inherit',
-              }}
-            >
-              <div
-                style={{
-                  width:          44,
-                  height:         44,
-                  borderRadius:   100,
-                  background:     '#F0F0F0',
-                  color:          '#222222',
-                  display:        'flex',
-                  alignItems:     'center',
-                  justifyContent: 'center',
-                  fontSize:       14,
-                  fontWeight:     600,
-                  flexShrink:     0,
-                }}
-              >
-                {initials(c.fullName)}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#222222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {c.fullName}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#B0B0B0', marginTop: 2 }}>
-                  <span>{formatLastVisit(c.lastVisit, c.daysSinceLastVisit)}</span>
-                  <span>•</span>
-                  <span>{c.totalVisits} visite</span>
-                  <span>•</span>
-                  <span style={{ fontWeight: 600, color: '#222222' }}>{formatEuro(c.totalSpent)}</span>
-                </div>
-              </div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={CHURN_IMG[c.churn]} alt={CHURN_LABEL[c.churn]} width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
-              <ChevronRight size={18} color="#B0B0B0" />
-            </Link>
-          ))
-        )}
-      </div>
+        </>
+      )}
 
       {/* ── Modal: Crea cliente ── */}
       {createOpen && (

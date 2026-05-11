@@ -50,7 +50,7 @@ export function MarketingTabs({ tenantId }: MarketingTabsProps) {
         }}
       >
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#222222', margin: 0 }}>
+          <h1 className="dashboard-page-title" style={{ fontSize: 28, fontWeight: 700, color: '#222222', margin: 0 }}>
             Marketing
           </h1>
           <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 4, margin: 0 }}>

@@ -85,7 +85,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
           paddingLeft: 20,
           paddingRight: 20,
           paddingTop: 10,
-          paddingBottom: 12,
+          paddingBottom: 14,
         }}
       >
 

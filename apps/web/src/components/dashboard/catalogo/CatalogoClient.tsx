@@ -1261,6 +1261,7 @@ export function CatalogoClient({
       >
         <div>
           <h1
+            className="dashboard-page-title"
             style={{
               fontSize: 28,
               fontWeight: 700,
@@ -1337,9 +1338,6 @@ export function CatalogoClient({
       <div
         style={{
           display: 'inline-flex',
-          background: 'var(--color-bg-secondary)',
-          borderRadius: 999,
-          padding: 4,
           gap: 4,
           marginBottom: 28,
           alignSelf: 'flex-start',
@@ -1354,13 +1352,13 @@ export function CatalogoClient({
             gap: 7,
             padding: '8px 18px',
             borderRadius: 999,
-            border: 'none',
-            background: activeTab === 'servizi' ? '#1A1A1A' : 'transparent',
+            border: activeTab === 'servizi' ? '1px solid #1A1A1A' : '1px solid #E9E9E9',
+            background: activeTab === 'servizi' ? '#1A1A1A' : '#FFFFFF',
             color: activeTab === 'servizi' ? '#FFFFFF' : 'var(--color-fg-secondary)',
             fontSize: 14,
             fontWeight: 600,
             cursor: 'pointer',
-            transition: 'background 150ms ease, color 150ms ease',
+            transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
             minHeight: 40,
           }}
         >
@@ -1388,13 +1386,13 @@ export function CatalogoClient({
             gap: 7,
             padding: '8px 18px',
             borderRadius: 999,
-            border: 'none',
-            background: activeTab === 'prodotti' ? '#1A1A1A' : 'transparent',
+            border: activeTab === 'prodotti' ? '1px solid #1A1A1A' : '1px solid #E9E9E9',
+            background: activeTab === 'prodotti' ? '#1A1A1A' : '#FFFFFF',
             color: activeTab === 'prodotti' ? '#FFFFFF' : 'var(--color-fg-secondary)',
             fontSize: 14,
             fontWeight: 600,
             cursor: 'pointer',
-            transition: 'background 150ms ease, color 150ms ease',
+            transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
             minHeight: 40,
           }}
         >

@@ -84,37 +84,79 @@ export function Appuntamenti({ tenantId }: { tenantId: string }) {
           subtitle="Gli appuntamenti completati appariranno qui."
         />
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--divider)', textAlign: 'left' }}>
-                <th style={thStyle}>Data</th>
-                <th style={thStyle}>Orario</th>
-                <th style={thStyle}>Cliente</th>
-                <th style={thStyle}>Servizi</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Totale</th>
-                <th style={thStyle}>Stato pagamento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr
-                  key={r.id}
-                  style={{ borderBottom: '1px solid var(--divider)', transition: 'background 80ms ease' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F9F9')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <td style={tdStyle}>{r.date}</td>
-                  <td style={tdStyle}>{r.time}</td>
-                  <td style={tdStyle}>{r.clientName}</td>
-                  <td style={tdStyle}>{r.services.join(', ') || '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{formatEuro(r.totalAmount)}</td>
-                  <td style={tdStyle}>{statusBadge(r.paymentStatus)}</td>
+        <>
+          {/* Desktop table */}
+          <div className="desktop-block" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--divider)', textAlign: 'left' }}>
+                  <th style={thStyle}>Data</th>
+                  <th style={thStyle}>Orario</th>
+                  <th style={thStyle}>Cliente</th>
+                  <th style={thStyle}>Servizi</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Totale</th>
+                  <th style={thStyle}>Stato pagamento</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr
+                    key={r.id}
+                    style={{ borderBottom: '1px solid var(--divider)', transition: 'background 80ms ease' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F9F9F9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td style={tdStyle}>{r.date}</td>
+                    <td style={tdStyle}>{r.time}</td>
+                    <td style={tdStyle}>{r.clientName}</td>
+                    <td style={tdStyle}>{r.services.join(', ') || '—'}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{formatEuro(r.totalAmount)}</td>
+                    <td style={tdStyle}>{statusBadge(r.paymentStatus)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="mobile-block" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {rows.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 12,
+                  border: '1px solid #F0F0F0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                      {r.clientName}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      {r.services.join(', ') || '—'}
+                    </div>
+                  </div>
+                  {statusBadge(r.paymentStatus)}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {r.date} · {r.time}
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {formatEuro(r.totalAmount)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Card>
   )

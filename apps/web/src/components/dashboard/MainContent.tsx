@@ -21,7 +21,7 @@ const DESKTOP_STYLE: React.CSSProperties = {
  *   safe-area + paddingTop(14) + row1(48+16) + row2(~68+16) + row3(44) + paddingBottom(18) ≈ 224px
  *
  * Simple topbar (other pages) — 1-row layout:
- *   safe-area + paddingTop(14) + avatar(44) + paddingBottom(16) ≈ 74px → use 100px for safety
+ *   paddingTop(10) + avatar(44) + paddingBottom(12) = 66px (safe-area added by formula)
  */
 const MOBILE_HOME_PADDING_TOP = 'calc(var(--mobile-home-topbar-height, 224px) + env(safe-area-inset-top, 0px))'
 const MOBILE_SIMPLE_PADDING_TOP = 'calc(var(--mobile-simple-topbar-height, 96px) + env(safe-area-inset-top, 0px))'

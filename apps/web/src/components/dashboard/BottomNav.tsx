@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard,
+  House,
   Calendar,
   Users,
   ShoppingBag,
@@ -29,7 +29,7 @@ interface NavItem {
 }
 
 const MAIN_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true },
+  { label: 'Dashboard', href: '/', icon: House, exact: true },
   { label: 'Calendario', href: '/calendario', icon: Calendar },
   { label: 'Clienti', href: '/clienti', icon: Users },
   { label: 'Vendite', href: '/vendite', icon: ShoppingBag },

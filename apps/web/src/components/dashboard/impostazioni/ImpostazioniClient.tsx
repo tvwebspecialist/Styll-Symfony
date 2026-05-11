@@ -546,7 +546,7 @@ export function ImpostazioniClient({ data }: { data: ImpostazioniData }) {
 
       {/* Page header */}
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>Impostazioni</h1>
+        <h1 className="dashboard-page-title" style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>Impostazioni</h1>
         <p style={{ fontSize: 14, color: 'var(--color-fg-muted)', margin: '4px 0 0' }}>
           Gestisci il tuo profilo, la tua attività e l&apos;abbonamento
         </p>
@@ -573,8 +573,8 @@ export function ImpostazioniClient({ data }: { data: ImpostazioniData }) {
               gap: 7,
               padding: '9px 18px',
               borderRadius: 999,
-              border: 'none',
-              background: activeTab === tab.id ? '#1A1A1A' : 'var(--color-bg-secondary)',
+              border: activeTab === tab.id ? '1px solid #1A1A1A' : '1px solid #E9E9E9',
+              background: activeTab === tab.id ? '#1A1A1A' : '#FFFFFF',
               color: activeTab === tab.id ? '#FFFFFF' : 'var(--color-fg-secondary)',
               fontSize: 14,
               fontWeight: 600,

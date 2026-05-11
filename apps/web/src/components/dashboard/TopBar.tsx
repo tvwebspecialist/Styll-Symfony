@@ -41,6 +41,18 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
 export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarProps) {
   const router = useRouter()
   const [imgError, setImgError] = React.useState(false)
+  const [aiutoHref, setAiutoHref] = React.useState('/aiuto')
+
+  // In dev with query-param fallback, preserve _tenant_slug / _tenant_type so
+  // client-side navigation doesn't lose the tenant context.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const slug = params.get('_tenant_slug')
+    const type = params.get('_tenant_type')
+    if (slug && type) {
+      setAiutoHref(`/aiuto?_tenant_slug=${slug}&_tenant_type=${type}`)
+    }
+  }, [])
   const [query, setQuery] = React.useState('')
   const [open, setOpen] = React.useState(false)
   const [results, setResults] = React.useState<SearchResult[]>([])
@@ -302,8 +314,8 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
             marginLeft: 'auto',
           }}
         >
-          <button
-            type="button"
+          <Link
+            href={aiutoHref}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -314,11 +326,12 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
               border: '1px solid #E9E9E9',
               background: '#FFFFFF',
               cursor: 'pointer',
+              textDecoration: 'none',
             }}
           >
             <HelpCircle size={16} color="#222222" />
             <span style={{ fontSize: 13, color: '#222222' }}>Hai bisogno di aiuto?</span>
-          </button>
+          </Link>
 
           <button
             type="button"

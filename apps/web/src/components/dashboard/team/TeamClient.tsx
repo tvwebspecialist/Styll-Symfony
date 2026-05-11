@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Users, Mail, MapPin, X, Pencil, Trash2, UserCheck } from 'lucide-react'
+import { Loader2, Users, Eye } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
@@ -309,13 +309,6 @@ function RemoveModal({ member, onClose }: { member: StaffMemberRow; onClose: () 
 
 // ─── Staff Card ───────────────────────────────────────────────────────────────
 
-const ROLE_BADGE_STYLES: Record<string, { background: string; color: string }> = {
-  owner:        { background: '#FEF3C7', color: '#92400E' },
-  manager:      { background: '#EDE9FE', color: '#5B21B6' },
-  staff:        { background: '#F3F4F6', color: '#374151' },
-  receptionist: { background: '#EFF6FF', color: '#1D4ED8' },
-}
-
 function StaffCard({
   member,
   canEdit,
@@ -333,124 +326,121 @@ function StaffCard({
   onRemove: (m: StaffMemberRow) => void
   onBecomeStaff: (m: StaffMemberRow) => void
 }) {
-  const roleStyle = ROLE_BADGE_STYLES[member.role] ?? { background: '#F3F4F6', color: '#374151' }
+  const [hovered, setHovered] = React.useState(false)
+  const [btnHovered, setBtnHovered] = React.useState(false)
+
+  const showServicesBtn =
+    canEdit && member.role !== 'owner' && member.role !== 'manager'
 
   return (
     <div
-      className="styll-card"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        opacity: member.isActive ? 1 : 0.55,
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 20,
+        aspectRatio: '3 / 4',
+        cursor: 'pointer',
+        boxShadow: hovered
+          ? '0 8px 32px rgba(0,0,0,0.14)'
+          : '0 2px 16px rgba(0,0,0,0.08)',
+        transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+        background: 'var(--color-bg-secondary)',
+        opacity: member.isActive ? 1 : 0.5,
       }}
     >
-      {/* Top row: avatar + info */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-        <Avatar fullName={member.fullName} avatarUrl={member.avatarUrl} size={48} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {member.fullName ?? 'Senza nome'}
-            </p>
-            <RoleBadge role={member.role} />
-          </div>
-          {member.email && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-              <Mail size={12} style={{ color: 'var(--color-fg-muted)', flexShrink: 0 }} />
-              <p style={{ fontSize: 13, color: 'var(--color-fg-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {member.email}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Location pills */}
-      {member.locationNames.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <MapPin size={12} style={{ color: 'var(--color-fg-muted)', flexShrink: 0 }} />
-          {member.locationNames.map((loc) => (
-            <span
-              key={loc}
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--color-fg-secondary)',
-                background: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 999,
-                padding: '2px 8px',
-              }}
-            >
-              {loc}
-            </span>
-          ))}
+      {/* Photo layer */}
+      {member.avatarUrl ? (
+        <img
+          src={member.avatarUrl}
+          alt={member.fullName ?? ''}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'top',
+            transition: 'transform 0.35s ease',
+            transform: hovered ? 'scale(1.04)' : 'scale(1)',
+          }}
+        />
+      ) : (
+        /* Initials fallback */
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #1a1a1a 0%, #404040 100%)',
+            fontSize: 48,
+            fontWeight: 700,
+            color: 'white',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {getInitials(member.fullName)}
         </div>
       )}
 
-      {/* Bottom row: role badge + status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ ...roleStyle, fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999 }}>
-          {ROLE_STYLES[member.role]?.label ?? member.role}
-        </span>
-        <span style={{
-          fontSize: 12, fontWeight: 500, padding: '3px 10px', borderRadius: 999,
-          background: member.isActive ? '#dcfce7' : '#F3F4F6',
-          color: member.isActive ? '#15803d' : '#6B7280',
-        }}>
-          {member.isActive ? 'Attivo' : 'Inattivo'}
-        </span>
-      </div>
+      {/* Info panel */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          right: 12,
+          background: 'var(--color-bg)',
+          borderRadius: 'var(--radius-md)',
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow-md)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          transition: 'transform 0.3s ease',
+          transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        }}
+      >
+        {/* Left: name + role */}
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {member.fullName ?? 'Senza nome'}
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginTop: 3, marginBottom: 0 }}>
+            {ROLE_STYLES[member.role]?.label ?? member.role}
+          </p>
+        </div>
 
-      {/* Action buttons (only for canEdit, not on self for remove/become) */}
-      {canEdit && (
-        <div style={{ display: 'flex', gap: 6, paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
-          {isOwner && !isSelf && (
-            <button
-              type="button"
-              onClick={() => onBecomeStaff(member)}
-              title={`Diventa ${member.fullName ?? 'staff'}`}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                background: '#F0FDF4', color: '#15803d', border: '1px solid #BBF7D0',
-                borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', flex: 1,
-              }}
-            >
-              <UserCheck size={13} />
-              Diventa
-            </button>
-          )}
+        {/* Right: services button */}
+        {showServicesBtn && (
           <button
             type="button"
+            onMouseEnter={() => setBtnHovered(true)}
+            onMouseLeave={() => setBtnHovered(false)}
             onClick={() => onEdit(member)}
-            title="Modifica membro"
+            title="Gestisci servizi"
             style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-              background: '#F9FAFB', color: '#374151', border: '1px solid var(--color-border)',
-              borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', flex: 1,
+              width: 36,
+              height: 36,
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              background: btnHovered ? 'var(--color-primary-hover)' : 'var(--color-primary)',
+              transition: 'background 0.2s ease',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginLeft: 12,
             }}
           >
-            <Pencil size={13} />
-            Modifica
+            <Eye size={15} color="var(--color-primary-fg)" />
           </button>
-          {isOwner && !isSelf && (
-            <button
-              type="button"
-              onClick={() => onRemove(member)}
-              title="Rimuovi dal team"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px',
-                background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-                borderRadius: 8, cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -492,9 +482,11 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
         }}
       >
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>Team</h1>
+          <h1 className="dashboard-page-title" style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>
+            Il tuo team
+          </h1>
           <p style={{ fontSize: 14, color: 'var(--color-fg-muted)', margin: '4px 0 0' }}>
-            Gestisci i membri del tuo staff
+            Gestisci i membri del tuo team e i loro servizi.
           </p>
         </div>
         {canEdit && (
@@ -556,8 +548,8 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: 16,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: 20,
           }}
         >
           {staffMembers.map((member) => (
