@@ -125,10 +125,10 @@ export async function proxy(request: NextRequest) {
 
   // Rotte protette: richiedono auth
   if (isProtected && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('redirectTo', pathname)
-    return NextResponse.redirect(url)
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN!
+    const loginUrl = new URL(`http://${rootDomain}/login`)
+    loginUrl.searchParams.set('redirectTo', pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
   // /admin/*: richiede superadmin

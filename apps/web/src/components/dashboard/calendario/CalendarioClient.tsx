@@ -957,37 +957,65 @@ export function CalendarioClient({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 96px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 66px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
 
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
         {isMobile ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexShrink: 0, gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => {
-                const p = new URLSearchParams({ day: todayStr })
-                if (selectedStaffId) p.set('staff', selectedStaffId)
-                router.push(`/calendario?${p}`)
-              }}
-              style={{ padding: '8px 14px', borderRadius: 100, border: '1px solid #E5E7EB', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-            >
-              Oggi
-            </button>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#222222', flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {getDayLabel(activeDayStr)}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #E5E7EB', borderRadius: 100, background: '#FFF', overflow: 'hidden', flexShrink: 0 }}>
-              <button type="button" onClick={() => navigate(-1)} aria-label="Precedente"
-                style={{ width: 40, height: 40, border: 'none', borderRight: '1px solid #E5E7EB', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronLeft size={16} color="#374151" />
-              </button>
-              <button type="button" onClick={() => navigate(1)} aria-label="Successiva"
-                style={{ width: 40, height: 40, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronRight size={16} color="#374151" />
-              </button>
+          <div style={{ flexShrink: 0, marginBottom: 8 }}>
+            {/* Line 1: full date (muted) */}
+            <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 500, color: 'var(--color-fg-muted)' }}>
+              {(() => {
+                const d = new Date(activeDayStr + 'T12:00:00')
+                return `${d.getDate()} ${MONTHS_IT[d.getMonth()]} ${d.getFullYear()}`
+              })()}
+            </p>
+            {/* Line 2: hero title */}
+            <p style={{ margin: '0 0 10px', fontSize: 26, fontWeight: 700, color: 'var(--color-fg)', lineHeight: 1.1, letterSpacing: '-0.5px' }}>
+              {isToday(activeDayStr) ? 'Oggi' : (() => {
+                const d = new Date(activeDayStr + 'T12:00:00')
+                return `${d.getDate()} ${MONTHS_IT[d.getMonth()]}`
+              })()}
+            </p>
+            {/* Line 3: week strip */}
+            <div style={{ display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 8 }}>
+              {dayDates.map((date) => {
+                const isActive = date === activeDayStr
+                const isTodayDay = date === todayStr
+                const d = new Date(date + 'T12:00:00')
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      const p = new URLSearchParams({ day: date })
+                      if (selectedStaffId) p.set('staff', selectedStaffId)
+                      router.push(`/calendario?${p}`)
+                    }}
+                    style={{
+                      flex: '1 0 auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      padding: '7px 6px',
+                      borderRadius: 10,
+                      border: '1px solid transparent',
+                      background: isActive ? 'var(--color-fg)' : isTodayDay ? 'var(--color-bg-secondary)' : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 500, color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--color-fg-muted)' }}>
+                      {DAYS_ABBR[d.getDay()]}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: isActive || isTodayDay ? 700 : 400, color: isActive ? '#fff' : isTodayDay ? 'var(--color-primary)' : 'var(--color-fg)' }}>
+                      {d.getDate()}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -1007,7 +1035,7 @@ export function CalendarioClient({
             </h1>
 
             {/* CENTER: View toggle */}
-            <div style={{ display: 'flex', padding: 10, gap: 10, alignItems: 'center', borderRadius: 10, background: '#F6F6F6' }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               {(['Giorno', 'Settimana', 'Mese'] as const).map((v) => (
                 <button
                   key={v}
@@ -1015,21 +1043,21 @@ export function CalendarioClient({
                   onClick={() => handleViewChange(v)}
                   style={{
                     display: 'flex',
-                    padding: '0 24px',
-                    width: view === v ? 112 : undefined,
-                    height: 32,
+                    padding: '0 20px',
+                    height: 36,
                     justifyContent: 'center',
                     alignItems: 'center',
-                    borderRadius: view === v ? 10 : undefined,
-                    background: view === v ? '#222222' : 'transparent',
+                    borderRadius: 999,
+                    background: view === v ? '#222222' : '#FFFFFF',
                     color: view === v ? '#FFFFFF' : '#222222',
                     fontFamily: 'Outfit, sans-serif',
                     fontSize: 14,
                     fontWeight: 500,
                     lineHeight: 'normal',
-                    border: 'none',
+                    border: view === v ? '1px solid #222222' : '1px solid #E9E9E9',
                     cursor: 'pointer',
                     boxSizing: 'border-box',
+                    transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
                   }}
                 >
                   {v}
@@ -1155,7 +1183,8 @@ export function CalendarioClient({
             </div>
           ) : effectiveView === 'Giorno' ? (
             <>
-              {/* Day header — single column */}
+              {/* Day header — single column (desktop only) */}
+              {!isMobile && (
               <div style={{ display: 'flex', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
                 <div style={{ width: TIME_COL_W, flexShrink: 0, borderRight: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>Ora</span>
@@ -1182,6 +1211,7 @@ export function CalendarioClient({
                   )}
                 </div>
               </div>
+              )}
               {/* Scrollable single-day grid */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 <div style={{ display: 'flex', position: 'relative' }}>
