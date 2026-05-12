@@ -602,13 +602,16 @@ export function ImportWizard({ onClose, onSubmit, banner, successExtraActions }:
 
   return (
     <div
+      className="styll-modal-overlay"
       onClick={(e) => { if (e.target === e.currentTarget && step !== 4) onClose() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.50)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     >
       <div
+        className="styll-modal-popup"
         onClick={(e) => e.stopPropagation()}
         style={{ background: '#FFFFFF', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.18)' }}
       >
+        <div className="styll-modal-drag-handle" aria-hidden="true" />
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
           <div>

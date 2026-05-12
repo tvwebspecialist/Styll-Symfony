@@ -156,6 +156,15 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
   const [noteText, setNoteText] = React.useState('')
   const [noteError, setNoteError] = React.useState<string | null>(null)
   const [isPending, startTransition] = React.useTransition()
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)')
+    setIsMobile(mql.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
 
   const firstName = cliente.fullName.split(' ')[0]
   const years = yearsAsClient(cliente.clienteSince)
@@ -194,66 +203,69 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         <ChevronLeft size={15} />Tutti i clienti
       </Link>
 
-      <div style={{ background: '#fff', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? 12 : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── 1. HEADER ───────────────────────────────────────────────────────── */}
-        <div style={{ background: 'linear-gradient(170deg, #111 3%, #444 97%)', borderRadius: 20, padding: '28px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-            <div style={{ width: 92, height: 92, borderRadius: '50%', border: '2.5px solid #e8c587', background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#e8c587', flexShrink: 0 }}>
-              {initials(cliente.fullName)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <h1 style={{ margin: 0, fontSize: 42, fontWeight: 700, color: '#fbfbfb', letterSpacing: '-1px', lineHeight: 1.1 }}>
-                {cliente.fullName}
-              </h1>
-              {badges.length > 0 && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {badges.map((b) =>
-                    b.type === 'vip'
-                      ? <VipBadge key={b.label} label={b.label} />
-                      : <GlassBadge key={b.label} label={b.label} icon={<Clock size={10} />} />
-                  )}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 40 }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>{analytics.totalVisits}</div>
-                  <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Visite</div>
-                </div>
-                {analytics.avgDaysBetweenVisits !== null && (
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>
-                      {analytics.avgDaysBetweenVisits} <span style={{ fontWeight: 400, fontSize: 14 }}>gg</span>
-                    </div>
-                    <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Frequenza</div>
+        <div style={{ background: 'linear-gradient(170deg, #111 3%, #444 97%)', borderRadius: 20, padding: isMobile ? '20px 20px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 16 : 24 }}>
+              <div style={{ width: isMobile ? 56 : 92, height: isMobile ? 56 : 92, borderRadius: '50%', border: '2.5px solid #e8c587', background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 18 : 28, fontWeight: 700, color: '#e8c587', flexShrink: 0 }}>
+                {initials(cliente.fullName)}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 8 : 14, minWidth: 0 }}>
+                <h1 style={{ margin: 0, fontSize: isMobile ? 24 : 42, fontWeight: 700, color: '#fbfbfb', letterSpacing: isMobile ? '-0.5px' : '-1px', lineHeight: 1.1, wordBreak: 'break-word' }}>
+                  {cliente.fullName}
+                </h1>
+                {badges.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {badges.map((b) =>
+                      b.type === 'vip'
+                        ? <VipBadge key={b.label} label={b.label} />
+                        : <GlassBadge key={b.label} label={b.label} icon={<Clock size={10} />} />
+                    )}
                   </div>
                 )}
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>€ {analytics.avgSpend}</div>
-                  <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Scontrino</div>
-                </div>
               </div>
             </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {cliente.phone && (
+                <a
+                  href={`tel:${cliente.phone}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 16px' : '10px 20px', borderRadius: 10, background: 'rgba(253,248,242,0.08)', border: '1px solid rgba(253,248,242,0.2)', backdropFilter: 'blur(5px)', color: '#fdf8f2', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
+                >
+                  <Phone size={14} />Chiama
+                </a>
+              )}
+              <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 16px' : '10px 20px', borderRadius: 10, background: '#fdf8f2', border: 'none', color: '#0e0e0e', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <Zap size={14} />Win-back
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
-            {cliente.phone && (
-              <a
-                href={`tel:${cliente.phone}`}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, background: 'rgba(253,248,242,0.08)', border: '1px solid rgba(253,248,242,0.2)', backdropFilter: 'blur(5px)', color: '#fdf8f2', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none' }}
-              >
-                <Phone size={14} />Chiama
-              </a>
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: isMobile ? 24 : 40, paddingTop: 4, borderTop: '1px solid rgba(253,248,242,0.1)' }}>
+            <div>
+              <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>{analytics.totalVisits}</div>
+              <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Visite</div>
+            </div>
+            {analytics.avgDaysBetweenVisits !== null && (
+              <div>
+                <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>
+                  {analytics.avgDaysBetweenVisits} <span style={{ fontWeight: 400, fontSize: 14 }}>gg</span>
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Frequenza</div>
+              </div>
             )}
-            <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, background: '#fdf8f2', border: 'none', color: '#0e0e0e', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              <Zap size={14} />Win-back
-            </button>
+            <div>
+              <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 600, color: '#fdf8f2', letterSpacing: '-0.2px' }}>€ {analytics.avgSpend}</div>
+              <div style={{ fontSize: 10, fontWeight: 400, color: 'rgba(253,248,242,0.7)', letterSpacing: '1px', textTransform: 'uppercase' }}>Scontrino</div>
+            </div>
           </div>
         </div>
 
         {/* ── 2. CHURN ALERT BAR (conditional) ────────────────────────────────── */}
         {analytics.churnStatus !== 'green' && analytics.churnStatus !== 'unknown' && (
-          <div style={{ background: churnBarBg, borderRadius: 16, padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ background: churnBarBg, borderRadius: 16, padding: '16px 20px', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <AlertTriangle size={20} color="#fbbf24" />
               </div>
@@ -265,7 +277,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
                   : 'Non risultano visite completate.'}
               </p>
             </div>
-            <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, background: '#0e0e0e', border: '1px solid #0e0e0e', color: '#fdf8f2', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}>
+            <button style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10, background: '#0e0e0e', border: '1px solid #0e0e0e', color: '#fdf8f2', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'center' : 'flex-start' }}>
               <MessageCircle size={14} />Invia messaggio
             </button>
           </div>
@@ -274,9 +286,9 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         {/* ── 3. KPI ROW ──────────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           {/* Spesa totale — dark */}
-          <div style={{ flex: '1 1 220px', minWidth: 200, height: 160, background: 'linear-gradient(180deg, #1c1c1c 0%, #0e0e0e 100%)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{ flex: isMobile ? '1 1 calc(50% - 7px)' : '1 1 220px', minWidth: isMobile ? 'auto' : 200, height: 160, background: 'linear-gradient(180deg, #1c1c1c 0%, #0e0e0e 100%)', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(253,248,242,0.6)', letterSpacing: '1.1px', textTransform: 'uppercase' }}>Spesa totale</span>
-            <span style={{ fontSize: 48, fontWeight: 500, color: '#fdf8f2', letterSpacing: '-2px', lineHeight: 1 }}>{formatEuro(analytics.totalSpent)}</span>
+            <span style={{ fontSize: isMobile ? 32 : 48, fontWeight: 500, color: '#fdf8f2', letterSpacing: '-2px', lineHeight: 1 }}>{formatEuro(analytics.totalSpent)}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(200,90,71,0.25)', border: '1px solid rgba(253,248,242,0.1)', borderRadius: 999, padding: '4px 10px', alignSelf: 'flex-start' }}>
               <TrendingDown size={11} color="#fdf8f2" />
               <span style={{ fontSize: 11, fontWeight: 600, color: '#fdf8f2' }}>
@@ -286,26 +298,26 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
           </div>
 
           {/* Appuntamenti */}
-          <div style={{ width: 280, height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
+          <div style={{ flex: isMobile ? '1 1 calc(50% - 7px)' : '0 0 280px', height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
             <Calendar size={14} color="#9a968b" style={{ position: 'absolute', top: 16, right: 16 }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#222', letterSpacing: '1.1px', textTransform: 'uppercase' }}>Appuntamenti</span>
-            <span style={{ fontSize: 48, fontWeight: 500, color: '#222', letterSpacing: '-2px', lineHeight: 1 }}>{appuntamenti.length}</span>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <span style={{ padding: '3px 12px', borderRadius: 999, background: '#47c847', fontSize: 11, color: '#fdf8f2', fontWeight: 400 }}>{analytics.completedVisits} completati</span>
-              <span style={{ padding: '3px 12px', borderRadius: 999, background: '#c85a47', fontSize: 11, color: '#fdf8f2', fontWeight: 400 }}>{analytics.cancelledVisits} cancellati</span>
+            <span style={{ fontSize: isMobile ? 32 : 48, fontWeight: 500, color: '#222', letterSpacing: '-2px', lineHeight: 1 }}>{appuntamenti.length}</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ padding: '3px 10px', borderRadius: 999, background: '#47c847', fontSize: 11, color: '#fdf8f2', fontWeight: 400 }}>{analytics.completedVisits} ok</span>
+              <span style={{ padding: '3px 10px', borderRadius: 999, background: '#c85a47', fontSize: 11, color: '#fdf8f2', fontWeight: 400 }}>{analytics.cancelledVisits} ann.</span>
             </div>
           </div>
 
           {/* Scontrino medio */}
-          <div style={{ width: 280, height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
+          <div style={{ flex: isMobile ? '1 1 calc(50% - 7px)' : '0 0 280px', height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
             <ShoppingBag size={14} color="#9a968b" style={{ position: 'absolute', top: 16, right: 16 }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#222', letterSpacing: '1.1px', textTransform: 'uppercase' }}>Scontrino medio</span>
-            <span style={{ fontSize: 48, fontWeight: 500, color: '#222', letterSpacing: '-2px', lineHeight: 1 }}>{analytics.avgSpend} €</span>
+            <span style={{ fontSize: isMobile ? 32 : 48, fontWeight: 500, color: '#222', letterSpacing: '-2px', lineHeight: 1 }}>{analytics.avgSpend} €</span>
             <span style={{ fontSize: 12.5, color: '#5e5e5b' }}>Ultimo: € {analytics.lastApptTotal}</span>
           </div>
 
           {/* Stato Churn (Pulse) */}
-          <div style={{ width: 280, height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
+          <div style={{ flex: isMobile ? '1 1 calc(50% - 7px)' : '0 0 280px', height: 160, background: '#f4f4f4', borderRadius: 20, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={
@@ -321,7 +333,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
             />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#222', letterSpacing: '1.1px', textTransform: 'uppercase' }}>Stato cliente</span>
             <div>
-              <span style={{ fontSize: 32, fontWeight: 700, color: '#222', letterSpacing: '-1px', lineHeight: 1 }}>
+              <span style={{ fontSize: isMobile ? 24 : 32, fontWeight: 700, color: '#222', letterSpacing: '-1px', lineHeight: 1 }}>
                 {
                   analytics.churnStatus === 'green'  ? 'Attivo'     :
                   analytics.churnStatus === 'yellow' ? 'In ritardo' :
@@ -369,7 +381,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
 
         {/* ── PANORAMICA ──────────────────────────────────────────────────────── */}
         {activeTab === 'panoramica' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 420px', gap: 16, alignItems: 'start' }}>
             {/* Left column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Preferenze abituali */}
@@ -537,26 +549,55 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         {/* ── APPUNTAMENTI ────────────────────────────────────────────────────── */}
         {activeTab === 'appuntamenti' && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.5fr 1fr 0.7fr 0.8fr', gap: 12, padding: '12px 20px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9a968b', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-              <div>Data</div><div>Servizi</div><div>Staff</div><div>Totale</div><div>Stato</div>
-            </div>
-            {appuntamenti.length === 0 ? (
-              <EmptyState icon={<Calendar size={40} />} title="Nessun appuntamento" sub="Non ci sono ancora appuntamenti per questo cliente." />
+            {isMobile ? (
+              /* Mobile: card list */
+              appuntamenti.length === 0 ? (
+                <EmptyState icon={<Calendar size={40} />} title="Nessun appuntamento" sub="Non ci sono ancora appuntamenti per questo cliente." />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {appuntamenti.map((a, i) => {
+                    const sc = STATUS_CONFIG[a.status] ?? { bg: '#e5e2d9', color: '#5e5e5b', label: a.status }
+                    return (
+                      <div key={a.id} style={{ padding: '14px 16px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatDateTime(a.startTime)}</span>
+                          <span style={{ padding: '3px 10px', borderRadius: 999, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 500 }}>{sc.label}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>{a.services.length > 0 ? a.services.join(', ') : '—'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 12, color: '#9a968b' }}>{a.staffName}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(a.total)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             ) : (
-              appuntamenti.map((a, i) => {
-                const sc = STATUS_CONFIG[a.status] ?? { bg: '#e5e2d9', color: '#5e5e5b', label: a.status }
-                return (
-                  <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.5fr 1fr 0.7fr 0.8fr', gap: 12, alignItems: 'center', padding: '14px 20px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
-                    <div style={{ fontSize: 13, color: '#222' }}>{formatDateTime(a.startTime)}</div>
-                    <div style={{ fontSize: 13, color: '#222' }}>{a.services.length > 0 ? a.services.join(', ') : '—'}</div>
-                    <div style={{ fontSize: 13, color: '#5e5e5b' }}>{a.staffName}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(a.total)}</div>
-                    <div>
-                      <span style={{ padding: '3px 10px', borderRadius: 999, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 500 }}>{sc.label}</span>
-                    </div>
-                  </div>
-                )
-              })
+              /* Desktop: grid table */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.5fr 1fr 0.7fr 0.8fr', gap: 12, padding: '12px 20px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9a968b', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
+                  <div>Data</div><div>Servizi</div><div>Staff</div><div>Totale</div><div>Stato</div>
+                </div>
+                {appuntamenti.length === 0 ? (
+                  <EmptyState icon={<Calendar size={40} />} title="Nessun appuntamento" sub="Non ci sono ancora appuntamenti per questo cliente." />
+                ) : (
+                  appuntamenti.map((a, i) => {
+                    const sc = STATUS_CONFIG[a.status] ?? { bg: '#e5e2d9', color: '#5e5e5b', label: a.status }
+                    return (
+                      <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '1.8fr 1.5fr 1fr 0.7fr 0.8fr', gap: 12, alignItems: 'center', padding: '14px 20px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
+                        <div style={{ fontSize: 13, color: '#222' }}>{formatDateTime(a.startTime)}</div>
+                        <div style={{ fontSize: 13, color: '#222' }}>{a.services.length > 0 ? a.services.join(', ') : '—'}</div>
+                        <div style={{ fontSize: 13, color: '#5e5e5b' }}>{a.staffName}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(a.total)}</div>
+                        <div>
+                          <span style={{ padding: '3px 10px', borderRadius: 999, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 500 }}>{sc.label}</span>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </>
             )}
           </div>
         )}
@@ -620,40 +661,70 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         {/* ── VENDITE ─────────────────────────────────────────────────────────── */}
         {activeTab === 'vendite' && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.6fr 0.8fr 1fr', gap: 12, padding: '12px 20px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9a968b', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-              <div>Prodotto</div><div>Brand</div><div>Q.tà</div><div>Spesa</div><div>Ultima data</div>
-            </div>
-            {vendite.length === 0 ? (
-              <EmptyState icon={<ShoppingBag size={40} />} title="Nessun prodotto acquistato" sub="Questo cliente non ha ancora acquistato prodotti." />
-            ) : (
-              vendite.map((v, i) => (
-                <div key={v.productId} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.6fr 0.8fr 1fr', gap: 12, alignItems: 'center', padding: '14px 20px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f4f4f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Package size={16} color="#9a968b" />
+            {isMobile ? (
+              /* Mobile: card list */
+              vendite.length === 0 ? (
+                <EmptyState icon={<ShoppingBag size={40} />} title="Nessun prodotto acquistato" sub="Questo cliente non ha ancora acquistato prodotti." />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {vendite.map((v, i) => (
+                    <div key={v.productId} style={{ padding: '14px 16px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f4f4f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Package size={14} color="#9a968b" />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#222', flex: 1, minWidth: 0 }}>{v.productName}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 42 }}>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <span style={{ fontSize: 12, color: '#9a968b' }}>{v.brand ?? '—'}</span>
+                          <span style={{ fontSize: 12, color: '#5e5e5b' }}>Q.tà {v.totalQuantity}</span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(v.totalSpent)}</span>
+                      </div>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#222' }}>{v.productName}</span>
-                  </div>
-                  <div style={{ fontSize: 13, color: '#5e5e5b' }}>{v.brand ?? '—'}</div>
-                  <div style={{ fontSize: 13, color: '#222' }}>{v.totalQuantity}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(v.totalSpent)}</div>
-                  <div style={{ fontSize: 13, color: '#5e5e5b' }}>{v.lastDate ? formatShortDate(v.lastDate) : '—'}</div>
+                  ))}
                 </div>
-              ))
+              )
+            ) : (
+              /* Desktop: grid table */
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.6fr 0.8fr 1fr', gap: 12, padding: '12px 20px', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9a968b', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
+                  <div>Prodotto</div><div>Brand</div><div>Q.tà</div><div>Spesa</div><div>Ultima data</div>
+                </div>
+                {vendite.length === 0 ? (
+                  <EmptyState icon={<ShoppingBag size={40} />} title="Nessun prodotto acquistato" sub="Questo cliente non ha ancora acquistato prodotti." />
+                ) : (
+                  vendite.map((v, i) => (
+                    <div key={v.productId} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.6fr 0.8fr 1fr', gap: 12, alignItems: 'center', padding: '14px 20px', borderTop: i === 0 ? 'none' : '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 10, background: '#f4f4f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Package size={16} color="#9a968b" />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#222' }}>{v.productName}</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#5e5e5b' }}>{v.brand ?? '—'}</div>
+                      <div style={{ fontSize: 13, color: '#222' }}>{v.totalQuantity}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#222' }}>{formatEuro(v.totalSpent)}</div>
+                      <div style={{ fontSize: 13, color: '#5e5e5b' }}>{v.lastDate ? formatShortDate(v.lastDate) : '—'}</div>
+                    </div>
+                  ))
+                )}
+              </>
             )}
           </div>
         )}
 
         {/* ── LOYALTY ─────────────────────────────────────────────────────────── */}
         {activeTab === 'loyalty' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
             {/* Left: summary + transactions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ background: 'linear-gradient(180deg, #1c1c1c 0%, #0e0e0e 100%)', borderRadius: 20, padding: 20, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: -80, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,213,181,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20 }}>
                   <div>
-                    <span style={{ fontSize: 42, fontWeight: 500, color: '#fdf8f2', letterSpacing: '-2px', lineHeight: 1 }}>{loyalty.totalPoints.toLocaleString('it-IT')}</span>
+                    <span style={{ fontSize: isMobile ? 32 : 42, fontWeight: 500, color: '#fdf8f2', letterSpacing: '-2px', lineHeight: 1 }}>{loyalty.totalPoints.toLocaleString('it-IT')}</span>
                     <span style={{ fontSize: 22, fontWeight: 400, color: 'rgba(253,248,242,0.7)', marginLeft: 4 }}>pt totali</span>
                   </div>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.9px', textTransform: 'uppercase', ...tierBadgeStyle(loyalty.tier) }}>

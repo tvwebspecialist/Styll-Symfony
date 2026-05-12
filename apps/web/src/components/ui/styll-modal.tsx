@@ -86,7 +86,7 @@ export function StyllModal({
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-[color:var(--color-border)] mx-6 shrink-0" />
+          <div className="styll-modal-divider h-px bg-[color:var(--color-border)] mx-6 shrink-0" />
 
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">

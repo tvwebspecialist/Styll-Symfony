@@ -120,12 +120,12 @@ function exportClientsToJSON(clienti: ClienteRow[]) {
 
 const inputStyle: React.CSSProperties = {
   width:        '100%',
-  padding:      '10px 12px',
-  borderRadius: 10,
-  border:       '1px solid #E9E9E9',
-  fontSize:     14,
+  padding:      '14px 16px',
+  borderRadius: 12,
+  border:       '1px solid #e5e5e5',
+  fontSize:     15,
   color:        '#222222',
-  background:   '#FFFFFF',
+  background:   '#fafafa',
   outline:      'none',
   boxSizing:    'border-box',
 }
@@ -706,6 +706,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
       {/* ── Modal: Crea cliente ── */}
       {createOpen && (
         <div
+          className="styll-modal-overlay"
           style={{
             position:       'fixed',
             inset:          0,
@@ -718,6 +719,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
           onClick={() => setCreateOpen(false)}
         >
           <div
+            className="styll-modal-popup"
             style={{
               background:   '#FFFFFF',
               borderRadius: 16,
@@ -725,9 +727,11 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
               maxWidth:     480,
               width:        '90%',
               boxShadow:    '0 20px 60px rgba(0,0,0,0.15)',
+              overflowY:    'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="styll-modal-drag-handle" aria-hidden="true" />
             {/* Modal header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222' }}>Nuovo cliente</h2>
@@ -741,10 +745,10 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
             </div>
 
             <form onSubmit={handleCreate}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Nome */}
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: '#222222', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#888', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
                     Nome completo <span style={{ color: '#DC2626' }}>*</span>
                   </label>
                   <input
@@ -759,8 +763,8 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
                 {/* Email */}
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: '#222222', display: 'block', marginBottom: 6 }}>
-                    Email <span style={{ fontSize: 12, color: '#B0B0B0', fontWeight: 400 }}>(opzionale)</span>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#888', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Email <span style={{ fontSize: 12, color: '#B0B0B0', fontWeight: 400, textTransform: 'none' }}>(opzionale)</span>
                   </label>
                   <input
                     type="email"
@@ -773,8 +777,8 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
                 {/* Telefono */}
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: '#222222', display: 'block', marginBottom: 6 }}>
-                    Telefono <span style={{ fontSize: 12, color: '#B0B0B0', fontWeight: 400 }}>(opzionale)</span>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#888', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Telefono <span style={{ fontSize: 12, color: '#B0B0B0', fontWeight: 400, textTransform: 'none' }}>(opzionale)</span>
                   </label>
                   <input
                     type="tel"
@@ -787,7 +791,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
                 {/* Canale preferito */}
                 <div>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: '#222222', display: 'block', marginBottom: 8 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#888', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
                     Canale preferito
                   </label>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -837,8 +841,8 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                     color:       '#222222',
                     padding:     '10px 12px',
                     borderRadius: 10,
-                    border:      '1px solid #E9E9E9',
-                    background:  '#FAFAFA',
+                    border:      '1px solid #e5e5e5',
+                    background:  '#fafafa',
                   }}
                 >
                   <input
@@ -852,17 +856,18 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
               </div>
 
               {/* Footer */}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 24 }}>
                 <button
                   type="button"
                   onClick={() => setCreateOpen(false)}
                   style={{
-                    padding:      '10px 18px',
-                    borderRadius: 10,
-                    border:       '1px solid #E9E9E9',
+                    height:       52,
+                    padding:      '0 20px',
+                    borderRadius: 14,
+                    border:       '1px solid #e5e5e5',
                     background:   '#FFFFFF',
-                    fontSize:     14,
-                    fontWeight:   500,
+                    fontSize:     16,
+                    fontWeight:   600,
                     color:        '#222222',
                     cursor:       'pointer',
                   }}
@@ -873,12 +878,13 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                   type="submit"
                   disabled={creating}
                   style={{
-                    padding:      '10px 20px',
-                    borderRadius: 10,
+                    height:       52,
+                    padding:      '0 24px',
+                    borderRadius: 14,
                     border:       'none',
                     background:   creating ? '#888888' : '#1A1A1A',
-                    fontSize:     14,
-                    fontWeight:   600,
+                    fontSize:     16,
+                    fontWeight:   700,
                     color:        '#FFFFFF',
                     cursor:       creating ? 'not-allowed' : 'pointer',
                     transition:   'background 150ms ease',

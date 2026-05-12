@@ -58,6 +58,7 @@ function DialogContent({
         )}
         {...props}
       >
+        <div className="styll-modal-drag-handle" aria-hidden="true" />
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

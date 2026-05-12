@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Users } from 'lucide-react'
 import type {
   CalendarioAppointment,
   CalendarioData,
@@ -15,8 +15,11 @@ import {
   createAppointment,
   getCalendarioFormOptions,
   getStaffLocations,
+  getStaffIdsWithLocations,
   updateAppointmentServices,
 } from '@/lib/actions/calendario'
+import { CustomSelect } from '@/components/ui/custom-select'
+import { DatePicker } from '@/components/ui/date-picker'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const HOUR_HEIGHT = 120
@@ -26,6 +29,20 @@ const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START
 const TIME_COL_W = 64
 
 const DAYS_FULL = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato']
+
+/** 15-minute time slots from 07:00 to 22:00 */
+const TIME_SLOT_OPTIONS: { value: string; label: string }[] = (() => {
+  const slots = []
+  for (let h = 7; h <= 22; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      if (h === 22 && m > 0) break
+      const hh = String(h).padStart(2, '0')
+      const mm = String(m).padStart(2, '0')
+      slots.push({ value: `${hh}:${mm}`, label: `${hh}:${mm}` })
+    }
+  }
+  return slots
+})()
 const MONTHS_IT = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
@@ -385,13 +402,16 @@ function ApptDetailModal({
 
   return (
     <div
+      className="styll-modal-overlay"
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={onClose}
     >
       <div
+        className="styll-modal-popup"
         onClick={(e) => e.stopPropagation()}
         style={{ background: '#FFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
       >
+        <div className="styll-modal-drag-handle" aria-hidden="true" />
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -471,11 +491,11 @@ function ApptDetailModal({
             )}
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Stato</label>
-              <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)} style={inputStyle}>
-                {Object.entries(STATUS_LABELS).map(([val, lbl]) => (
-                  <option key={val} value={val}>{lbl}</option>
-                ))}
-              </select>
+              <CustomSelect
+                value={editStatus}
+                onChange={(v) => setEditStatus(v)}
+                options={Object.entries(STATUS_LABELS).map(([val, lbl]) => ({ value: val, label: lbl }))}
+              />
             </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Note</label>
@@ -553,30 +573,57 @@ function NewApptModal({
   currentStaffId: string | null
   onCreated: () => void
 }) {
-  const [options, setOptions]           = React.useState<FormOptions | null>(null)
-  const [loadingOptions, setLoading]    = React.useState(true)
-  const [clientId, setClientId]         = React.useState('')
-  const [serviceId, setServiceId]       = React.useState('')
-  const [staffId, setStaffId]           = React.useState(currentStaffId ?? '')
-  const [locationId, setLocationId]     = React.useState('')
-  const [locations, setLocations]       = React.useState<Array<{ id: string; name: string }>>([])
-  const [apptDate, setApptDate]         = React.useState(date)
-  const [apptTime, setApptTime]         = React.useState(`${String(hour).padStart(2, '0')}:00`)
-  const [notes, setNotes]               = React.useState('')
-  const [submitting, setSubmitting]     = React.useState(false)
-  const [error, setError]               = React.useState<string | null>(null)
+  const [isMobile, setIsMobile]               = React.useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches
+  )
+  const [options, setOptions]                 = React.useState<FormOptions | null>(null)
+  const [loadingOptions, setLoading]          = React.useState(true)
+  const [clientId, setClientId]               = React.useState('')
+  const [serviceId, setServiceId]             = React.useState('')
+  const [staffId, setStaffId]                 = React.useState('')
+  const [locationId, setLocationId]           = React.useState('')
+  const [locations, setLocations]             = React.useState<Array<{ id: string; name: string }>>([])
+  const [staffWithLocIds, setStaffWithLocIds] = React.useState<Set<string>>(new Set())
+  const [apptDate, setApptDate]               = React.useState(date)
+  const [apptTime, setApptTime]               = React.useState(`${String(hour).padStart(2, '0')}:00`)
+  const [notes, setNotes]                     = React.useState('')
+  const [submitting, setSubmitting]           = React.useState(false)
+  const [error, setError]                     = React.useState<string | null>(null)
+  const [submitAttempted, setSubmitAttempted] = React.useState(false)
 
-  // Load form options once
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)')
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+
+  // Load form options + discover which staff have at least one location
   React.useEffect(() => {
     getCalendarioFormOptions(tenantId)
-      .then((opts) => {
+      .then(async (opts) => {
+        const allIds  = opts.staff.map((s) => s.id)
+        const withLocs = await getStaffIdsWithLocations(allIds)
+        const locSet  = new Set(withLocs)
         setOptions(opts)
-        if (!currentStaffId && opts.staff[0]) setStaffId(opts.staff[0].id)
+        setStaffWithLocIds(locSet)
         if (opts.services[0]) setServiceId(opts.services[0].id)
+        // Smart default: prefer currentStaffId if it has locations,
+        // else first staff with locations (managers), else leave empty.
+        if (currentStaffId && locSet.has(currentStaffId)) {
+          setStaffId(currentStaffId)
+        } else if (isManagerOrOwner) {
+          const first = opts.staff.find((s) => locSet.has(s.id))
+          if (first) setStaffId(first.id)
+        } else if (currentStaffId) {
+          // Non-manager with no locations — assign their ID so location
+          // effect runs, but warning is deferred until submit attempt.
+          setStaffId(currentStaffId)
+        }
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [tenantId, currentStaffId])
+  }, [tenantId, currentStaffId, isManagerOrOwner])
 
   // Reload locations whenever selected staff changes
   React.useEffect(() => {
@@ -595,15 +642,16 @@ function NewApptModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setSubmitAttempted(true)
     if (!clientId || !serviceId || !staffId) { setError('Seleziona cliente, servizio e staff'); return }
     if (!locationId) { setError('Configura almeno una location per questo membro dello staff'); return }
     setSubmitting(true)
     setError(null)
-    const svc = options?.services.find((s) => s.id === serviceId)
-    const dur = svc?.duration_minutes ?? 60
+    const svc   = options?.services.find((s) => s.id === serviceId)
+    const dur   = svc?.duration_minutes ?? 60
     const start = new Date(`${apptDate}T${apptTime}:00`)
     const end   = new Date(start.getTime() + dur * 60000)
-    const res = await createAppointment({
+    const res   = await createAppointment({
       tenantId, clientId, staffId,
       locationId,
       serviceIds: [serviceId],
@@ -618,104 +666,168 @@ function NewApptModal({
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB',
-    fontSize: 13, color: '#111827', background: '#FFF', outline: 'none', boxSizing: 'border-box',
+    width: '100%', padding: '14px 16px', borderRadius: 12,
+    border: '1px solid #e5e5e5', fontSize: 15, color: '#111827',
+    background: '#fafafa', outline: 'none', boxSizing: 'border-box',
   }
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4,
+    fontSize: 13, fontWeight: 600, color: '#888',
+    display: 'block', marginBottom: 6,
+    letterSpacing: '0.5px', textTransform: 'uppercase',
   }
 
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0,
+    background: 'rgba(0,0,0,0.45)', zIndex: 1000,
+    display: 'flex',
+    alignItems: isMobile ? 'flex-end' : 'center',
+    justifyContent: 'center',
+    padding: isMobile ? 0 : 16,
+  }
+  const sheetStyle: React.CSSProperties = isMobile ? {
+    background: '#FFF', borderRadius: 20,
+    padding: '20px 20px 32px',
+    width: 'calc(100% - 32px)',
+    marginLeft: 16, marginRight: 16, marginBottom: 16,
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.12)',
+    maxHeight: '90vh', overflowY: 'auto',
+  } : {
+    background: '#FFF', borderRadius: 20,
+    padding: 28,
+    width: '100%', maxWidth: 420,
+    boxShadow: '0 24px 64px rgba(0,0,0,0.15)',
+    maxHeight: '90vh', overflowY: 'auto',
+  }
+
+  // Staff dropdown only shows members who have at least one location
+  const staffForDropdown = options?.staff.filter((s) => staffWithLocIds.has(s.id)) ?? []
+
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: '#FFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Nuovo appuntamento</h3>
+    <div style={overlayStyle} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={sheetStyle}>
+
+        {/* Drag handle — mobile only */}
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.15)' }} />
+          </div>
+        )}
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Nuovo appuntamento</h3>
           <button type="button" onClick={onClose}
-            style={{ width: 28, height: 28, borderRadius: 100, border: '1px solid #E9E9E9', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #E9E9E9', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
             <X size={14} color="#374151" />
           </button>
         </div>
 
         {loadingOptions ? (
-          <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '20px 0' }}>Caricamento…</p>
+          <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 14, padding: '24px 0' }}>Caricamento…</p>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Data</label>
-                <input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} style={inputStyle} required />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Date + Time — stack vertically on mobile */}
+              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Data</label>
+                  <DatePicker value={apptDate} onChange={setApptDate} placeholder="Seleziona data…" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Ora</label>
+                  <CustomSelect
+                    value={apptTime}
+                    onChange={setApptTime}
+                    options={TIME_SLOT_OPTIONS}
+                    placeholder="Seleziona orario…"
+                  />
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Ora</label>
-                <input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} style={inputStyle} required />
+
+              {/* Client */}
+              <div>
+                <label style={labelStyle}>Cliente</label>
+                <CustomSelect
+                  value={clientId}
+                  onChange={(v) => setClientId(v)}
+                  options={(options?.clients ?? []).map((c) => ({ value: c.id, label: c.full_name ?? 'Cliente senza nome' }))}
+                  placeholder="Seleziona cliente…"
+                />
               </div>
+
+              {/* Service */}
+              <div>
+                <label style={labelStyle}>Servizio</label>
+                <CustomSelect
+                  value={serviceId}
+                  onChange={(v) => setServiceId(v)}
+                  options={(options?.services ?? []).map((s) => ({ value: s.id, label: `${s.name} (${s.duration_minutes} min)` }))}
+                  placeholder="Seleziona servizio…"
+                />
+              </div>
+
+              {/* Staff — managers only, filtered to members who have locations */}
+              {isManagerOrOwner && (
+                <div>
+                  <label style={labelStyle}>Staff</label>
+                  <CustomSelect
+                    value={staffId}
+                    onChange={(v) => setStaffId(v)}
+                    options={staffForDropdown.map((s) => ({ value: s.id, label: s.full_name ?? 'Staff' }))}
+                    placeholder="Seleziona staff…"
+                  />
+                </div>
+              )}
+
+              {/* Location — only shown when multiple are available */}
+              {locations.length > 1 && (
+                <div>
+                  <label style={labelStyle}>Location</label>
+                  <CustomSelect
+                    value={locationId}
+                    onChange={(v) => setLocationId(v)}
+                    options={locations.map((l) => ({ value: l.id, label: l.name }))}
+                  />
+                </div>
+              )}
+
+              {/* No-location warning — deferred until after first save attempt */}
+              {locations.length === 0 && staffId && submitAttempted && (
+                <div style={{ padding: '12px 14px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12 }}>
+                  <p style={{ margin: 0, fontSize: 13, color: '#c2410c' }}>
+                    ⚠️ Questo membro dello staff non ha location assegnate. Configura almeno una location.
+                  </p>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label style={labelStyle}>Note (opzionale)</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Inline error */}
+              {error && <p style={{ margin: 0, fontSize: 13, color: '#dc2626' }}>{error}</p>}
+
+              {/* Submit */}
+              <button type="submit" disabled={submitting}
+                style={{
+                  width: '100%', height: 52, borderRadius: 14,
+                  border: 'none', background: '#111827',
+                  color: '#FFF', fontSize: 16, fontWeight: 700,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting ? 0.6 : 1,
+                }}>
+                {submitting ? 'Creazione…' : 'Crea appuntamento'}
+              </button>
+
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>Cliente</label>
-              <select value={clientId} onChange={(e) => setClientId(e.target.value)} style={inputStyle} required>
-                <option value="">Seleziona cliente…</option>
-                {options?.clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.full_name ?? 'Cliente senza nome'}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>Servizio</label>
-              <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} style={inputStyle} required>
-                <option value="">Seleziona servizio…</option>
-                {options?.services.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.duration_minutes} min)</option>
-                ))}
-              </select>
-            </div>
-            {isManagerOrOwner && (
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Staff</label>
-                <select value={staffId} onChange={(e) => setStaffId(e.target.value)} style={inputStyle} required>
-                  <option value="">Seleziona staff…</option>
-                  {options?.staff.map((s) => (
-                    <option key={s.id} value={s.id}>{s.full_name ?? 'Staff'}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {/* Location selector */}
-            {locations.length === 0 && staffId ? (
-              <div style={{ marginBottom: 12, padding: '10px 12px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8 }}>
-                <p style={{ margin: 0, fontSize: 12, color: '#c2410c' }}>
-                  ⚠️ Questo membro dello staff non ha location assegnate. Configura almeno una location.
-                </p>
-              </div>
-            ) : locations.length > 1 ? (
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Location</label>
-                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} style={inputStyle} required>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
-              </div>
-            ) : null /* single location: auto-assigned, no UI needed */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Note (opzionale)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                style={{ ...inputStyle, resize: 'vertical' }}
-              />
-            </div>
-            {error && <p style={{ margin: '0 0 10px', fontSize: 12, color: '#dc2626' }}>{error}</p>}
-            <button type="submit" disabled={submitting || !locationId}
-              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 14, fontWeight: 600, cursor: (submitting || !locationId) ? 'not-allowed' : 'pointer', opacity: (submitting || !locationId) ? 0.5 : 1 }}>
-              {submitting ? 'Creazione…' : 'Crea appuntamento'}
-            </button>
           </form>
         )}
       </div>
@@ -1142,9 +1254,9 @@ export function CalendarioClient({
           </div>
         )}
 
-        {/* Staff filter pills */}
-        {isManagerOrOwner && data.staff.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', marginBottom: 10, flexShrink: 0, scrollbarWidth: 'none' }}>
+        {/* Staff filter pills — desktop */}
+        {isManagerOrOwner && data.staff.length > 1 && !isMobile && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
             <button type="button" onClick={() => selectStaff(null)} style={{
               padding: '4px 12px', borderRadius: 100,
               border: `1.5px solid ${!selectedStaffId ? '#111827' : '#E5E7EB'}`,
@@ -1166,6 +1278,92 @@ export function CalendarioClient({
                     {s.full_name?.charAt(0).toUpperCase() ?? '?'}
                   </div>
                   {s.full_name ?? 'Staff'}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Staff filter avatar strip — mobile */}
+        {isManagerOrOwner && data.staff.length > 1 && isMobile && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+            paddingLeft: 20,
+            paddingRight: 20,
+            height: 48,
+            flexShrink: 0,
+            marginBottom: 4,
+          } as React.CSSProperties}>
+
+            {/* Tutti pill */}
+            <button
+              type="button"
+              onClick={() => selectStaff(null)}
+              style={{
+                flexShrink:   0,
+                height:       32,
+                padding:      '0 14px',
+                borderRadius: 100,
+                border:       !selectedStaffId ? 'none' : '1.5px solid #D1D5DB',
+                background:   !selectedStaffId ? '#111827' : 'transparent',
+                color:        !selectedStaffId ? '#FFF' : '#9CA3AF',
+                fontSize:     13,
+                fontWeight:   600,
+                cursor:       'pointer',
+                whiteSpace:   'nowrap',
+                transition:   'background 150ms ease, color 150ms ease',
+              }}
+            >
+              Tutti
+            </button>
+
+            {/* Staff avatars */}
+            {data.staff.map((s) => {
+              const active   = selectedStaffId === s.id
+              const dim      = !!selectedStaffId && !active
+              const col      = staffColorMap[s.id] ?? '#374151'
+              const initials = (s.full_name ?? '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => selectStaff(s.id)}
+                  style={{
+                    flexShrink: 0,
+                    width:      36,
+                    height:     36,
+                    borderRadius: '50%',
+                    padding:    0,
+                    border:     'none',
+                    background: 'none',
+                    cursor:     'pointer',
+                    opacity:    dim ? 0.7 : 1,
+                    transition: 'opacity 150ms ease',
+                  }}
+                >
+                  <div style={{
+                    width:        36,
+                    height:       36,
+                    borderRadius: '50%',
+                    background:   col,
+                    display:      'flex',
+                    alignItems:   'center',
+                    justifyContent: 'center',
+                    overflow:     'hidden',
+                    boxShadow:    active ? '0 0 0 2px #fff, 0 0 0 4px #111827' : 'none',
+                    transition:   'box-shadow 150ms ease',
+                  }}>
+                    {s.avatar_url ? (
+                      <img src={s.avatar_url} alt={s.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#FFF', userSelect: 'none' }}>{initials}</span>
+                    )}
+                  </div>
                 </button>
               )
             })}

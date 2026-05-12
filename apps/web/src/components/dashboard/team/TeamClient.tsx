@@ -3,8 +3,9 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Users, Eye } from 'lucide-react'
+import { Loader2, Users, Eye, MoreHorizontal, UserPlus } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
+import { CustomSelect } from '@/components/ui/custom-select'
 import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
 
@@ -144,18 +145,16 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-fg-secondary)' }}>
           Ruolo
         </label>
-        <select
-          className="styll-input"
-          style={{ padding: '10px 12px', fontSize: 15, width: '100%' }}
+        <CustomSelect
           value={role}
-          onChange={(e) => setRole(e.target.value)}
-          disabled={loading}
-        >
-          <option value="owner">Titolare</option>
-          <option value="manager">Manager</option>
-          <option value="staff">Staff</option>
-          <option value="receptionist">Receptionist</option>
-        </select>
+          onChange={setRole}
+          options={[
+            { value: 'owner', label: 'Titolare' },
+            { value: 'manager', label: 'Manager' },
+            { value: 'staff', label: 'Staff' },
+            { value: 'receptionist', label: 'Receptionist' },
+          ]}
+        />
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
         <button
@@ -212,18 +211,16 @@ function EditModal({ member, onClose }: { member: StaffMemberRow; onClose: () =>
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-fg-secondary)' }}>Ruolo</label>
-        <select
-          className="styll-input"
-          style={{ padding: '10px 12px', fontSize: 15, width: '100%' }}
+        <CustomSelect
           value={role}
-          onChange={(e) => setRole(e.target.value)}
-          disabled={loading}
-        >
-          <option value="owner">Titolare</option>
-          <option value="manager">Manager</option>
-          <option value="staff">Staff</option>
-          <option value="receptionist">Receptionist</option>
-        </select>
+          onChange={setRole}
+          options={[
+            { value: 'owner', label: 'Titolare' },
+            { value: 'manager', label: 'Manager' },
+            { value: 'staff', label: 'Staff' },
+            { value: 'receptionist', label: 'Receptionist' },
+          ]}
+        />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--color-border)' }}>
         <div>
@@ -327,10 +324,8 @@ function StaffCard({
   onBecomeStaff: (m: StaffMemberRow) => void
 }) {
   const [hovered, setHovered] = React.useState(false)
-  const [btnHovered, setBtnHovered] = React.useState(false)
 
-  const showServicesBtn =
-    canEdit && member.role !== 'owner' && member.role !== 'manager'
+  const hasPhoto = !!(member.avatarUrl && member.avatarUrl.trim())
 
   return (
     <div
@@ -341,19 +336,19 @@ function StaffCard({
         overflow: 'hidden',
         borderRadius: 20,
         aspectRatio: '3 / 4',
-        cursor: 'pointer',
+        cursor: 'default',
         boxShadow: hovered
           ? '0 8px 32px rgba(0,0,0,0.14)'
           : '0 2px 16px rgba(0,0,0,0.08)',
-        transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+        transition: 'box-shadow 0.3s ease',
         background: 'var(--color-bg-secondary)',
         opacity: member.isActive ? 1 : 0.5,
       }}
     >
-      {/* Photo layer */}
-      {member.avatarUrl ? (
+      {/* Photo / initials layer */}
+      {hasPhoto ? (
         <img
-          src={member.avatarUrl}
+          src={member.avatarUrl!}
           alt={member.fullName ?? ''}
           style={{
             position: 'absolute',
@@ -367,7 +362,6 @@ function StaffCard({
           }}
         />
       ) : (
-        /* Initials fallback */
         <div
           style={{
             position: 'absolute',
@@ -375,15 +369,47 @@ function StaffCard({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg, #1a1a1a 0%, #404040 100%)',
+            background: `linear-gradient(135deg, ${getAvatarColor(member.fullName ?? '?')} 0%, ${getAvatarColor(member.fullName ?? '?')}cc 100%)`,
             fontSize: 48,
             fontWeight: 700,
             color: 'white',
             letterSpacing: '0.02em',
+            userSelect: 'none',
           }}
         >
           {getInitials(member.fullName)}
         </div>
+      )}
+
+      {/* Three-dots edit button — top-right corner */}
+      {canEdit && !isSelf && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit(member) }}
+          title="Modifica membro"
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2,
+            transition: 'background 200ms ease',
+          } as React.CSSProperties}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.55)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.35)' }}
+        >
+          <MoreHorizontal size={15} color="#FFF" />
+        </button>
       )}
 
       {/* Info panel */}
@@ -414,28 +440,28 @@ function StaffCard({
           </p>
         </div>
 
-        {/* Right: services button */}
-        {showServicesBtn && (
+        {/* Eye button — impersonate (owner only, not self) */}
+        {isOwner && !isSelf && (
           <button
             type="button"
-            onMouseEnter={() => setBtnHovered(true)}
-            onMouseLeave={() => setBtnHovered(false)}
-            onClick={() => onEdit(member)}
-            title="Gestisci servizi"
+            onClick={(e) => { e.stopPropagation(); onBecomeStaff(member) }}
+            title={`Visualizza come ${member.fullName ?? 'Staff'}`}
             style={{
               width: 36,
               height: 36,
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: btnHovered ? 'var(--color-primary-hover)' : 'var(--color-primary)',
-              transition: 'background 0.2s ease',
+              background: 'var(--color-primary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
               marginLeft: 12,
+              transition: 'background 0.2s ease',
             }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary-hover)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary)' }}
           >
             <Eye size={15} color="var(--color-primary-fg)" />
           </button>
@@ -452,6 +478,15 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
   const [inviteOpen, setInviteOpen] = React.useState(false)
   const [editMember, setEditMember] = React.useState<StaffMemberRow | null>(null)
   const [removeMember, setRemoveMember] = React.useState<StaffMemberRow | null>(null)
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)')
+    setIsMobile(mql.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
 
   const canEdit = currentStaff?.role === 'owner' || currentStaff?.role === 'manager'
   const isOwner = currentStaff?.role === 'owner'
@@ -489,7 +524,7 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
             Gestisci i membri del tuo team e i loro servizi.
           </p>
         </div>
-        {canEdit && (
+        {canEdit && !isMobile && (
           <button
             type="button"
             onClick={() => setInviteOpen(true)}
@@ -603,6 +638,33 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
           <RemoveModal member={removeMember} onClose={() => setRemoveMember(null)} />
         )}
       </StyllModal>
+
+      {/* Mobile FAB — invite member */}
+      {canEdit && isMobile && (
+        <button
+          type="button"
+          onClick={() => setInviteOpen(true)}
+          aria-label="Invita membro"
+          style={{
+            position: 'fixed',
+            bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))',
+            right: 16,
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            background: '#111827',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 40,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.30)',
+          }}
+        >
+          <UserPlus size={22} color="#FFF" strokeWidth={2} />
+        </button>
+      )}
     </div>
   )
 }
