@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic'
 const TABS = [
   { href: '', label: 'Panoramica' },
   { href: '/services', label: 'Servizi' },
+  { href: '/products', label: 'Prodotti' },
   { href: '/staff', label: 'Staff' },
   { href: '/locations', label: 'Sedi' },
   { href: '/working-hours', label: 'Orari' },

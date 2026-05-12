@@ -3,7 +3,9 @@
 import * as React from 'react'
 import { CalendarX } from 'lucide-react'
 import { Card, formatEuro } from '../ui'
-import { FilterField, filterBarStyle, filterInputStyle, EmptyState } from '../filters'
+import { FilterField, FilterBar, EmptyState } from '../filters'
+import { CustomSelect } from '@/components/ui/custom-select'
+import { DatePicker } from '@/components/ui/date-picker'
 import { getAppuntamentiVendite, type AppuntamentoVendita } from '@/lib/actions/vendite'
 
 function statusBadge(status: 'paid' | 'pending' | 'partial') {
@@ -58,22 +60,26 @@ export function Appuntamenti({ tenantId }: { tenantId: string }) {
 
   return (
     <Card>
-      <div style={filterBarStyle}>
+      <FilterBar>
         <FilterField label="Da">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={filterInputStyle} />
+          <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Da data" />
         </FilterField>
         <FilterField label="A">
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={filterInputStyle} />
+          <DatePicker value={dateTo} onChange={setDateTo} placeholder="A data" />
         </FilterField>
         <FilterField label="Stato">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} style={filterInputStyle}>
-            <option value="tutti">Tutti</option>
-            <option value="completed">Completati</option>
-            <option value="cancelled">Cancellati</option>
-            <option value="confirmed">Confermati</option>
-          </select>
+          <CustomSelect
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: 'tutti', label: 'Tutti' },
+              { value: 'completed', label: 'Completati' },
+              { value: 'cancelled', label: 'Cancellati' },
+              { value: 'confirmed', label: 'Confermati' },
+            ]}
+          />
         </FilterField>
-      </div>
+      </FilterBar>
 
       {loading ? (
         <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)' }}>Caricamento...</div>

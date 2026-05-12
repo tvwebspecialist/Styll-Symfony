@@ -3,7 +3,8 @@
 import * as React from 'react'
 import { Package } from 'lucide-react'
 import { Card, formatEuro } from '../ui'
-import { FilterField, filterBarStyle, filterInputStyle, EmptyState } from '../filters'
+import { FilterField, FilterBar, EmptyState } from '../filters'
+import { DatePicker } from '@/components/ui/date-picker'
 import { getProdottiVenduti, type ProdottoVenduto } from '@/lib/actions/vendite'
 
 const thStyle: React.CSSProperties = {
@@ -47,14 +48,14 @@ export function Prodotti({ tenantId }: { tenantId: string }) {
 
   return (
     <Card>
-      <div style={filterBarStyle}>
+      <FilterBar>
         <FilterField label="Da">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={filterInputStyle} />
+          <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Da data" />
         </FilterField>
         <FilterField label="A">
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={filterInputStyle} />
+          <DatePicker value={dateTo} onChange={setDateTo} placeholder="A data" />
         </FilterField>
-      </div>
+      </FilterBar>
 
       {loading ? (
         <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-secondary)' }}>Caricamento...</div>

@@ -264,6 +264,18 @@ export async function getStaffLocations(
     .filter((l): l is { id: string; name: string } => l !== null)
 }
 
+/** Returns the subset of the given staffIds that have at least one location row. */
+export async function getStaffIdsWithLocations(staffIds: string[]): Promise<string[]> {
+  if (staffIds.length === 0) return []
+  const db = createAdminClient()
+  const { data } = await db
+    .from('staff_locations')
+    .select('staff_id')
+    .in('staff_id', staffIds)
+  if (!data) return []
+  return [...new Set((data as Array<{ staff_id: string }>).map((r) => r.staff_id))]
+}
+
 export async function createAppointment(input: {
   tenantId: string
   clientId: string

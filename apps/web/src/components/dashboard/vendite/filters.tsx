@@ -14,11 +14,11 @@ export const filterBarStyle: React.CSSProperties = {
 }
 
 export const filterInputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: 8,
-  border: '1px solid #E9E9E9',
-  fontSize: 13,
-  background: '#FFFFFF',
+  padding: '14px 16px',
+  borderRadius: 12,
+  border: '1px solid #e5e5e5',
+  fontSize: 15,
+  background: '#fafafa',
   color: '#222222',
   outline: 'none',
 }
@@ -29,6 +29,14 @@ export const filterLabelStyle: React.CSSProperties = {
   color: '#B0B0B0',
   letterSpacing: '0.06em',
   fontWeight: 500,
+}
+
+export function FilterBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="vendite-filter-bar" style={filterBarStyle}>
+      {children}
+    </div>
+  )
 }
 
 export function FilterField({
