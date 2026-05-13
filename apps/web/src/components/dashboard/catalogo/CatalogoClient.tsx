@@ -272,6 +272,7 @@ function ServizioForm({
         </div>
       </Field>
 
+      {/* FIX 3: sticky footer so Save button is always accessible on mobile */}
       <div
         style={{
           display: 'flex',
@@ -279,6 +280,10 @@ function ServizioForm({
           paddingTop: 8,
           borderTop: '1px solid var(--color-border)',
           marginTop: 4,
+          position: 'sticky',
+          bottom: 0,
+          background: '#fff',
+          paddingBottom: 4,
         }}
       >
         <button
@@ -623,6 +628,7 @@ function ProdottoForm({
         </div>
       )}
 
+      {/* FIX 3: sticky footer so Save button is always accessible on mobile */}
       <div
         style={{
           display: 'flex',
@@ -630,6 +636,10 @@ function ProdottoForm({
           paddingTop: 8,
           borderTop: '1px solid var(--color-border)',
           marginTop: 4,
+          position: 'sticky',
+          bottom: 0,
+          background: '#fff',
+          paddingBottom: 4,
         }}
       >
         <button

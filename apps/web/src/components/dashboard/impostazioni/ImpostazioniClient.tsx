@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { Loader2, Building2, MapPin, CreditCard, Plus, Pencil, Trash2, Check, ImagePlus } from 'lucide-react'
+import { Loader2, Building2, MapPin, CreditCard, Plus, Pencil, Trash2, Check, ImagePlus, X as XIcon, Images } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -228,6 +228,122 @@ function BusinessTab({ tenant }: { tenant: ImpostazioniData['tenant'] }) {
   )
 }
 
+// ─── Photos Uploader (multi-upload for location photos) ──────────────────────
+
+function PhotosUploader({
+  photos,
+  onChange,
+  maxPhotos = 10,
+}: {
+  photos: string[]
+  onChange: (photos: string[]) => void
+  maxPhotos?: number
+}) {
+  const [uploading, setUploading] = React.useState(false)
+
+  async function handleFilesSelect(files: FileList) {
+    const slots = maxPhotos - photos.length
+    if (slots <= 0) { toast.error(`Massimo ${maxPhotos} foto consentite`); return }
+    const toUpload = Array.from(files).slice(0, slots)
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      const urls: string[] = []
+      for (const file of toUpload) {
+        const ext = file.name.split('.').pop() ?? 'jpg'
+        const path = `locations/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
+        if (error) throw error
+        const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
+        urls.push(urlData.publicUrl)
+      }
+      onChange([...photos, ...urls])
+      toast.success(`${urls.length} foto ${urls.length === 1 ? 'caricata' : 'caricate'}`)
+    } catch (err: unknown) {
+      toast.error('Errore upload: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div>
+      {photos.length > 0 && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 8,
+          marginBottom: 10,
+        }}>
+          {photos.map((url, i) => (
+            <div
+              key={url}
+              style={{
+                position: 'relative',
+                aspectRatio: '16/9',
+                borderRadius: 10,
+                overflow: 'hidden',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {i === 0 && (
+                <span style={{
+                  position: 'absolute', top: 4, left: 4,
+                  fontSize: 10, fontWeight: 700,
+                  background: '#111827', color: '#fff',
+                  padding: '2px 6px', borderRadius: 999,
+                }}>
+                  Principale
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onChange(photos.filter((_, j) => j !== i))}
+                aria-label="Rimuovi foto"
+                style={{
+                  position: 'absolute', top: 4, right: 4,
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.6)', color: '#fff',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, lineHeight: 1,
+                }}
+              >
+                <XIcon size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {photos.length < maxPhotos && (
+        <label
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '9px 16px',
+            background: 'var(--color-bg-secondary)', border: '1px dashed var(--color-border)',
+            borderRadius: 8, fontSize: 13, fontWeight: 600, color: 'var(--color-fg)',
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          {uploading
+            ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+            : <Images size={14} />}
+          {uploading ? 'Caricamento…' : `Aggiungi foto (${photos.length}/${maxPhotos})`}
+          <input
+            type="file" accept="image/*" multiple style={{ display: 'none' }}
+            disabled={uploading}
+            onChange={(e) => { if (e.target.files?.length) void handleFilesSelect(e.target.files) }}
+          />
+        </label>
+      )}
+    </div>
+  )
+}
+
 // ─── Location Form (inside modal) ─────────────────────────────────────────────
 
 function LocationForm({
@@ -243,6 +359,7 @@ function LocationForm({
   const [address, setAddress] = React.useState(location?.address ?? '')
   const [phone, setPhone] = React.useState(location?.phone ?? '')
   const [isActive, setIsActive] = React.useState(location?.isActive ?? true)
+  const [photos, setPhotos] = React.useState<string[]>(location?.photos ?? [])
   const [loading, setLoading] = React.useState(false)
 
   const isEdit = Boolean(location?.id)
@@ -257,6 +374,7 @@ function LocationForm({
       address: address.trim() || null,
       phone: phone.trim() || null,
       isActive,
+      photos,
     })
     setLoading(false)
     if (result.success) {
@@ -267,6 +385,7 @@ function LocationForm({
         address: address.trim() || null,
         phone: phone.trim() || null,
         isActive,
+        photos,
       })
       onClose()
     } else {
@@ -305,7 +424,16 @@ function LocationForm({
           placeholder="+39 02 000 0000"
         />
       </Field>
-      <div style={{ display: 'flex', gap: 10, paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
+      <Field label="Foto sede">
+        <PhotosUploader photos={photos} onChange={setPhotos} />
+      </Field>
+      {/* FIX 4: sticky footer so Save button is always accessible on mobile */}
+      <div style={{
+        display: 'flex', gap: 10,
+        paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4,
+        position: 'sticky', bottom: 0,
+        background: '#fff', paddingBottom: 4,
+      }}>
         <button type="button" onClick={onClose} className="styll-btn-secondary" style={{ flex: 1, padding: '12px 16px', fontSize: 14, minHeight: 44 }}>
           Annulla
         </button>
