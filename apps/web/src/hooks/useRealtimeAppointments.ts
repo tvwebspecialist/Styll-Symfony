@@ -290,24 +290,25 @@ export function useRealtimeAppointments(
               }
             }
           )
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .on('system' as any, { event: 'phx_error' }, (err: unknown) => {
-            console.error('❌ WebSocket phx_error:', err)
-            if (isActive) {
-              setIsConnected(false)
-              reportError(toError(err, 'Errore WebSocket Realtime (phx_error).'))
-            }
-          })
           .subscribe((status, subscriptionError) => {
             if (!isActive) return
 
             if (status === 'SUBSCRIBED') {
+              console.log('✅ Realtime SUBSCRIBED')
               setIsConnected(true)
               setError(null)
               return
             }
 
+            // CLOSED during normal cleanup — not an error
+            if (status === 'CLOSED') {
+              setIsConnected(false)
+              return
+            }
+
+            // Only CHANNEL_ERROR and TIMED_OUT are real failures
             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              console.error('❌ Realtime status:', status, subscriptionError)
               setIsConnected(false)
               reportError(
                 toError(
@@ -315,11 +316,6 @@ export function useRealtimeAppointments(
                   `Errore connessione Realtime appointments: ${status}.`
                 )
               )
-              return
-            }
-
-            if (status === 'CLOSED') {
-              setIsConnected(false)
             }
           })
       } catch (caught) {
