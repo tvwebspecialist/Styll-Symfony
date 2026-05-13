@@ -109,6 +109,9 @@ export function useRealtimeAppointments(
   options: UseRealtimeAppointmentsOptions = {}
 ): UseRealtimeAppointmentsResult {
   const { tenantId, locationId, staffId, startDate, endDate } = options
+
+  console.log('🔍 useRealtimeAppointments called with:', { tenantId, locationId, staffId, startDate, endDate })
+
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -194,6 +197,14 @@ export function useRealtimeAppointments(
     }
 
     function subscribeToRealtime() {
+      if (!tenantId) {
+        console.error('❌ tenantId è undefined/null! Realtime non può connettersi')
+        setIsConnected(false)
+        reportError(new Error('tenantId mancante'))
+        return
+      }
+      console.log('✅ tenantId ok:', tenantId)
+
       const realtimeFilter = buildRealtimeFilter(tenantId, locationId, staffId)
 
       try {
@@ -209,7 +220,7 @@ export function useRealtimeAppointments(
             },
             (payload) => {
               if (!isActive) return
-
+              console.log('📡 Realtime event ricevuto:', payload)
               if (payload.eventType === 'INSERT') {
                 const newAppointment = payload.new as Appointment
                 if (!matchesFilters(newAppointment, tenantId, locationId, staffId, startDate, endDate)) return
@@ -268,6 +279,14 @@ export function useRealtimeAppointments(
               }
             }
           )
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .on('system' as any, { event: 'phx_error' }, (err: unknown) => {
+            console.error('❌ WebSocket phx_error:', err)
+            if (isActive) {
+              setIsConnected(false)
+              reportError(toError(err, 'Errore WebSocket Realtime (phx_error).'))
+            }
+          })
           .subscribe((status, subscriptionError) => {
             if (!isActive) return
 
