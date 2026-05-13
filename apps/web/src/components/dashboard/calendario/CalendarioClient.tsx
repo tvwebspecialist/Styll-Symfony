@@ -942,10 +942,19 @@ const isConnected = false // fallback temporaneo
     [weekStart]
   )
 
-  const todayAppts     = liveAppts.filter((a) => a.start_time.slice(0, 10) === todayStr)
-  const completedToday = todayAppts.filter((a) => a.status === 'completed').length
-  const remainingToday = todayAppts.filter((a) => ['confirmed', 'pending'].includes(a.status)).length
-  const nextEmptySlot  = findNextEmptySlot(todayAppts)
+  const todayAppts = React.useMemo(
+    () => liveAppts.filter((a) => a.start_time.slice(0, 10) === todayStr),
+    [liveAppts, todayStr]
+  )
+  const completedToday = React.useMemo(
+    () => todayAppts.filter((a) => a.status === 'completed').length,
+    [todayAppts]
+  )
+  const remainingToday = React.useMemo(
+    () => todayAppts.filter((a) => ['confirmed', 'pending'].includes(a.status)).length,
+    [todayAppts]
+  )
+  const nextEmptySlot = React.useMemo(() => findNextEmptySlot(todayAppts), [todayAppts])
 
   const dayComparison = React.useMemo(() => {
     const dow = new Date(todayStr + 'T12:00:00').getDay()
@@ -1012,18 +1021,21 @@ const isConnected = false // fallback temporaneo
     }
   }
 
-  function isCellWorking(date: string, hour: number, dayIdx: number): boolean {
-    if (data.staff.length === 0) return true
-    const check = selectedStaffId
-      ? data.staff.filter((s) => s.id === selectedStaffId)
-      : data.staff
-    return check.some((s) =>
-      isHourWorking(s.id, dayIdx, date, hour, data.workingHours, data.overrides)
-    )
-  }
+  const isCellWorking = React.useCallback(
+    (date: string, hour: number, dayIdx: number): boolean => {
+      if (data.staff.length === 0) return true
+      const check = selectedStaffId
+        ? data.staff.filter((s) => s.id === selectedStaffId)
+        : data.staff
+      return check.some((s) =>
+        isHourWorking(s.id, dayIdx, date, hour, data.workingHours, data.overrides)
+      )
+    },
+    [data.staff, data.workingHours, data.overrides, selectedStaffId]
+  )
 
   // Shared renderer for a single day column (used in both week and day views)
-  function renderDayColumn(date: string, dayIdx: number, isFullWidth: boolean) {
+  const renderDayColumn = React.useCallback((date: string, dayIdx: number, isFullWidth: boolean) => {
     const dayAppts = liveAppts.filter((a) => a.start_time.slice(0, 10) === date)
     const todayCol = isToday(date)
     return (
@@ -1121,7 +1133,7 @@ const isConnected = false // fallback temporaneo
         </div>
       </div>
     )
-  }
+  }, [liveAppts, isCellWorking, setNewApptCell, setDetailAppt])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
