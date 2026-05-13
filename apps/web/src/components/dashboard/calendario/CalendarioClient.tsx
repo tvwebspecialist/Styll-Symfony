@@ -19,7 +19,7 @@ import {
   getStaffIdsWithLocations,
   updateAppointmentServices,
 } from '@/lib/actions/calendario'
-// import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
+import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { DatePicker } from '@/components/ui/date-picker'
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -871,6 +871,7 @@ export function CalendarioClient({
   //      this component with new `data` props — the effect below reconciles.
   const [liveAppts, setLiveAppts] = React.useState<CalendarioAppointment[]>(data.appointments)
   const [isSyncing, setIsSyncing] = React.useState(false)
+  const [syncError, setSyncError] = React.useState<Error | null>(null)
 
   // Sync with fresh SSR data on navigation (week change, staff filter, etc.).
   // Uses reference equality so it only fires when the server actually returns
@@ -893,12 +894,16 @@ export function CalendarioClient({
    */
   const refetchAppointments = React.useCallback(async () => {
     setIsSyncing(true)
+    setSyncError(null)
     try {
       const fresh = await getCalendarioData(tenantId, weekStart, selectedStaffId)
       setLiveAppts(fresh.appointments)
-    } catch {
-      // Silently ignore — stale data is preferable to a broken UI.
-      // The next navigation will restore correct data via SSR.
+    } catch (caught) {
+      setSyncError(
+        caught instanceof Error
+          ? caught
+          : new Error('Errore durante la sincronizzazione degli appuntamenti.')
+      )
     } finally {
       setIsSyncing(false)
     }
@@ -907,15 +912,20 @@ export function CalendarioClient({
   // Subscribe to Supabase Realtime.  Uses trigger-only mode so the hook does
   // NOT maintain its own state — it just calls refetchAppointments whenever a
   // change arrives on the appointments table for this tenant/week.
-// const { isConnected } = useRealtimeAppointments({
-//   tenantId,
-//   weekStart,
-//   weekEnd,
-//   staffId: selectedStaffId,
-//   onDataChange: refetchAppointments,
-// })
+  const {
+    isConnected,
+    loading: realtimeLoading,
+    error: realtimeError,
+  } = useRealtimeAppointments({
+    tenantId,
+    staffId: selectedStaffId ?? undefined,
+    startDate: weekStart,
+    endDate: weekEnd,
+    onDataChange: refetchAppointments,
+  })
 
-const isConnected = false // fallback temporaneo
+  const visibleRealtimeError = syncError ?? realtimeError
+  const showInitialRealtimeSpinner = realtimeLoading && liveAppts.length === 0
 
   const [isMobile, setIsMobile]         = React.useState(false)
   const [view, setView]                 = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
@@ -1138,7 +1148,14 @@ const isConnected = false // fallback temporaneo
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 66px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 66px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
+      <div className="absolute right-4 top-4 z-50">
+        <span className={`rounded-full px-3 py-1 text-sm font-medium shadow-sm ${
+          isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {isConnected ? '🟢 Connected' : '🔴 Offline'}
+        </span>
+      </div>
 
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1263,37 +1280,6 @@ const isConnected = false // fallback temporaneo
 
             {/* RIGHT: Navigator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-              {/* Realtime connection badge */}
-              <div
-                aria-label={isSyncing ? 'Aggiornamento in corso' : isConnected ? 'Dati in tempo reale' : 'Connessione persa'}
-                title={isSyncing ? 'Aggiornamento…' : isConnected ? 'In diretta' : 'Offline'}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '0 10px', height: 28, borderRadius: 999,
-                  background: isSyncing
-                    ? '#f0f9ff'
-                    : isConnected ? '#f0fdf4' : '#fef2f2',
-                  border: `1px solid ${isSyncing ? '#bae6fd' : isConnected ? '#bbf7d0' : '#fecaca'}`,
-                  transition: 'background 400ms ease, border-color 400ms ease',
-                  flexShrink: 0,
-                }}
-              >
-                {/* Animated dot */}
-                <div style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: isSyncing ? '#0ea5e9' : isConnected ? '#22c55e' : '#ef4444',
-                  animation: isConnected && !isSyncing ? 'pulse 2s infinite' : 'none',
-                }} />
-                <span style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: isSyncing ? '#0284c7' : isConnected ? '#16a34a' : '#dc2626',
-                  fontFamily: 'Outfit, sans-serif',
-                }}>
-                  {isSyncing ? 'Aggiornamento…' : isConnected ? 'Live' : 'Offline'}
-                </span>
-              </div>
-
               <button
                 type="button"
                 onClick={() => navigate(-1)}
@@ -1488,7 +1474,14 @@ const isConnected = false // fallback temporaneo
         {/* Calendar card */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', overflow: 'hidden' }}>
 
-          {effectiveView === 'Mese' ? (
+          {showInitialRealtimeSpinner ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                aria-label="Caricamento appuntamenti"
+                className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900"
+              />
+            </div>
+          ) : effectiveView === 'Mese' ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
               <span style={{ fontSize: 36 }}>🗓️</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Prossimamente</span>
@@ -1684,6 +1677,28 @@ const isConnected = false // fallback temporaneo
           </div>
         )}
       </div>}
+
+      {visibleRealtimeError && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            zIndex: 60,
+            maxWidth: 360,
+            borderRadius: 12,
+            background: '#dc2626',
+            color: '#fff',
+            padding: '12px 16px',
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: '0 10px 30px rgba(220,38,38,0.28)',
+          }}
+        >
+          {visibleRealtimeError.message}
+        </div>
+      )}
 
       {/* ── Mobile FAB — new appointment ── */}
       {isMobile && (

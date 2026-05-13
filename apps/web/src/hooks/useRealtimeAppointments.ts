@@ -9,10 +9,18 @@ import type { Appointment } from '@/types'
  * Options accepted by {@link useRealtimeAppointments}.
  */
 export interface UseRealtimeAppointmentsOptions {
+  /** Optional tenant filter applied to the initial SELECT and, when possible, to Realtime events. */
+  tenantId?: string
   /** Optional location filter applied to the initial SELECT and, when possible, to Realtime events. */
   locationId?: string
   /** Optional staff filter applied to the initial SELECT and, when possible, to Realtime events. */
   staffId?: string
+  /** Optional inclusive start date (`YYYY-MM-DD`) used to limit the initial SELECT and local payload handling. */
+  startDate?: string
+  /** Optional exclusive end date (`YYYY-MM-DD`) used to limit the initial SELECT and local payload handling. */
+  endDate?: string
+  /** Optional callback invoked after a matching INSERT, UPDATE or DELETE event is received. */
+  onDataChange?: (event: 'INSERT' | 'UPDATE' | 'DELETE') => void | Promise<void>
   /** Optional callback invoked whenever the hook receives a load or subscription error. */
   onError?: (error: Error) => void
 }
@@ -54,12 +62,18 @@ function sortAppointments(appointments: Appointment[]): Appointment[] {
  * Checks whether an appointment belongs to the active hook filters.
  */
 function matchesFilters(
-  appointment: Appointment,
+  appointment: Partial<Appointment>,
+  tenantId?: string,
   locationId?: string,
-  staffId?: string
+  staffId?: string,
+  startDate?: string,
+  endDate?: string
 ): boolean {
-  if (locationId && appointment.location_id !== locationId) return false
-  if (staffId && appointment.staff_id !== staffId) return false
+  if (tenantId && appointment.tenant_id && appointment.tenant_id !== tenantId) return false
+  if (locationId && appointment.location_id && appointment.location_id !== locationId) return false
+  if (staffId && appointment.staff_id && appointment.staff_id !== staffId) return false
+  if (startDate && appointment.start_time && appointment.start_time < `${startDate}T00:00:00`) return false
+  if (endDate && appointment.start_time && appointment.start_time >= `${endDate}T00:00:00`) return false
   return true
 }
 
@@ -68,7 +82,12 @@ function matchesFilters(
  * postgres_changes. If both filters are provided, the broader location filter
  * runs server-side and the staff filter is enforced in the local payload guard.
  */
-function buildRealtimeFilter(locationId?: string, staffId?: string): string | undefined {
+function buildRealtimeFilter(
+  tenantId?: string,
+  locationId?: string,
+  staffId?: string
+): string | undefined {
+  if (tenantId) return `tenant_id=eq.${tenantId}`
   if (locationId) return `location_id=eq.${locationId}`
   if (staffId) return `staff_id=eq.${staffId}`
   return undefined
@@ -89,21 +108,36 @@ function buildRealtimeFilter(locationId?: string, staffId?: string): string | un
 export function useRealtimeAppointments(
   options: UseRealtimeAppointmentsOptions = {}
 ): UseRealtimeAppointmentsResult {
-  const { locationId, staffId } = options
+  const { tenantId, locationId, staffId, startDate, endDate } = options
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const onErrorRef = useRef(options.onError)
+  const onDataChangeRef = useRef(options.onDataChange)
 
   useEffect(() => {
     onErrorRef.current = options.onError
-  }, [options.onError])
+    onDataChangeRef.current = options.onDataChange
+  }, [options.onError, options.onDataChange])
 
   const reportError = useCallback((nextError: Error) => {
     setError(nextError)
     onErrorRef.current?.(nextError)
   }, [])
+
+  const notifyDataChange = useCallback((event: 'INSERT' | 'UPDATE' | 'DELETE') => {
+    try {
+      const result = onDataChangeRef.current?.(event)
+      if (result instanceof Promise) {
+        result.catch((caught) => {
+          reportError(toError(caught, 'Errore durante il refresh degli appuntamenti.'))
+        })
+      }
+    } catch (caught) {
+      reportError(toError(caught, 'Errore durante il refresh degli appuntamenti.'))
+    }
+  }, [reportError])
 
   useEffect(() => {
     const supabase = createClient()
@@ -120,12 +154,24 @@ export function useRealtimeAppointments(
           .select('*')
           .order('start_time', { ascending: true })
 
+        if (tenantId) {
+          query = query.eq('tenant_id', tenantId)
+        }
+
         if (locationId) {
           query = query.eq('location_id', locationId)
         }
 
         if (staffId) {
           query = query.eq('staff_id', staffId)
+        }
+
+        if (startDate) {
+          query = query.gte('start_time', `${startDate}T00:00:00`)
+        }
+
+        if (endDate) {
+          query = query.lt('start_time', `${endDate}T00:00:00`)
         }
 
         const { data, error: queryError } = await query
@@ -148,7 +194,7 @@ export function useRealtimeAppointments(
     }
 
     function subscribeToRealtime() {
-      const realtimeFilter = buildRealtimeFilter(locationId, staffId)
+      const realtimeFilter = buildRealtimeFilter(tenantId, locationId, staffId)
 
       try {
         channel = supabase
@@ -166,7 +212,7 @@ export function useRealtimeAppointments(
 
               if (payload.eventType === 'INSERT') {
                 const newAppointment = payload.new as Appointment
-                if (!matchesFilters(newAppointment, locationId, staffId)) return
+                if (!matchesFilters(newAppointment, tenantId, locationId, staffId, startDate, endDate)) return
 
                 setAppointments((current) => {
                   if (current.some((appointment) => appointment.id === newAppointment.id)) {
@@ -175,13 +221,20 @@ export function useRealtimeAppointments(
 
                   return sortAppointments([...current, newAppointment])
                 })
+                notifyDataChange('INSERT')
               }
 
               if (payload.eventType === 'UPDATE') {
                 const updatedAppointment = payload.new as Appointment
+                const previousAppointment = payload.old as Partial<Appointment>
+                const affectedCurrentRange =
+                  matchesFilters(updatedAppointment, tenantId, locationId, staffId, startDate, endDate) ||
+                  matchesFilters(previousAppointment, tenantId, locationId, staffId, startDate, endDate)
+
+                if (!affectedCurrentRange) return
 
                 setAppointments((current) => {
-                  if (!matchesFilters(updatedAppointment, locationId, staffId)) {
+                  if (!matchesFilters(updatedAppointment, tenantId, locationId, staffId, startDate, endDate)) {
                     return current.filter(
                       (appointment) => appointment.id !== updatedAppointment.id
                     )
@@ -201,14 +254,17 @@ export function useRealtimeAppointments(
                     )
                   )
                 })
+                notifyDataChange('UPDATE')
               }
 
               if (payload.eventType === 'DELETE') {
-                const deletedAppointment = payload.old as Pick<Appointment, 'id'>
+                const deletedAppointment = payload.old as Partial<Appointment> & Pick<Appointment, 'id'>
+                if (!matchesFilters(deletedAppointment, tenantId, locationId, staffId, startDate, endDate)) return
 
                 setAppointments((current) =>
                   current.filter((appointment) => appointment.id !== deletedAppointment.id)
                 )
+                notifyDataChange('DELETE')
               }
             }
           )
@@ -253,7 +309,7 @@ export function useRealtimeAppointments(
         void supabase.removeChannel(channel)
       }
     }
-  }, [locationId, staffId, reportError])
+  }, [tenantId, locationId, staffId, startDate, endDate, reportError, notifyDataChange])
 
   return { appointments, loading, error, isConnected }
 }
