@@ -19,7 +19,7 @@ import {
   getStaffIdsWithLocations,
   updateAppointmentServices,
 } from '@/lib/actions/calendario'
-import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
+// import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { DatePicker } from '@/components/ui/date-picker'
 // ── Constants ──────────────────────────────────────────────────────────────
