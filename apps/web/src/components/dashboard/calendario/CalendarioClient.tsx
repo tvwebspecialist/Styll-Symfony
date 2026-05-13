@@ -14,10 +14,12 @@ import {
   updateAppointmentStatus,
   createAppointment,
   getCalendarioFormOptions,
+  getCalendarioData,
   getStaffLocations,
   getStaffIdsWithLocations,
   updateAppointmentServices,
 } from '@/lib/actions/calendario'
+import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { DatePicker } from '@/components/ui/date-picker'
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -860,6 +862,59 @@ export function CalendarioClient({
 }: Props) {
   const router = useRouter()
 
+  // ── Live appointments ────────────────────────────────────────────────────
+  // `liveAppts` is initialized from the SSR-rendered `data.appointments` and
+  // kept in sync by two mechanisms:
+  //   1. Real-time: useRealtimeAppointments calls refetchAppointments whenever
+  //      the DB changes (INSERT / UPDATE / DELETE), giving <1s latency.
+  //   2. Navigation: when the user changes week/day/staff, Next.js re-renders
+  //      this component with new `data` props — the effect below reconciles.
+  const [liveAppts, setLiveAppts] = React.useState<CalendarioAppointment[]>(data.appointments)
+  const [isSyncing, setIsSyncing] = React.useState(false)
+
+  // Sync with fresh SSR data on navigation (week change, staff filter, etc.).
+  // Uses reference equality so it only fires when the server actually returns
+  // new props, not on local state changes.
+  const dataRef = React.useRef(data)
+  React.useEffect(() => {
+    if (dataRef.current !== data) {
+      dataRef.current = data
+      setLiveAppts(data.appointments)
+    }
+  }, [data])
+
+  // End-of-week boundary used for both the realtime filter and the refetch.
+  const weekEnd = React.useMemo(() => addDays(weekStart, 7), [weekStart])
+
+  /**
+   * Fetches the full joined appointments (client name + services) for the
+   * current week/staff via a server action and updates liveAppts.
+   * Called by the realtime subscription on any INSERT / UPDATE / DELETE.
+   */
+  const refetchAppointments = React.useCallback(async () => {
+    setIsSyncing(true)
+    try {
+      const fresh = await getCalendarioData(tenantId, weekStart, selectedStaffId)
+      setLiveAppts(fresh.appointments)
+    } catch {
+      // Silently ignore — stale data is preferable to a broken UI.
+      // The next navigation will restore correct data via SSR.
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [tenantId, weekStart, selectedStaffId])
+
+  // Subscribe to Supabase Realtime.  Uses trigger-only mode so the hook does
+  // NOT maintain its own state — it just calls refetchAppointments whenever a
+  // change arrives on the appointments table for this tenant/week.
+  const { isConnected } = useRealtimeAppointments({
+    tenantId,
+    weekStart,
+    weekEnd,
+    staffId: selectedStaffId,
+    onDataChange: refetchAppointments,
+  })
+
   const [isMobile, setIsMobile]         = React.useState(false)
   const [view, setView]                 = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
   const [isTransitioning, setIsTransitioning] = React.useState(false)
@@ -885,7 +940,7 @@ export function CalendarioClient({
     [weekStart]
   )
 
-  const todayAppts     = data.appointments.filter((a) => a.start_time.slice(0, 10) === todayStr)
+  const todayAppts     = liveAppts.filter((a) => a.start_time.slice(0, 10) === todayStr)
   const completedToday = todayAppts.filter((a) => a.status === 'completed').length
   const remainingToday = todayAppts.filter((a) => ['confirmed', 'pending'].includes(a.status)).length
   const nextEmptySlot  = findNextEmptySlot(todayAppts)
@@ -894,10 +949,10 @@ export function CalendarioClient({
     const dow = new Date(todayStr + 'T12:00:00').getDay()
     if (dow <= 1) return null
     const prev = addDays(todayStr, -1)
-    const tc   = data.appointments.filter((a) => a.start_time.slice(0, 10) === todayStr).length
-    const pc   = data.appointments.filter((a) => a.start_time.slice(0, 10) === prev).length
+    const tc   = liveAppts.filter((a) => a.start_time.slice(0, 10) === todayStr).length
+    const pc   = liveAppts.filter((a) => a.start_time.slice(0, 10) === prev).length
     return { diff: tc - pc, dayLabel: DAYS_ABBR[new Date(prev + 'T12:00:00').getDay()] }
-  }, [data.appointments, todayStr])
+  }, [liveAppts, todayStr])
 
   const staffColorMap = React.useMemo(() => {
     const cols = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4']
@@ -967,7 +1022,7 @@ export function CalendarioClient({
 
   // Shared renderer for a single day column (used in both week and day views)
   function renderDayColumn(date: string, dayIdx: number, isFullWidth: boolean) {
-    const dayAppts = data.appointments.filter((a) => a.start_time.slice(0, 10) === date)
+    const dayAppts = liveAppts.filter((a) => a.start_time.slice(0, 10) === date)
     const todayCol = isToday(date)
     return (
       <div key={date} style={{ flex: 1, borderRight: isFullWidth ? 'none' : dayIdx < 5 ? '1px solid #F0F0F0' : 'none', background: todayCol ? 'rgba(17,24,39,0.015)' : 'transparent' }}>
@@ -1129,6 +1184,21 @@ export function CalendarioClient({
                 )
               })}
             </div>
+
+            {/* Mobile: offline/syncing banner (shown only when not connected) */}
+            {(!isConnected || isSyncing) && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
+                padding: '5px 10px', borderRadius: 8,
+                background: isSyncing ? '#f0f9ff' : '#fef2f2',
+                border: `1px solid ${isSyncing ? '#bae6fd' : '#fecaca'}`,
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isSyncing ? '#0ea5e9' : '#ef4444', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 500, color: isSyncing ? '#0284c7' : '#dc2626' }}>
+                  {isSyncing ? 'Aggiornamento…' : 'Sincronizzazione offline'}
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexShrink: 0 }}>
@@ -1179,6 +1249,37 @@ export function CalendarioClient({
 
             {/* RIGHT: Navigator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+
+              {/* Realtime connection badge */}
+              <div
+                aria-label={isSyncing ? 'Aggiornamento in corso' : isConnected ? 'Dati in tempo reale' : 'Connessione persa'}
+                title={isSyncing ? 'Aggiornamento…' : isConnected ? 'In diretta' : 'Offline'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '0 10px', height: 28, borderRadius: 999,
+                  background: isSyncing
+                    ? '#f0f9ff'
+                    : isConnected ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${isSyncing ? '#bae6fd' : isConnected ? '#bbf7d0' : '#fecaca'}`,
+                  transition: 'background 400ms ease, border-color 400ms ease',
+                  flexShrink: 0,
+                }}
+              >
+                {/* Animated dot */}
+                <div style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: isSyncing ? '#0ea5e9' : isConnected ? '#22c55e' : '#ef4444',
+                  animation: isConnected && !isSyncing ? 'pulse 2s infinite' : 'none',
+                }} />
+                <span style={{
+                  fontSize: 11, fontWeight: 600,
+                  color: isSyncing ? '#0284c7' : isConnected ? '#16a34a' : '#dc2626',
+                  fontFamily: 'Outfit, sans-serif',
+                }}>
+                  {isSyncing ? 'Aggiornamento…' : isConnected ? 'Live' : 'Offline'}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => navigate(-1)}
