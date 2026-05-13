@@ -19,12 +19,13 @@ function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   return (
     <span
       style={{
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 600,
-        padding: '3px 8px',
+        padding: '2px 7px',
         borderRadius: 99,
         background: d.positive ? '#dcfce7' : '#fee2e2',
         color: d.positive ? '#15803d' : '#dc2626',
+        flexShrink: 0,
       }}
     >
       {d.pct}
@@ -33,61 +34,49 @@ function DeltaBadge({ current, prev }: { current: number; prev: number }) {
 }
 
 export function WeekStats({ stats }: Props) {
-  const retention = stats.client_count > 0
-    ? Math.round(Math.min(100, (stats.client_count / Math.max(stats.client_count, stats.client_count_prev)) * 100))
-    : 0
+  const retention =
+    stats.client_count > 0
+      ? Math.round(Math.min(100, (stats.client_count / Math.max(stats.client_count, stats.client_count_prev)) * 100))
+      : 0
 
   const metrics = [
-    {
-      label: 'Revenue settimana',
-      value: `€${stats.revenue}`,
-      current: stats.revenue,
-      prev: stats.revenue_prev,
-    },
-    {
-      label: 'Clienti serviti',
-      value: String(stats.client_count),
-      current: stats.client_count,
-      prev: stats.client_count_prev,
-    },
-    {
-      label: 'Retention %',
-      value: `${retention}%`,
-      current: retention,
-      prev: 0,
-    },
+    { label: 'Revenue settimana', value: `€ ${stats.revenue}`, current: stats.revenue, prev: stats.revenue_prev },
+    { label: 'Clienti serviti', value: String(stats.client_count), current: stats.client_count, prev: stats.client_count_prev },
+    { label: 'Retention', value: `${retention}%`, current: retention, prev: 0 },
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
       {metrics.map((m) => (
         <div
           key={m.label}
           style={{
             background: '#FFFFFF',
             borderRadius: 16,
-            border: '1px solid #E9E9E9',
-            padding: '18px 20px',
+            border: '1px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            padding: '16px 18px',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
-                fontSize: 28,
+                fontSize: 24,
                 fontWeight: 800,
-                color: '#222222',
+                color: '#111111',
                 fontFamily: 'Outfit, sans-serif',
                 lineHeight: 1,
+                letterSpacing: '-0.5px',
               }}
             >
               {m.value}
             </span>
             {m.prev > 0 && <DeltaBadge current={m.current} prev={m.prev} />}
           </div>
-          <p style={{ fontSize: 12, color: '#B0B0B0', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+          <p style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', margin: 0, fontFamily: 'Outfit, sans-serif', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             {m.label}
           </p>
         </div>

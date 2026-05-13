@@ -17,13 +17,10 @@ function getCountdown(start: string, end: string): string {
   const now = Date.now()
   const startMs = new Date(start).getTime()
   const endMs = new Date(end).getTime()
-  if (now >= startMs && now < endMs) {
-    return `In corso · termina alle ${fmt(end)}`
-  }
+  if (now >= startMs && now < endMs) return `In corso · termina alle ${fmt(end)}`
   const diffMin = Math.round((startMs - now) / 60000)
-  if (diffMin <= 0) return ''
-  if (diffMin < 120) return `tra ${diffMin} minut${diffMin === 1 ? 'o' : 'i'}`
-  return ''
+  if (diffMin <= 0 || diffMin >= 120) return ''
+  return `tra ${diffMin} minut${diffMin === 1 ? 'o' : 'i'}`
 }
 
 export function NextAppointmentCard({ appointment, basePath }: Props) {
@@ -42,22 +39,19 @@ export function NextAppointmentCard({ appointment, basePath }: Props) {
     return (
       <div
         style={{
-          background: '#222222',
-          borderRadius: 20,
-          padding: 24,
+          background: '#111827',
+          borderRadius: 16,
+          padding: '24px 24px',
           color: '#FFF',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
-          minHeight: 260,
+          gap: 6,
+          minHeight: 120,
         }}
       >
-        <p style={{ fontSize: 18, fontWeight: 600, margin: 0, fontFamily: 'Outfit, sans-serif' }}>
-          Nessun appuntamento
-        </p>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+        <p style={{ fontSize: 16, fontWeight: 600, margin: 0, fontFamily: 'Outfit, sans-serif', color: 'rgba(255,255,255,0.5)' }}>
           Nessun appuntamento rimanente oggi
         </p>
       </div>
@@ -65,81 +59,82 @@ export function NextAppointmentCard({ appointment, basePath }: Props) {
   }
 
   const services = appointment.service_names.join(' + ')
+  const durationMin = Math.round(
+    (new Date(appointment.end_time).getTime() - new Date(appointment.start_time).getTime()) / 60000,
+  )
 
   return (
     <div
       style={{
-        background: '#222222',
-        borderRadius: 20,
-        padding: 24,
+        background: '#111827',
+        borderRadius: 16,
+        padding: '22px 24px',
         color: '#FFF',
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: 10,
       }}
     >
       {/* Time + duration */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span
           style={{
-            fontSize: 40,
+            fontSize: 38,
             fontWeight: 800,
             fontFamily: 'Outfit, sans-serif',
             fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '-1px',
             lineHeight: 1,
           }}
         >
           {fmt(appointment.start_time)}
         </span>
-        {appointment.end_time && (
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              background: 'rgba(255,255,255,0.15)',
-              borderRadius: 99,
-              padding: '4px 12px',
-            }}
-          >
-            {Math.round(
-              (new Date(appointment.end_time).getTime() - new Date(appointment.start_time).getTime()) / 60000,
-            )}{' '}
-            min
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            background: 'rgba(255,255,255,0.12)',
+            borderRadius: 99,
+            padding: '4px 12px',
+            flexShrink: 0,
+          }}
+        >
+          {durationMin} min
+        </span>
+        {countdown && (
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginLeft: 'auto', flexShrink: 0 }}>
+            {countdown}
           </span>
         )}
       </div>
 
-      {/* Countdown */}
-      {countdown && (
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: 0 }}>{countdown}</p>
-      )}
-
-      {/* Client + services */}
+      {/* Client + services + price */}
       <div>
-        <p style={{ fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+        <p style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.3px' }}>
           {appointment.client_name}
         </p>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: '3px 0 0', fontFamily: 'Outfit, sans-serif' }}>
           {services || 'Servizio non specificato'} · €{appointment.total_price}
         </p>
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 8 }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
         <button
           type="button"
           onClick={() => router.push(`${basePath}/clienti/${appointment.client_id}`)}
           style={{
             flex: 1,
             padding: '10px 0',
-            border: '1px solid rgba(255,255,255,0.4)',
+            border: '1px solid rgba(255,255,255,0.2)',
             background: 'transparent',
-            color: '#FFF',
+            color: 'rgba(255,255,255,0.85)',
             borderRadius: 10,
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
             fontFamily: 'Outfit, sans-serif',
+            minHeight: 44,
           }}
         >
           Profilo
@@ -151,12 +146,13 @@ export function NextAppointmentCard({ appointment, basePath }: Props) {
             padding: '10px 0',
             border: 'none',
             background: '#FFFFFF',
-            color: '#222222',
+            color: '#111827',
             borderRadius: 10,
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 700,
             cursor: 'pointer',
             fontFamily: 'Outfit, sans-serif',
+            minHeight: 44,
           }}
         >
           Conferma ✓

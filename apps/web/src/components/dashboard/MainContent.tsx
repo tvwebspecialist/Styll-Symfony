@@ -16,6 +16,18 @@ const DESKTOP_STYLE: React.CSSProperties = {
   overflowY: 'auto',
 }
 
+// Home page: no card wrapper — home-root manages its own layout + cards
+const DESKTOP_HOME_STYLE: React.CSSProperties = {
+  marginTop: 104,
+  marginLeft: 252,
+  marginRight: 16,
+  marginBottom: 16,
+  background: 'transparent',
+  borderRadius: 0,
+  padding: 0,
+  height: 'fit-content',
+}
+
 /**
  * Home topbar (glass morphism) — 3-row layout:
  *   safe-area + paddingTop(14) + row1(48+16) + row2(~68+16) + row3(44) + paddingBottom(18) ≈ 224px
@@ -28,6 +40,7 @@ const MOBILE_SIMPLE_PADDING_TOP = 'calc(var(--mobile-simple-topbar-height, 96px)
 
 export function MainContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? ''
+  const isHome = isDashboardHomePath(pathname)
   const [isMobile, setIsMobile] = React.useState<boolean | null>(null)
 
   React.useEffect(() => {
@@ -40,7 +53,7 @@ export function MainContent({ children }: { children: React.ReactNode }) {
 
   const mobileStyle: React.CSSProperties = {
     margin: 0,
-    paddingTop: isDashboardHomePath(pathname) ? MOBILE_HOME_PADDING_TOP : MOBILE_SIMPLE_PADDING_TOP,
+    paddingTop: isHome ? MOBILE_HOME_PADDING_TOP : MOBILE_SIMPLE_PADDING_TOP,
     paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
     paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))',
     paddingRight: 'max(16px, env(safe-area-inset-right, 16px))',
@@ -49,11 +62,13 @@ export function MainContent({ children }: { children: React.ReactNode }) {
     height: 'auto',
   }
 
+  const desktopStyle = isHome ? DESKTOP_HOME_STYLE : DESKTOP_STYLE
+
   const style = isMobile === null
-    ? DESKTOP_STYLE
+    ? desktopStyle
     : isMobile
       ? mobileStyle
-      : DESKTOP_STYLE
+      : desktopStyle
 
   return <main style={style}>{children}</main>
 }

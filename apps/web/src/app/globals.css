@@ -422,41 +422,131 @@
 
 
 
-/* ─── Dashboard Home — Responsive Typography & Layout ───────
- * CSS classes for DashboardHomeClient, KPIRow, MiniCalendar.
- * Media queries override inline styles where needed.
- * --------------------------------------------------------- */
+/* ─── Dashboard Home — 2-column Grid Layout ────────────────────
+ * Mobile-first: single-column flex feed.
+ * Desktop (>1024px): 62/38 two-column grid.
+ * ------------------------------------------------------------ */
 
-/* Greeting title: 50px desktop → 28px mobile */
-@media (max-width: 768px) {
+/* Mobile: flex column */
+.home-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* KPI strip: horizontal scroll on mobile */
+.home-kpi-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.home-kpi-scroll::-webkit-scrollbar { display: none; }
+
+/* Split row (churn + free slots): stacked on mobile, side-by-side on desktop */
+.home-split-row {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Desktop-only sections (agenda timeline, heatmap, weekstats) */
+.home-desktop-only {
+  display: none;
+}
+
+/* Churn mobile: horizontal scroll of cards */
+.churn-mobile-list {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.churn-mobile-list::-webkit-scrollbar { display: none; }
+
+/* Desktop: 2-column grid */
+@media (min-width: 1025px) {
+  .home-root {
+    display: grid;
+    grid-template-columns: 62fr 38fr;
+    gap: 20px;
+    align-items: start;
+    padding: 20px 0;
+  }
+
+  /* All direct children default to left column */
+  .home-root > * { grid-column: 1; }
+
+  /* Calendar: right column, spans all rows */
+  .home-area-calendar {
+    grid-column: 2 !important;
+    grid-row: 1 / span 30;
+    align-self: start;
+  }
+
+  /* Sticky inner so calendar stays visible while left col scrolls */
+  .home-calendar-sticky {
+    position: sticky;
+    top: 24px;
+  }
+
+  /* KPI strip: no overflow on desktop */
+  .home-kpi-scroll {
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  /* Split row: side by side on desktop */
+  .home-split-row {
+    flex-direction: row;
+  }
+  .home-split-row > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* Show desktop-only sections */
+  .home-desktop-only {
+    display: block;
+  }
+
+  /* Churn back to vertical list on desktop */
+  .churn-mobile-list {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+}
+
+/* Greeting responsive overrides */
+@media (max-width: 1280px) {
   .dashboard-greeting-title {
-    font-size: 28px !important;
-    letter-spacing: -0.7px !important;
+    font-size: 40px !important;
+    letter-spacing: -1px !important;
+  }
+}
+@media (max-width: 900px) {
+  .dashboard-greeting-title {
+    font-size: 32px !important;
+    letter-spacing: -0.8px !important;
   }
   .dashboard-greeting-sub {
     font-size: 18px !important;
-    letter-spacing: -0.45px !important;
   }
-  /* Row 2 (mini-cal + agenda): side-by-side → stacked */
-  .dashboard-row2 {
-    grid-template-columns: 1fr !important;
-  }
-  /* KPI pills: smaller value + less padding */
-  .kpi-pill-value {
-    font-size: 18px !important;
-  }
-  .kpi-pill-card {
-    padding: 10px 14px !important;
-  }
-  /* Mini calendar: less padding + smaller day cells */
+}
+
+/* Mini calendar: smaller cells on small viewports */
+@media (max-width: 768px) {
   .mini-calendar-wrap {
-    padding: 14px 14px 12px !important;
+    padding: 16px 16px 14px !important;
   }
   .mini-calendar-day-label {
     font-size: 9px !important;
   }
   .mini-calendar-day-number {
-    font-size: 15px !important;
+    font-size: 16px !important;
   }
 }
 
