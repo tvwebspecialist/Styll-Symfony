@@ -3,6 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, Plus, X, Users } from 'lucide-react'
 import type {
   CalendarioAppointment,
@@ -624,12 +625,12 @@ function NewApptModal({
   const [submitting, setSubmitting]           = React.useState(false)
   const [error, setError]                     = React.useState<string | null>(null)
   const [submitAttempted, setSubmitAttempted] = React.useState(false)
-  const [conflictMode, setConflictMode]       = React.useState(false)
-  const conflictTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [errorScreen, setErrorScreen]         = React.useState<{ icon: string; title: string; body: string } | null>(null)
+  const errorTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Cleanup conflict timer on unmount
+  // Cleanup error timer on unmount
   React.useEffect(() => {
-    const ref = conflictTimerRef
+    const ref = errorTimerRef
     return () => { if (ref.current) clearTimeout(ref.current) }
   }, [])
 
@@ -704,13 +705,19 @@ function NewApptModal({
     setSubmitting(false)
     if (!res.success) {
       const msg = res.error ?? 'Errore durante la creazione'
+      let info: { icon: string; title: string; body: string }
       if (msg.toLowerCase().includes('overlap') || msg.includes('no_overlapping')) {
-        setConflictMode(true)
-        if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current)
-        conflictTimerRef.current = setTimeout(() => setConflictMode(false), 3000)
+        info = { icon: '⚠️', title: 'Slot già occupato', body: 'C\'è già un appuntamento in questo orario.\nModifica orario o data e riprova.' }
+      } else if (msg.toLowerCase().includes('not found') || msg.includes('not_found')) {
+        info = { icon: '👤', title: 'Cliente non trovato', body: 'Il cliente selezionato non è disponibile.\nSeleziona un altro cliente e riprova.' }
+      } else if (msg.toLowerCase().includes('missing') || msg.toLowerCase().includes('required')) {
+        info = { icon: '📋', title: 'Campi mancanti', body: 'Compila tutti i campi obbligatori e riprova.' }
       } else {
-        setError(msg)
+        info = { icon: '❌', title: 'Errore', body: msg }
       }
+      setErrorScreen(info)
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = setTimeout(() => setErrorScreen(null), 3000)
       return
     }
     onCreated()
@@ -776,16 +783,33 @@ function NewApptModal({
 
         {loadingOptions ? (
           <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 14, padding: '24px 0' }}>Caricamento…</p>
-        ) : conflictMode ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '32px 0', textAlign: 'center' }}>
-            <span style={{ fontSize: 40 }}>⚠️</span>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Slot già occupato</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
-              C'è già un appuntamento in questo orario.<br />Modifica orario o data e riprova…
-            </p>
-          </div>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <div style={{ overflow: 'hidden' }}>
+            <AnimatePresence mode="wait">
+              {errorScreen ? (
+                /* ── Error screen — slides in from right, out to left ── */
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0, x: 80 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -80 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '32px 0', textAlign: 'center' }}
+                >
+                  <span style={{ fontSize: 40 }}>{errorScreen.icon}</span>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>{errorScreen.title}</p>
+                  <p style={{ margin: 0, fontSize: 13, color: '#6B7280', whiteSpace: 'pre-line' }}>{errorScreen.body}</p>
+                </motion.div>
+              ) : (
+                /* ── Form — slides in from left, out to right ── */
+                <motion.div
+                  key="form"
+                  initial={{ opacity: 0, x: -80 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 80 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                >
+                  <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
               {/* Date + Time — stack vertically on mobile */}
@@ -889,6 +913,10 @@ function NewApptModal({
 
             </div>
           </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
     </div>
@@ -990,6 +1018,7 @@ export function CalendarioClient({
   const [isTransitioning, setIsTransitioning] = React.useState(false)
   const [detailAppt, setDetailAppt]     = React.useState<CalendarioAppointment | null>(null)
   const [newApptCell, setNewApptCell]   = React.useState<{ date: string; hour: number } | null>(null)
+  const [staffPickerOpen, setStaffPickerOpen] = React.useState(false)
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)')
@@ -1213,7 +1242,7 @@ export function CalendarioClient({
 
         {/* Header */}
         {isMobile ? (
-          <div style={{ flexShrink: 0, marginBottom: 8 }}>
+          <div style={{ flexShrink: 0, marginBottom: 8, position: 'relative' }}>
             {/* Line 1: full date (muted) */}
             <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 500, color: 'var(--color-fg-muted)' }}>
               {(() => {
@@ -1266,6 +1295,29 @@ export function CalendarioClient({
                 )
               })}
             </div>
+
+            {/* FIX 2: compact staff picker button — top-right, mobile only */}
+            {isManagerOrOwner && data.staff.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setStaffPickerOpen(true)}
+                aria-label="Filtra staff"
+                style={{
+                  position: 'absolute', top: 0, right: 0,
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '6px 10px', borderRadius: 10,
+                  border: selectedStaffId ? 'none' : '1px solid #E5E7EB',
+                  background: selectedStaffId ? '#111827' : '#FFF',
+                  color: selectedStaffId ? '#FFF' : '#6B7280',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                <Users size={14} />
+                {selectedStaffId
+                  ? (data.staff.find((s) => s.id === selectedStaffId)?.full_name?.split(' ')[0] ?? '—')
+                  : 'Tutti'}
+              </button>
+            )}
 
           </div>
         ) : (
@@ -1422,90 +1474,73 @@ export function CalendarioClient({
           </div>
         )}
 
-        {/* Staff filter avatar strip — mobile */}
-        {isManagerOrOwner && data.staff.length > 1 && isMobile && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            overflowX: 'auto',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch',
-            paddingLeft: 20,
-            paddingRight: 20,
-            height: 48,
-            flexShrink: 0,
-            marginBottom: 4,
-          } as React.CSSProperties}>
-
-            {/* Tutti pill */}
-            <button
-              type="button"
-              onClick={() => selectStaff(null)}
-              style={{
-                flexShrink:   0,
-                height:       32,
-                padding:      '0 14px',
-                borderRadius: 100,
-                border:       !selectedStaffId ? 'none' : '1.5px solid #D1D5DB',
-                background:   !selectedStaffId ? '#111827' : 'transparent',
-                color:        !selectedStaffId ? '#FFF' : '#9CA3AF',
-                fontSize:     13,
-                fontWeight:   600,
-                cursor:       'pointer',
-                whiteSpace:   'nowrap',
-                transition:   'background 150ms ease, color 150ms ease',
-              }}
-            >
-              Tutti
-            </button>
-
-            {/* Staff avatars */}
-            {data.staff.map((s) => {
-              const active   = selectedStaffId === s.id
-              const dim      = !!selectedStaffId && !active
-              const col      = staffColorMap[s.id] ?? '#374151'
-              const initials = (s.full_name ?? '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-              return (
+        {/* FIX 2: Staff picker bottom sheet — mobile (replaces the avatar strip) */}
+        {isMobile && isManagerOrOwner && data.staff.length > 1 && staffPickerOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000 }}
+              onClick={() => setStaffPickerOpen(false)}
+            />
+            {/* Sheet */}
+            <div style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0,
+              background: '#FFF', borderRadius: '20px 20px 0 0',
+              padding: '16px 20px 40px', zIndex: 1001,
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.12)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.15)' }} />
+              </div>
+              <p style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 700, color: '#111827' }}>Filtra per staff</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <button
-                  key={s.id}
                   type="button"
-                  onClick={() => selectStaff(s.id)}
+                  onClick={() => { selectStaff(null); setStaffPickerOpen(false) }}
                   style={{
-                    flexShrink: 0,
-                    width:      36,
-                    height:     36,
-                    borderRadius: '50%',
-                    padding:    0,
-                    border:     'none',
-                    background: 'none',
-                    cursor:     'pointer',
-                    opacity:    dim ? 0.7 : 1,
-                    transition: 'opacity 150ms ease',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 14px', borderRadius: 12,
+                    border: !selectedStaffId ? '1.5px solid #111827' : '1px solid #E5E7EB',
+                    background: !selectedStaffId ? '#111827' : '#FFF',
+                    color: !selectedStaffId ? '#FFF' : '#374151',
+                    fontSize: 14, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
                   }}
                 >
-                  <div style={{
-                    width:        36,
-                    height:       36,
-                    borderRadius: '50%',
-                    background:   col,
-                    display:      'flex',
-                    alignItems:   'center',
-                    justifyContent: 'center',
-                    overflow:     'hidden',
-                    boxShadow:    active ? '0 0 0 2px #fff, 0 0 0 4px #111827' : 'none',
-                    transition:   'box-shadow 150ms ease',
-                  }}>
-                    {s.avatar_url ? (
-                      <img src={s.avatar_url} alt={s.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#FFF', userSelect: 'none' }}>{initials}</span>
-                    )}
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: !selectedStaffId ? 'rgba(255,255,255,0.15)' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Users size={14} color={!selectedStaffId ? '#fff' : '#6B7280'} />
                   </div>
+                  Tutti
                 </button>
-              )
-            })}
-          </div>
+                {data.staff.map((s) => {
+                  const active = selectedStaffId === s.id
+                  const col    = staffColorMap[s.id] ?? '#374151'
+                  const initials = (s.full_name ?? '?').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { selectStaff(s.id); setStaffPickerOpen(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '12px 14px', borderRadius: 12,
+                        border: active ? `1.5px solid ${col}` : '1px solid #E5E7EB',
+                        background: active ? col + '12' : '#FFF',
+                        color: '#374151', fontSize: 14, fontWeight: 600,
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#FFF', flexShrink: 0 }}>
+                        {s.avatar_url
+                          ? <img src={s.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                          : initials}
+                      </div>
+                      {s.full_name ?? 'Staff'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Calendar card */}

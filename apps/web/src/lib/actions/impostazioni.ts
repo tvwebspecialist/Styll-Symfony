@@ -28,6 +28,7 @@ export interface LocationSettings {
   address: string | null
   phone: string | null
   isActive: boolean
+  photos: string[]
 }
 
 export interface SubscriptionInfo {
@@ -59,7 +60,7 @@ export async function getImpostazioniData(): Promise<ImpostazioniData> {
       ? db.from('tenants').select('id, business_name, slug, primary_color, logo_url').eq('id', tenantId).maybeSingle()
       : Promise.resolve({ data: null }),
     tenantId
-      ? db.from('locations').select('id, name, address, phone, is_active').eq('tenant_id', tenantId).order('name')
+      ? db.from('locations').select('id, name, address, phone, is_active, photos').eq('tenant_id', tenantId).order('name')
       : Promise.resolve({ data: [] }),
     tenantId
       ? db
@@ -100,6 +101,7 @@ export async function getImpostazioniData(): Promise<ImpostazioniData> {
       address: l.address ?? null,
       phone: l.phone ?? null,
       isActive: l.is_active ?? true,
+      photos: (l.photos as string[] | null) ?? [],
     })),
     subscription: subData
       ? {
@@ -158,6 +160,7 @@ export async function upsertLocation(data: {
   address?: string | null
   phone?: string | null
   isActive?: boolean
+  photos?: string[]
 }): Promise<{ success: boolean; error?: string }> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
@@ -171,6 +174,7 @@ export async function upsertLocation(data: {
         address: data.address ?? null,
         phone: data.phone ?? null,
         is_active: data.isActive ?? true,
+        photos: data.photos ?? [],
         updated_at: now,
       })
       .eq('id', data.id)
@@ -183,6 +187,7 @@ export async function upsertLocation(data: {
       address: data.address ?? null,
       phone: data.phone ?? null,
       is_active: data.isActive ?? true,
+      photos: data.photos ?? [],
       created_at: now,
       updated_at: now,
     })
