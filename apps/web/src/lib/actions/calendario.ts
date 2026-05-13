@@ -336,6 +336,33 @@ export async function createAppointment(input: {
   return { success: true, appointmentId: appt.id }
 }
 
+export async function updateAppointmentStaff(
+  appointmentId: string,
+  staffId: string
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: appt } = await db
+    .from('appointments')
+    .select('tenant_id')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt || appt.tenant_id !== tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const { error } = await db
+    .from('appointments')
+    .update({ staff_id: staffId })
+    .eq('id', appointmentId)
+
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
 export async function updateAppointmentServices(
   appointmentId: string,
   serviceIds: string[],
