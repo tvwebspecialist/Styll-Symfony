@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createClient } from '@/lib/supabase/client'
 import type { Appointment } from '@/types'
@@ -116,13 +116,23 @@ export function useRealtimeAppointments(
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+
+  // Keep callbacks in refs so the main useEffect never needs to re-subscribe
+  // just because a caller recreated an inline function.
   const onErrorRef = useRef(options.onError)
   const onDataChangeRef = useRef(options.onDataChange)
-
   useEffect(() => {
     onErrorRef.current = options.onError
     onDataChangeRef.current = options.onDataChange
-  }, [options.onError, options.onDataChange])
+  })  // intentionally no dep array — runs after every render to stay current
+
+  // Collapse all primitive filter values into one memoized reference so the
+  // subscription effect has a single stable dep and won't re-run when the
+  // caller re-renders with the same string values.
+  const filters = useMemo(
+    () => ({ tenantId, locationId, staffId, startDate, endDate }),
+    [tenantId, locationId, staffId, startDate, endDate]
+  )
 
   const reportError = useCallback((nextError: Error) => {
     setError(nextError)
@@ -143,6 +153,7 @@ export function useRealtimeAppointments(
   }, [reportError])
 
   useEffect(() => {
+    const { tenantId, locationId, staffId, startDate, endDate } = filters
     const supabase = createClient()
     let isActive = true
     let channel: ReturnType<typeof supabase.channel> | null = null
@@ -328,7 +339,7 @@ export function useRealtimeAppointments(
         void supabase.removeChannel(channel)
       }
     }
-  }, [tenantId, locationId, staffId, startDate, endDate, reportError, notifyDataChange])
+  }, [filters, reportError, notifyDataChange])
 
   return { appointments, loading, error, isConnected }
 }
