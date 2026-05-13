@@ -907,13 +907,15 @@ export function CalendarioClient({
   // Subscribe to Supabase Realtime.  Uses trigger-only mode so the hook does
   // NOT maintain its own state — it just calls refetchAppointments whenever a
   // change arrives on the appointments table for this tenant/week.
-  const { isConnected } = useRealtimeAppointments({
-    tenantId,
-    weekStart,
-    weekEnd,
-    staffId: selectedStaffId,
-    onDataChange: refetchAppointments,
-  })
+// const { isConnected } = useRealtimeAppointments({
+//   tenantId,
+//   weekStart,
+//   weekEnd,
+//   staffId: selectedStaffId,
+//   onDataChange: refetchAppointments,
+// })
+
+const isConnected = false // fallback temporaneo
 
   const [isMobile, setIsMobile]         = React.useState(false)
   const [view, setView]                 = React.useState<CalendarView>(dayView ? 'Giorno' : 'Settimana')
