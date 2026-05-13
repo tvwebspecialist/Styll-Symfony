@@ -12,9 +12,5 @@ export default async function DashboardPage() {
 
   const data = await getDashboardHomeData()
 
-  return (
-    <div style={{ padding: 24 }}>
-      <DashboardHomeClient data={data} basePath="/dashboard" />
-    </div>
-  )
+  return <DashboardHomeClient data={data} basePath="/dashboard" />
 }

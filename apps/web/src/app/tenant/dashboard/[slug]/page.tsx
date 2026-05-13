@@ -17,9 +17,5 @@ export default async function DashboardPage({
 
   const data = await getDashboardHomeData()
 
-  return (
-    <div>
-      <DashboardHomeClient data={data} basePath={`/tenant/dashboard/${slug}`} />
-    </div>
-  )
+  return <DashboardHomeClient data={data} basePath={`/tenant/dashboard/${slug}`} />
 }

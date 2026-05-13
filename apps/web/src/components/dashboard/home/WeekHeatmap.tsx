@@ -12,7 +12,6 @@ const HOUR_START = 9
 const HOUR_END = 18
 
 export function WeekHeatmap({ slots }: Props) {
-  // Build a map: dateStr → Set<hour>
   const bookedMap = new Map<string, Set<number>>()
   for (const slot of slots) {
     if (!slot.is_booked) continue
@@ -21,10 +20,8 @@ export function WeekHeatmap({ slots }: Props) {
     bookedMap.set(slot.date, set)
   }
 
-  // Get Mon–Sat dates from slots
   const uniqueDates = Array.from(new Set(slots.map((s) => s.date))).sort().slice(0, 6)
   if (uniqueDates.length === 0) {
-    // Fallback: current week
     const now = new Date()
     const dow = now.getDay()
     const daysFromMon = dow === 0 ? 6 : dow - 1
@@ -41,40 +38,36 @@ export function WeekHeatmap({ slots }: Props) {
     <div
       style={{
         background: '#FFFFFF',
-        borderRadius: 20,
-        border: '1px solid #E9E9E9',
-        padding: 20,
+        borderRadius: 16,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
+        padding: '20px 20px 18px',
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <p style={{ fontSize: 16, fontWeight: 700, color: '#222222', margin: 0, fontFamily: 'Outfit, sans-serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <p style={{ fontSize: 15, fontWeight: 700, color: '#111111', margin: 0, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.2px' }}>
           Occupazione settimanale
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: '#F5F5F5', border: '1px solid #E9E9E9', display: 'inline-block' }} />
-          <span style={{ fontSize: 11, color: '#B0B0B0' }}>Libero</span>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: '#222222', display: 'inline-block', marginLeft: 8 }} />
-          <span style={{ fontSize: 11, color: '#B0B0B0' }}>Occupato</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 4, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'inline-block' }} />
+            <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Outfit, sans-serif' }}>Libero</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 4, background: '#111827', display: 'inline-block' }} />
+            <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Outfit, sans-serif' }}>Occupato</span>
+          </span>
         </div>
       </div>
 
       {/* Grid */}
       <div style={{ display: 'flex', gap: 6 }}>
         {/* Hour labels */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingTop: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 22 }}>
           {hours.map((h) => (
-            <div
-              key={h}
-              style={{
-                height: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-              }}
-            >
+            <div key={h} style={{ height: 22, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               {h % 2 === 1 ? (
-                <span style={{ fontSize: 10, color: '#B0B0B0', width: 20, textAlign: 'right' }}>
+                <span style={{ fontSize: 9, color: '#CBD5E1', width: 20, textAlign: 'right', fontFamily: 'Outfit, sans-serif' }}>
                   {String(h).padStart(2, '0')}
                 </span>
               ) : (
@@ -86,23 +79,22 @@ export function WeekHeatmap({ slots }: Props) {
 
         {/* Day columns */}
         {uniqueDates.map((date, di) => (
-          <div key={date} style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
-            {/* Day label */}
-            <p style={{ fontSize: 10, color: '#B0B0B0', textAlign: 'center', margin: '0 0 5px', fontFamily: 'Outfit, sans-serif' }}>
+          <div key={date} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textAlign: 'center', margin: '0 0 6px', fontFamily: 'Outfit, sans-serif', letterSpacing: '0.04em' }}>
               {DAYS[di] ?? ''}
             </p>
-            {/* Hour cells */}
             {hours.map((h) => {
-              const isBooked = bookedMap.get(date)?.has(h) ?? false
+              const booked = bookedMap.get(date)?.has(h) ?? false
               return (
                 <div
                   key={h}
-                  title={isBooked ? `${DAYS[di]} ${h}:00 — Occupato` : undefined}
+                  title={booked ? `${DAYS[di]} ${h}:00 — Occupato` : undefined}
                   style={{
-                    height: 18,
-                    borderRadius: 4,
-                    background: isBooked ? '#222222' : '#F5F5F5',
-                    opacity: isBooked ? 0.85 : 1,
+                    height: 22,
+                    borderRadius: 5,
+                    background: booked ? '#111827' : '#F1F5F9',
+                    opacity: booked ? 0.88 : 1,
+                    transition: 'opacity 120ms',
                   }}
                 />
               )
