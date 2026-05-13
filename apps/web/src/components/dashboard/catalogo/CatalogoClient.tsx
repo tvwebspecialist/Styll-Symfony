@@ -16,6 +16,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
+import { CustomSelect } from '@/components/ui/custom-select'
 import { createClient } from '@/lib/supabase/client'
 import {
   DndContext,
@@ -229,19 +230,15 @@ function ServizioForm({
       </div>
 
       <Field label="Categoria">
-        <select
-          className="styll-input"
-          style={{ padding: '10px 12px', fontSize: 15, width: '100%', cursor: 'pointer' }}
+        <CustomSelect
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          <option value="">— Nessuna categoria —</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setCategory(v)}
+          options={[
+            { value: '', label: '— Nessuna categoria —' },
+            ...categories.map((c) => ({ value: c, label: c })),
+          ]}
+          placeholder="Seleziona categoria…"
+        />
         {category && categoryColors.get(category) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <span

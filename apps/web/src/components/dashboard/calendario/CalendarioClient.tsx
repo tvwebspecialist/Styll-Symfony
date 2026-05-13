@@ -12,6 +12,7 @@ import type {
 } from '@/lib/actions/calendario'
 import {
   updateAppointmentStatus,
+  updateAppointmentStaff,
   createAppointment,
   getCalendarioFormOptions,
   getCalendarioData,
@@ -24,7 +25,7 @@ import { CustomSelect } from '@/components/ui/custom-select'
 import { DatePicker } from '@/components/ui/date-picker'
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const HOUR_HEIGHT = 120
+const HOUR_HEIGHT = 200
 const HOUR_START = 8
 const HOUR_END = 20
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
@@ -359,19 +360,24 @@ function ApptDetailModal({
   onClose,
   onUpdated,
   tenantId,
+  isManagerOrOwner = false,
 }: {
   appt: CalendarioAppointment
   onClose: () => void
   onUpdated: () => void
   tenantId: string
+  isManagerOrOwner?: boolean
 }) {
   const [editing, setEditing]       = React.useState(false)
   const [editStatus, setEditStatus] = React.useState(appt.status)
   const [editNotes, setEditNotes]   = React.useState(appt.notes ?? '')
   const [editServiceId, setEditServiceId]   = React.useState<string>(appt.services[0]?.id ?? '')
+  const [editStaffId, setEditStaffId]       = React.useState<string>(appt.staff_id)
   const [saving, setSaving]         = React.useState(false)
   const [saveError, setSaveError]   = React.useState<string | null>(null)
   const [options, setOptions]       = React.useState<FormOptions | null>(null)
+  const [viewStatus, setViewStatus]     = React.useState(appt.status)
+  const [quickSaving, setQuickSaving]   = React.useState(false)
 
   React.useEffect(() => {
     getCalendarioFormOptions(tenantId)
@@ -379,7 +385,7 @@ function ApptDetailModal({
       .catch(() => setOptions(null))
   }, [tenantId])
 
-  const sc  = STATUS_BADGE[appt.status] ?? { bg: '#F3F4F6', text: '#374151' }
+  const sc  = STATUS_BADGE[viewStatus] ?? { bg: '#F3F4F6', text: '#374151' }
   const col = getCategoryColor(appt.services[0]?.category)
   const dateLabel = new Date(appt.start_time).toLocaleDateString('it-IT', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -391,8 +397,12 @@ function ApptDetailModal({
     const res = await updateAppointmentStatus(appt.id, editStatus, editNotes || null)
     if (!res.success) { setSaveError(res.error ?? 'Errore durante il salvataggio'); setSaving(false); return }
     const svcRes = await updateAppointmentServices(appt.id, editServiceId ? [editServiceId] : [], tenantId)
+    if (!svcRes.success) { setSaving(false); setSaveError(svcRes.error ?? 'Errore nell\'aggiornamento servizi'); return }
+    if (editStaffId && editStaffId !== appt.staff_id) {
+      const staffRes = await updateAppointmentStaff(appt.id, editStaffId)
+      if (!staffRes.success) { setSaving(false); setSaveError(staffRes.error ?? 'Errore aggiornamento staff'); return }
+    }
     setSaving(false)
-    if (!svcRes.success) { setSaveError(svcRes.error ?? 'Errore nell\'aggiornamento servizi'); return }
     onUpdated()
     onClose()
   }
@@ -418,7 +428,7 @@ function ApptDetailModal({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ background: sc.bg, color: sc.text, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 100 }}>
-              {STATUS_LABELS[appt.status] ?? appt.status}
+              {STATUS_LABELS[viewStatus] ?? viewStatus}
             </span>
             {appt.booking_source === 'walk_in' && <span style={{ fontSize: 12 }}>🚶 Walk-in</span>}
           </div>
@@ -466,33 +476,29 @@ function ApptDetailModal({
         {editing ? (
           <div>
             {options && options.services.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Servizio</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {options.services.map((s) => {
-                    const svcColor = s.color || '#888'
-                    return (
-                      <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 0' }}>
-                        <input
-                          type="radio"
-                          name="edit_service"
-                          value={s.id}
-                          checked={editServiceId === s.id}
-                          onChange={() => setEditServiceId(s.id)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: svcColor, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: '#374151', flex: 1 }}>{s.name}</span>
-                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>{s.duration_minutes}m</span>
-                        <span style={{ fontSize: 11, color: '#9CA3AF' }}>€{s.price}</span>
-                      </label>
-                    )
-                  })}
-                </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Servizio</label>
+                <CustomSelect
+                  value={editServiceId}
+                  onChange={(v) => setEditServiceId(v)}
+                  options={options.services.map((s) => ({ value: s.id, label: `${s.name} (${s.duration_minutes} min)` }))}
+                  placeholder="Seleziona servizio…"
+                />
               </div>
             )}
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Stato</label>
+            {isManagerOrOwner && options && options.staff.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Staff</label>
+                <CustomSelect
+                  value={editStaffId}
+                  onChange={(v) => setEditStaffId(v)}
+                  options={options.staff.map((s) => ({ value: s.id, label: s.full_name ?? 'Staff' }))}
+                  placeholder="Seleziona staff…"
+                />
+              </div>
+            )}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Stato</label>
               <CustomSelect
                 value={editStatus}
                 onChange={(v) => setEditStatus(v)}
@@ -500,7 +506,7 @@ function ApptDetailModal({
               />
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Note</label>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Note</label>
               <textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
@@ -522,7 +528,33 @@ function ApptDetailModal({
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: appt.status !== 'cancelled' ? 10 : 0 }}>
+            {/* Staff name — managers/owners only */}
+            {isManagerOrOwner && options && (
+              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Users size={14} color="#9CA3AF" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>
+                  {options.staff.find((s) => s.id === appt.staff_id)?.full_name ?? 'Staff'}
+                </span>
+              </div>
+            )}
+            {/* Quick status change */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Stato</label>
+              <CustomSelect
+                value={viewStatus}
+                onChange={(v) => {
+                  setViewStatus(v)
+                  setQuickSaving(true)
+                  void updateAppointmentStatus(appt.id, v, appt.notes).then((res) => {
+                    setQuickSaving(false)
+                    if (res.success) onUpdated()
+                  })
+                }}
+                options={Object.entries(STATUS_LABELS).map(([val, lbl]) => ({ value: val, label: lbl }))}
+              />
+              {quickSaving && <span style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, display: 'block' }}>Salvataggio…</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: viewStatus !== 'cancelled' ? 10 : 0 }}>
               <Link
                 href={`/clienti/${appt.client_id}`}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: '1px solid #E9E9E9', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', textDecoration: 'none' }}
@@ -534,7 +566,7 @@ function ApptDetailModal({
                 Modifica
               </button>
             </div>
-            {appt.status !== 'cancelled' && (
+            {viewStatus !== 'cancelled' && (
               <button
                 type="button"
                 onClick={() => { setEditStatus('cancelled'); setEditing(true) }}
@@ -592,6 +624,14 @@ function NewApptModal({
   const [submitting, setSubmitting]           = React.useState(false)
   const [error, setError]                     = React.useState<string | null>(null)
   const [submitAttempted, setSubmitAttempted] = React.useState(false)
+  const [conflictMode, setConflictMode]       = React.useState(false)
+  const conflictTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup conflict timer on unmount
+  React.useEffect(() => {
+    const ref = conflictTimerRef
+    return () => { if (ref.current) clearTimeout(ref.current) }
+  }, [])
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)')
@@ -662,7 +702,17 @@ function NewApptModal({
       notes: notes || null,
     })
     setSubmitting(false)
-    if (!res.success) { setError(res.error ?? 'Errore durante la creazione'); return }
+    if (!res.success) {
+      const msg = res.error ?? 'Errore durante la creazione'
+      if (msg.toLowerCase().includes('overlap') || msg.includes('no_overlapping')) {
+        setConflictMode(true)
+        if (conflictTimerRef.current) clearTimeout(conflictTimerRef.current)
+        conflictTimerRef.current = setTimeout(() => setConflictMode(false), 3000)
+      } else {
+        setError(msg)
+      }
+      return
+    }
     onCreated()
     onClose()
   }
@@ -726,6 +776,14 @@ function NewApptModal({
 
         {loadingOptions ? (
           <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 14, padding: '24px 0' }}>Caricamento…</p>
+        ) : conflictMode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '32px 0', textAlign: 'center' }}>
+            <span style={{ fontSize: 40 }}>⚠️</span>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827' }}>Slot già occupato</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
+              C'è già un appuntamento in questo orario.<br />Modifica orario o data e riprova…
+            </p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1149,13 +1207,6 @@ export function CalendarioClient({
 
   return (
     <div style={{ position: 'relative', display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 66px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
-      <div className="absolute right-4 top-4 z-50">
-        <span className={`rounded-full px-3 py-1 text-sm font-medium shadow-sm ${
-          isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {isConnected ? '🟢 Connected' : '🔴 Offline'}
-        </span>
-      </div>
 
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1216,20 +1267,6 @@ export function CalendarioClient({
               })}
             </div>
 
-            {/* Mobile: offline/syncing banner (shown only when not connected) */}
-            {(!isConnected || isSyncing) && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6,
-                padding: '5px 10px', borderRadius: 8,
-                background: isSyncing ? '#f0f9ff' : '#fef2f2',
-                border: `1px solid ${isSyncing ? '#bae6fd' : '#fecaca'}`,
-              }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isSyncing ? '#0ea5e9' : '#ef4444', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 500, color: isSyncing ? '#0284c7' : '#dc2626' }}>
-                  {isSyncing ? 'Aggiornamento…' : 'Sincronizzazione offline'}
-                </span>
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexShrink: 0 }}>
@@ -1726,6 +1763,7 @@ export function CalendarioClient({
           onClose={() => setDetailAppt(null)}
           onUpdated={() => router.refresh()}
           tenantId={tenantId}
+          isManagerOrOwner={isManagerOrOwner}
         />
       )}
       {newApptCell && (
