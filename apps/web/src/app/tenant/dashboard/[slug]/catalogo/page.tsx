@@ -12,7 +12,7 @@ export default async function CatalogoPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { servizi, prodotti, locations } = await getCatalogoData()
+  const { servizi, prodotti, locations, dbCategories } = await getCatalogoData()
 
-  return <CatalogoClient servizi={servizi} prodotti={prodotti} locations={locations} />
+  return <CatalogoClient servizi={servizi} prodotti={prodotti} locations={locations} dbCategories={dbCategories} />
 }

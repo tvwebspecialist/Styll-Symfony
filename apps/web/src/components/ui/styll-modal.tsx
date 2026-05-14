@@ -15,9 +15,9 @@ export interface StyllModalProps {
 }
 
 /**
- * StyllModal — universal centered popup for Styll.
- * Wraps @base-ui/react Dialog with Styll design: rounded-3xl, Outfit font,
- * smooth animations. Forms pass their own footer buttons as part of children.
+ * StyllModal — universal popup for Styll.
+ * Mobile: bottom sheet (like NewApptModal in calendario).
+ * Desktop: centered modal.
  */
 export function StyllModal({
   open,
@@ -27,8 +27,11 @@ export function StyllModal({
   children,
   size = 'md',
 }: StyllModalProps) {
-  const maxWidthMap = { sm: '440px', md: '520px', lg: '640px' }
-  const maxWidth = maxWidthMap[size]
+  const maxWidthClass = {
+    sm: 'sm:max-w-[440px]',
+    md: 'sm:max-w-[520px]',
+    lg: 'sm:max-w-[640px]',
+  }[size]
 
   return (
     <DialogPrimitive.Root
@@ -43,23 +46,29 @@ export function StyllModal({
           className="fixed inset-0 isolate z-[200] bg-black/40 backdrop-blur-sm duration-150 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
         />
 
-        {/* Popup */}
+        {/* Popup — bottom sheet on mobile, centered on sm+ */}
         <DialogPrimitive.Popup
           className={cn(
             'styll-modal-popup',
-            'fixed top-1/2 left-1/2 z-[201] -translate-x-1/2 -translate-y-1/2',
-            'w-[calc(100vw-2rem)]',
+            'fixed z-[201]',
+            // ── Mobile: bottom sheet ──────────────────────────────────────
+            'bottom-4 left-4 right-4 rounded-3xl',
+            // ── Desktop (sm+): centered modal ─────────────────────────────
+            'sm:bottom-auto sm:left-1/2 sm:right-auto',
+            'sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
+            'sm:w-[calc(100vw-2rem)]',
+            maxWidthClass,
+            // ── Common ────────────────────────────────────────────────────
             'flex flex-col',
-            'rounded-3xl bg-white shadow-2xl',
+            'bg-white shadow-2xl',
             'max-h-[90dvh]',
             'outline-none',
             'duration-150',
             'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
-            'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95'
+            'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           )}
-          style={{ maxWidth }}
         >
-          {/* Drag handle — visible on mobile only */}
+          {/* Drag handle — hint visivo su mobile */}
           <div className="styll-modal-drag-handle" aria-hidden="true" />
 
           {/* Header */}

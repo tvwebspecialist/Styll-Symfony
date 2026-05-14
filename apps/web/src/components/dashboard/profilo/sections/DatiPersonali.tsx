@@ -9,11 +9,24 @@ import {
   Field,
   StyledInput,
   StyledTextarea,
-  StyledSelect,
   primaryButtonStyle,
   outlineButtonStyle,
   Toast,
 } from '../ui'
+import { CustomSelect } from '@/components/ui/custom-select'
+
+const LINGUA_OPTIONS = [
+  { value: 'it', label: 'Italiano' },
+  { value: 'en', label: 'English' },
+]
+
+const TIMEZONE_OPTIONS = [
+  { value: 'Europe/Rome',   label: 'Europe/Rome' },
+  { value: 'Europe/London', label: 'Europe/London' },
+  { value: 'Europe/Madrid', label: 'Europe/Madrid' },
+  { value: 'Europe/Paris',  label: 'Europe/Paris' },
+  { value: 'UTC',           label: 'UTC' },
+]
 
 const BIO_MAX = 200
 const SHADOW_TOOLTIP = 'Non disponibile in modalità shadow'
@@ -193,19 +206,18 @@ export function DatiPersonali({
           />
         </Field>
         <Field label="Lingua">
-          <StyledSelect value={language} onChange={(e) => setLanguage(e.target.value)}>
-            <option value="it">Italiano</option>
-            <option value="en">English</option>
-          </StyledSelect>
+          <CustomSelect
+            value={language}
+            onChange={setLanguage}
+            options={LINGUA_OPTIONS}
+          />
         </Field>
         <Field label="Fuso orario">
-          <StyledSelect value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-            <option value="Europe/Rome">Europe/Rome</option>
-            <option value="Europe/London">Europe/London</option>
-            <option value="Europe/Madrid">Europe/Madrid</option>
-            <option value="Europe/Paris">Europe/Paris</option>
-            <option value="UTC">UTC</option>
-          </StyledSelect>
+          <CustomSelect
+            value={timezone}
+            onChange={setTimezone}
+            options={TIMEZONE_OPTIONS}
+          />
         </Field>
         <div style={{ gridColumn: '1 / -1' }}>
           <Field label={`Bio (${bio.length}/${BIO_MAX})`}>
