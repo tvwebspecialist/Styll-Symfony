@@ -44,7 +44,6 @@ export interface InventoryEntry {
 }
 
 export interface ServiceCategoryRow {
-  id: string
   name: string
   color: string | null
 }
@@ -63,7 +62,7 @@ export async function getCatalogoData(): Promise<{
 
   const db = createAdminClient()
 
-  const [serviziRes, prodottiRes, inventoryRes, locationsRes, categoriesRes] = await Promise.all([
+  const [serviziRes, prodottiRes, inventoryRes, locationsRes] = await Promise.all([
     db
       .from('services')
       .select('id, name, description, price, duration_minutes, category, color, display_order, is_active')
@@ -85,18 +84,12 @@ export async function getCatalogoData(): Promise<{
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name', { ascending: true }),
-    db
-      .from('service_categories')
-      .select('id, name, color')
-      .eq('tenant_id', tenantId)
-      .order('name', { ascending: true }),
   ])
 
   const rawServizi   = serviziRes.data   ?? []
   const rawProdotti  = prodottiRes.data  ?? []
   const inventory    = inventoryRes.data ?? []
   const rawLocations = locationsRes.data ?? []
-  const rawCategories = categoriesRes.data ?? []
 
   // Aggregate inventory per product
   const stockByProduct = new Map<string, number>()
@@ -140,11 +133,16 @@ export async function getCatalogoData(): Promise<{
     name: l.name ?? '',
   }))
 
-  const dbCategories: ServiceCategoryRow[] = rawCategories.map((c) => ({
-    id: c.id,
-    name: c.name,
-    color: c.color ?? null,
-  }))
+  // Derive categories from services (unique name → first color found)
+  const categoryColorMap = new Map<string, string | null>()
+  for (const s of rawServizi) {
+    if (s.category && !categoryColorMap.has(s.category)) {
+      categoryColorMap.set(s.category, s.color ?? null)
+    }
+  }
+  const dbCategories: ServiceCategoryRow[] = Array.from(categoryColorMap.entries())
+    .map(([name, color]) => ({ name, color }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   return { servizi, prodotti, locations, dbCategories, tenantId }
 }
@@ -372,76 +370,36 @@ export async function bulkUpdateCategory(
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
   const db = createAdminClient()
   const trimmed = newName.trim() || oldName
-  // Update all services in this category
   const { error } = await db
     .from('services')
     .update({ category: trimmed, color: color ?? null, updated_at: new Date().toISOString() })
     .eq('tenant_id', tenantId)
     .eq('category', oldName)
   if (error) return { success: false, error: error.message }
-  // Keep service_categories in sync (rename or upsert)
-  await db
-    .from('service_categories')
-    .upsert({ tenant_id: tenantId, name: trimmed, color: color ?? null }, { onConflict: 'tenant_id,name' })
-  if (trimmed !== oldName) {
-    await db
-      .from('service_categories')
-      .delete()
-      .eq('tenant_id', tenantId)
-      .eq('name', oldName)
-  }
   revalidatePath('/dashboard/catalogo')
   return { success: true }
 }
 
-// ─── createServiceCategory ────────────────────────────────────────────────────
+// ─── deleteCategory ───────────────────────────────────────────────────────────
+// Removes the category string from all services that use it (sets category = NULL).
 
-export async function createServiceCategory(
-  name: string,
-  color: string | null
-): Promise<{ success: boolean; error?: string; category?: ServiceCategoryRow }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const trimmed = name.trim()
-  if (!trimmed) return { success: false, error: 'Il nome non può essere vuoto' }
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('service_categories')
-    .insert({ tenant_id: tenantId, name: trimmed, color: color ?? null })
-    .select('id, name, color')
-    .single()
-  if (error) {
-    if (error.code === '23505') return { success: false, error: 'Categoria già esistente' }
-    return { success: false, error: error.message }
-  }
-  revalidatePath('/dashboard/catalogo')
-  return { success: true, category: { id: data.id, name: data.name, color: data.color ?? null } }
-}
-
-// ─── deleteServiceCategory ────────────────────────────────────────────────────
-
-export async function deleteServiceCategory(
-  id: string,
+export async function deleteCategory(
   name: string
 ): Promise<{ success: boolean; error?: string; serviceCount?: number }> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
   const db = createAdminClient()
-  // Count services still using this category
+  // Count services using this category
   const { count } = await db
     .from('services')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('category', name)
-  if ((count ?? 0) > 0) {
-    return { success: false, serviceCount: count ?? 0, error: `${count} servizi usano questa categoria` }
+  const serviceCount = count ?? 0
+  if (serviceCount > 0) {
+    return { success: false, serviceCount, error: `${serviceCount} servizi usano questa categoria` }
   }
-  const { error } = await db
-    .from('service_categories')
-    .delete()
-    .eq('id', id)
-    .eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
+  // Category is unused — nothing to delete from DB (it's just a string)
   revalidatePath('/dashboard/catalogo')
   return { success: true }
 }
