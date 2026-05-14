@@ -21,6 +21,22 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
 
   const slug = pathname.split('/').filter(Boolean)[2] ?? ''
 
+  // In dev with query-param tenant routing, derive aiuto href from search params
+  // (mirrors the logic in TopBar.tsx for the desktop help link)
+  const [aiutoHref, setAiutoHref] = React.useState(
+    slug ? `/tenant/dashboard/${slug}/aiuto` : '/aiuto'
+  )
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const qSlug = params.get('_tenant_slug')
+    const qType = params.get('_tenant_type')
+    if (qSlug && qType) {
+      setAiutoHref(`/aiuto?_tenant_slug=${qSlug}&_tenant_type=${qType}`)
+    } else if (slug) {
+      setAiutoHref(`/tenant/dashboard/${slug}/aiuto`)
+    }
+  }, [slug])
+
   const [query, setQuery] = React.useState('')
   const [open, setOpen] = React.useState(false)
   const [results, setResults] = React.useState<SearchResult[]>([])
@@ -259,7 +275,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               />
             </div>
             <Link
-              href={`/tenant/dashboard/${slug}/aiuto`}
+              href={aiutoHref}
               aria-label="Aiuto"
               style={{
                 width: 44,

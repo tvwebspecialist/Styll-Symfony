@@ -47,8 +47,7 @@ import {
   upsertProdotto,
   deleteProdotto,
   bulkUpdateCategory,
-  createServiceCategory,
-  deleteServiceCategory,
+  deleteCategory,
 } from '@/lib/actions/catalogo'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
@@ -973,6 +972,54 @@ function ProdottoCard({
   )
 }
 
+// ─── Category Color Palette ───────────────────────────────────────────────────
+
+const CATEGORY_COLORS = [
+  '#EF4444', // rosso
+  '#F97316', // arancione
+  '#F59E0B', // ambra
+  '#EAB308', // giallo
+  '#84CC16', // verde lime
+  '#22C55E', // verde
+  '#10B981', // smeraldo
+  '#14B8A6', // teal
+  '#06B6D4', // ciano
+  '#3B82F6', // blu
+  '#6366F1', // indaco
+  '#8B5CF6', // viola
+  '#A855F7', // porpora
+  '#EC4899', // rosa
+  '#F43F5E', // rosa-rosso
+  '#78716C', // grigio-caldo
+  '#64748B', // grigio-ardesia
+  '#000000', // nero
+]
+
+function ColorPalette({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {CATEGORY_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          title={c}
+          onClick={() => onChange(c)}
+          style={{
+            width: 32, height: 32, borderRadius: 8, background: c, flexShrink: 0,
+            border: value === c ? '2.5px solid #111' : '2.5px solid transparent',
+            outline: value === c ? '2.5px solid rgba(0,0,0,0.18)' : 'none',
+            outlineOffset: 2,
+            cursor: 'pointer',
+            transition: 'transform 100ms, outline 100ms, box-shadow 100ms',
+            transform: value === c ? 'scale(1.18)' : 'scale(1)',
+            boxShadow: value === c ? '0 2px 8px rgba(0,0,0,0.18)' : 'none',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 // ─── Category Manager Modal ───────────────────────────────────────────────────
 
 function CategoryManagerModal({
@@ -988,25 +1035,29 @@ function CategoryManagerModal({
   onClose: () => void
   onSaved: (oldName: string, newName: string, color: string | null) => void
   onCreated: (cat: ServiceCategoryRow) => void
-  onDeleted: (id: string, name: string) => void
+  onDeleted: (name: string) => void
 }) {
-  const [rows, setRows] = React.useState<{ id: string | null; original: string; name: string; color: string }[]>(() =>
+  const [rows, setRows] = React.useState<{ original: string; name: string; color: string; isNew?: boolean; _paletteOpen?: boolean }[]>(() =>
     dbCategories.map((c) => ({
-      id:       c.id,
       original: c.name,
       name:     c.name,
       color:    c.color ?? categoryColorMap.get(c.name) ?? '',
     }))
   )
-  const [saving,      setSaving]      = React.useState<string | null>(null)
-  const [deleting,    setDeleting]    = React.useState<string | null>(null)
-  // New category form
-  const [newName,     setNewName]     = React.useState('')
-  const [newColor,    setNewColor]    = React.useState('#6366F1')
-  const [creating,    setCreating]    = React.useState(false)
+  const [saving,   setSaving]   = React.useState<string | null>(null)
+  const [deleting, setDeleting] = React.useState<string | null>(null)
+  const [newName,  setNewName]  = React.useState('')
+  const [newColor, setNewColor] = React.useState('#6366F1')
 
   async function handleSave(idx: number) {
     const row = rows[idx]
+    if (row.isNew) {
+      // New category: no server action needed — it will persist when a service uses it
+      toast.success(`Categoria "${row.name}" pronta. Assegnala ad un servizio per renderla permanente.`)
+      onCreated({ name: row.name, color: row.color || null })
+      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, original: row.name, isNew: false } : r)))
+      return
+    }
     setSaving(row.original)
     const result = await bulkUpdateCategory(row.original, row.name, row.color || null)
     setSaving(null)
@@ -1021,16 +1072,17 @@ function CategoryManagerModal({
 
   async function handleDelete(idx: number) {
     const row = rows[idx]
-    if (!row.id) {
-      toast.error('Questa categoria non è ancora salvata nel database')
+    // New/unsaved categories can be removed immediately from local state
+    if (row.isNew) {
+      setRows((prev) => prev.filter((_, i) => i !== idx))
       return
     }
     setDeleting(row.original)
-    const result = await deleteServiceCategory(row.id, row.original)
+    const result = await deleteCategory(row.original)
     setDeleting(null)
     if (result.success) {
       toast.success(`Categoria "${row.original}" eliminata`)
-      onDeleted(row.id, row.original)
+      onDeleted(row.original)
       setRows((prev) => prev.filter((_, i) => i !== idx))
     } else if (result.serviceCount && result.serviceCount > 0) {
       toast.error(`Non puoi eliminare: ${result.serviceCount} servizi usano questa categoria`)
@@ -1039,179 +1091,206 @@ function CategoryManagerModal({
     }
   }
 
-  async function handleCreate() {
+  function handleAddNew() {
     if (!newName.trim()) { toast.error('Inserisci un nome per la categoria'); return }
-    setCreating(true)
-    const result = await createServiceCategory(newName.trim(), newColor)
-    setCreating(false)
-    if (result.success && result.category) {
-      toast.success(`Categoria "${result.category.name}" creata`)
-      onCreated(result.category)
-      setRows((prev) => [...prev, {
-        id:       result.category!.id,
-        original: result.category!.name,
-        name:     result.category!.name,
-        color:    result.category!.color ?? newColor,
-      }])
-      setNewName('')
-      setNewColor('#6366F1')
-    } else {
-      toast.error(result.error ?? 'Errore durante la creazione')
-    }
+    const trimmed = newName.trim()
+    if (rows.some((r) => r.name === trimmed)) { toast.error('Categoria già esistente'); return }
+    setRows((prev) => [...prev, { original: trimmed, name: trimmed, color: newColor, isNew: true }])
+    onCreated({ name: trimmed, color: newColor })
+    setNewName('')
+    setNewColor('#6366F1')
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-      {/* ── Nuova categoria ── */}
-      <div
-        style={{
-          padding: '14px 16px',
-          background: '#F8F9FF',
-          border: '1px dashed #C7D2FE',
-          borderRadius: 12,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Nuova categoria
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Color picker */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
+      {/* ── Categorie esistenti ── */}
+      {rows.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+          {rows.map((row, idx) => (
             <div
+              key={row.original}
               style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: newColor,
-                border: '2px solid var(--color-border)',
-                cursor: 'pointer',
+                borderRadius: 14,
+                overflow: 'hidden',
+                border: `1.5px solid ${row._paletteOpen ? (row.color || '#6366F1') : 'var(--color-border)'}`,
+                transition: 'border-color 150ms',
+                background: '#fff',
               }}
-            />
-            <input
-              type="color"
-              value={newColor}
-              onChange={(e) => setNewColor(e.target.value)}
-              style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
-            />
-          </div>
-          {/* Name */}
-          <input
-            className="styll-input"
-            placeholder="Nome categoria…"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
-            style={{ flex: 1, padding: '8px 12px', fontSize: 14 }}
-          />
-          {/* Create button */}
-          <button
-            type="button"
-            disabled={creating || !newName.trim()}
-            onClick={handleCreate}
-            className="styll-btn-primary"
-            style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
-          >
-            {creating ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={13} />}
-            Aggiungi
-          </button>
-        </div>
-      </div>
+            >
+              {/* Row header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                {/* Left color accent + swatch button */}
+                <button
+                  type="button"
+                  title="Cambia colore"
+                  onClick={() => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _paletteOpen: !r._paletteOpen } : r)))}
+                  style={{
+                    width: 52, alignSelf: 'stretch', flexShrink: 0,
+                    background: row.color || '#E5E7EB',
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'filter 120ms',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.filter = 'brightness(0.9)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.filter = 'brightness(1)' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                  </svg>
+                </button>
 
-      {/* ── Existing categories ── */}
+                {/* Name input */}
+                <input
+                  className="styll-input"
+                  style={{
+                    flex: 1, border: 'none', borderRadius: 0,
+                    padding: '14px 14px', fontSize: 15, fontWeight: 600,
+                    background: 'transparent', outline: 'none',
+                    color: '#111',
+                  }}
+                  value={row.name}
+                  onChange={(e) => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))}
+                  onFocus={(e) => { (e.currentTarget as HTMLElement).style.background = '#FAFAFA' }}
+                  onBlur={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                />
+
+                {/* Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 10 }}>
+                  {!row.isNew && (
+                    <button
+                      type="button"
+                      disabled={saving === row.original}
+                      onClick={() => handleSave(idx)}
+                      style={{
+                        height: 34, padding: '0 14px', borderRadius: 8, flexShrink: 0,
+                        border: 'none', background: '#111', color: '#fff',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        opacity: saving === row.original ? 0.6 : 1,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {saving === row.original && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+                      Salva
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={deleting === row.original}
+                    onClick={() => handleDelete(idx)}
+                    title="Elimina"
+                    style={{
+                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                      border: 'none', background: 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', transition: 'background 120ms',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#FEF2F2' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    {deleting === row.original
+                      ? <Loader2 size={14} color="#EF4444" style={{ animation: 'spin 1s linear infinite' }} />
+                      : <Trash2 size={14} color="#EF4444" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Palette (expands below) */}
+              {row._paletteOpen && (
+                <div style={{ padding: '12px 14px 14px', borderTop: '1px solid var(--color-border)', background: '#FAFAFA' }}>
+                  <ColorPalette
+                    value={row.color}
+                    onChange={(c) => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, color: c, _paletteOpen: false } : r)))}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {rows.length === 0 && (
-        <p style={{ fontSize: 14, color: 'var(--color-fg-muted)', textAlign: 'center', padding: '12px 0' }}>
-          Nessuna categoria. Creane una qui sopra.
+        <p style={{ fontSize: 14, color: '#B0B0B0', textAlign: 'center', padding: '8px 0 20px', margin: 0 }}>
+          Nessuna categoria ancora. Creane una qui sotto.
         </p>
       )}
-      {rows.map((row, idx) => (
-        <div
-          key={row.original}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '12px 14px',
-            background: 'var(--color-bg-secondary)',
-            borderRadius: 10,
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          {/* Color swatch */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <div
-              style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: row.color || '#F3F4F6',
-                border: '2px solid var(--color-border)',
-                cursor: 'pointer',
-              }}
-            />
-            <input
-              type="color"
-              value={row.color || '#000000'}
-              onChange={(e) =>
-                setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, color: e.target.value } : r)))
-              }
-              style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
-            />
-          </div>
-          {/* Name input */}
+
+      {/* ── Aggiungi nuova categoria ── */}
+      <div
+        style={{
+          borderRadius: 16,
+          border: '1.5px solid #E0E7FF',
+          background: '#F5F7FF',
+          overflow: 'hidden',
+          marginBottom: 16,
+        }}
+      >
+        {/* Header label */}
+        <div style={{ padding: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 6, background: newColor, flexShrink: 0, border: '2px solid rgba(0,0,0,0.08)' }} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            Nuova categoria
+          </span>
+        </div>
+
+        {/* Name input */}
+        <div style={{ padding: '10px 16px' }}>
           <input
             className="styll-input"
-            style={{ flex: 1, padding: '8px 12px', fontSize: 14 }}
-            value={row.name}
-            onChange={(e) =>
-              setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))
-            }
-          />
-          {/* Save button */}
-          <button
-            type="button"
-            disabled={saving === row.original}
-            onClick={() => handleSave(idx)}
-            className="styll-btn-primary"
-            style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
-          >
-            {saving === row.original && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-            Salva
-          </button>
-          {/* Delete button */}
-          <button
-            type="button"
-            disabled={deleting === row.original}
-            onClick={() => handleDelete(idx)}
-            title="Elimina categoria"
+            placeholder="Es. Taglio, Colore, Trattamenti…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddNew() }}
             style={{
-              width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-              border: '1px solid #FCA5A5',
-              background: 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background 120ms',
+              width: '100%', boxSizing: 'border-box',
+              padding: '12px 14px', fontSize: 15, fontWeight: 500,
+              borderRadius: 10, border: '1.5px solid #C7D2FE',
+              background: '#fff', outline: 'none',
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#FEF2F2' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          />
+        </div>
+
+        {/* Palette */}
+        <div style={{ padding: '4px 16px 12px' }}>
+          <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Colore
+          </p>
+          <ColorPalette value={newColor} onChange={setNewColor} />
+        </div>
+
+        {/* Add button */}
+        <div style={{ padding: '0 16px 16px' }}>
+          <button
+            type="button"
+            disabled={!newName.trim()}
+            onClick={handleAddNew}
+            style={{
+              width: '100%', height: 44, borderRadius: 10,
+              border: 'none', cursor: 'pointer',
+              background: newName.trim() ? '#111' : '#E5E7EB',
+              color: newName.trim() ? '#fff' : '#9CA3AF',
+              fontSize: 14, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontFamily: 'inherit',
+              transition: 'background 150ms, color 150ms',
+            }}
           >
-            {deleting === row.original
-              ? <Loader2 size={13} color="#EF4444" style={{ animation: 'spin 1s linear infinite' }} />
-              : <Trash2 size={13} color="#EF4444" />
-            }
+            <Plus size={15} />
+            Aggiungi categoria
           </button>
         </div>
-      ))}
-
-      <div style={{ paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
-        <button
-          type="button"
-          onClick={onClose}
-          className="styll-btn-secondary"
-          style={{ width: '100%', padding: '12px 16px', fontSize: 14, minHeight: 44 }}
-        >
-          Chiudi
-        </button>
       </div>
+
+      {/* ── Chiudi ── */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="styll-btn-secondary"
+        style={{ width: '100%', padding: '13px 16px', fontSize: 14, minHeight: 44, borderRadius: 12 }}
+      >
+        Chiudi
+      </button>
     </div>
   )
 }
@@ -1376,12 +1455,12 @@ export function CatalogoClient({
   }
 
   function handleCategoryCreated(cat: ServiceCategoryRow) {
-    setDbCategories((prev) => [...prev, cat])
+    setDbCategories((prev) => prev.some((c) => c.name === cat.name) ? prev : [...prev, cat])
   }
 
-  function handleCategoryDeleted(id: string, name: string) {
-    setDbCategories((prev) => prev.filter((c) => c.id !== id))
-    // Remove category from services that used it
+  function handleCategoryDeleted(name: string) {
+    setDbCategories((prev) => prev.filter((c) => c.name !== name))
+    // Clear category from services that used it
     setServizi((prev) =>
       prev.map((s) => s.category === name ? { ...s, category: null } : s)
     )
