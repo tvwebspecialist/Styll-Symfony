@@ -43,20 +43,27 @@ export interface InventoryEntry {
   quantity: number
 }
 
+export interface ServiceCategoryRow {
+  id: string
+  name: string
+  color: string | null
+}
+
 // ─── getCatalogoData ──────────────────────────────────────────────────────────
 
 export async function getCatalogoData(): Promise<{
   servizi: ServizioRow[]
   prodotti: ProdottoRow[]
   locations: LocationRow[]
+  dbCategories: ServiceCategoryRow[]
   tenantId: string | null
 }> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { servizi: [], prodotti: [], locations: [], tenantId: null }
+  if (!tenantId) return { servizi: [], prodotti: [], locations: [], dbCategories: [], tenantId: null }
 
   const db = createAdminClient()
 
-  const [serviziRes, prodottiRes, inventoryRes, locationsRes] = await Promise.all([
+  const [serviziRes, prodottiRes, inventoryRes, locationsRes, categoriesRes] = await Promise.all([
     db
       .from('services')
       .select('id, name, description, price, duration_minutes, category, color, display_order, is_active')
@@ -78,12 +85,18 @@ export async function getCatalogoData(): Promise<{
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name', { ascending: true }),
+    db
+      .from('service_categories')
+      .select('id, name, color')
+      .eq('tenant_id', tenantId)
+      .order('name', { ascending: true }),
   ])
 
-  const rawServizi = serviziRes.data ?? []
-  const rawProdotti = prodottiRes.data ?? []
-  const inventory = inventoryRes.data ?? []
+  const rawServizi   = serviziRes.data   ?? []
+  const rawProdotti  = prodottiRes.data  ?? []
+  const inventory    = inventoryRes.data ?? []
   const rawLocations = locationsRes.data ?? []
+  const rawCategories = categoriesRes.data ?? []
 
   // Aggregate inventory per product
   const stockByProduct = new Map<string, number>()
@@ -127,7 +140,13 @@ export async function getCatalogoData(): Promise<{
     name: l.name ?? '',
   }))
 
-  return { servizi, prodotti, locations, tenantId }
+  const dbCategories: ServiceCategoryRow[] = rawCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    color: c.color ?? null,
+  }))
+
+  return { servizi, prodotti, locations, dbCategories, tenantId }
 }
 
 // ─── upsertServizio ───────────────────────────────────────────────────────────
@@ -352,11 +371,76 @@ export async function bulkUpdateCategory(
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
   const db = createAdminClient()
+  const trimmed = newName.trim() || oldName
+  // Update all services in this category
   const { error } = await db
     .from('services')
-    .update({ category: newName.trim() || oldName, color: color ?? null, updated_at: new Date().toISOString() })
+    .update({ category: trimmed, color: color ?? null, updated_at: new Date().toISOString() })
     .eq('tenant_id', tenantId)
     .eq('category', oldName)
+  if (error) return { success: false, error: error.message }
+  // Keep service_categories in sync (rename or upsert)
+  await db
+    .from('service_categories')
+    .upsert({ tenant_id: tenantId, name: trimmed, color: color ?? null }, { onConflict: 'tenant_id,name' })
+  if (trimmed !== oldName) {
+    await db
+      .from('service_categories')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .eq('name', oldName)
+  }
+  revalidatePath('/dashboard/catalogo')
+  return { success: true }
+}
+
+// ─── createServiceCategory ────────────────────────────────────────────────────
+
+export async function createServiceCategory(
+  name: string,
+  color: string | null
+): Promise<{ success: boolean; error?: string; category?: ServiceCategoryRow }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const trimmed = name.trim()
+  if (!trimmed) return { success: false, error: 'Il nome non può essere vuoto' }
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('service_categories')
+    .insert({ tenant_id: tenantId, name: trimmed, color: color ?? null })
+    .select('id, name, color')
+    .single()
+  if (error) {
+    if (error.code === '23505') return { success: false, error: 'Categoria già esistente' }
+    return { success: false, error: error.message }
+  }
+  revalidatePath('/dashboard/catalogo')
+  return { success: true, category: { id: data.id, name: data.name, color: data.color ?? null } }
+}
+
+// ─── deleteServiceCategory ────────────────────────────────────────────────────
+
+export async function deleteServiceCategory(
+  id: string,
+  name: string
+): Promise<{ success: boolean; error?: string; serviceCount?: number }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const db = createAdminClient()
+  // Count services still using this category
+  const { count } = await db
+    .from('services')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('category', name)
+  if ((count ?? 0) > 0) {
+    return { success: false, serviceCount: count ?? 0, error: `${count} servizi usano questa categoria` }
+  }
+  const { error } = await db
+    .from('service_categories')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenantId)
   if (error) return { success: false, error: error.message }
   revalidatePath('/dashboard/catalogo')
   return { success: true }

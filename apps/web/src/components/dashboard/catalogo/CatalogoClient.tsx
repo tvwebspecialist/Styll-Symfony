@@ -38,6 +38,7 @@ import type {
   ProdottoRow,
   LocationRow,
   InventoryEntry,
+  ServiceCategoryRow,
 } from '@/lib/actions/catalogo'
 import {
   upsertServizio,
@@ -46,6 +47,8 @@ import {
   upsertProdotto,
   deleteProdotto,
   bulkUpdateCategory,
+  createServiceCategory,
+  deleteServiceCategory,
 } from '@/lib/actions/catalogo'
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
@@ -973,20 +976,34 @@ function ProdottoCard({
 // ─── Category Manager Modal ───────────────────────────────────────────────────
 
 function CategoryManagerModal({
-  categories,
+  dbCategories,
   categoryColorMap,
   onClose,
   onSaved,
+  onCreated,
+  onDeleted,
 }: {
-  categories: string[]
+  dbCategories: ServiceCategoryRow[]
   categoryColorMap: Map<string, string>
   onClose: () => void
   onSaved: (oldName: string, newName: string, color: string | null) => void
+  onCreated: (cat: ServiceCategoryRow) => void
+  onDeleted: (id: string, name: string) => void
 }) {
-  const [rows, setRows] = React.useState<{ original: string; name: string; color: string }[]>(() =>
-    categories.map((c) => ({ original: c, name: c, color: categoryColorMap.get(c) ?? '' }))
+  const [rows, setRows] = React.useState<{ id: string | null; original: string; name: string; color: string }[]>(() =>
+    dbCategories.map((c) => ({
+      id:       c.id,
+      original: c.name,
+      name:     c.name,
+      color:    c.color ?? categoryColorMap.get(c.name) ?? '',
+    }))
   )
-  const [saving, setSaving] = React.useState<string | null>(null)
+  const [saving,      setSaving]      = React.useState<string | null>(null)
+  const [deleting,    setDeleting]    = React.useState<string | null>(null)
+  // New category form
+  const [newName,     setNewName]     = React.useState('')
+  const [newColor,    setNewColor]    = React.useState('#6366F1')
+  const [creating,    setCreating]    = React.useState(false)
 
   async function handleSave(idx: number) {
     const row = rows[idx]
@@ -1002,11 +1019,110 @@ function CategoryManagerModal({
     }
   }
 
+  async function handleDelete(idx: number) {
+    const row = rows[idx]
+    if (!row.id) {
+      toast.error('Questa categoria non è ancora salvata nel database')
+      return
+    }
+    setDeleting(row.original)
+    const result = await deleteServiceCategory(row.id, row.original)
+    setDeleting(null)
+    if (result.success) {
+      toast.success(`Categoria "${row.original}" eliminata`)
+      onDeleted(row.id, row.original)
+      setRows((prev) => prev.filter((_, i) => i !== idx))
+    } else if (result.serviceCount && result.serviceCount > 0) {
+      toast.error(`Non puoi eliminare: ${result.serviceCount} servizi usano questa categoria`)
+    } else {
+      toast.error(result.error ?? 'Errore durante l\'eliminazione')
+    }
+  }
+
+  async function handleCreate() {
+    if (!newName.trim()) { toast.error('Inserisci un nome per la categoria'); return }
+    setCreating(true)
+    const result = await createServiceCategory(newName.trim(), newColor)
+    setCreating(false)
+    if (result.success && result.category) {
+      toast.success(`Categoria "${result.category.name}" creata`)
+      onCreated(result.category)
+      setRows((prev) => [...prev, {
+        id:       result.category!.id,
+        original: result.category!.name,
+        name:     result.category!.name,
+        color:    result.category!.color ?? newColor,
+      }])
+      setNewName('')
+      setNewColor('#6366F1')
+    } else {
+      toast.error(result.error ?? 'Errore durante la creazione')
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* ── Nuova categoria ── */}
+      <div
+        style={{
+          padding: '14px 16px',
+          background: '#F8F9FF',
+          border: '1px dashed #C7D2FE',
+          borderRadius: 12,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Nuova categoria
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Color picker */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div
+              style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: newColor,
+                border: '2px solid var(--color-border)',
+                cursor: 'pointer',
+              }}
+            />
+            <input
+              type="color"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+              style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
+            />
+          </div>
+          {/* Name */}
+          <input
+            className="styll-input"
+            placeholder="Nome categoria…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+            style={{ flex: 1, padding: '8px 12px', fontSize: 14 }}
+          />
+          {/* Create button */}
+          <button
+            type="button"
+            disabled={creating || !newName.trim()}
+            onClick={handleCreate}
+            className="styll-btn-primary"
+            style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+          >
+            {creating ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={13} />}
+            Aggiungi
+          </button>
+        </div>
+      </div>
+
+      {/* ── Existing categories ── */}
       {rows.length === 0 && (
-        <p style={{ fontSize: 14, color: 'var(--color-fg-muted)', textAlign: 'center', padding: '24px 0' }}>
-          Nessuna categoria. Crea un servizio con una categoria per iniziare.
+        <p style={{ fontSize: 14, color: 'var(--color-fg-muted)', textAlign: 'center', padding: '12px 0' }}>
+          Nessuna categoria. Creane una qui sopra.
         </p>
       )}
       {rows.map((row, idx) => (
@@ -1026,9 +1142,7 @@ function CategoryManagerModal({
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
+                width: 36, height: 36, borderRadius: 8,
                 background: row.color || '#F3F4F6',
                 border: '2px solid var(--color-border)',
                 cursor: 'pointer',
@@ -1040,16 +1154,7 @@ function CategoryManagerModal({
               onChange={(e) =>
                 setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, color: e.target.value } : r)))
               }
-              style={{
-                position: 'absolute',
-                inset: 0,
-                opacity: 0,
-                width: '100%',
-                height: '100%',
-                cursor: 'pointer',
-                border: 'none',
-                padding: 0,
-              }}
+              style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none', padding: 0 }}
             />
           </div>
           {/* Name input */}
@@ -1067,28 +1172,37 @@ function CategoryManagerModal({
             disabled={saving === row.original}
             onClick={() => handleSave(idx)}
             className="styll-btn-primary"
-            style={{
-              padding: '8px 14px',
-              fontSize: 13,
-              minHeight: 36,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexShrink: 0,
-            }}
+            style={{ padding: '8px 14px', fontSize: 13, minHeight: 36, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
           >
             {saving === row.original && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
             Salva
           </button>
+          {/* Delete button */}
+          <button
+            type="button"
+            disabled={deleting === row.original}
+            onClick={() => handleDelete(idx)}
+            title="Elimina categoria"
+            style={{
+              width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+              border: '1px solid #FCA5A5',
+              background: 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 120ms',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#FEF2F2' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            {deleting === row.original
+              ? <Loader2 size={13} color="#EF4444" style={{ animation: 'spin 1s linear infinite' }} />
+              : <Trash2 size={13} color="#EF4444" />
+            }
+          </button>
         </div>
       ))}
-      <div
-        style={{
-          paddingTop: 8,
-          borderTop: '1px solid var(--color-border)',
-          marginTop: 4,
-        }}
-      >
+
+      <div style={{ paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
         <button
           type="button"
           onClick={onClose}
@@ -1108,10 +1222,12 @@ export function CatalogoClient({
   servizi: initialServizi,
   prodotti: initialProdotti,
   locations,
+  dbCategories: initialDbCategories,
 }: {
   servizi: ServizioRow[]
   prodotti: ProdottoRow[]
   locations: LocationRow[]
+  dbCategories: ServiceCategoryRow[]
 }) {
   const [activeTab, setActiveTab] = React.useState<'servizi' | 'prodotti'>('servizi')
 
@@ -1120,6 +1236,7 @@ export function CatalogoClient({
   const [serviziSheet, setServiziSheet] = React.useState(false)
   const [editingServizio, setEditingServizio] = React.useState<ServizioRow | null>(null)
   const [categoryManagerOpen, setCategoryManagerOpen] = React.useState(false)
+  const [dbCategories, setDbCategories] = React.useState<ServiceCategoryRow[]>(initialDbCategories)
 
   // Prodotti state
   const [prodotti, setProdotti] = React.useState<ProdottoRow[]>(initialProdotti)
@@ -1129,17 +1246,19 @@ export function CatalogoClient({
   // Keep local state in sync with server-provided props on re-render
   React.useEffect(() => { setServizi(initialServizi) }, [initialServizi])
   React.useEffect(() => { setProdotti(initialProdotti) }, [initialProdotti])
+  React.useEffect(() => { setDbCategories(initialDbCategories) }, [initialDbCategories])
 
   // DnD sensors (pointer only — no touch issues)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  // ── Service categories
+  // ── Service categories (merge DB categories + service-derived categories)
   const serviceCategories = React.useMemo(() => {
-    const cats = new Set(servizi.map((s) => s.category).filter((c): c is string => Boolean(c)))
+    const cats = new Set<string>(dbCategories.map((c) => c.name))
+    for (const s of servizi) { if (s.category) cats.add(s.category) }
     return Array.from(cats).sort()
-  }, [servizi])
+  }, [servizi, dbCategories])
 
-  // ── Category → color map (first color found for each category)
+  // ── Category → color map (DB color takes priority)
   const categoryColorMap = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const s of servizi) {
@@ -1147,8 +1266,11 @@ export function CatalogoClient({
         map.set(s.category, s.color)
       }
     }
+    for (const c of dbCategories) {
+      if (c.color) map.set(c.name, c.color)
+    }
     return map
-  }, [servizi])
+  }, [servizi, dbCategories])
 
   // ── Services grouped by category
   const groupedServizi = React.useMemo(() => {
@@ -1247,6 +1369,21 @@ export function CatalogoClient({
           ? { ...s, category: newName, color: color }
           : s
       )
+    )
+    setDbCategories((prev) =>
+      prev.map((c) => c.name === oldName ? { ...c, name: newName, color } : c)
+    )
+  }
+
+  function handleCategoryCreated(cat: ServiceCategoryRow) {
+    setDbCategories((prev) => [...prev, cat])
+  }
+
+  function handleCategoryDeleted(id: string, name: string) {
+    setDbCategories((prev) => prev.filter((c) => c.id !== id))
+    // Remove category from services that used it
+    setServizi((prev) =>
+      prev.map((s) => s.category === name ? { ...s, category: null } : s)
     )
   }
 
@@ -1556,10 +1693,12 @@ export function CatalogoClient({
         size="md"
       >
         <CategoryManagerModal
-          categories={serviceCategories}
+          dbCategories={dbCategories}
           categoryColorMap={categoryColorMap}
           onClose={() => setCategoryManagerOpen(false)}
           onSaved={handleCategoryManagerSaved}
+          onCreated={handleCategoryCreated}
+          onDeleted={handleCategoryDeleted}
         />
       </StyllModal>
     </div>

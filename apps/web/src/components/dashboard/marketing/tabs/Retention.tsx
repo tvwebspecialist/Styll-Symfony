@@ -268,6 +268,7 @@ function ClientRow({ client, segment }: { client: RetentionClient; segment: Segm
   )
 }
 
+
 export function Retention({ tenantId }: RetentionProps) {
   const [data,    setData]    = React.useState<RetentionData | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -332,44 +333,6 @@ export function Retention({ tenantId }: RetentionProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* ── Header Pulse ── */}
-      <div
-        style={{
-          display:      'flex',
-          alignItems:   'center',
-          gap:          12,
-          padding:      '12px 16px',
-          background:   '#FAFAFA',
-          border:       '1px solid #F0F0F0',
-          borderRadius: 12,
-        }}
-      >
-        <div
-          style={{
-            width:          32,
-            height:         32,
-            borderRadius:   100,
-            background:     '#FFFFFF',
-            border:         '1px solid #F0F0F0',
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-            flexShrink:     0,
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/Churn_yellow.png" alt="" width={20} height={20} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#222222' }}>
-            Pulse — il radar dei tuoi clienti
-          </p>
-          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#B0B0B0' }}>
-            Ogni cliente ha il suo ritmo. Qui trovi chi sta deviando dalle sue abitudini.
-          </p>
-        </div>
-      </div>
 
       {/* ── KPI / filtri (cliccabili) ── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>

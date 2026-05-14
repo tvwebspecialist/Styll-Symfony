@@ -455,17 +455,12 @@
   display: none;
 }
 
-/* Churn mobile: horizontal scroll of cards */
+/* Churn list: always vertical column */
 .churn-mobile-list {
   display: flex;
-  flex-direction: row;
-  gap: 10px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: 2px;
+  flex-direction: column;
+  gap: 8px;
 }
-.churn-mobile-list::-webkit-scrollbar { display: none; }
 
 /* Desktop: 2-column grid */
 @media (min-width: 1025px) {
@@ -513,11 +508,7 @@
     display: block;
   }
 
-  /* Churn back to vertical list on desktop */
-  .churn-mobile-list {
-    flex-direction: column;
-    overflow-x: visible;
-  }
+  /* Churn already vertical */
 }
 
 /* Greeting responsive overrides */
@@ -830,4 +821,8 @@
 @keyframes custom-select-close {
   from { opacity: 1; transform: translateY(0);    }
   to   { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import ReactDOM from 'react-dom'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bell, Search, HelpCircle } from 'lucide-react'
@@ -25,8 +26,10 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
   const [results, setResults] = React.useState<SearchResult[]>([])
   const [recents, setRecents] = React.useState<SearchResult[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [dropdownPos, setDropdownPos] = React.useState<{ top: number; left: number; width: number } | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const dropdownRef = React.useRef<HTMLDivElement>(null)
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const initials = fullName
@@ -60,13 +63,26 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
 
   React.useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const inContainer = containerRef.current?.contains(e.target as Node)
+      const inDropdown = dropdownRef.current?.contains(e.target as Node)
+      if (!inContainer && !inDropdown) {
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
+
+  React.useEffect(() => {
+    if (open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setDropdownPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width - 54, // 44px help button + 10px gap
+      })
+    }
+  }, [open])
 
   function handleSelect(result: SearchResult) {
     router.push(result.href)
@@ -77,7 +93,8 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
   const showEmpty = !!query.trim() && !loading && results.length === 0
 
   return (
-    <div className="mobile-only topbar-glass topbar-glass--home">
+    <>
+      <div className="mobile-only topbar-glass topbar-glass--home">
       <div
         style={{
           width: '100%',
@@ -205,7 +222,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
         </div>
 
         {/* ROW 3 — search bar */}
-        <div ref={containerRef} style={{ position: 'relative' }}>
+        <div ref={containerRef}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
@@ -242,8 +259,8 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               />
             </div>
             <Link
-              href={`/tenant/dashboard/${slug}/impostazioni`}
-              aria-label="Impostazioni"
+              href={`/tenant/dashboard/${slug}/aiuto`}
+              aria-label="Aiuto"
               style={{
                 width: 44,
                 height: 44,
@@ -261,54 +278,57 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               <HelpCircle size={18} color="#111111" strokeWidth={1.8} />
             </Link>
           </div>
-
-          {/* Search dropdown */}
-          {open && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                left: 0,
-                right: 54,
-                background: '#FFFFFF',
-                border: '1px solid #E9E9E9',
-                borderRadius: 16,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                zIndex: 100,
-                maxHeight: 320,
-                overflowY: 'auto',
-                padding: 8,
-              }}
-            >
-              {loading && (
-                <p style={{ fontSize: 13, color: '#B0B0B0', padding: '12px 12px', margin: 0 }}>
-                  Ricerca in corso...
-                </p>
-              )}
-              {showEmpty && (
-                <p style={{ fontSize: 13, color: '#B0B0B0', padding: '12px 12px', margin: 0 }}>
-                  Nessun risultato per &ldquo;{query}&rdquo;
-                </p>
-              )}
-              {!query.trim() && recents.length > 0 && (
-                <>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#B0B0B0', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '8px 12px 4px', margin: 0 }}>
-                    Ultimi clienti
-                  </p>
-                  {recents.map((r) => (
-                    <MobileSearchRow key={r.id} result={r} onSelect={handleSelect} />
-                  ))}
-                </>
-              )}
-              {query.trim() && !loading && results.length > 0 && results.map((r) => (
-                <MobileSearchRow key={r.id} result={r} onSelect={handleSelect} />
-              ))}
-            </div>
-          )}
         </div>
 
       </div>
     </div>
+
+    {/* Search dropdown — portaled to body to escape overflow:hidden on topbar-glass */}
+    {open && dropdownPos && ReactDOM.createPortal(
+      <div
+        ref={dropdownRef}
+        style={{
+          position: 'fixed',
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          width: dropdownPos.width,
+          background: '#FFFFFF',
+          border: '1px solid #E9E9E9',
+          borderRadius: 16,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          zIndex: 9999,
+          maxHeight: 320,
+          overflowY: 'auto',
+          padding: 8,
+        }}
+      >
+        {loading && (
+          <p style={{ fontSize: 13, color: '#B0B0B0', padding: '12px 12px', margin: 0 }}>
+            Ricerca in corso...
+          </p>
+        )}
+        {showEmpty && (
+          <p style={{ fontSize: 13, color: '#B0B0B0', padding: '12px 12px', margin: 0 }}>
+            Nessun risultato per &ldquo;{query}&rdquo;
+          </p>
+        )}
+        {!query.trim() && recents.length > 0 && (
+          <>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#B0B0B0', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '8px 12px 4px', margin: 0 }}>
+              Ultimi clienti
+            </p>
+            {recents.map((r) => (
+              <MobileSearchRow key={r.id} result={r} onSelect={handleSelect} />
+            ))}
+          </>
+        )}
+        {query.trim() && !loading && results.length > 0 && results.map((r) => (
+          <MobileSearchRow key={r.id} result={r} onSelect={handleSelect} />
+        ))}
+      </div>,
+      document.body
+    )}
+    </>
   )
 }
 

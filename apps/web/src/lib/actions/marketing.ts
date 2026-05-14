@@ -158,6 +158,57 @@ export async function getRetentionData(tenantId: string): Promise<RetentionData>
 // TABELLA NON TROVATA: messages_log     — verifica DATABASE.md
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface SegmentCounts {
+  total:   number
+  rischio: number
+  vip:     number
+  winback: number
+}
+
+export async function getSegmentCounts(tenantId: string): Promise<SegmentCounts> {
+  try {
+    const db = createAdminClient()
+
+    const [clientsRes, analyticsRes] = await Promise.all([
+      // Total active clients
+      db
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .is('deleted_at', null),
+      // At-risk + VIP data from analytics
+      db
+        .from('client_analytics')
+        .select('churn_status, avg_frequency_days, days_since_last_visit, total_visits')
+        .eq('tenant_id', tenantId),
+    ])
+
+    const total   = clientsRes.count ?? 0
+    const rows    = analyticsRes.data ?? []
+
+    let rischio = 0
+    let winback = 0
+    let vip     = 0
+
+    for (const row of rows) {
+      if ((row.total_visits ?? 0) >= 10) vip++
+
+      if (row.churn_status === 'yellow') {
+        rischio++
+      } else if (row.churn_status === 'red') {
+        const avg  = row.avg_frequency_days
+        const days = row.days_since_last_visit ?? 0
+        if (avg != null && days <= avg * 3) winback++
+      }
+    }
+
+    return { total, rischio, vip, winback }
+  } catch (err) {
+    console.error('[getSegmentCounts] error:', err)
+    return { total: 0, rischio: 0, vip: 0, winback: 0 }
+  }
+}
+
 export interface MessageAutomation {
   id:          string
   name:        string

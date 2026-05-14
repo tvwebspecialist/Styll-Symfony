@@ -14,6 +14,8 @@ interface CustomSelectProps {
   onChange: (value: string) => void
   options: SelectOption[]
   placeholder?: string
+  /** Renders a smaller, inline variant (no full-width wrapper) */
+  compact?: boolean
 }
 
 /**
@@ -26,6 +28,7 @@ export function CustomSelect({
   onChange,
   options,
   placeholder = 'Seleziona…',
+  compact = false,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen]       = React.useState(false)
   const [isClosing, setIsClosing] = React.useState(false)
@@ -94,7 +97,7 @@ export function CustomSelect({
   const active = isOpen && !isClosing
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div style={{ position: 'relative', width: compact ? undefined : '100%', display: compact ? 'inline-flex' : undefined }}>
       <button
         ref={triggerRef}
         type="button"
@@ -102,13 +105,13 @@ export function CustomSelect({
         aria-haspopup="listbox"
         aria-expanded={active}
         style={{
-          width:        '100%',
-          padding:      '14px 16px',
-          borderRadius: 12,
-          border:       `1px solid ${active ? '#111827' : '#e5e5e5'}`,
-          fontSize:     15,
+          width:        compact ? undefined : '100%',
+          padding:      compact ? '6px 10px' : '14px 16px',
+          borderRadius: compact ? 8 : 12,
+          border:       `1px solid ${active ? '#111827' : (compact ? '#E5E5E5' : '#e5e5e5')}`,
+          fontSize:     compact ? 13 : 15,
           color:        selectedLabel ? '#111827' : '#b0b0b0',
-          background:   '#fafafa',
+          background:   compact ? '#F5F5F5' : '#fafafa',
           outline:      'none',
           boxSizing:    'border-box',
           textAlign:    'left',
@@ -117,6 +120,7 @@ export function CustomSelect({
           alignItems:   'center',
           fontFamily:   'inherit',
           transition:   'border-color 150ms ease',
+          whiteSpace:   'nowrap',
         }}
       >
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

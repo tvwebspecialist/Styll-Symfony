@@ -3,11 +3,14 @@
 import * as React from 'react'
 import { Bell, Heart, Star, Inbox } from 'lucide-react'
 import { Card } from '@/components/dashboard/vendite/ui'
+import { CustomSelect } from '@/components/ui/custom-select'
 import {
   getMessagesData,
+  getSegmentCounts,
   toggleAutomation,
   type MessagesData,
   type MessageAutomation,
+  type SegmentCounts,
 } from '@/lib/actions/marketing'
 
 interface MessaggiProps {
@@ -36,6 +39,56 @@ const DEFAULT_CARDS: DefaultCard[] = [
   { Icon: Heart, iconBg: '#FDF2F8', iconColor: '#DB2777', title: 'Grazie post-visita',       subtitle: '2h dopo l\'appuntamento',              defaultOn: true  },
   { Icon: Star,  iconBg: '#F0FDF4', iconColor: '#16A34A', title: 'Richiesta recensione',     subtitle: '48h dopo · solo se nessuna risposta', defaultOn: false },
 ]
+
+const LOG_DAYS_OPTIONS = [
+  { value: '7',  label: 'Ultimi 7 giorni'  },
+  { value: '30', label: 'Ultimi 30 giorni' },
+  { value: '90', label: 'Ultimi 90 giorni' },
+]
+
+// ── Template library per segmento ─────────────────────────────────────────────
+const MESSAGE_TEMPLATES: Record<string, string[]> = {
+  all: [
+    'Ciao! Ti aspettiamo al salone per il tuo prossimo appuntamento ✂️ Prenota ora e scegli il tuo orario preferito!',
+    'Il tuo look merita il meglio. Vieni a trovarci e lasciati coccolare dal nostro team. Prenota subito 💈',
+    'Novità in salone! Vieni a scoprirle e approfitta della nostra disponibilità questa settimana 🙌',
+  ],
+  rischio: [
+    'Ciao! Sono passati un po\' di giorni dall\'ultima visita — ti aspettiamo per rimetterti in forma 💈 Prenota il tuo appuntamento!',
+    'Ci manchi! È il momento perfetto per un taglio fresco. Vieni a trovarci, siamo qui per te 🙌',
+    'Hai perso il tuo appuntamento? Nessun problema — siamo ancora qui e ti aspettiamo a braccia aperte ✂️',
+  ],
+  vip: [
+    'Grazie per la tua fedeltà! Come cliente VIP ti riserviamo sempre il meglio. Quando vuoi vederci? 🌟',
+    'Sei uno dei nostri clienti di fiducia — vogliamo viziarti. Prenota il prossimo appuntamento con priorità assoluta 💎',
+    'Un cliente come te merita un\'esperienza speciale. Ti aspettiamo: il tuo appuntamento è sempre garantito ✨',
+  ],
+  winback: [
+    'Ciao! Sono passati diversi mesi dall\'ultima volta. Ci manchi — torna a trovarci: ti aspetta una sorpresa 🎁',
+    'Sei stato lontano troppo a lungo! Torna da noi: il tuo appuntamento è a un click di distanza ✂️',
+    'Il salone si è rinnovato e vogliamo che tu sia tra i primi a scoprirlo. Ti aspettiamo 💈',
+  ],
+}
+
+const templateCursors: Record<string, number> = {}
+
+function pickTemplate(seg: string): string {
+  const pool   = MESSAGE_TEMPLATES[seg] ?? MESSAGE_TEMPLATES.all
+  const cursor = templateCursors[seg] ?? 0
+  const text   = pool[cursor % pool.length]
+  templateCursors[seg] = cursor + 1
+  return text
+}
+
+function buildSegmentOptions(counts: SegmentCounts | null) {
+  if (!counts) return [{ value: 'all', label: 'Tutti i clienti' }]
+  return [
+    { value: 'all',     label: `Tutti i clienti (${counts.total})`      },
+    { value: 'rischio', label: `A rischio · 45-90 gg (${counts.rischio})` },
+    { value: 'vip',     label: `VIP · 10+ visite (${counts.vip})`        },
+    { value: 'winback', label: `Win-back · 90-180 gg (${counts.winback})` },
+  ]
+}
 
 function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
   return (
@@ -74,11 +127,26 @@ function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void;
 }
 
 export function Messaggi({ tenantId }: MessaggiProps) {
-  const [subTab,   setSubTab]   = React.useState<SubTab>('automatici')
-  const [data,     setData]     = React.useState<MessagesData | null>(null)
-  const [loading,  setLoading]  = React.useState(true)
-  const [logDays,  setLogDays]  = React.useState(30)
-  const [message,  setMessage]  = React.useState('')
+  const [subTab,         setSubTab]         = React.useState<SubTab>('automatici')
+  const [data,           setData]           = React.useState<MessagesData | null>(null)
+  const [loading,        setLoading]        = React.useState(true)
+  const [logDays,        setLogDays]        = React.useState(30)
+  const [segment,        setSegment]        = React.useState('all')
+  const [message,        setMessage]        = React.useState('')
+  const [segmentCounts,  setSegmentCounts]  = React.useState<SegmentCounts | null>(null)
+  const [aiLoading,      setAiLoading]      = React.useState(false)
+
+  function handleAI() {
+    setAiLoading(true)
+    setTimeout(() => {
+      setMessage(pickTemplate(segment))
+      setAiLoading(false)
+    }, 600)
+  }
+
+  React.useEffect(() => {
+    getSegmentCounts(tenantId).then(setSegmentCounts)
+  }, [tenantId])
 
   /* Default-card toggles (local-only — no DB table exists) */
   const [defaultToggles, setDefaultToggles] = React.useState<boolean[]>(
@@ -243,15 +311,11 @@ export function Messaggi({ tenantId }: MessaggiProps) {
             >
               Segmento destinatari
             </label>
-            <select
-              className="styll-input"
-              style={{ padding: '10px 14px', width: '100%', fontSize: 14, cursor: 'pointer' }}
-            >
-              <option>Tutti i clienti (142)</option>
-              <option>A rischio · 45-90 gg (8)</option>
-              <option>VIP · 10+ visite (23)</option>
-              <option>Win-back · 90-180 gg (5)</option>
-            </select>
+            <CustomSelect
+              value={segment}
+              onChange={setSegment}
+              options={buildSegmentOptions(segmentCounts)}
+            />
           </div>
 
           <div>
@@ -291,9 +355,25 @@ export function Messaggi({ tenantId }: MessaggiProps) {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className="styll-btn-secondary"
-                style={{ padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+                onClick={handleAI}
+                disabled={aiLoading}
+                style={{
+                  padding: '8px 14px', fontSize: 13, cursor: aiLoading ? 'default' : 'pointer',
+                  opacity: aiLoading ? 0.7 : 1,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  transition: 'opacity 150ms',
+                }}
               >
-                Anteprima AI
+                {aiLoading ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.7s linear infinite', flexShrink: 0 }}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    Generazione…
+                  </>
+                ) : (
+                  <>✦ Genera con AI</>
+                )}
               </button>
               {/* TODO: send action */}
               <button
@@ -323,23 +403,12 @@ export function Messaggi({ tenantId }: MessaggiProps) {
             <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#222222' }}>
               Ultimi messaggi
             </p>
-            <select
+            <CustomSelect
+              compact
               value={String(logDays)}
-              onChange={(e) => setLogDays(Number(e.target.value))}
-              style={{
-                background:   '#F5F5F5',
-                border:       'none',
-                borderRadius: 8,
-                padding:      '6px 10px',
-                fontSize:     13,
-                color:        '#222222',
-                cursor:       'pointer',
-              }}
-            >
-              <option value="7">Ultimi 7 giorni</option>
-              <option value="30">Ultimi 30 giorni</option>
-              <option value="90">Ultimi 90 giorni</option>
-            </select>
+              onChange={(v) => setLogDays(Number(v))}
+              options={LOG_DAYS_OPTIONS}
+            />
           </div>
 
           {loading ? (

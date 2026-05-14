@@ -1781,10 +1781,10 @@ export function CalendarioClient({
           style={{
             position: 'fixed', bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))', right: 16,
             width: 52, height: 52, borderRadius: 100,
-            background: '#2563eb', border: 'none',
+            background: '#222222', border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', zIndex: 40,
-            boxShadow: '0 4px 16px rgba(37,99,235,0.45)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           }}
         >
           <Plus size={24} color="#FFF" strokeWidth={2.5} />
