@@ -1,8 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
-import { BottomNavPWA } from '@/components/pwa/BottomNavPWA'
-import { PwaTopBar } from '@/components/pwa/PwaTopBar'
+import { PwaShell } from '@/components/pwa/PwaShell'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 
@@ -81,14 +80,14 @@ export default async function AppLayout({ params, children }: Props) {
       style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
       className="text-foreground [font-family:var(--font-active)]"
     >
-      <PwaTopBar
+      <PwaShell
+        slug={slug}
         businessName={tenant.business_name}
         logoUrl={tenant.logo_url}
         primaryColor={tenant.primary_color}
-        slug={slug}
-      />
-      <div style={{ paddingTop: 'calc(68px + env(safe-area-inset-top, 0px))', paddingBottom: 96 }}>{children}</div>
-      <BottomNavPWA slug={slug} />
+      >
+        {children}
+      </PwaShell>
     </div>
   )
 }
