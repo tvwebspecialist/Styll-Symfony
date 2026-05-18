@@ -227,6 +227,58 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
   )()
 }
 
+export interface PublicTeamMember {
+  id: string
+  full_name: string | null
+  bio: string | null
+  photo_url: string | null
+  role: string
+}
+
+type RawTeamMemberProfile =
+  | { full_name: string | null; avatar_url: string | null }
+  | Array<{ full_name: string | null; avatar_url: string | null }>
+  | null
+
+type RawTeamMember = {
+  id: string
+  bio: string | null
+  photo_url: string | null
+  role: string
+  profile: RawTeamMemberProfile
+}
+
+export function getPublicTeam(tenantId: string): Promise<PublicTeamMember[]> {
+  return unstable_cache(
+    async () => {
+      const db = createAdminClient()
+      const { data } = await db
+        .from('staff_members')
+        .select('id, bio, photo_url, role, profile:profiles(full_name, avatar_url)')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+
+      return ((data ?? []) as unknown as RawTeamMember[]).map((member) => {
+        const profile = Array.isArray(member.profile) ? member.profile[0] : member.profile
+        return {
+          id: member.id,
+          full_name: profile?.full_name ?? null,
+          bio: member.bio ?? null,
+          photo_url: profile?.avatar_url ?? member.photo_url ?? null,
+          role: member.role,
+        }
+      })
+    },
+    [`public-team-${tenantId}`],
+    {
+      revalidate: 60,
+      tags: [`tenant-${tenantId}-staff`],
+    }
+  )()
+}
+
 export function getPublicPortfolioPhotos(tenantId: string): Promise<PublicPortfolioPhoto[]> {
   return unstable_cache(
     async () => {
