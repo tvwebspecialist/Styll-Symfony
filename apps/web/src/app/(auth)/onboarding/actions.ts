@@ -203,7 +203,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
     // 4) Services — full reset and re-insert
     await db.from('services').delete().eq('tenant_id', tenantId)
     if (step3.services.length > 0) {
-      const { error: svcErr } = await db.from('services').insert(
+      const { data: insertedServices, error: svcErr } = await db.from('services').insert(
         step3.services.map((s, idx) => ({
           tenant_id: tenantId,
           name: s.name,
@@ -212,8 +212,22 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
           display_order: idx,
           is_active: true,
         }))
-      )
+      ).select('id')
       if (svcErr) throw new Error(svcErr.message)
+
+      // 4b) Link owner to all services via staff_services (required for booking flow)
+      const currentOwnerStaffId = ownerStaff?.id
+      if (currentOwnerStaffId && insertedServices && insertedServices.length > 0) {
+        await db.from('staff_services').delete().eq('staff_id', currentOwnerStaffId)
+        const { error: ssErr } = await db.from('staff_services').insert(
+          insertedServices.map((svc) => ({
+            tenant_id: tenantId,
+            staff_id: currentOwnerStaffId,
+            service_id: svc.id,
+          }))
+        )
+        if (ssErr) throw new Error(`Errore collegamento servizi staff: ${ssErr.message}`)
+      }
     }
 
     // 5) Working hours for the owner
@@ -253,15 +267,31 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
 
     // 6) Staff invites (team path only)
     if (step2.work_mode === 'team' && pendingInvites.length > 0) {
-      const { error: invErr } = await db.from('staff_members').insert(
-        pendingInvites.map((m) => ({
-          tenant_id: tenantId,
-          profile_id: null,
-          role: m.role,
-          is_active: true,
-        }))
-      )
+      const { data: invitedStaff, error: invErr } = await db
+        .from('staff_members')
+        .insert(
+          pendingInvites.map((m) => ({
+            tenant_id: tenantId,
+            profile_id: null,
+            role: m.role,
+            is_active: true,
+          }))
+        )
+        .select('id')
       if (invErr) throw new Error(invErr.message)
+
+      // Link every invited staff member to all tenant locations and active services.
+      // (staff_locations is required for the booking flow; staff_services defaults
+      //  to everything — the member can customise during their own onboarding.)
+      if (invitedStaff && invitedStaff.length > 0 && locationId) {
+        const slRows = invitedStaff.map((s) => ({
+          tenant_id: tenantId,
+          staff_id: s.id,
+          location_id: locationId,
+        }))
+        const { error: slErr } = await db.from('staff_locations').insert(slRows)
+        if (slErr) throw new Error(`Errore collegamento staff invitato a location: ${slErr.message}`)
+      }
     }
 
     // 7) Mark profile as onboarded

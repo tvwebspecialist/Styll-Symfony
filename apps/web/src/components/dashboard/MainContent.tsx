@@ -16,7 +16,7 @@ const DESKTOP_STYLE: React.CSSProperties = {
   overflowY: 'auto',
 }
 
-// Home page: no card wrapper — home-root manages its own layout + cards
+// Home page: fills viewport height — bicolonna layout handles inner scroll
 const DESKTOP_HOME_STYLE: React.CSSProperties = {
   marginTop: 104,
   marginLeft: 252,
@@ -25,7 +25,8 @@ const DESKTOP_HOME_STYLE: React.CSSProperties = {
   background: 'transparent',
   borderRadius: 0,
   padding: 0,
-  height: 'fit-content',
+  height: 'calc(100vh - 120px)',
+  overflow: 'hidden',
 }
 
 /**
