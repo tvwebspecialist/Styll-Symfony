@@ -4,8 +4,15 @@ import type { Tables } from '@/types'
 
 export type PublicLocation = Pick<
   Tables<'locations'>,
-  'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url'
+  'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'email' | 'latitude' | 'longitude'
 >
+
+export interface PublicPortfolioPhoto {
+  id: string
+  photo_url: string
+  service_tags: string[] | null
+  display_order: number
+}
 
 export type PublicService = Pick<
   Tables<'services'>,
@@ -195,7 +202,7 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
       const db = createAdminClient()
       const { data } = await db
         .from('locations')
-        .select('id, name, address, city, phone, photo_url')
+        .select('id, name, address, city, phone, photo_url, email, latitude, longitude')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('name', { ascending: true })
@@ -207,12 +214,42 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
         city: location.city,
         phone: location.phone,
         photo_url: location.photo_url,
+        email: location.email,
+        latitude: location.latitude,
+        longitude: location.longitude,
       }))
     },
     [`public-locations-${tenantId}`],
     {
       revalidate: 60,
       tags: [`tenant-${tenantId}-locations`],
+    }
+  )()
+}
+
+export function getPublicPortfolioPhotos(tenantId: string): Promise<PublicPortfolioPhoto[]> {
+  return unstable_cache(
+    async () => {
+      const db = createAdminClient()
+      const { data } = await db
+        .from('portfolio_photos')
+        .select('id, photo_url, service_tags, display_order')
+        .eq('tenant_id', tenantId)
+        .eq('is_visible', true)
+        .order('display_order', { ascending: true })
+        .limit(12)
+
+      return ((data ?? []) as unknown as PublicPortfolioPhoto[]).map((photo) => ({
+        id: photo.id,
+        photo_url: photo.photo_url,
+        service_tags: photo.service_tags,
+        display_order: Number(photo.display_order ?? 0),
+      }))
+    },
+    [`public-portfolio-${tenantId}`],
+    {
+      revalidate: 60,
+      tags: [`tenant-${tenantId}-portfolio`],
     }
   )()
 }
@@ -226,7 +263,7 @@ export function getPublicLocationById(
       const db = createAdminClient()
       const { data } = await db
         .from('locations')
-        .select('id, name, address, city, phone, photo_url')
+        .select('id, name, address, city, phone, photo_url, email, latitude, longitude')
         .eq('tenant_id', tenantId)
         .eq('id', locationId)
         .eq('is_active', true)
@@ -244,6 +281,9 @@ export function getPublicLocationById(
         city: location.city,
         phone: location.phone,
         photo_url: location.photo_url,
+        email: location.email,
+        latitude: location.latitude,
+        longitude: location.longitude,
       }
     },
     [`public-location-${tenantId}-${locationId}`],
