@@ -422,7 +422,81 @@
 
 
 
-/* ─── Dashboard Home — 2-column Grid Layout ────────────────────
+/* ─── Dashboard Home — Bicolonna Layout ────────────────────────
+ * Mobile-first: single-column widget stack.
+ * Desktop (>1024px): 72/28 sticky calendar + scrollable sidebar.
+ * ------------------------------------------------------------ */
+
+/* Mobile: flex column, sidebar only */
+.home-bicolonna-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Calendar hidden on mobile */
+.home-bicolonna-left {
+  display: none;
+}
+
+/* Widget stack: scroll on mobile via document */
+.home-bicolonna-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+/* Desktop: two-column grid, left sticky calendar + right scrollable sidebar */
+@media (min-width: 1025px) {
+  .home-bicolonna-root {
+    display: grid;
+    grid-template-columns: 72fr 28fr;
+    gap: 16px;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .home-bicolonna-left {
+    display: block;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .home-bicolonna-right {
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 24px;
+  }
+}
+
+/* Scrollbar hidden on sidebar */
+.dashboard-sidebar-right::-webkit-scrollbar { display: none; }
+.dashboard-sidebar-right {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Calendar inner scroll */
+.home-cal-scroll::-webkit-scrollbar { display: none; }
+.home-cal-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Widget entry animation */
+@keyframes dashWidgetIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.dash-widget {
+  animation: dashWidgetIn 0.25s ease-out both;
+}
+
+/* ─── Dashboard Home — 2-column Grid Layout (legacy, kept for reference)
  * Mobile-first: single-column flex feed.
  * Desktop (>1024px): 62/38 two-column grid.
  * ------------------------------------------------------------ */
@@ -825,4 +899,15 @@
 @keyframes spin {
   from { transform: rotate(0deg);   }
   to   { transform: rotate(360deg); }
+}
+
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

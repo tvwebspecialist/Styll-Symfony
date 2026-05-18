@@ -81,6 +81,27 @@ export async function completeMemberOnboarding(
       }
     }
 
+    // Ensure staff_locations is set for all tenant locations (booking flow requires this)
+    const { data: tenantLocations } = await db
+      .from('locations')
+      .select('id')
+      .eq('tenant_id', tenantId)
+    const { data: existingLocLinks } = await db
+      .from('staff_locations')
+      .select('location_id')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staffData.id)
+    const linkedLocationIds = new Set((existingLocLinks ?? []).map((r) => r.location_id))
+    const missingLocRows = (tenantLocations ?? [])
+      .filter((l) => !linkedLocationIds.has(l.id))
+      .map((l) => ({ tenant_id: tenantId, staff_id: staffData.id, location_id: l.id }))
+    if (missingLocRows.length > 0) {
+      const { error: locError } = await db.from('staff_locations').insert(missingLocRows)
+      if (locError) {
+        console.error('[completeMemberOnboarding] staff_locations error:', locError)
+      }
+    }
+
     // Set working hours
     if (data.workingHours && data.workingHours.length > 0) {
       // Delete existing working hours

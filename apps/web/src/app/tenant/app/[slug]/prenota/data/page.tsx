@@ -1,0 +1,101 @@
+import { notFound, redirect } from 'next/navigation'
+import { DataSelector } from './_componenti/DataSelector'
+import { getAvailableSlots, type GetAvailableSlotsResult } from '@/lib/actions/booking-slots'
+import { getTenantTimezone } from '@/lib/actions/public-booking'
+import { getTenantBySlug } from '@/lib/tenant'
+
+interface Props {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+function readParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
+function getTodayInTimeZone(timezone: string): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const parts = formatter.formatToParts(new Date())
+  const map = new Map(parts.map((part) => [part.type, part.value]))
+
+  return `${map.get('year')}-${map.get('month')}-${map.get('day')}`
+}
+
+function addDays(date: string, amount: number): string {
+  const current = new Date(`${date}T12:00:00Z`)
+  current.setUTCDate(current.getUTCDate() + amount)
+  return current.toISOString().slice(0, 10)
+}
+
+export default async function DataPage({ params, searchParams }: Props) {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
+  const locationId = readParam(resolvedSearchParams.location)
+  const servicesParam = readParam(resolvedSearchParams.services)
+  const staffId = readParam(resolvedSearchParams.staff)
+  const skipParam = readParam(resolvedSearchParams._skip) ?? ''
+  const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
+
+  if (!locationId) {
+    redirect(`/tenant/app/${slug}/prenota`)
+  }
+
+  if (!staffId) {
+    redirect(
+      `/tenant/app/${slug}/prenota/barbiere?location=${locationId}${skipParam ? `&_skip=${skipParam}` : ''}`
+    )
+  }
+
+  if (serviceIds.length === 0) {
+    redirect(
+      `/tenant/app/${slug}/prenota/servizi?location=${locationId}&staff=${staffId}${skipParam ? `&_skip=${skipParam}` : ''}`
+    )
+  }
+
+  const tenant = await getTenantBySlug(slug)
+
+  if (!tenant || tenant.status !== 'active') {
+    notFound()
+  }
+
+  const timezone = await getTenantTimezone(tenant.tenant_id)
+  const today = getTodayInTimeZone(timezone)
+  const dates = Array.from({ length: 14 }, (_, index) => addDays(today, index))
+  const slots = await Promise.all(
+    dates.map((date) =>
+      getAvailableSlots({
+        tenantId: tenant.tenant_id,
+        staffId,
+        serviceIds,
+        date,
+        timezone,
+      })
+    )
+  )
+
+  const slotsByDate: Record<string, GetAvailableSlotsResult> = Object.fromEntries(
+    dates.map((date, index) => [date, slots[index]])
+  )
+
+  return (
+    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
+      <DataSelector
+        slug={slug}
+        locationId={locationId}
+        staffId={staffId}
+        serviceIds={serviceIds}
+        skip={skipParam}
+        slotsByDate={slotsByDate}
+      />
+    </main>
+  )
+}
