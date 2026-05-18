@@ -4,9 +4,11 @@ import { useState, useTransition } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
-export function ResetPasswordForm({ basePath }: { basePath: string }) {
+export function ResetPasswordForm({ slug }: { slug: string }) {
   const router = useRouter()
+  const tenantPath = useTenantPath(slug)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -37,7 +39,7 @@ export function ResetPasswordForm({ basePath }: { basePath: string }) {
 
       setMessage({ tone: 'success', text: 'Password aggiornata!' })
       window.setTimeout(() => {
-        router.push(basePath)
+        router.push(tenantPath(''))
         router.refresh()
       }, 900)
     })

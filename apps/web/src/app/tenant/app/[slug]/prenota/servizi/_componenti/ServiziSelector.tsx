@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import type { ServiceForStaff } from '@/lib/actions/public-booking'
 
 interface ServiceGroup {
@@ -28,6 +29,7 @@ function formatCurrency(value: number): string {
 
 export function ServiziSelector({ slug, locationId, staffId, skip, groups }: ServiziSelectorProps) {
   const router = useRouter()
+  const tenantPath = useTenantPath(slug)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const selectedServices = useMemo(() => {
@@ -62,7 +64,7 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups }: Ser
 
     if (skip) params.set('_skip', skip)
 
-    router.push(`/tenant/app/${slug}/prenota/data?${params.toString()}`)
+    router.push(tenantPath(`/prenota/data?${params.toString()}`))
   }
 
   return (

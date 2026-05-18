@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { BottomNavPWA } from '@/components/pwa/BottomNavPWA'
 import { PwaTopBar } from '@/components/pwa/PwaTopBar'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 const FONT_MAP: Record<string, string> = {
   outfit: 'var(--font-outfit)',
@@ -31,10 +32,12 @@ export async function generateMetadata({
     }
   }
 
+  const tp = await createTenantPaths(slug)
+
   return {
     title: `${tenant.business_name} | App cliente`,
     description: `Apri l'app di ${tenant.business_name} per prenotare, scoprire promozioni e gestire il tuo profilo.`,
-    manifest: `/tenant/app/${slug}/manifest.webmanifest`,
+    manifest: tp('/manifest.webmanifest'),
     themeColor: tenant.primary_color ?? '#1a1a1a',
     appleWebApp: {
       capable: true,
@@ -82,8 +85,7 @@ export default async function AppLayout({ params, children }: Props) {
         businessName={tenant.business_name}
         logoUrl={tenant.logo_url}
         primaryColor={tenant.primary_color}
-        profileHref={`/tenant/app/${slug}/profilo`}
-        basePath={`/tenant/app/${slug}`}
+        slug={slug}
       />
       <div style={{ paddingTop: 'calc(68px + env(safe-area-inset-top, 0px))', paddingBottom: 96 }}>{children}</div>
       <BottomNavPWA slug={slug} />

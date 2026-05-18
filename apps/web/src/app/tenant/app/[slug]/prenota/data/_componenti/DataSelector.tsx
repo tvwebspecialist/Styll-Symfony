@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import type { GetAvailableSlotsResult } from '@/lib/actions/booking-slots'
 
 interface DataSelectorProps {
@@ -24,6 +25,7 @@ function formatDayLabel(value: string): { dayName: string; dayNumber: string } {
 
 export function DataSelector({ slug, locationId, staffId, serviceIds, skip, slotsByDate }: DataSelectorProps) {
   const router = useRouter()
+  const tenantPath = useTenantPath(slug)
   const dates = Object.keys(slotsByDate)
   const firstAvailableDate =
     dates.find((date) => slotsByDate[date]?.slots.some((s) => s.available)) ?? dates[0]
@@ -46,7 +48,7 @@ export function DataSelector({ slug, locationId, staffId, serviceIds, skip, slot
 
     if (skip) params.set('_skip', skip)
 
-    router.push(`/tenant/app/${slug}/prenota/conferma?${params.toString()}`)
+    router.push(tenantPath(`/prenota/conferma?${params.toString()}`))
   }
 
   return (

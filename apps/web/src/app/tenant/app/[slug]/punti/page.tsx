@@ -4,6 +4,7 @@ import { getMyClientRecord } from '@/lib/actions/client-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -36,14 +37,14 @@ export default async function PuntiPage({ params }: Props) {
     notFound()
   }
 
-  const basePath = `/tenant/app/${slug}`
+  const tp = await createTenantPaths(slug)
   const supabase = await createServerClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`${basePath}/accesso?mode=login&return_to=/punti`)
+    redirect(tp('/accesso?mode=login&return_to=/punti'))
   }
 
   const clientRecord = await getMyClientRecord(tenant.tenant_id)

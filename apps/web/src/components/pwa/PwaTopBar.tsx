@@ -3,6 +3,7 @@
 import { Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { TopBarPWAHome } from './TopBarPWAHome'
 import { TopBarPWASimple } from './TopBarPWASimple'
 
@@ -34,29 +35,24 @@ function getCurrentStepKey(pathname: string): StepKey {
   return 'sede'
 }
 
-function deriveTitleFromPath(pathname: string, basePath: string): string {
-  const relative = pathname.slice(basePath.length).replace(/^\//, '')
-  const segment = relative.split('/')[0] ?? ''
-  return PAGE_TITLES[segment] ?? ''
-}
-
 export interface PwaTopBarProps {
   businessName: string
   logoUrl?: string | null
   primaryColor?: string | null
-  profileHref: string
-  basePath: string
+  slug: string
 }
 
-function TopBarInner({ businessName, logoUrl, primaryColor, basePath }: PwaTopBarProps) {
+function TopBarInner({ businessName, logoUrl, primaryColor, slug }: PwaTopBarProps) {
   const pathname = usePathname() ?? ''
   const router = useRouter()
   const searchParams = useSearchParams()
+  const tenantPath = useTenantPath(slug)
 
-  const isHome = pathname === basePath
-  const isInSuccesso = pathname.startsWith(basePath + '/prenota/successo')
+  const homePath = tenantPath('')
+  const isHome = pathname === homePath
+  const isInSuccesso = pathname.startsWith(tenantPath('/prenota/successo'))
   const isInPrenota =
-    pathname.startsWith(basePath + '/prenota') && !isInSuccesso
+    pathname.startsWith(tenantPath('/prenota')) && !isInSuccesso
 
   if (isHome) {
     return <TopBarPWAHome tenantName={businessName} tenantLogoUrl={logoUrl} />
@@ -158,7 +154,10 @@ function TopBarInner({ businessName, logoUrl, primaryColor, basePath }: PwaTopBa
   }
 
   // All other routes: simple bar with title derived from path
-  const title = deriveTitleFromPath(pathname, basePath)
+  const base = homePath === '/' ? 0 : homePath.length
+  const relative = pathname.slice(base).replace(/^\//, '')
+  const segment = relative.split('/')[0] ?? ''
+  const title = PAGE_TITLES[segment] ?? ''
   return <TopBarPWASimple title={title} showBack />
 }
 

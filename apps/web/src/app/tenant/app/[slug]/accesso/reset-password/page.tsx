@@ -14,5 +14,5 @@ export default async function ResetPasswordPage({ params }: Props) {
     notFound()
   }
 
-  return <ResetPasswordForm basePath={`/tenant/app/${slug}`} />
+  return <ResetPasswordForm slug={slug} />
 }

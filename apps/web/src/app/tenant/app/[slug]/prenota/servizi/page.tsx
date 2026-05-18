@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { ServiziSelector } from './_componenti/ServiziSelector'
 import { getServicesForStaff, type ServiceForStaff } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -42,14 +43,15 @@ export default async function ServiziPage({ params, searchParams }: Props) {
   const locationId = readParam(resolvedSearchParams.location)
   const staffId = readParam(resolvedSearchParams.staff)
   const skipParam = readParam(resolvedSearchParams._skip) ?? ''
+  const tp = await createTenantPaths(slug)
 
   if (!locationId) {
-    redirect(`/tenant/app/${slug}/prenota`)
+    redirect(tp('/prenota'))
   }
 
   if (!staffId) {
     redirect(
-      `/tenant/app/${slug}/prenota/barbiere?location=${locationId}${skipParam ? `&_skip=${skipParam}` : ''}`
+      tp(`/prenota/barbiere?location=${locationId}${skipParam ? `&_skip=${skipParam}` : ''}`)
     )
   }
 
