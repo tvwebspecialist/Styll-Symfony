@@ -7,10 +7,12 @@ import {
   getActivePromotions,
   getPublicLocations,
   getPublicPortfolioPhotos,
+  getPublicTeam,
 } from '@/lib/actions/public-booking'
 import LandingHero from '@/components/landing/LandingHero'
 import LandingAbout from '@/components/landing/LandingAbout'
 import LandingServices from '@/components/landing/LandingServices'
+import LandingTeam from '@/components/landing/LandingTeam'
 import LandingGallery from '@/components/landing/LandingGallery'
 import LandingPromo from '@/components/landing/LandingPromo'
 import LandingFooter from '@/components/landing/LandingFooter'
@@ -62,11 +64,12 @@ export default async function LandingPage({ params }: Props) {
     notFound()
   }
 
-  const [services, promotions, locations, portfolio] = await Promise.all([
+  const [services, promotions, locations, portfolio, team] = await Promise.all([
     getPublicServices(tenant.tenant_id),
     getActivePromotions(tenant.tenant_id, 'landing'),
     getPublicLocations(tenant.tenant_id),
     getPublicPortfolioPhotos(tenant.tenant_id),
+    getPublicTeam(tenant.tenant_id),
   ])
 
   const firstLocation = locations[0] ?? null
@@ -102,6 +105,11 @@ export default async function LandingPage({ params }: Props) {
         <LandingServices
           tenant={tenant}
           services={services}
+          slug={slug}
+        />
+
+        <LandingTeam
+          team={team}
           slug={slug}
         />
 
