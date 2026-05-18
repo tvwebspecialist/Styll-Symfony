@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getHomePageData } from '@/lib/actions/pwa-home'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -71,7 +73,16 @@ export default async function AppHomePage({ params }: Props) {
     notFound()
   }
 
-  const basePath = `/tenant/app/${slug}`
+  const tp = await createTenantPaths(slug)
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect(tp('/accesso?mode=login'))
+  }
+
   const homeData = await getHomePageData(tenant.tenant_id)
   const rewards = homeData.activeRewards ?? []
   const availablePoints = homeData.loyalty?.availablePoints ?? 0
@@ -143,7 +154,7 @@ export default async function AppHomePage({ params }: Props) {
           </section>
 
           <Link
-            href={`${basePath}/prenota`}
+            href={tp("/prenota")}
             style={{
               ...animated(60),
               display: 'flex',
@@ -181,7 +192,7 @@ export default async function AppHomePage({ params }: Props) {
               Prenota, accumula punti e sblocca premi esclusivi.
             </p>
             <Link
-              href={`${basePath}/profilo`}
+              href={tp("/profilo")}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -328,7 +339,7 @@ export default async function AppHomePage({ params }: Props) {
                   </div>
                 ) : null}
                 <Link
-                  href={`${basePath}/profilo`}
+                  href={tp("/profilo")}
                   style={{
                     display: 'inline-flex',
                     marginTop: 12,
@@ -345,7 +356,7 @@ export default async function AppHomePage({ params }: Props) {
               <>
                 <p style={{ fontSize: 14, color: '#B0B0B0' }}>Nessun appuntamento in programma</p>
                 <Link
-                  href={`${basePath}/prenota`}
+                  href={tp("/prenota")}
                   style={{
                     display: 'inline-flex',
                     marginTop: 12,
@@ -508,7 +519,7 @@ export default async function AppHomePage({ params }: Props) {
 
           {homeData.lastAppointmentServiceNames && homeData.lastAppointmentServiceNames.length > 0 ? (
             <Link
-              href={`${basePath}/prenota`}
+              href={tp("/prenota")}
               style={{
                 ...animated(180),
                 display: 'block',

@@ -3,40 +3,22 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, CalendarPlus, ShoppingBag, User } from 'lucide-react'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 interface BottomNavPWAProps {
   slug: string
 }
 
 const NAV_ITEMS = [
-  {
-    label: 'Home',
-    icon: Home,
-    path: (slug: string) => `/tenant/app/${slug}`,
-    exact: true,
-  },
-  {
-    label: 'Prenota',
-    icon: CalendarPlus,
-    path: (slug: string) => `/tenant/app/${slug}/prenota`,
-    exact: false,
-  },
-  {
-    label: 'Prodotti',
-    icon: ShoppingBag,
-    path: (slug: string) => `/tenant/app/${slug}/prodotti`,
-    exact: false,
-  },
-  {
-    label: 'Profilo',
-    icon: User,
-    path: (slug: string) => `/tenant/app/${slug}/profilo`,
-    exact: false,
-  },
+  { label: 'Home', icon: Home, relative: '', exact: true },
+  { label: 'Prenota', icon: CalendarPlus, relative: '/prenota', exact: false },
+  { label: 'Prodotti', icon: ShoppingBag, relative: '/prodotti', exact: false },
+  { label: 'Profilo', icon: User, relative: '/profilo', exact: false },
 ]
 
 export function BottomNavPWA({ slug }: BottomNavPWAProps) {
   const pathname = usePathname()
+  const tenantPath = useTenantPath(slug)
 
   return (
     <>
@@ -57,8 +39,8 @@ export function BottomNavPWA({ slug }: BottomNavPWAProps) {
             borderRadius: 20,
           }}
         >
-          {NAV_ITEMS.map(({ label, icon: Icon, path, exact }) => {
-            const href = path(slug)
+          {NAV_ITEMS.map(({ label, icon: Icon, relative, exact }) => {
+            const href = tenantPath(relative)
             const isActive = exact
               ? pathname === href
               : pathname.startsWith(href)

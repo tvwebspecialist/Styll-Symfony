@@ -2,7 +2,9 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import {
   loginClient,
   registerClient,
@@ -36,14 +38,14 @@ function getInitials(value: string): string {
   )
 }
 
-function safeRedirect(basePath: string, returnTo?: string): string {
+function safeRedirect(tenantPath: (relativePath: string) => string, returnTo?: string): string {
   if (!returnTo || !returnTo.startsWith('/') || returnTo.startsWith('//')) {
-    return basePath
+    return tenantPath('')
   }
-  if (returnTo.startsWith('/tenant/app/')) {
-    return returnTo
-  }
-  return `${basePath}${returnTo}`
+  // Strip /tenant/app/slug prefix to get the relative part
+  const relMatch = returnTo.match(/^\/tenant\/app\/[^/]+(.*)$/)
+  const relativePart = relMatch ? relMatch[1] || '' : returnTo
+  return tenantPath(relativePart)
 }
 
 export function ClientAccessForm({
@@ -58,6 +60,7 @@ export function ClientAccessForm({
   urlWelcome,
 }: ClientAccessFormProps) {
   const router = useRouter()
+  const tenantPath = useTenantPath(tenantSlug)
   const [mode, setMode] = useState<Mode>(initialMode)
   const [isPending, startTransition] = useTransition()
   const [showPassword, setShowPassword] = useState(false)
@@ -77,7 +80,7 @@ export function ClientAccessForm({
     marketingConsent: false,
   })
 
-  const basePath = `/tenant/app/${tenantSlug}`
+  const basePath = tenantPath('')
   const urlBanner = useMemo(() => {
     if (urlError === 'link_invalido') {
       return { tone: 'error' as const, text: 'Link non valido. Prova ad accedere.' }
@@ -108,7 +111,7 @@ export function ClientAccessForm({
         return
       }
 
-      router.push(safeRedirect(basePath, returnTo))
+      router.push(safeRedirect(tenantPath, returnTo))
       router.refresh()
     })
   }
@@ -457,6 +460,19 @@ export function ClientAccessForm({
           </form>
         )}
       </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200" />
+        <span className="text-xs text-neutral-400">oppure</span>
+        <div className="h-px flex-1 bg-neutral-200" />
+      </div>
+
+      <Link
+        href={tenantPath('/prenota')}
+        className="block py-3 text-center text-sm text-neutral-500"
+      >
+        Continua senza account →
+      </Link>
     </main>
   )
 }

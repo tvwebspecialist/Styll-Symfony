@@ -3,6 +3,7 @@ import { DataSelector } from './_componenti/DataSelector'
 import { getAvailableSlots, type GetAvailableSlotsResult } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -44,20 +45,21 @@ export default async function DataPage({ params, searchParams }: Props) {
   const staffId = readParam(resolvedSearchParams.staff)
   const skipParam = readParam(resolvedSearchParams._skip) ?? ''
   const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
+  const tp = await createTenantPaths(slug)
 
   if (!locationId) {
-    redirect(`/tenant/app/${slug}/prenota`)
+    redirect(tp('/prenota'))
   }
 
   if (!staffId) {
     redirect(
-      `/tenant/app/${slug}/prenota/barbiere?location=${locationId}${skipParam ? `&_skip=${skipParam}` : ''}`
+      tp(`/prenota/barbiere?location=${locationId}${skipParam ? `&_skip=${skipParam}` : ''}`)
     )
   }
 
   if (serviceIds.length === 0) {
     redirect(
-      `/tenant/app/${slug}/prenota/servizi?location=${locationId}&staff=${staffId}${skipParam ? `&_skip=${skipParam}` : ''}`
+      tp(`/prenota/servizi?location=${locationId}&staff=${staffId}${skipParam ? `&_skip=${skipParam}` : ''}`)
     )
   }
 

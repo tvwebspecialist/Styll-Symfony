@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { getStaffForBooking } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -31,9 +32,10 @@ export default async function BarbierePage({ params, searchParams }: Props) {
   const [{ slug }, resolvedParams] = await Promise.all([params, searchParams])
   const locationId = readParam(resolvedParams.location)
   const skipParam = readParam(resolvedParams._skip) ?? ''
+  const tp = await createTenantPaths(slug)
 
   if (!locationId) {
-    redirect(`/tenant/app/${slug}/prenota`)
+    redirect(tp('/prenota'))
   }
 
   const tenant = await getTenantBySlug(slug)
@@ -47,7 +49,7 @@ export default async function BarbierePage({ params, searchParams }: Props) {
   if (autoSelected) {
     const newSkip = [...skipParam.split(',').filter(Boolean), 'barbiere'].join(',')
     redirect(
-      `/tenant/app/${slug}/prenota/servizi?location=${locationId}&staff=${staff[0].id}&_skip=${newSkip}`
+      tp(`/prenota/servizi?location=${locationId}&staff=${staff[0].id}&_skip=${newSkip}`)
     )
   }
 
@@ -73,7 +75,7 @@ export default async function BarbierePage({ params, searchParams }: Props) {
                   ? member.services.map((s) => s.name).join(', ')
                   : 'Consulta disponibilità'
 
-              const href = `/tenant/app/${slug}/prenota/servizi?location=${locationId}&staff=${member.id}${skipParam ? `&_skip=${skipParam}` : ''}`
+              const href = tp(`/prenota/servizi?location=${locationId}&staff=${member.id}${skipParam ? `&_skip=${skipParam}` : ''}`)
 
               return (
                 <Link key={member.id} href={href} className="block">

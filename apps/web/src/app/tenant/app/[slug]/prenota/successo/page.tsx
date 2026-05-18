@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getAppointmentSummary, getLoyaltyConfig } from '@/lib/actions/public-booking'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -53,9 +54,10 @@ function buildGCalLink(title: string, startISO: string, endISO: string, location
 export default async function SuccessoPage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const appointmentId = readParam(resolvedSearchParams.appointment)
+  const tp = await createTenantPaths(slug)
 
   if (!appointmentId) {
-    redirect(`/tenant/app/${slug}`)
+    redirect(tp(''))
   }
 
   const tenantPromise = getTenantBySlug(slug)
@@ -171,7 +173,7 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
               </div>
             </div>
             <Link
-              href={`/tenant/app/${slug}/accesso?mode=register&return_to=/prenota/successo?appointment=${appointmentId}`}
+              href={tp(`/accesso?mode=register&return_to=/prenota/successo?appointment=${appointmentId}`)}
               className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
             >
               Crea account gratis
@@ -182,7 +184,7 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
-          href={`/tenant/app/${slug}`}
+          href={tp('')}
           className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted"
         >
           Torna alla home

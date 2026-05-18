@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getPublicLocations } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -16,10 +17,13 @@ export default async function PrenotaPage({ params }: Props) {
     notFound()
   }
 
-  const locations = await getPublicLocations(tenant.tenant_id)
+  const [locations, tp] = await Promise.all([
+    getPublicLocations(tenant.tenant_id),
+    createTenantPaths(slug),
+  ])
 
   if (locations.length === 1) {
-    redirect(`/tenant/app/${slug}/prenota/barbiere?location=${locations[0].id}&_skip=sede`)
+    redirect(tp(`/prenota/barbiere?location=${locations[0].id}&_skip=sede`))
   }
 
   return (
@@ -36,7 +40,7 @@ export default async function PrenotaPage({ params }: Props) {
           {locations.map((location) => (
             <Link
               key={location.id}
-              href={`/tenant/app/${slug}/prenota/barbiere?location=${location.id}`}
+              href={tp(`/prenota/barbiere?location=${location.id}`)}
               className="block"
             >
               <Card className="rounded-3xl transition-transform hover:-translate-y-0.5">

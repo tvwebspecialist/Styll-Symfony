@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { createGuestBooking } from '@/lib/actions/create-booking'
@@ -54,6 +55,7 @@ export function ConfermaForm({
   services,
 }: ConfermaFormProps) {
   const router = useRouter()
+  const tenantPath = useTenantPath(slug)
   const [isPending, startTransition] = useTransition()
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
@@ -92,7 +94,7 @@ export function ConfermaForm({
       }
 
       toast.success('Prenotazione confermata!')
-      router.replace(`/tenant/app/${slug}/prenota/successo?appointment=${result.appointmentId}`)
+      router.replace(`${tenantPath('/prenota/successo')}?appointment=${result.appointmentId}`)
     })
   }
 

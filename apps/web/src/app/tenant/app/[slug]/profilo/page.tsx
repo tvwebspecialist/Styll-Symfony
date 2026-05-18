@@ -7,6 +7,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { ClientProfileForm } from '@/components/pwa/auth/ClientProfileForm'
 import { LogoutButton } from '@/components/pwa/auth/LogoutButton'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -78,14 +79,14 @@ export default async function ProfiloPage({ params }: Props) {
     notFound()
   }
 
-  const basePath = `/tenant/app/${slug}`
+  const tp = await createTenantPaths(slug)
   const supabase = await createServerClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`${basePath}/accesso?mode=login&return_to=/profilo`)
+    redirect(tp('/accesso?mode=login&return_to=/profilo'))
   }
 
   const clientRecord = await getMyClientRecord(tenant.tenant_id)
@@ -169,7 +170,7 @@ export default async function ProfiloPage({ params }: Props) {
         ) : (
           <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-500">
             Nessun appuntamento in programma.
-            <Link href={`${basePath}/prenota`} className="ml-1 font-bold text-[var(--brand-primary)]">
+            <Link href={tp('/prenota')} className="ml-1 font-bold text-[var(--brand-primary)]">
               Prenota ora
             </Link>
           </div>
@@ -196,7 +197,7 @@ export default async function ProfiloPage({ params }: Props) {
       </section>
 
       <Link
-        href={`${basePath}/punti`}
+        href={tp('/punti')}
         className="flex min-h-14 items-center justify-between rounded-3xl border border-[var(--brand-primary)]/20 bg-[var(--brand-primary)]/5 px-4 py-3 text-sm font-bold text-[var(--brand-primary)]"
       >
         <span className="inline-flex items-center gap-2">
@@ -207,7 +208,7 @@ export default async function ProfiloPage({ params }: Props) {
       </Link>
 
       <div className="rounded-3xl border border-neutral-100 bg-white px-4 shadow-sm">
-        <LogoutButton basePath={basePath} />
+        <LogoutButton basePath={tp('')} />
       </div>
     </main>
   )

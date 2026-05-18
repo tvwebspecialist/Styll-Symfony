@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { mergeClientProfile } from '@/lib/actions/client-auth'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 export async function GET(
   request: NextRequest,
@@ -12,16 +13,17 @@ export async function GET(
   const code = searchParams.get('code')
   const type = searchParams.get('type')
   const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+  const tp = await createTenantPaths(slug)
 
   if (!code) {
-    return NextResponse.redirect(`${baseUrl}/tenant/app/${slug}/accesso?error=link_invalido`)
+    return NextResponse.redirect(`${baseUrl}${tp('/accesso?error=link_invalido')}`)
   }
 
   const supabase = await createServerClient()
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error || !data.user) {
-    return NextResponse.redirect(`${baseUrl}/tenant/app/${slug}/accesso?error=link_scaduto`)
+    return NextResponse.redirect(`${baseUrl}${tp('/accesso?error=link_scaduto')}`)
   }
 
   if (type === 'signup') {
@@ -39,12 +41,13 @@ export async function GET(
         marketingConsent: Boolean(data.user.user_metadata?.marketing_consent),
       })
     }
-    return NextResponse.redirect(`${baseUrl}/tenant/app/${slug}?welcome=true`)
+    const home = tp('')
+    return NextResponse.redirect(`${baseUrl}${home}?welcome=true`)
   }
 
   if (type === 'recovery') {
-    return NextResponse.redirect(`${baseUrl}/tenant/app/${slug}/accesso/reset-password`)
+    return NextResponse.redirect(`${baseUrl}${tp('/accesso/reset-password')}`)
   }
 
-  return NextResponse.redirect(`${baseUrl}/tenant/app/${slug}`)
+  return NextResponse.redirect(`${baseUrl}${tp('') || '/'}`)
 }
