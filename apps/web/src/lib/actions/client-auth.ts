@@ -1,6 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import type { TablesInsert, TablesUpdate } from '@/types'
@@ -10,6 +11,9 @@ type AuthErrorType = 'already_exists' | 'generic'
 type AuthResult<T = { success: true }> =
   | T
   | { success: false; error: string; type?: AuthErrorType }
+
+const EMAIL_FROM = 'Styll <noreply@mail.styll.it>'
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 const ERROR_MAP: Record<string, { message: string; type: AuthErrorType }> = {
   'User already registered': {
@@ -101,6 +105,93 @@ function buildCallbackUrl(baseUrl: string, tenantSlug: string, type: 'signup' | 
   return url.toString()
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+async function sendClientConfirmationEmail(params: {
+  email: string
+  fullName: string
+  confirmationLink: string
+}): Promise<AuthResult<{ success: true }>> {
+  if (!resend) {
+    console.error('[registerClient] Resend not configured - RESEND_API_KEY is missing')
+    return { success: false, error: 'Servizio email non configurato.', type: 'generic' }
+  }
+
+  const displayName = escapeHtml(params.fullName || params.email.split('@')[0] || 'Cliente')
+  const confirmationLink = escapeHtml(params.confirmationLink)
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb; }
+    .card { background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .logo { font-size: 24px; font-weight: 700; margin-bottom: 24px; color: #111; }
+    .button { display: inline-block; background-color: #111; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 24px 0; }
+    .body-text { font-size: 14px; line-height: 1.6; color: #555; margin-bottom: 24px; }
+    .link-note { font-size: 12px; color: #999; margin-top: 16px; }
+    .footer { font-size: 12px; color: #999; margin-top: 32px; text-align: center; border-top: 1px solid #eee; padding-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">Styll</div>
+      <p class="body-text">Ciao ${displayName},</p>
+      <p class="body-text">conferma il tuo indirizzo email per completare la registrazione al portale clienti Styll.</p>
+      <a href="${confirmationLink}" class="button">Conferma email</a>
+      <p class="link-note">
+        Oppure copia e incolla questo link nel tuo browser:<br>
+        <code>${confirmationLink}</code>
+      </p>
+      <div class="footer">
+        <p>© 2025 Styll. Tutti i diritti riservati.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `
+  const text = `
+Ciao ${params.fullName || params.email.split('@')[0] || 'Cliente'},
+
+conferma il tuo indirizzo email per completare la registrazione al portale clienti Styll:
+
+${params.confirmationLink}
+
+© 2025 Styll
+  `
+
+  try {
+    const result = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: params.email,
+      subject: 'Conferma il tuo account Styll',
+      html,
+      text,
+    })
+
+    if (result.error) {
+      console.error('[registerClient] Resend API error:', result.error)
+      return { success: false, error: "Account creato, ma non siamo riusciti a inviare l'email di conferma.", type: 'generic' }
+    }
+  } catch (error) {
+    console.error('[registerClient] Resend exception:', error)
+    return { success: false, error: "Account creato, ma non siamo riusciti a inviare l'email di conferma.", type: 'generic' }
+  }
+
+  return { success: true }
+}
+
 function computeTier(totalPoints: number): string {
   if (totalPoints >= 1000) return 'Gold'
   if (totalPoints >= 500) return 'Silver'
@@ -147,34 +238,52 @@ export async function registerClient(params: {
     return { success: false, error: 'Controlla i dati inseriti e riprova.', type: 'generic' }
   }
 
-  const supabase = await createServerClient()
-  const baseUrl = await getBaseUrl()
-  const { data, error } = await supabase.auth.signUp({
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  if (!appUrl) {
+    console.error('[registerClient] NEXT_PUBLIC_APP_URL is missing')
+    return { success: false, error: 'Configurazione app mancante.', type: 'generic' }
+  }
+
+  const metadata = {
+    full_name: fullName,
+    phone,
+    tenant_id: params.tenantId,
+    tenant_slug: params.tenantSlug,
+    marketing_consent: Boolean(params.marketingConsent),
+  }
+  const redirectTo = buildCallbackUrl(appUrl, params.tenantSlug, 'signup')
+  const adminClient = createAdminClient()
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: 'signup',
     email,
     password: params.password,
     options: {
-      emailRedirectTo: buildCallbackUrl(baseUrl, params.tenantSlug, 'signup'),
-      data: {
-        full_name: fullName,
-        phone,
-        tenant_id: params.tenantId,
-        tenant_slug: params.tenantSlug,
-        marketing_consent: Boolean(params.marketingConsent),
-      },
+      data: metadata,
+      redirectTo,
     },
   })
 
   if (error) {
+    console.error('[registerClient] Supabase generateLink error:', error)
     const mapped = mapAuthError(error.message)
     return { success: false, error: mapped.error, type: mapped.type }
   }
 
-  if (data.user) {
-    try {
-      await upsertProfile({ profileId: data.user.id, email, phone, fullName })
-    } catch {
-      return { success: false, error: 'Account creato, ma profilo non aggiornato. Contatta il salone.', type: 'generic' }
-    }
+  const confirmationLink = data.properties?.action_link
+  if (!data.user || !confirmationLink) {
+    console.error('[registerClient] Supabase generateLink returned no user or action link')
+    return { success: false, error: "Non siamo riusciti a generare l'email di conferma.", type: 'generic' }
+  }
+
+  try {
+    await upsertProfile({ profileId: data.user.id, email, phone, fullName })
+  } catch {
+    return { success: false, error: 'Account creato, ma profilo non aggiornato. Contatta il salone.', type: 'generic' }
+  }
+
+  const emailResult = await sendClientConfirmationEmail({ email, fullName, confirmationLink })
+  if (!emailResult.success) {
+    return emailResult
   }
 
   return { success: true }
@@ -483,17 +592,15 @@ export async function updateMyClientProfile(params: {
 //   https://*-app.styll.it/tenant/app/*/auth/callback ← produzione
 //   https://*.ngrok-free.app/tenant/app/*/auth/callback ← ngrok dev
 //
-// Email SMTP: Authentication → SMTP Settings
-//   Abilita "Custom SMTP" e usa Resend:
-//     Host: smtp.resend.com  Port: 465  User: resend
-//     Password: <RESEND_API_KEY>  Sender: noreply@styll.it
-//   Verifica che il dominio styll.it sia verificato in Resend.
+// Email clienti:
+//   registerClient genera il link con admin.generateLink() usando
+//   SUPABASE_SECRET_KEY e invia direttamente via Resend SDK da
+//   Styll <noreply@mail.styll.it>, bypassando SMTP Supabase.
 //
 // Troubleshooting email non arriva:
-//   1. Dashboard → Authentication → Logs → cerca "email" per vedere errori
+//   1. Verifica RESEND_API_KEY, SUPABASE_SECRET_KEY e NEXT_PUBLIC_APP_URL
 //   2. Resend Dashboard → Logs → verifica che il messaggio sia stato accodato
-//   3. Se "Confirm email" è OFF in Auth → Email, l'email non viene inviata
-//      e l'utente è confermato automaticamente (nessun errore nel client)
+//   3. Dashboard Supabase → Authentication → Logs → verifica generateLink
 //
 // Nel proxy (apps/web/src/proxy.ts) il rewrite gestisce già
 // che *-app.styll.it/tenant/app/[slug]/* arrivi correttamente.
