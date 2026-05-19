@@ -71,9 +71,25 @@ function mapAuthError(message: string): { error: string; type: AuthErrorType } {
 
 async function getBaseUrl(): Promise<string> {
   const headerStore = await headers()
-  const origin = headerStore.get('origin')
-  if (origin) return origin
 
+  // origin is sent by browsers on Server Action POST requests.
+  // Guard against the literal string "null" that browsers send when the
+  // origin is opaque (e.g. file://, data: URIs, or stripped cross-origin).
+  const origin = headerStore.get('origin')
+  if (origin && origin !== 'null') return origin
+
+  // x-forwarded-host is set by Vercel and nginx reverse-proxies so the
+  // downstream app sees the original public hostname instead of the
+  // internal one.  x-forwarded-proto carries the original scheme.
+  const fwdHost = headerStore.get('x-forwarded-host')
+  const fwdProto = headerStore.get('x-forwarded-proto')
+  if (fwdHost) {
+    const proto = fwdProto?.split(',')[0]?.trim() ?? 'https'
+    return `${proto}://${fwdHost.split(',')[0]?.trim()}`
+  }
+
+  // Direct Next.js: host header is the hostname (Vercel also sets this to
+  // the public hostname for edge/serverless functions).
   const host = headerStore.get('host')
   const protocol = host?.includes('localhost') ? 'http' : 'https'
   return host ? `${protocol}://${host}` : 'http://localhost:3000'
@@ -457,11 +473,27 @@ export async function updateMyClientProfile(params: {
 // ─── CONFIGURAZIONE SUPABASE ───────────────────────────────────────
 // Nel dashboard Supabase → Authentication → URL Configuration:
 //
-// Site URL: https://styll.app  (o localhost:3000 in dev)
+// Site URL (production): https://styll.app
 //
-// Redirect URLs (aggiungi tutti questi):
-//   http://localhost:3000/tenant/app/*/auth/callback
-//   https://*-app.styll.it/tenant/app/*/auth/callback
+// Redirect URLs — devono contenere ESATTAMENTE questi pattern
+// (il path completo con wildcard è necessario perché Supabase
+//  fa il match su URL completa, non solo sul dominio):
+//
+//   http://localhost:3000/tenant/app/*/auth/callback   ← dev locale
+//   https://*-app.styll.it/tenant/app/*/auth/callback ← produzione
+//   https://*.ngrok-free.app/tenant/app/*/auth/callback ← ngrok dev
+//
+// Email SMTP: Authentication → SMTP Settings
+//   Abilita "Custom SMTP" e usa Resend:
+//     Host: smtp.resend.com  Port: 465  User: resend
+//     Password: <RESEND_API_KEY>  Sender: noreply@styll.it
+//   Verifica che il dominio styll.it sia verificato in Resend.
+//
+// Troubleshooting email non arriva:
+//   1. Dashboard → Authentication → Logs → cerca "email" per vedere errori
+//   2. Resend Dashboard → Logs → verifica che il messaggio sia stato accodato
+//   3. Se "Confirm email" è OFF in Auth → Email, l'email non viene inviata
+//      e l'utente è confermato automaticamente (nessun errore nel client)
 //
 // Nel proxy (apps/web/src/proxy.ts) il rewrite gestisce già
 // che *-app.styll.it/tenant/app/[slug]/* arrivi correttamente.
