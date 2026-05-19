@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -24,6 +25,10 @@ interface ConfermaFormProps {
   location: PublicLocation
   staff: PublicStaffMember
   services: PublicService[]
+  initialFullName?: string
+  initialPhone?: string
+  initialEmail?: string
+  isLoggedIn?: boolean
 }
 
 function formatCurrency(value: number): string {
@@ -53,13 +58,17 @@ export function ConfermaForm({
   location,
   staff,
   services,
+  initialFullName = '',
+  initialPhone = '',
+  initialEmail = '',
+  isLoggedIn = false,
 }: ConfermaFormProps) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
   const [isPending, startTransition] = useTransition()
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState(initialFullName)
+  const [phone, setPhone] = useState(initialPhone)
+  const [email, setEmail] = useState(initialEmail)
   const [notes, setNotes] = useState('')
   const [marketingConsent, setMarketingConsent] = useState(false)
 
@@ -158,28 +167,46 @@ export function ConfermaForm({
             <label htmlFor="fullName" className="text-sm font-medium">
               Nome e cognome
             </label>
-            <Input
-              id="fullName"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder="Mario Rossi"
-              className="min-h-[44px] rounded-2xl"
-              required
-            />
+            {isLoggedIn ? (
+              <div className="flex items-center justify-between gap-3 min-h-[44px] rounded-2xl border border-input bg-muted px-4 py-3 text-sm">
+                <span>{fullName || '—'}</span>
+                <Link href={tenantPath('/profilo')} className="shrink-0 text-xs text-muted-foreground underline underline-offset-2">
+                  modifica profilo
+                </Link>
+              </div>
+            ) : (
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="Mario Rossi"
+                className="min-h-[44px] rounded-2xl"
+                required
+              />
+            )}
           </div>
           <div className="space-y-2">
             <label htmlFor="phone" className="text-sm font-medium">
               Telefono
             </label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="333 1234567"
-              className="min-h-[44px] rounded-2xl"
-              required
-            />
+            {isLoggedIn ? (
+              <div className="flex items-center justify-between gap-3 min-h-[44px] rounded-2xl border border-input bg-muted px-4 py-3 text-sm">
+                <span>{phone || '—'}</span>
+                <Link href={tenantPath('/profilo')} className="shrink-0 text-xs text-muted-foreground underline underline-offset-2">
+                  modifica
+                </Link>
+              </div>
+            ) : (
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="333 1234567"
+                className="min-h-[44px] rounded-2xl"
+                required
+              />
+            )}
           </div>
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">

@@ -27,7 +27,16 @@ enabled = true
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://styll.app", "https://*.ngrok-free.app", "https://*.ngrok-free.dev", "http://192.168.1.51:3000"]
+additional_redirect_urls = [
+  "https://styll.app",
+  "https://*.ngrok-free.app",
+  "https://*.ngrok-free.dev",
+  "https://*.ngrok-free.app/tenant/app/*/auth/callback",
+  "https://*.ngrok-free.dev/tenant/app/*/auth/callback",
+  "http://192.168.1.51:3000",
+  "http://192.168.1.51:3000/tenant/app/*/auth/callback",
+  "http://localhost:3000/tenant/app/*/auth/callback"
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

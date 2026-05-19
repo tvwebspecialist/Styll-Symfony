@@ -7,6 +7,7 @@ import {
 } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { getMyClientRecord } from '@/lib/actions/client-auth'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -57,10 +58,11 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
     notFound()
   }
 
-  const [services, location, staffMember] = await Promise.all([
+  const [services, location, staffMember, clientRecord] = await Promise.all([
     getPublicServicesByIds(tenant.tenant_id, serviceIds),
     getPublicLocationById(tenant.tenant_id, locationId),
     getPublicStaffMemberById(tenant.tenant_id, staffId),
+    getMyClientRecord(tenant.tenant_id),
   ])
 
   if (!location || !staffMember || services.length === 0) {
@@ -80,6 +82,10 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
         location={location}
         staff={staffMember}
         services={services}
+        initialFullName={clientRecord?.fullName ?? ''}
+        initialPhone={clientRecord?.phone ?? ''}
+        initialEmail={clientRecord?.email ?? ''}
+        isLoggedIn={clientRecord !== null}
       />
     </main>
   )
