@@ -15,15 +15,17 @@ export async function GET(
   const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
   const tp = await createTenantPaths(slug)
 
+  const errorUrl = `${baseUrl}${tp('/auth')}?error=${encodeURIComponent('Link non valido. Prova ad accedere.')}`
+
   if (!code) {
-    return NextResponse.redirect(`${baseUrl}${tp('/accesso?error=link_invalido')}`)
+    return NextResponse.redirect(errorUrl)
   }
 
   const supabase = await createServerClient()
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error || !data.user) {
-    return NextResponse.redirect(`${baseUrl}${tp('/accesso?error=link_scaduto')}`)
+    return NextResponse.redirect(errorUrl)
   }
 
   if (type === 'signup') {
@@ -41,8 +43,7 @@ export async function GET(
         marketingConsent: Boolean(data.user.user_metadata?.marketing_consent),
       })
     }
-    const home = tp('')
-    return NextResponse.redirect(`${baseUrl}${home}?welcome=true`)
+    return NextResponse.redirect(`${baseUrl}${tp('')}`)
   }
 
   if (type === 'recovery') {
