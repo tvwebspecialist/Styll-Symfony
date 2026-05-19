@@ -122,7 +122,7 @@ Questo link scade tra 7 giorni.
 
   try {
     const result = await resend.emails.send({
-from: 'onboarding@resend.dev',
+      from: 'Styll <noreply@mail.styll.it>',
       to: recipientEmail,
       subject: `Sei stato invitato a unirti a ${tenantName}`,
       html: htmlContent,
