@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { getCalendarioData } from '@/lib/actions/calendario'
+import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { getWeekMonday } from '@/lib/utils/week'
 import { CalendarioClient } from '@/components/dashboard/calendario/CalendarioClient'
 
@@ -45,6 +46,7 @@ export default async function CalendarioPage({
   const selectedStaffId = staffParam ?? (isManagerOrOwner ? null : (myStaff?.id ?? null))
 
   const data = await getCalendarioData(tenantId, weekStart, selectedStaffId)
+  const timezone = await getTenantTimezone(tenantId)
 
   return (
     <CalendarioClient
@@ -55,6 +57,7 @@ export default async function CalendarioPage({
       currentStaffId={myStaff?.id ?? null}
       isManagerOrOwner={isManagerOrOwner}
       selectedStaffId={selectedStaffId}
+      timezone={timezone}
     />
   )
 }

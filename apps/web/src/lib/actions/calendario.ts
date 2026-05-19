@@ -102,8 +102,8 @@ export async function getCalendarioData(
     )
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
-    .gte('start_time', weekStart + 'T00:00:00')
-    .lt('start_time', weekEnd + 'T00:00:00')
+    .gte('start_time', weekStart + 'T00:00:00Z')
+    .lt('start_time', weekEnd + 'T00:00:00Z')
     .order('start_time', { ascending: true })
 
   if (staffId) {

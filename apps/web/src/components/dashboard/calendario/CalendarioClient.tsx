@@ -24,6 +24,7 @@ import {
 import { useRealtimeAppointments } from '@/hooks/useRealtimeAppointments'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { DatePicker } from '@/components/ui/date-picker'
+import { localDatetimeToUtc, formatTimeInTimezone, getLocalMinutes } from '@/lib/utils/timezone'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const HOUR_HEIGHT = 200
@@ -97,9 +98,8 @@ function formatHour(h: number): string {
   return `${String(h).padStart(2, '0')}:00`
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+function formatTime(iso: string, timezone: string = 'Europe/Rome'): string {
+  return formatTimeInTimezone(iso, timezone)
 }
 
 function getDurationMin(appt: CalendarioAppointment): number {
@@ -108,11 +108,9 @@ function getDurationMin(appt: CalendarioAppointment): number {
   )
 }
 
-function getApptPosition(appt: CalendarioAppointment): { top: number; height: number } {
-  const start    = new Date(appt.start_time)
-  const end      = new Date(appt.end_time)
-  const startMin = start.getHours() * 60 + start.getMinutes()
-  const endMin   = end.getHours()   * 60 + end.getMinutes()
+function getApptPosition(appt: CalendarioAppointment, timezone: string = 'Europe/Rome'): { top: number; height: number } {
+  const startMin = getLocalMinutes(appt.start_time, timezone)
+  const endMin   = getLocalMinutes(appt.end_time,   timezone)
   const top      = (startMin - HOUR_START * 60) * (HOUR_HEIGHT / 60)
   const height   = Math.max(Math.max(endMin - startMin, 15) * (HOUR_HEIGHT / 60), 24)
   return { top, height }
@@ -599,6 +597,7 @@ function NewApptModal({
   isManagerOrOwner,
   currentStaffId,
   onCreated,
+  timezone,
 }: {
   date: string
   hour: number
@@ -607,6 +606,7 @@ function NewApptModal({
   isManagerOrOwner: boolean
   currentStaffId: string | null
   onCreated: () => void
+  timezone: string
 }) {
   const [isMobile, setIsMobile]               = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches
@@ -692,7 +692,7 @@ function NewApptModal({
     setError(null)
     const svc   = options?.services.find((s) => s.id === serviceId)
     const dur   = svc?.duration_minutes ?? 60
-    const start = new Date(`${apptDate}T${apptTime}:00`)
+    const start = localDatetimeToUtc(apptDate, apptTime, timezone)
     const end   = new Date(start.getTime() + dur * 60000)
     const res   = await createAppointment({
       tenantId, clientId, staffId,
@@ -933,6 +933,7 @@ interface Props {
   currentStaffId: string | null
   isManagerOrOwner: boolean
   selectedStaffId: string | null
+  timezone?: string
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -945,6 +946,7 @@ export function CalendarioClient({
   currentStaffId,
   isManagerOrOwner,
   selectedStaffId,
+  timezone = 'Europe/Rome',
 }: Props) {
   const router = useRouter()
 
@@ -1152,7 +1154,7 @@ export function CalendarioClient({
           })}
 
           {dayAppts.map((appt) => {
-            const { top, height } = getApptPosition(appt)
+            const { top, height } = getApptPosition(appt, timezone)
             const serviceColor = appt.services[0]?.color || '#888888'
             const col = { border: serviceColor, bg: serviceColor + '26' }
             const dur       = getDurationMin(appt)
@@ -1191,7 +1193,7 @@ export function CalendarioClient({
                       {appt.client_name}
                     </span>
                     <span style={{ fontSize: 9, color: subColor, flexShrink: 0 }}>
-                      {formatTime(appt.start_time)}
+                      {formatTime(appt.start_time, timezone)}
                     </span>
                   </div>
                 ) : (
@@ -1217,7 +1219,7 @@ export function CalendarioClient({
                       {appt.client_name}
                     </div>
                     <div style={{ fontSize: 10, color: subColor, lineHeight: 1.3 }}>
-                      {formatTime(appt.start_time)}–{formatTime(appt.end_time)} · {dur}min
+                      {formatTime(appt.start_time, timezone)}–{formatTime(appt.end_time, timezone)} · {dur}min
                     </div>
                     <div style={{ fontSize: 10, color: subColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.3, marginTop: 1 }}>
                       {appt.services.length > 0 ? appt.services.map((s) => s.name).join(' + ') : '–'}
@@ -1230,7 +1232,7 @@ export function CalendarioClient({
         </div>
       </div>
     )
-  }, [liveAppts, isCellWorking, setNewApptCell, setDetailAppt])
+  }, [liveAppts, isCellWorking, setNewApptCell, setDetailAppt, timezone])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1810,6 +1812,7 @@ export function CalendarioClient({
           isManagerOrOwner={isManagerOrOwner}
           currentStaffId={currentStaffId}
           onCreated={() => router.refresh()}
+          timezone={timezone}
         />
       )}
     </div>
