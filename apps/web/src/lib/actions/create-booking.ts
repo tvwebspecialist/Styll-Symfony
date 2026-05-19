@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
+import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import type { TablesInsert } from '@/types'
 
 const createGuestBookingSchema = z.object({
@@ -39,8 +40,8 @@ function sanitizePhone(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
-function buildAppointmentDate(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00`)
+function buildAppointmentDate(date: string, time: string, timezone: string = 'Europe/Rome'): Date {
+  return localDatetimeToUtc(date, time, timezone)
 }
 
 export async function createGuestBooking(
@@ -140,7 +141,7 @@ export async function createGuestBooking(
     (total, service) => total + Number(service.duration_minutes ?? 0),
     0
   )
-  const startDate = buildAppointmentDate(data.date, data.time)
+  const startDate = buildAppointmentDate(data.date, data.time, timezone)
 
   if (Number.isNaN(startDate.getTime())) {
     return {

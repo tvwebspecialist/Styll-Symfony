@@ -60,6 +60,11 @@ function sortAppointments(appointments: Appointment[]): Appointment[] {
 
 /**
  * Checks whether an appointment belongs to the active hook filters.
+ *
+ * NOTE: Supabase Realtime sends `timestamptz` columns in PostgreSQL native
+ * format ("2024-06-18 07:00:00+00" with a space), NOT ISO-8601 ("T") like
+ * PostgREST does. Raw string comparison breaks when the appointment date
+ * equals startDate (space < T in ASCII), so we always parse through Date.
  */
 function matchesFilters(
   appointment: Partial<Appointment>,
@@ -72,8 +77,16 @@ function matchesFilters(
   if (tenantId && appointment.tenant_id && appointment.tenant_id !== tenantId) return false
   if (locationId && appointment.location_id && appointment.location_id !== locationId) return false
   if (staffId && appointment.staff_id && appointment.staff_id !== staffId) return false
-  if (startDate && appointment.start_time && appointment.start_time < `${startDate}T00:00:00`) return false
-  if (endDate && appointment.start_time && appointment.start_time >= `${endDate}T00:00:00`) return false
+  if (startDate && appointment.start_time) {
+    // Replace the PostgreSQL space separator with 'T' before parsing so that
+    // both "2024-06-18 07:00:00+00" and "2024-06-18T07:00:00+00:00" parse correctly.
+    const apptMs = new Date(appointment.start_time.replace(' ', 'T')).getTime()
+    if (apptMs < new Date(`${startDate}T00:00:00Z`).getTime()) return false
+  }
+  if (endDate && appointment.start_time) {
+    const apptMs = new Date(appointment.start_time.replace(' ', 'T')).getTime()
+    if (apptMs >= new Date(`${endDate}T00:00:00Z`).getTime()) return false
+  }
   return true
 }
 
@@ -181,11 +194,11 @@ export function useRealtimeAppointments(
         }
 
         if (startDate) {
-          query = query.gte('start_time', `${startDate}T00:00:00`)
+          query = query.gte('start_time', `${startDate}T00:00:00Z`)
         }
 
         if (endDate) {
-          query = query.lt('start_time', `${endDate}T00:00:00`)
+          query = query.lt('start_time', `${endDate}T00:00:00Z`)
         }
 
         const { data, error: queryError } = await query
@@ -220,7 +233,7 @@ export function useRealtimeAppointments(
 
       try {
         channel = supabase
-          .channel('realtime:appointments')
+          .channel(`calendar:appointments:${tenantId}`)
           .on(
             'postgres_changes',
             {

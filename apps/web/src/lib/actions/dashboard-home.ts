@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { getLocalMinutes } from '@/lib/utils/timezone'
 
 export interface TodayAppointment {
   id: string
@@ -162,7 +163,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const bookedSet = new Set<string>()
   for (const appt of weekRes.data ?? []) {
     const d = (appt as any).start_time?.slice(0, 10)
-    const h = parseInt((appt as any).start_time?.slice(11, 13) ?? '0', 10)
+    const h = Math.floor(getLocalMinutes((appt as any).start_time, 'Europe/Rome') / 60)
     if (d && h >= 8 && h <= 19) bookedSet.add(`${d}:${h}`)
   }
   for (let d = 0; d < 6; d++) {
