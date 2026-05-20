@@ -20,7 +20,7 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   outfit: 'Outfit:wght@400;500;600;700;800',
   inter: 'Inter:wght@400;500;600;700;800',
   poppins: 'Poppins:wght@400;500;600;700;800',
-  playfair: 'Playfair+Display:wght@400;700',
+  playfair: 'Playfair+Display:wght@400;600;700;800',
   montserrat: 'Montserrat:wght@400;500;600;700;800',
 }
 
@@ -313,7 +313,7 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
     })
     setSaving(false)
     if (result.ok) {
-      toast.success('Impostazioni salvate')
+      toast.success("Impostazioni salvate! Le modifiche sono ora visibili nell'app cliente.")
     } else {
       toast.error(result.error ?? 'Errore durante il salvataggio')
     }

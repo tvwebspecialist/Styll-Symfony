@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +64,20 @@ export async function updateAppSettings(
     .eq('id', tenantId)
 
   if (error) return { ok: false, error: error.message }
+
+  // Fetch slug to invalidate the PWA cache
+  const { data: tenantData } = await db
+    .from('tenants')
+    .select('slug')
+    .eq('id', tenantId)
+    .maybeSingle()
+
+  const slug = (tenantData as { slug?: string } | null)?.slug
+  if (slug) {
+    revalidateTag(`tenant-${slug}`, {})
+    revalidatePath(`/tenant/app/${slug}`)
+    revalidatePath(`/tenant/app/${slug}/`, 'layout')
+  }
 
   revalidatePath('/dashboard/app')
 

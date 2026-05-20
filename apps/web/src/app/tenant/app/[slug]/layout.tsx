@@ -7,9 +7,16 @@ import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
 
 const FONT_MAP: Record<string, string> = {
-  outfit: 'var(--font-outfit)',
-  poppins: 'var(--font-poppins)',
-  inter: 'var(--font-inter)',
+  outfit:     'var(--font-outfit)',
+  poppins:    'var(--font-poppins)',
+  inter:      'var(--font-inter)',
+  playfair:   '"Playfair Display", serif',
+  montserrat: '"Montserrat", sans-serif',
+}
+
+const GOOGLE_FONT_URLS: Record<string, string> = {
+  playfair:   'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&display=swap',
+  montserrat: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap',
 }
 
 interface Props {
@@ -69,7 +76,9 @@ export default async function AppLayout({ params, children }: Props) {
     notFound()
   }
 
-  const fontFamily = FONT_MAP[tenant.font_family?.toLowerCase() ?? ''] ?? FONT_MAP.outfit
+  const fontSlug = tenant.font_family?.toLowerCase() ?? 'outfit'
+  const fontFamily = FONT_MAP[fontSlug] ?? FONT_MAP.outfit
+  const googleFontUrl = GOOGLE_FONT_URLS[fontSlug] ?? null
   const clientProfile = await getClientProfile(tenant.tenant_id).catch(() => null)
   const brandVars = {
     '--brand-primary': tenant.primary_color ?? '#1a1a1a',
@@ -79,21 +88,30 @@ export default async function AppLayout({ params, children }: Props) {
   } as CSSProperties
 
   return (
-    <div
-      style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
-      className="text-foreground [font-family:var(--font-active)]"
-    >
-      <PwaShell
-        slug={slug}
-        businessName={tenant.business_name}
-        logoUrl={tenant.logo_url}
-        primaryColor={tenant.primary_color}
-        fontFamily={fontFamily}
-        clientName={clientProfile?.fullName ?? null}
-        clientAvatarUrl={clientProfile?.avatarUrl ?? null}
+    <>
+      {googleFontUrl && (
+        <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="stylesheet" href={googleFontUrl} />
+        </>
+      )}
+      <div
+        style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
+        className="text-foreground [font-family:var(--font-active)]"
       >
-        {children}
-      </PwaShell>
-    </div>
+        <PwaShell
+          slug={slug}
+          businessName={tenant.business_name}
+          logoUrl={tenant.logo_url}
+          primaryColor={tenant.primary_color}
+          fontFamily={fontFamily}
+          clientName={clientProfile?.fullName ?? null}
+          clientAvatarUrl={clientProfile?.avatarUrl ?? null}
+        >
+          {children}
+        </PwaShell>
+      </div>
+    </>
   )
 }
