@@ -247,7 +247,7 @@ export async function registerClient(params: {
     tenant_slug: params.tenantSlug,
     marketing_consent: Boolean(params.marketingConsent),
   }
-  const redirectTo = `https://${params.tenantSlug}-app.${pwaDomain}/auth/callback`
+  const redirectTo = `https://${params.tenantSlug}-app.${pwaDomain}/login`
   const adminClient = createAdminClient()
   const { data, error } = await adminClient.auth.admin.generateLink({
     type: 'signup',

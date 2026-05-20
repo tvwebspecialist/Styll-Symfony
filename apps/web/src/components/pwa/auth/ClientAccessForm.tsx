@@ -98,8 +98,12 @@ export function ClientAccessForm({
     const params = new URLSearchParams(hash)
     const accessToken = params.get('access_token')
     const refreshToken = params.get('refresh_token')
+    const type = params.get('type')
 
-    if (!accessToken || !refreshToken) return
+    if (!accessToken || !refreshToken || type !== 'signup') return
+
+    // Remove tokens from the URL bar immediately
+    window.history.replaceState(null, '', window.location.pathname)
 
     setIsProcessingHash(true)
     const supabase = createClient()
@@ -107,11 +111,10 @@ export function ClientAccessForm({
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(({ error }) => {
-        if (error) {
-          setIsProcessingHash(false)
-          setMessage({ tone: 'error', text: 'Link non valido, riprova.' })
-        } else {
+        if (!error) {
           window.location.href = '/'
+        } else {
+          setIsProcessingHash(false)
         }
       })
   }, [])
@@ -134,6 +137,22 @@ export function ClientAccessForm({
       if (!result.success) {
         setMessage({ tone: 'error', text: result.error })
         return
+      }
+
+      // PWA clients (user_type = 'client') must stay on the custom domain.
+      // Do a hard redirect to '/' so they land on the PWA home, not the barber dashboard.
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', authUser.id)
+          .single()
+        if (profile?.user_type === 'client') {
+          window.location.href = '/'
+          return
+        }
       }
 
       router.push(safeRedirect(tenantPath, returnTo))
