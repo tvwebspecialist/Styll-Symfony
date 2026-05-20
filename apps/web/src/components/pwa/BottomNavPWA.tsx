@@ -25,7 +25,7 @@ export function BottomNavPWA({ slug, primaryColor: _primaryColor, fontFamily }: 
   return (
     <>
       {/* Spacer */}
-      <div style={{ height: 'calc(72px + 24px + env(safe-area-inset-bottom, 0px))' }} />
+      <div style={{ height: 'calc(72px + 28px + env(safe-area-inset-bottom, 0px))' }} />
 
       <nav
         style={{

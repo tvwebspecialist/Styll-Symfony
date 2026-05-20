@@ -57,6 +57,7 @@ export async function generateViewport({
 
   return {
     themeColor: tenant?.primary_color ?? '#1a1a1a',
+    viewportFit: 'cover',
   }
 }
 
