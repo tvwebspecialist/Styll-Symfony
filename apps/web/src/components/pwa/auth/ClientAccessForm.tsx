@@ -136,6 +136,22 @@ export function ClientAccessForm({
         return
       }
 
+      // PWA clients (user_type = 'client') must stay on the custom domain.
+      // Do a hard redirect to '/' so they land on the PWA home, not the barber dashboard.
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_type')
+          .eq('id', authUser.id)
+          .single()
+        if (profile?.user_type === 'client') {
+          window.location.href = '/'
+          return
+        }
+      }
+
       router.push(safeRedirect(tenantPath, returnTo))
       router.refresh()
     })

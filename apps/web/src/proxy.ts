@@ -117,102 +117,72 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // PWA client routes manage their own auth — middleware must not interfere.
+  // /auth/callback on subdomains is also a PWA route (handled by the tenant page).
   const isPwaRoute = pathname.startsWith('/tenant/app/')
-  if (isPwaRoute) return response
+    || (isSubdomainRequest && pathname === '/auth/callback')
 
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
-  const isAdmin = pathname.startsWith('/admin')
-  const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
-  const isAuthPage =
-    AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
-    pathname !== LEGACY_COMPLETE
+  if (!isPwaRoute) {
+    const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
+    const isAdmin = pathname.startsWith('/admin')
+    const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
+    const isAuthPage =
+      AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
+      pathname !== LEGACY_COMPLETE
 
-  // Rotte protette: richiedono auth
-  if (isProtected && !user) {
-    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN!
-    const loginUrl = new URL(`http://${rootDomain}/login`)
-    loginUrl.searchParams.set('redirectTo', pathname)
-    return NextResponse.redirect(loginUrl)
-  }
+    // Rotte protette: richiedono auth
+    if (isProtected && !user) {
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN!
+      const loginUrl = new URL(`http://${rootDomain}/login`)
+      loginUrl.searchParams.set('redirectTo', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
 
-  // /admin/*: richiede superadmin
-  if (isAdmin && user) {
-    const db = createAdminClient()
-    const { data: adminProfile } = await db
-      .from('profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (!(adminProfile as { is_superadmin?: boolean } | null)?.is_superadmin) {
+    // /admin/*: richiede superadmin
+    if (isAdmin && user) {
+      const db = createAdminClient()
+      const { data: adminProfile } = await db
+        .from('profiles')
+        .select('is_superadmin')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (!(adminProfile as { is_superadmin?: boolean } | null)?.is_superadmin) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // /onboarding/*: richiede auth
+    if (isOnboarding && !user) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
-  }
 
-  // /onboarding/*: richiede auth
-  if (isOnboarding && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-
-  // Legacy /register/complete → /onboarding/step-1
-  if (pathname === LEGACY_COMPLETE) {
-    const url = request.nextUrl.clone()
-    url.pathname = user ? '/onboarding/step-1' : '/login'
-    return NextResponse.redirect(url)
-  }
-
-  // Utente loggato: gating onboarding
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_completed')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    const completed = !!profile?.onboarding_completed
-
-    if (!completed && isProtected && !isAdmin && !isSubdomainRequest) {
+    // Legacy /register/complete → /onboarding/step-1
+    if (pathname === LEGACY_COMPLETE) {
       const url = request.nextUrl.clone()
-      url.pathname = '/onboarding/step-1'
+      url.pathname = user ? '/onboarding/step-1' : '/login'
       return NextResponse.redirect(url)
     }
 
-    if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
-      const db = createAdminClient()
-      const { data: staffRow } = await db
-        .from('staff_members')
-        .select('tenant_id')
-        .eq('profile_id', user.id)
-        .eq('is_active', true)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
-        .limit(1)
+    // Utente loggato: gating onboarding
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
         .maybeSingle()
-      if (staffRow?.tenant_id) {
-        const { data: tenantRow } = await db
-          .from('tenants')
-          .select('slug')
-          .eq('id', staffRow.tenant_id)
-          .maybeSingle()
-        if (tenantRow?.slug) {
-          const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-          const redirectUrl = request.nextUrl.clone()
-          redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
-          redirectUrl.pathname = '/'
-          redirectUrl.port = ''
-          return NextResponse.redirect(redirectUrl)
-        }
-      }
-      const fallbackUrl = request.nextUrl.clone()
-      fallbackUrl.pathname = '/dashboard'
-      return NextResponse.redirect(fallbackUrl)
-    }
 
-    if (isAuthPage && !isSubdomainRequest) {
-      if (completed) {
+      const completed = !!profile?.onboarding_completed
+
+      if (!completed && isProtected && !isAdmin && !isSubdomainRequest) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding/step-1'
+        return NextResponse.redirect(url)
+      }
+
+      if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
         const db = createAdminClient()
         const { data: staffRow } = await db
           .from('staff_members')
@@ -241,10 +211,43 @@ export async function proxy(request: NextRequest) {
         const fallbackUrl = request.nextUrl.clone()
         fallbackUrl.pathname = '/dashboard'
         return NextResponse.redirect(fallbackUrl)
-      } else {
-        const url = request.nextUrl.clone()
-        url.pathname = '/onboarding/step-1'
-        return NextResponse.redirect(url)
+      }
+
+      if (isAuthPage && !isSubdomainRequest) {
+        if (completed) {
+          const db = createAdminClient()
+          const { data: staffRow } = await db
+            .from('staff_members')
+            .select('tenant_id')
+            .eq('profile_id', user.id)
+            .eq('is_active', true)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+          if (staffRow?.tenant_id) {
+            const { data: tenantRow } = await db
+              .from('tenants')
+              .select('slug')
+              .eq('id', staffRow.tenant_id)
+              .maybeSingle()
+            if (tenantRow?.slug) {
+              const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+              const redirectUrl = request.nextUrl.clone()
+              redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
+              redirectUrl.pathname = '/'
+              redirectUrl.port = ''
+              return NextResponse.redirect(redirectUrl)
+            }
+          }
+          const fallbackUrl = request.nextUrl.clone()
+          fallbackUrl.pathname = '/dashboard'
+          return NextResponse.redirect(fallbackUrl)
+        } else {
+          const url = request.nextUrl.clone()
+          url.pathname = '/onboarding/step-1'
+          return NextResponse.redirect(url)
+        }
       }
     }
   }
@@ -263,6 +266,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon\\.ico|auth/callback|.*\\.(?:png|jpg|jpeg|svg|ico|css|js|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|css|js|gif|webp)$).*)',
   ],
 }
