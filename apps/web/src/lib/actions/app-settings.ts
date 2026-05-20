@@ -134,7 +134,6 @@ export async function uploadTenantLogo(
     .from('tenants')
     .update({
       logo_url: publicUrl,
-      logo_updated_at: now,
       updated_at: now,
     })
     .eq('id', tenantId)

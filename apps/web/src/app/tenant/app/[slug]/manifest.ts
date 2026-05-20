@@ -4,13 +4,6 @@ import { getTenantBySlug } from '@/lib/tenant'
 // Web Manifest supports space-separated purpose tokens; Next's type is stricter.
 const ANY_MASKABLE = 'any maskable' as 'any'
 
-function getLogoVersion(logoUpdatedAt: string | null) {
-  if (!logoUpdatedAt) return '0'
-
-  const timestamp = new Date(logoUpdatedAt).getTime()
-  return Number.isFinite(timestamp) ? String(timestamp) : '0'
-}
-
 export default async function manifest(
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<MetadataRoute.Manifest> {
@@ -50,7 +43,9 @@ export default async function manifest(
     }
   }
 
-  const iconVersion = getLogoVersion(tenant.logo_updated_at)
+  const iconVersion = tenant.logo_url
+    ? encodeURIComponent(tenant.logo_url).slice(-8)
+    : '0'
   const versionedIconBase = `${iconBase}&v=${iconVersion}`
 
   return {
