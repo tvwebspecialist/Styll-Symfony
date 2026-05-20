@@ -19,13 +19,6 @@ const GOOGLE_FONT_URLS: Record<string, string> = {
   montserrat: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap',
 }
 
-function getLogoVersion(logoUpdatedAt: string | null) {
-  if (!logoUpdatedAt) return '0'
-
-  const timestamp = new Date(logoUpdatedAt).getTime()
-  return Number.isFinite(timestamp) ? String(timestamp) : '0'
-}
-
 interface Props {
   params: Promise<{ slug: string }>
   children: ReactNode
@@ -47,7 +40,9 @@ export async function generateMetadata({
   }
 
   const tp = await createTenantPaths(slug)
-  const iconVersion = getLogoVersion(tenant.logo_updated_at)
+  const iconVersion = tenant.logo_url
+    ? encodeURIComponent(tenant.logo_url).slice(-8)
+    : '0'
   const appleTouchIcon = `/api/pwa-icon?slug=${encodeURIComponent(slug)}&v=${iconVersion}&size=180`
 
   return {
