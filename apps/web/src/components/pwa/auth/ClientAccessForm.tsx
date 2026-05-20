@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { createClient } from '@/lib/supabase/client'
 import {
   loginClient,
   registerClient,
@@ -69,6 +70,7 @@ export function ClientAccessForm({
   )
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null)
   const [resetSent, setResetSent] = useState(false)
+  const [isProcessingHash, setIsProcessingHash] = useState(false)
   const [loginEmail, setLoginEmail] = useState(initialEmail)
   const [loginPassword, setLoginPassword] = useState('')
   const [registerData, setRegisterData] = useState({
@@ -90,6 +92,29 @@ export function ClientAccessForm({
     }
     return null
   }, [urlError])
+
+  useEffect(() => {
+    const hash = window.location.hash.substring(1)
+    const params = new URLSearchParams(hash)
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+
+    if (!accessToken || !refreshToken) return
+
+    setIsProcessingHash(true)
+    const supabase = createClient()
+
+    supabase.auth
+      .setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .then(({ error }) => {
+        if (error) {
+          setIsProcessingHash(false)
+          setMessage({ tone: 'error', text: 'Link non valido, riprova.' })
+        } else {
+          window.location.href = '/'
+        }
+      })
+  }, [])
 
   function bannerClasses(tone: 'success' | 'error' | 'warning') {
     if (tone === 'success') return 'border-green-200 bg-green-50 text-green-800'
@@ -187,6 +212,14 @@ export function ClientAccessForm({
         text: result.success ? 'Email di verifica inviata di nuovo.' : result.error,
       })
     })
+  }
+
+  if (isProcessingHash) {
+    return (
+      <main className="flex min-h-[calc(100dvh-164px)] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-[var(--brand-primary)]" />
+      </main>
+    )
   }
 
   return (
