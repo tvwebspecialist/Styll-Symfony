@@ -98,8 +98,12 @@ export function ClientAccessForm({
     const params = new URLSearchParams(hash)
     const accessToken = params.get('access_token')
     const refreshToken = params.get('refresh_token')
+    const type = params.get('type')
 
-    if (!accessToken || !refreshToken) return
+    if (!accessToken || !refreshToken || type !== 'signup') return
+
+    // Remove tokens from the URL bar immediately
+    window.history.replaceState(null, '', window.location.pathname)
 
     setIsProcessingHash(true)
     const supabase = createClient()
@@ -107,11 +111,10 @@ export function ClientAccessForm({
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(({ error }) => {
-        if (error) {
-          setIsProcessingHash(false)
-          setMessage({ tone: 'error', text: 'Link non valido, riprova.' })
-        } else {
+        if (!error) {
           window.location.href = '/'
+        } else {
+          setIsProcessingHash(false)
         }
       })
   }, [])
