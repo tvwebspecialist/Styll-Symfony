@@ -116,6 +116,10 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // PWA client routes manage their own auth — middleware must not interfere.
+  const isPwaRoute = pathname.startsWith('/tenant/app/')
+  if (isPwaRoute) return response
+
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
   const isAdmin = pathname.startsWith('/admin')
   const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
