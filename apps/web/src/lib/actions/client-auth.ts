@@ -238,11 +238,7 @@ export async function registerClient(params: {
     return { success: false, error: 'Controlla i dati inseriti e riprova.', type: 'generic' }
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-  if (!appUrl) {
-    console.error('[registerClient] NEXT_PUBLIC_APP_URL is missing')
-    return { success: false, error: 'Configurazione app mancante.', type: 'generic' }
-  }
+  const pwaDomain = (process.env.NEXT_PUBLIC_PWA_BASE_DOMAIN ?? 'styll.it').trim()
 
   const metadata = {
     full_name: fullName,
@@ -251,7 +247,7 @@ export async function registerClient(params: {
     tenant_slug: params.tenantSlug,
     marketing_consent: Boolean(params.marketingConsent),
   }
-  const redirectTo = buildCallbackUrl(appUrl, params.tenantSlug, 'signup')
+  const redirectTo = `https://${params.tenantSlug}-app.${pwaDomain}/auth/callback`
   const adminClient = createAdminClient()
   const { data, error } = await adminClient.auth.admin.generateLink({
     type: 'signup',
