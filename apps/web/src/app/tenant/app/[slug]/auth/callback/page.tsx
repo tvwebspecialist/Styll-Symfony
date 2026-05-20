@@ -31,7 +31,7 @@ export default function AuthCallbackPage() {
         if (error) {
           router.replace(`${authBase}?error=Sessione+non+valida.+Riprova.`)
         } else {
-          router.replace(`/tenant/app/${slug}`)
+          window.location.href = window.location.origin + '/'
         }
       })
   }, [params.slug, router])
