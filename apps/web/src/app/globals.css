@@ -496,6 +496,73 @@
   animation: dashWidgetIn 0.25s ease-out both;
 }
 
+/* ─── Dashboard Home v2 — Greeting + Bento + Calendar ──────────
+ * Mobile: single column, calendar hidden.
+ * Desktop (>1024px): main (greeting+bento) | calendar 430px.
+ * ------------------------------------------------------------ */
+.home-v2-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.home-v2-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+/* Calendar hidden on mobile */
+.home-v2-calendar {
+  display: none;
+}
+
+/* Bento: 1-col mobile, 2-col tablet+ */
+.home-bento-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .home-bento-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+}
+
+@media (min-width: 1025px) {
+  .home-v2-root {
+    display: grid;
+    grid-template-columns: 1fr 430px;
+    gap: 16px;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .home-v2-main {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 24px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .home-v2-main::-webkit-scrollbar { display: none; }
+
+  .home-v2-calendar {
+    display: block;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .home-bento-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+}
+
 /* ─── Dashboard Home — 2-column Grid Layout (legacy, kept for reference)
  * Mobile-first: single-column flex feed.
  * Desktop (>1024px): 62/38 two-column grid.

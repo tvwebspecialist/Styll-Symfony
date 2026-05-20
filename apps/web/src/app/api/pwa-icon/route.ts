@@ -15,6 +15,32 @@ function getIconSize(value: string | null) {
   return Math.min(Math.max(requestedSize, MIN_ICON_SIZE), MAX_ICON_SIZE)
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  let binary = ''
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary)
+}
+
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+
+    const contentType = res.headers.get('content-type') ?? 'image/png'
+    const buffer = await res.arrayBuffer()
+    return `data:${contentType};base64,${arrayBufferToBase64(buffer)}`
+  } catch {
+    return null
+  }
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const slug = searchParams.get('slug')
@@ -29,34 +55,48 @@ export async function GET(request: NextRequest) {
   const name = tenant?.business_name ?? 'S'
   const initial = name.charAt(0).toUpperCase()
   const logoUrl = tenant?.logo_url ?? null
+  const logoBase64 = logoUrl ? await fetchImageAsBase64(logoUrl) : null
+  const iconSize = Math.round(size * 0.7)
 
   return new ImageResponse(
-    React.createElement(
-      'div',
-      {
-        style: {
-          width: size,
-          height: size,
-          background: bgColor,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: size * 0.22,
-        },
-      },
-      logoUrl
-        ? React.createElement('img', {
-            src: logoUrl,
+    logoBase64
+      ? React.createElement(
+          'div',
+          {
+            style: {
+              width: size,
+              height: size,
+              background: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          },
+          React.createElement('img', {
+            src: logoBase64,
             alt: name,
-            width: size * 0.65,
-            height: size * 0.65,
+            width: iconSize,
+            height: iconSize,
             style: { objectFit: 'contain' },
-          })
-        : React.createElement(
+          }),
+        )
+      : React.createElement(
+          'div',
+          {
+            style: {
+              width: size,
+              height: size,
+              background: bgColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          },
+          React.createElement(
             'span',
             {
               style: {
-                fontSize: size * 0.45,
+                fontSize: Math.round(size * 0.48),
                 fontWeight: 800,
                 color: '#FFFFFF',
                 lineHeight: 1,
@@ -64,7 +104,7 @@ export async function GET(request: NextRequest) {
             },
             initial,
           ),
-    ),
+        ),
     {
       width: size,
       height: size,
