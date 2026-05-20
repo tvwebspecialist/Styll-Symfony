@@ -563,30 +563,44 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
                   key={label}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
                 >
-                  <div
-                    style={{
-                      width: size,
-                      height: size,
-                      borderRadius: size * 0.22,
-                      background: primaryColor || '#1A1A1A',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      overflow: 'hidden',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  {logoUrl ? (
+                    <div
+                      style={{
+                        width: size,
+                        height: size,
+                        borderRadius: size * 0.22,
+                        background: '#FFFFFF',
+                        border: '1px solid #E5E7EB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
                     }}
                   >
-                    {logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={logoUrl}
                         alt=""
-                        style={{ width: '65%', height: '65%', objectFit: 'contain' }}
+                        style={{ width: '70%', height: '70%', objectFit: 'contain' }}
                       />
-                    ) : (
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: size,
+                        height: size,
+                        borderRadius: size * 0.22,
+                        background: primaryColor || '#1A1A1A',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      }}
+                    >
                       <span
                         style={{
-                          fontSize: size * 0.45,
+                          fontSize: size * 0.48,
                           fontWeight: 800,
                           color: '#FFFFFF',
                           lineHeight: 1,
@@ -594,11 +608,43 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
                       >
                         {businessName.charAt(0).toUpperCase() || 'S'}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <span style={{ fontSize: 10, color: '#9CA3AF' }}>{label}</span>
                 </div>
               ))}
+            </div>
+
+            <div
+              style={{
+                background: '#FFF9ED',
+                border: '1px solid #FDE68A',
+                borderRadius: 10,
+                padding: '12px 14px',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span style={{ fontSize: 16, flexShrink: 0 }}>ℹ️</span>
+              <div>
+                <p
+                  style={{
+                    margin: '0 0 2px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#92400E',
+                  }}
+                >
+                  Aggiornamento icona
+                </p>
+                <p style={{ margin: 0, fontSize: 12, color: '#B45309', lineHeight: 1.5 }}>
+                  L&apos;icona viene aggiornata automaticamente ogni volta che salvi. Tuttavia,
+                  se l&apos;app è già installata sul telefono,
+                  <strong> l&apos;utente deve rimuoverla e reinstallarla</strong> per vedere la
+                  nuova icona — è una limitazione di iOS e Android, non dipende da noi.
+                </p>
+              </div>
             </div>
 
             <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0 }}>

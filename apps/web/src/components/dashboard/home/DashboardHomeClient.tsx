@@ -3,13 +3,12 @@
 import * as React from 'react'
 import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { TodayCalendarView } from './TodayCalendarView'
-import { GreetingWidget } from './GreetingWidget'
-import { KPIGridWidget } from './KPIGridWidget'
-import { NextAppointmentCard } from './NextAppointmentCard'
-import { AgendaTimeline } from './AgendaTimeline'
-import { ChurnAlert } from './ChurnAlert'
-import { QuickActionsWidget } from './QuickActionsWidget'
-import { WeekStats } from './WeekStats'
+import { GreetingHeader } from './GreetingHeader'
+import { KpiCard } from './KpiCard'
+import { ChurnAlertCard } from './ChurnAlertCard'
+import { SlotVuotiCard } from './SlotVuotiCard'
+import { ProssimoAppCard } from './ProssimoAppCard'
+import { BentoGrid } from './BentoGrid'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 
 interface Props {
@@ -58,47 +57,32 @@ export function DashboardHomeClient({ data, basePath }: Props) {
   }, [firstName, todayAppointments.length, totalPrice, setHomeData])
 
   return (
-    <div className="home-bicolonna-root">
+    <div className="home-v2-root">
 
-      {/* ── LEFT — Calendario oggi (desktop only) ────────── */}
-      <div className="home-bicolonna-left">
+      {/* ── LEFT — Greeting + Bento Grid ─────────────────────── */}
+      <div className="home-v2-main">
+        <GreetingHeader staffName={staffName} appointments={todayAppointments} />
+
+        <BentoGrid>
+          {/* Card 1 — KPI Settimanali */}
+          <KpiCard stats={weekStats} />
+
+          {/* Card 2 — Clienti a Rischio Churn */}
+          <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
+
+          {/* Card 3 — Slot Vuoti Oggi */}
+          <SlotVuotiCard appointments={todayAppointments} />
+
+          {/* Card 4 — Prossimo Appuntamento */}
+          <ProssimoAppCard appointment={nextAppt} basePath={basePath} />
+        </BentoGrid>
+      </div>
+
+      {/* ── RIGHT — Calendar Panel (desktop only) ────────────── */}
+      <div className="home-v2-calendar">
         <TodayCalendarView appointments={todayAppointments} basePath={basePath} />
       </div>
 
-      {/* ── RIGHT — Widget stack ──────────────────────────── */}
-      <div className="home-bicolonna-right dashboard-sidebar-right">
-
-        <div className="dash-widget" style={{ animationDelay: '0ms' }}>
-          <GreetingWidget staffName={staffName} appointments={todayAppointments} />
-        </div>
-
-        <div className="dash-widget" style={{ animationDelay: '50ms' }}>
-          <KPIGridWidget appointments={todayAppointments} />
-        </div>
-
-        <div className="dash-widget" style={{ animationDelay: '100ms' }}>
-          <NextAppointmentCard appointment={nextAppt} basePath={basePath} />
-        </div>
-
-        <div className="dash-widget" style={{ animationDelay: '150ms' }}>
-          <AgendaTimeline appointments={todayAppointments} basePath={basePath} />
-        </div>
-
-        {atRiskClients.length > 0 && (
-          <div className="dash-widget" style={{ animationDelay: '200ms' }}>
-            <ChurnAlert clients={atRiskClients} basePath={basePath} />
-          </div>
-        )}
-
-        <div className="dash-widget" style={{ animationDelay: '250ms' }}>
-          <QuickActionsWidget basePath={basePath} />
-        </div>
-
-        <div className="dash-widget" style={{ animationDelay: '300ms' }}>
-          <WeekStats stats={weekStats} />
-        </div>
-
-      </div>
     </div>
   )
 }
