@@ -1,44 +1,102 @@
-import React from 'react'
-import { ImageResponse } from 'next/og'
-import type { NextRequest } from 'next/server'
-import { getTenantBySlug } from '@/lib/tenant'
+import sharp from 'sharp'
+import { NextResponse, type NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
-export const runtime = 'edge'
-
-const DEFAULT_ICON_SIZE = 512
-const MIN_ICON_SIZE = 32
+const DEFAULT_ICON_SIZE = 192
 const MAX_ICON_SIZE = 1024
+const FALLBACK_COLOR = '#1A1A1A'
+const CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=604800'
+
+type TenantIconRow = {
+  business_name: string | null
+  primary_color: string | null
+  logo_url: string | null
+}
 
 function getIconSize(value: string | null) {
   const requestedSize = Number.parseInt(value ?? String(DEFAULT_ICON_SIZE), 10)
-  if (!Number.isFinite(requestedSize)) return DEFAULT_ICON_SIZE
-  return Math.min(Math.max(requestedSize, MIN_ICON_SIZE), MAX_ICON_SIZE)
+  if (!Number.isFinite(requestedSize) || requestedSize <= 0) return DEFAULT_ICON_SIZE
+  return Math.min(requestedSize, MAX_ICON_SIZE)
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer)
-  const chunkSize = 0x8000
-  let binary = ''
-
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize)
-    binary += String.fromCharCode(...chunk)
-  }
-
-  return btoa(binary)
+function getSafeColor(value: string | null | undefined) {
+  return value && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : FALLBACK_COLOR
 }
 
-async function fetchImageAsBase64(url: string): Promise<string | null> {
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+async function getTenantIconData(slug: string): Promise<TenantIconRow | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('tenants')
+    .select('business_name, primary_color, logo_url')
+    .eq('slug', slug)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  return (data as TenantIconRow | null) ?? null
+}
+
+async function fetchLogoBuffer(url: string): Promise<Buffer | null> {
   try {
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return null
 
-    const contentType = res.headers.get('content-type') ?? 'image/png'
-    const buffer = await res.arrayBuffer()
-    return `data:${contentType};base64,${arrayBufferToBase64(buffer)}`
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.startsWith('image/')) return null
+
+    return Buffer.from(await res.arrayBuffer())
   } catch {
     return null
   }
+}
+
+async function renderLogoIcon(logoBuffer: Buffer, size: number, background: string) {
+  return sharp(logoBuffer)
+    .resize(size, size, {
+      fit: 'contain',
+      background,
+    })
+    .flatten({ background })
+    .png()
+    .toBuffer()
+}
+
+async function renderFallbackIcon(initial: string, size: number, background: string) {
+  const fontSize = Math.round(size * 0.48)
+  const svg = `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${size}" height="${size}" fill="${background}" />
+      <text
+        x="50%"
+        y="50%"
+        dominant-baseline="central"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="${fontSize}"
+        font-weight="800"
+        fill="#FFFFFF"
+      >${escapeSvgText(initial)}</text>
+    </svg>
+  `
+
+  return sharp(Buffer.from(svg)).png().toBuffer()
+}
+
+function pngResponse(buffer: Buffer) {
+  return new NextResponse(new Uint8Array(buffer), {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': CACHE_CONTROL,
+    },
+  })
 }
 
 export async function GET(request: NextRequest) {
@@ -47,67 +105,22 @@ export async function GET(request: NextRequest) {
   const size = getIconSize(searchParams.get('size'))
 
   if (!slug) {
-    return new Response('Missing slug', { status: 400 })
+    return new NextResponse('Missing slug', { status: 400 })
   }
 
-  const tenant = await getTenantBySlug(slug)
-  const bgColor = tenant?.primary_color ?? '#1A1A1A'
-  const name = tenant?.business_name ?? 'S'
+  const tenant = await getTenantIconData(slug)
+  const background = getSafeColor(tenant?.primary_color)
+  const name = tenant?.business_name?.trim() || 'S'
   const initial = name.charAt(0).toUpperCase()
-  const logoUrl = tenant?.logo_url ?? null
-  const logoBase64 = logoUrl ? await fetchImageAsBase64(logoUrl) : null
-  const iconSize = Math.round(size * 0.7)
+  const logoBuffer = tenant?.logo_url ? await fetchLogoBuffer(tenant.logo_url) : null
 
-  return new ImageResponse(
-    logoBase64
-      ? React.createElement(
-          'div',
-          {
-            style: {
-              width: size,
-              height: size,
-              background: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-          },
-          React.createElement('img', {
-            src: logoBase64,
-            alt: name,
-            width: iconSize,
-            height: iconSize,
-            style: { objectFit: 'contain' },
-          }),
-        )
-      : React.createElement(
-          'div',
-          {
-            style: {
-              width: size,
-              height: size,
-              background: bgColor,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-          },
-          React.createElement(
-            'span',
-            {
-              style: {
-                fontSize: Math.round(size * 0.48),
-                fontWeight: 800,
-                color: '#FFFFFF',
-                lineHeight: 1,
-              },
-            },
-            initial,
-          ),
-        ),
-    {
-      width: size,
-      height: size,
-    },
-  )
+  if (logoBuffer) {
+    try {
+      return pngResponse(await renderLogoIcon(logoBuffer, size, background))
+    } catch {
+      return pngResponse(await renderFallbackIcon(initial, size, background))
+    }
+  }
+
+  return pngResponse(await renderFallbackIcon(initial, size, background))
 }

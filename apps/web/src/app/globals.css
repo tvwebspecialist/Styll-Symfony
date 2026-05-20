@@ -487,6 +487,13 @@
   -ms-overflow-style: none;
 }
 
+/* Calendar panel inner scroll */
+.cal-panel-scroll::-webkit-scrollbar { display: none; }
+.cal-panel-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 /* Widget entry animation */
 @keyframes dashWidgetIn {
   from { opacity: 0; transform: translateY(8px); }

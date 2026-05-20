@@ -1,6 +1,16 @@
 import type { MetadataRoute } from 'next'
 import { getTenantBySlug } from '@/lib/tenant'
 
+// Web Manifest supports space-separated purpose tokens; Next's type is stricter.
+const ANY_MASKABLE = 'any maskable' as 'any'
+
+function getLogoVersion(logoUpdatedAt: string | null) {
+  if (!logoUpdatedAt) return '0'
+
+  const timestamp = new Date(logoUpdatedAt).getTime()
+  return Number.isFinite(timestamp) ? String(timestamp) : '0'
+}
+
 export default async function manifest(
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<MetadataRoute.Manifest> {
@@ -14,26 +24,34 @@ export default async function manifest(
   const iconBase = `${baseUrl}/api/pwa-icon?slug=${encodeURIComponent(slug)}`
 
   if (!tenant || tenant.status !== 'active') {
+    const defaultIconBase = `${baseUrl}/api/pwa-icon?slug=default&v=0`
+
     return {
       name: 'Styll',
       short_name: 'Styll',
+      theme_color: '#1a1a1a',
+      background_color: '#1a1a1a',
       display: 'standalone',
       start_url: startUrl,
       scope: startUrl,
       icons: [
         {
-          src: `${baseUrl}/api/pwa-icon?slug=default&size=192`,
+          src: `${defaultIconBase}&size=192`,
           sizes: '192x192',
           type: 'image/png',
+          purpose: ANY_MASKABLE,
         },
         {
-          src: `${baseUrl}/api/pwa-icon?slug=default&size=512`,
+          src: `${defaultIconBase}&size=512`,
           sizes: '512x512',
           type: 'image/png',
         },
       ],
     }
   }
+
+  const iconVersion = getLogoVersion(tenant.logo_updated_at)
+  const versionedIconBase = `${iconBase}&v=${iconVersion}`
 
   return {
     id: startUrl,
@@ -43,7 +61,7 @@ export default async function manifest(
       : tenant.business_name,
     description: `Prenota con ${tenant.business_name}`,
     theme_color: tenant.primary_color ?? '#1a1a1a',
-    background_color: '#ffffff',
+    background_color: tenant.primary_color ?? '#1a1a1a',
     display: 'standalone',
     orientation: 'portrait',
     lang: 'it',
@@ -51,26 +69,15 @@ export default async function manifest(
     scope: startUrl,
     icons: [
       {
-        src: `${iconBase}&size=192`,
+        src: `${versionedIconBase}&size=192`,
         sizes: '192x192',
         type: 'image/png',
+        purpose: ANY_MASKABLE,
       },
       {
-        src: `${iconBase}&size=512`,
+        src: `${versionedIconBase}&size=512`,
         sizes: '512x512',
         type: 'image/png',
-      },
-      {
-        src: `${iconBase}&size=512`,
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
-      {
-        src: `${iconBase}&size=180`,
-        sizes: '180x180',
-        type: 'image/png',
-        purpose: 'any',
       },
     ],
   }

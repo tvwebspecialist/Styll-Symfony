@@ -129,9 +129,14 @@ export async function uploadTenantLogo(
   const { data: urlData } = db.storage.from('tenants').getPublicUrl(path)
   const publicUrl = urlData.publicUrl
 
+  const now = new Date().toISOString()
   const { error: updateError } = await db
     .from('tenants')
-    .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })
+    .update({
+      logo_url: publicUrl,
+      logo_updated_at: now,
+      updated_at: now,
+    })
     .eq('id', tenantId)
 
   if (updateError) return { ok: false, error: updateError.message }

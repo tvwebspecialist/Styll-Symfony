@@ -19,6 +19,13 @@ const GOOGLE_FONT_URLS: Record<string, string> = {
   montserrat: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap',
 }
 
+function getLogoVersion(logoUpdatedAt: string | null) {
+  if (!logoUpdatedAt) return '0'
+
+  const timestamp = new Date(logoUpdatedAt).getTime()
+  return Number.isFinite(timestamp) ? String(timestamp) : '0'
+}
+
 interface Props {
   params: Promise<{ slug: string }>
   children: ReactNode
@@ -40,16 +47,32 @@ export async function generateMetadata({
   }
 
   const tp = await createTenantPaths(slug)
+  const iconVersion = getLogoVersion(tenant.logo_updated_at)
+  const appleTouchIcon = `/api/pwa-icon?slug=${encodeURIComponent(slug)}&v=${iconVersion}&size=180`
 
   return {
     title: `${tenant.business_name} | App cliente`,
     description: `Apri l'app di ${tenant.business_name} per prenotare, scoprire promozioni e gestire il tuo profilo.`,
     manifest: tp('/manifest.webmanifest'),
     themeColor: tenant.primary_color ?? '#1a1a1a',
+    icons: {
+      apple: [
+        {
+          url: appleTouchIcon,
+          sizes: '180x180',
+          type: 'image/png',
+        },
+      ],
+    },
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
       title: tenant.business_name,
+    },
+    other: {
+      'apple-mobile-web-app-capable': 'yes',
+      'apple-mobile-web-app-status-bar-style': 'black-translucent',
+      'apple-mobile-web-app-title': tenant.business_name,
     },
   }
 }
