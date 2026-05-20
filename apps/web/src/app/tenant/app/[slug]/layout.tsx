@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { PwaShell } from '@/components/pwa/PwaShell'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { getClientProfile } from '@/lib/actions/pwa-auth'
 
 const FONT_MAP: Record<string, string> = {
   outfit: 'var(--font-outfit)',
@@ -68,6 +69,7 @@ export default async function AppLayout({ params, children }: Props) {
   }
 
   const fontFamily = FONT_MAP[tenant.font_family?.toLowerCase() ?? ''] ?? FONT_MAP.outfit
+  const clientProfile = await getClientProfile(tenant.tenant_id).catch(() => null)
   const brandVars = {
     '--brand-primary': tenant.primary_color ?? '#1a1a1a',
     '--brand-secondary': tenant.secondary_color ?? '#666666',
@@ -85,6 +87,9 @@ export default async function AppLayout({ params, children }: Props) {
         businessName={tenant.business_name}
         logoUrl={tenant.logo_url}
         primaryColor={tenant.primary_color}
+        fontFamily={fontFamily}
+        clientName={clientProfile?.fullName ?? null}
+        clientAvatarUrl={clientProfile?.avatarUrl ?? null}
       >
         {children}
       </PwaShell>
