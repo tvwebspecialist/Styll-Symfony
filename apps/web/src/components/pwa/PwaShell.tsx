@@ -12,10 +12,22 @@ interface PwaShellProps {
   businessName: string
   logoUrl?: string | null
   primaryColor?: string | null
+  fontFamily?: string | null
+  clientName?: string | null
+  clientAvatarUrl?: string | null
   children: ReactNode
 }
 
-export function PwaShell({ slug, businessName, logoUrl, primaryColor, children }: PwaShellProps) {
+export function PwaShell({
+  slug,
+  businessName,
+  logoUrl,
+  primaryColor,
+  fontFamily,
+  clientName,
+  clientAvatarUrl,
+  children,
+}: PwaShellProps) {
   const pathname = usePathname() ?? ''
   const isAuthPage = AUTH_SEGMENTS.some((seg) => pathname.includes(seg))
 
@@ -29,12 +41,15 @@ export function PwaShell({ slug, businessName, logoUrl, primaryColor, children }
         businessName={businessName}
         logoUrl={logoUrl}
         primaryColor={primaryColor}
+        fontFamily={fontFamily}
+        clientName={clientName}
+        clientAvatarUrl={clientAvatarUrl}
         slug={slug}
       />
-      <div style={{ paddingTop: 'calc(68px + env(safe-area-inset-top, 0px))', paddingBottom: 96 }}>
+      <div style={{ paddingBottom: 96 }}>
         {children}
       </div>
-      <BottomNavPWA slug={slug} />
+      <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
     </>
   )
 }
