@@ -92,7 +92,7 @@ export function PwaPageHeader({
     return (
       <div
         style={{
-          padding: '16px 20px 12px 20px',
+          padding: 'max(16px, env(safe-area-inset-top, 16px)) 20px 12px 20px',
           background: 'transparent',
           display: 'flex',
           alignItems: 'center',
@@ -186,8 +186,10 @@ export function PwaPageHeader({
     return (
       <div
         style={{
-          padding: '16px 20px',
-          height: 56,
+          paddingTop: 'max(16px, env(safe-area-inset-top, 16px))',
+          paddingBottom: 16,
+          paddingLeft: 20,
+          paddingRight: 20,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -221,14 +223,17 @@ export function PwaPageHeader({
   return (
     <div
       style={{
-        padding: '12px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'relative',
-        background: 'transparent',
-        boxSizing: 'border-box',
-      }}
+          paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
+          paddingBottom: 12,
+          paddingLeft: 20,
+          paddingRight: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'relative',
+          background: 'transparent',
+          boxSizing: 'border-box',
+        }}
     >
       {leftAction ? <ActionButton action={leftAction} /> : <div style={{ width: 52, height: 52 }} />}
 

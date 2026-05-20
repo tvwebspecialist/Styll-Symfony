@@ -19,8 +19,8 @@
 
   /* Colors - Foreground */
   --color-fg: #000000;
-  --color-fg-secondary: #525252;
-  --color-fg-muted: #a3a3a3;
+  --color-fg-secondary: #4B5563;
+  --color-fg-muted: #6B7280;
 
   /* Colors - Primary (bottoni, selezioni attive) */
   --color-primary: #000000;
@@ -253,11 +253,11 @@
   --mobile-simple-topbar-height: 82px;
   --mobile-home-topbar-height: 224px;
   --sidebar-item-text: #222222;
-  --sidebar-item-inactive: #B0B0B0;
+  --sidebar-item-inactive: #6B7280;
   --sidebar-item-active-bg: #222222;
   --sidebar-item-active-text: #FFFFFF;
-  --sidebar-item-hover-bg: #F0F0F0;
-  --sidebar-section-label: #B0B0B0;
+  --sidebar-item-hover-bg: rgba(0, 0, 0, 0.06);
+  --sidebar-section-label: #374151;
   --sidebar-cta-bg: linear-gradient(135deg, #444444 0%, #111111 100%);
   --sidebar-cta-text: #FFFFFF;
   --sidebar-border: #EFEFEF;
