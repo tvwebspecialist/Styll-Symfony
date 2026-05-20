@@ -92,7 +92,7 @@ export function PwaPageHeader({
     return (
       <div
         style={{
-          padding: 'max(16px, env(safe-area-inset-top, 16px)) 20px 12px 20px',
+          padding: '16px 20px 12px 20px',
           background: 'transparent',
           display: 'flex',
           alignItems: 'center',
@@ -186,7 +186,7 @@ export function PwaPageHeader({
     return (
       <div
         style={{
-          paddingTop: 'max(16px, env(safe-area-inset-top, 16px))',
+          paddingTop: 16,
           paddingBottom: 16,
           paddingLeft: 20,
           paddingRight: 20,
@@ -223,7 +223,7 @@ export function PwaPageHeader({
   return (
     <div
       style={{
-          paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
+          paddingTop: 12,
           paddingBottom: 12,
           paddingLeft: 20,
           paddingRight: 20,
