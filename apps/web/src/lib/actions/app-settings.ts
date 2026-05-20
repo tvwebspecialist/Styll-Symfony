@@ -15,6 +15,23 @@ export interface AppSettings {
   slug: string | null
 }
 
+async function revalidateTenantApp(db: ReturnType<typeof createAdminClient>, tenantId: string) {
+  const { data: tenantData } = await db
+    .from('tenants')
+    .select('slug')
+    .eq('id', tenantId)
+    .maybeSingle()
+
+  const slug = (tenantData as { slug?: string } | null)?.slug
+  if (slug) {
+    revalidateTag(`tenant-${slug}`, {})
+    revalidatePath(`/tenant/app/${slug}`)
+    revalidatePath(`/tenant/app/${slug}/`, 'layout')
+  }
+
+  revalidatePath('/dashboard/app')
+}
+
 // ─── getAppSettings ───────────────────────────────────────────────────────────
 
 export async function getAppSettings(): Promise<AppSettings | null> {
@@ -65,21 +82,61 @@ export async function updateAppSettings(
 
   if (error) return { ok: false, error: error.message }
 
-  // Fetch slug to invalidate the PWA cache
-  const { data: tenantData } = await db
-    .from('tenants')
-    .select('slug')
-    .eq('id', tenantId)
-    .maybeSingle()
-
-  const slug = (tenantData as { slug?: string } | null)?.slug
-  if (slug) {
-    revalidateTag(`tenant-${slug}`, {})
-    revalidatePath(`/tenant/app/${slug}`)
-    revalidatePath(`/tenant/app/${slug}/`, 'layout')
-  }
-
-  revalidatePath('/dashboard/app')
+  await revalidateTenantApp(db, tenantId)
 
   return { ok: true }
+}
+
+// ─── uploadTenantLogo ────────────────────────────────────────────────────────
+
+export async function uploadTenantLogo(
+  formData: FormData,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'Nessun file' }
+
+  const MAX_SIZE = 2 * 1024 * 1024
+  if (file.size > MAX_SIZE) return { ok: false, error: 'File troppo grande (max 2MB)' }
+
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+  if (!allowedTypes.includes(file.type)) {
+    return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP, SVG)' }
+  }
+
+  const db = createAdminClient()
+  const extByType: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg',
+  }
+  const ext = extByType[file.type] ?? 'png'
+  const path = `logos/${tenantId}/logo.${ext}`
+  const arrayBuffer = await file.arrayBuffer()
+
+  const { error: uploadError } = await db.storage
+    .from('tenants')
+    .upload(path, arrayBuffer, {
+      contentType: file.type,
+      upsert: true,
+    })
+
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = db.storage.from('tenants').getPublicUrl(path)
+  const publicUrl = urlData.publicUrl
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
+
+  return { ok: true, url: publicUrl }
 }
