@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
-import { updateAppSettings } from '@/lib/actions/app-settings'
+import { ImagePlus, Loader2 } from 'lucide-react'
+import { updateAppSettings, uploadTenantLogo } from '@/lib/actions/app-settings'
 import type { AppSettings } from '@/lib/actions/app-settings'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -28,6 +28,102 @@ function getFontFamily(value: string | null): string {
   if (!value) return 'system-ui, sans-serif'
   const found = FONT_OPTIONS.find((f) => f.value === value)
   return found ? `'${found.family}', sans-serif` : 'system-ui, sans-serif'
+}
+
+function LogoUploader({
+  currentUrl,
+  onUploaded,
+}: {
+  currentUrl: string
+  onUploaded: (url: string) => void
+}) {
+  const [uploading, setUploading] = React.useState(false)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const result = await uploadTenantLogo(fd)
+    setUploading(false)
+
+    if (result.ok && result.url) {
+      onUploaded(result.url)
+      toast.success('Logo caricato')
+    } else {
+      toast.error(result.error ?? 'Errore upload')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 16,
+          background: '#F3F4F6',
+          border: '2px dashed #D1D5DB',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          color: '#9CA3AF',
+        }}
+      >
+        {currentUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={currentUrl}
+            alt="Logo"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <ImagePlus size={26} />
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            padding: '8px 16px',
+            background: '#111111',
+            color: '#FFFFFF',
+            borderRadius: 8,
+            border: 'none',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: uploading ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {uploading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+          {uploading ? 'Caricamento…' : 'Carica logo'}
+        </button>
+        <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0 }}>
+          PNG, JPG, WebP, SVG — max 2MB
+        </p>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        style={{ display: 'none' }}
+        onChange={handleFile}
+      />
+    </div>
+  )
 }
 
 // ─── iPhone Mockup Preview ─────────────────────────────────────────────────────
@@ -349,6 +445,8 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
     color: '#111111',
     boxSizing: 'border-box',
   }
+  const appHost = initialSettings?.slug ? `${initialSettings.slug}.styll.it` : 'App non configurata'
+  const appUrl = initialSettings?.slug ? `https://${initialSettings.slug}.styll.it` : null
 
   return (
     <div style={{ padding: '0 0 40px' }}>
@@ -360,6 +458,57 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
         <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>
           Personalizza l&apos;aspetto della tua app cliente
         </p>
+      </div>
+
+      {/* Status card */}
+      <div
+        style={{
+          background: '#111111',
+          borderRadius: 16,
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginBottom: 24,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: '0 0 2px',
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.6)',
+              fontWeight: 500,
+            }}
+          >
+            La tua app è attiva
+          </p>
+          <p style={{ margin: 0, fontSize: 15, color: '#FFFFFF', fontWeight: 700 }}>
+            {appHost}
+          </p>
+        </div>
+        {appUrl ? (
+          <a
+            href={appUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '10px 18px',
+              background: '#FFFFFF',
+              color: '#111111',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Apri app →
+          </a>
+        ) : null}
       </div>
 
       {/* 2-col layout: form | preview */}
@@ -389,30 +538,72 @@ export function AppSettingsClient({ initialSettings }: { initialSettings: AppSet
               />
             </div>
             <div>
-              <label style={labelStyle}>URL Logo</label>
-              <input
-                className="styll-input"
-                style={inputStyle}
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://..."
-              />
-              {logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt="Logo preview"
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 12,
-                    objectFit: 'cover',
-                    marginTop: 8,
-                    border: '1px solid #E5E7EB',
-                    display: 'block',
-                  }}
-                />
-              )}
+              <label style={labelStyle}>Logo</label>
+              <LogoUploader currentUrl={logoUrl} onUploaded={setLogoUrl} />
             </div>
+          </div>
+
+          {/* Card — Icona App */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#111111', margin: 0 }}>
+              Icona App
+            </h2>
+            <p style={{ fontSize: 13, color: '#6B7280', margin: 0 }}>
+              L&apos;icona che appare sulla schermata home del telefono quando l&apos;app viene
+              installata. Viene generata automaticamente dal tuo logo e colore principale.
+            </p>
+
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+              {[
+                { size: 60, label: 'iPhone' },
+                { size: 48, label: 'Android' },
+                { size: 32, label: 'Browser' },
+              ].map(({ size, label }) => (
+                <div
+                  key={label}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+                >
+                  <div
+                    style={{
+                      width: size,
+                      height: size,
+                      borderRadius: size * 0.22,
+                      background: primaryColor || '#1A1A1A',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    {logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={logoUrl}
+                        alt=""
+                        style={{ width: '65%', height: '65%', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: size * 0.45,
+                          fontWeight: 800,
+                          color: '#FFFFFF',
+                          lineHeight: 1,
+                        }}
+                      >
+                        {businessName.charAt(0).toUpperCase() || 'S'}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 10, color: '#9CA3AF' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0 }}>
+              Per un&apos;icona perfetta carica un&apos;immagine quadrata senza bordi (min 512×512px)
+            </p>
           </div>
 
           {/* Card 2 — Colori */}
