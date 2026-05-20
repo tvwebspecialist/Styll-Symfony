@@ -40,68 +40,60 @@ export function GreetingHeader({ staffName, appointments }: Props) {
     ? Math.round((new Date(nextAppt.start_time).getTime() - now.getTime()) / 60000)
     : null
 
-  const subtitleParts: string[] = []
+  // Build subtitle from real data
+  let subtitle = ''
   if (active.length === 0) {
-    subtitleParts.push('Nessun appuntamento oggi')
+    subtitle = 'Iniziamo a personalizzare la tua zona di lavoro!'
   } else {
-    subtitleParts.push(`Oggi hai ${active.length} appuntament${active.length === 1 ? 'o' : 'i'}`)
-  }
-  if (totalRevenue > 0) subtitleParts.push(`Revenue prevista: €${totalRevenue}`)
-  if (nextAppt) {
-    const timeStr = fmt(nextAppt.start_time)
-    if (minutesUntilNext !== null && minutesUntilNext > 0 && minutesUntilNext < 120) {
-      subtitleParts.push(`Prossimo: ${nextAppt.client_name} alle ${timeStr} (tra ${minutesUntilNext} min)`)
-    } else {
-      subtitleParts.push(`Prossimo: ${nextAppt.client_name} alle ${timeStr}`)
+    const parts: string[] = [
+      `Oggi hai ${active.length} appuntament${active.length === 1 ? 'o' : 'i'}`,
+    ]
+    if (totalRevenue > 0) parts.push(`Revenue prevista: €${totalRevenue}`)
+    if (nextAppt) {
+      const timeStr = fmt(nextAppt.start_time)
+      const minText =
+        minutesUntilNext !== null && minutesUntilNext > 0 && minutesUntilNext < 120
+          ? ` (tra ${minutesUntilNext} min)`
+          : ''
+      parts.push(`⚡ Prossimo: ${nextAppt.client_name} alle ${timeStr}${minText}`)
     }
+    subtitle = parts.join(' · ')
   }
 
   return (
     <div className="dashboard-home-greeting" style={{ paddingBottom: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <p
-          suppressHydrationWarning
-          className="dashboard-greeting-title"
-          style={{
-            margin: 0,
-            fontSize: 50,
-            fontWeight: 800,
-            fontFamily: 'Outfit, sans-serif',
-            letterSpacing: '-2px',
-            lineHeight: 1,
-            color: '#9CA3AF',
-          }}
-        >
-          {greeting ?? 'Ciao'},
-        </p>
-        <p
-          className="dashboard-greeting-title"
-          style={{
-            margin: 0,
-            fontSize: 50,
-            fontWeight: 800,
-            fontFamily: 'Outfit, sans-serif',
-            letterSpacing: '-2px',
-            lineHeight: 1,
-            color: '#111111',
-          }}
-        >
-          {firstName ?? 'Barbiere'}
-        </p>
-      </div>
+      {/* "Ciao, [Nome]" — Outfit ExtraBold 50px */}
+      <p
+        suppressHydrationWarning
+        className="dashboard-greeting-title"
+        style={{
+          margin: 0,
+          fontFamily: 'Outfit, sans-serif',
+          fontSize: 50,
+          fontWeight: 800,
+          letterSpacing: '-1.25px',
+          lineHeight: 1.1,
+          color: '#222222',
+        }}
+      >
+        <span style={{ color: '#B0B0B0' }}>{greeting ?? 'Ciao'}, </span>
+        <span>{firstName ?? 'Barbiere'}</span>
+      </p>
+
+      {/* Subtitle — Outfit Medium 20px */}
       <p
         suppressHydrationWarning
         className="dashboard-greeting-sub"
         style={{
-          margin: '10px 0 0',
-          fontSize: 14,
-          fontWeight: 500,
-          color: '#6B7280',
+          margin: '8px 0 0',
           fontFamily: 'Outfit, sans-serif',
-          lineHeight: 1.5,
+          fontSize: 20,
+          fontWeight: 500,
+          color: '#222222',
+          lineHeight: 1.4,
         }}
       >
-        {subtitleParts.join(' · ')}
+        {subtitle}
       </p>
     </div>
   )

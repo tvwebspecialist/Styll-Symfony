@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
-import { TodayCalendarView } from './TodayCalendarView'
+import { CalendarPanel } from './CalendarPanel'
 import { GreetingHeader } from './GreetingHeader'
 import { KpiCard } from './KpiCard'
 import { ChurnAlertCard } from './ChurnAlertCard'
@@ -17,13 +17,13 @@ interface Props {
 }
 
 function getDynamicSummary(count: number, total: number): string {
-  const apptPart =
+  const part =
     count === 0
       ? 'Nessun appuntamento oggi'
       : count === 1
         ? '1 appuntamento oggi'
         : `${count} appuntamenti oggi`
-  return apptPart + (total > 0 ? ` · €${total} ricavi stimati` : '')
+  return part + (total > 0 ? ` · €${total} ricavi stimati` : '')
 }
 
 function findNextAppointment(
@@ -43,7 +43,7 @@ function findNextAppointment(
 }
 
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekStats, atRiskClients } = data
+  const { staffName, todayAppointments, weekAppointments, weekStats, atRiskClients } = data
   const firstName = staffName?.split(' ')[0] ?? null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
   const nextAppt = findNextAppointment(todayAppointments)
@@ -80,7 +80,11 @@ export function DashboardHomeClient({ data, basePath }: Props) {
 
       {/* ── RIGHT — Calendar Panel (desktop only) ────────────── */}
       <div className="home-v2-calendar">
-        <TodayCalendarView appointments={todayAppointments} basePath={basePath} />
+        <CalendarPanel
+          todayAppointments={todayAppointments}
+          weekAppointments={weekAppointments}
+          basePath={basePath}
+        />
       </div>
 
     </div>
