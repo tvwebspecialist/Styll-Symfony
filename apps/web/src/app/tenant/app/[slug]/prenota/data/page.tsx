@@ -1,7 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import { DataSelector } from './_componenti/DataSelector'
 import { getAvailableSlots, type GetAvailableSlotsResult } from '@/lib/actions/booking-slots'
-import { getTenantTimezone } from '@/lib/actions/public-booking'
+import {
+  getPublicServicesByIds,
+  getPublicStaffMemberById,
+  getTenantTimezone,
+} from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 
@@ -69,7 +73,11 @@ export default async function DataPage({ params, searchParams }: Props) {
     notFound()
   }
 
-  const timezone = await getTenantTimezone(tenant.tenant_id)
+  const [timezone, staffMember, selectedServices] = await Promise.all([
+    getTenantTimezone(tenant.tenant_id),
+    getPublicStaffMemberById(tenant.tenant_id, staffId),
+    getPublicServicesByIds(tenant.tenant_id, serviceIds),
+  ])
   const today = getTodayInTimeZone(timezone)
   const dates = Array.from({ length: 14 }, (_, index) => addDays(today, index))
   const slots = await Promise.all(
@@ -89,15 +97,16 @@ export default async function DataPage({ params, searchParams }: Props) {
   )
 
   return (
-    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      <DataSelector
-        slug={slug}
-        locationId={locationId}
-        staffId={staffId}
-        serviceIds={serviceIds}
-        skip={skipParam}
-        slotsByDate={slotsByDate}
-      />
-    </main>
+    <DataSelector
+      slug={slug}
+      locationId={locationId}
+      staffId={staffId}
+      serviceIds={serviceIds}
+      skip={skipParam}
+      slotsByDate={slotsByDate}
+      staff={staffMember}
+      selectedServiceNames={selectedServices.map((service) => service.name)}
+      primaryColor={tenant.primary_color}
+    />
   )
 }
