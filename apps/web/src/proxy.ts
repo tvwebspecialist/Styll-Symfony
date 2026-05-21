@@ -38,6 +38,9 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
   const host = request.headers.get('host') ?? ''
   const { pathname } = request.nextUrl
 
+  // Non riscrivere le route API — sono globali, non tenant-specific
+  if (pathname.startsWith('/api/')) return null
+
   const subdomain = getSubdomain(host)
 
   if (subdomain && !SKIP_SUBDOMAINS.has(subdomain)) {
