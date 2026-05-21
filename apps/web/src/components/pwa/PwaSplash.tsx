@@ -9,36 +9,33 @@ interface PwaSplashProps {
 }
 
 export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProps) {
-  const [visible, setVisible] = React.useState(true)
-  const [fading, setFading] = React.useState(false)
+  const [phase, setPhase] = React.useState<'visible' | 'exit' | 'gone'>('visible')
 
   React.useEffect(() => {
-    // Mostra splash solo in modalità standalone (PWA installata)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+
     if (!isStandalone) {
-      setVisible(false)
+      setPhase('gone')
       return
     }
 
-    const fadeTimer = setTimeout(() => {
-      setFading(true)
-    }, 600)
-
-    const hideTimer = setTimeout(() => {
-      setVisible(false)
-    }, 1000)
+    const exitTimer = setTimeout(() => setPhase('exit'), 900)
+    const goneTimer = setTimeout(() => setPhase('gone'), 1500)
 
     return () => {
-      clearTimeout(fadeTimer)
-      clearTimeout(hideTimer)
+      clearTimeout(exitTimer)
+      clearTimeout(goneTimer)
     }
   }, [])
 
-  if (!visible) return null
+  if (phase === 'gone') return null
 
+  const isExiting = phase === 'exit'
   const initial = businessName.charAt(0).toUpperCase() || 'S'
+  const textColor = isLightColor(primaryColor) ? '#111111' : '#FFFFFF'
+  const subtextColor = isLightColor(primaryColor) ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)'
 
   return (
     <div
@@ -51,96 +48,77 @@ export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProp
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 20,
-        transition: 'opacity 400ms ease',
-        opacity: fading ? 0 : 1,
-        pointerEvents: fading ? 'none' : 'auto',
+        transition: isExiting
+          ? 'opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1)'
+          : 'none',
+        opacity: isExiting ? 0 : 1,
+        transform: isExiting ? 'scale(1.08)' : 'scale(1)',
+        pointerEvents: 'none',
       }}
     >
-      {logoUrl ? (
-        <div
-          style={{
-            width: 96,
-            height: 96,
-            borderRadius: 24,
-            background: 'rgba(255,255,255,0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 20,
+          animation: 'splashEntry 500ms cubic-bezier(0.34,1.56,0.64,1) forwards',
+        }}
+      >
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
             alt={businessName}
-            style={{ width: 72, height: 72, objectFit: 'contain' }}
+            style={{
+              width: 120,
+              height: 120,
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.10))',
+            }}
           />
-        </div>
-      ) : (
-        <div
-          style={{
-            width: 96,
-            height: 96,
-            borderRadius: 24,
-            background: 'rgba(255,255,255,0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
+        ) : (
           <span
             style={{
-              fontSize: 48,
+              fontSize: 96,
               fontWeight: 800,
-              color: '#FFFFFF',
+              color: textColor,
               lineHeight: 1,
+              letterSpacing: '-4px',
             }}
           >
             {initial}
           </span>
-        </div>
-      )}
+        )}
 
-      <span
-        style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: '#FFFFFF',
-          letterSpacing: '-0.3px',
-          opacity: 0.95,
-        }}
-      >
-        {businessName}
-      </span>
+        <span
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: textColor,
+            letterSpacing: '-0.4px',
+            opacity: 0.92,
+          }}
+        >
+          {businessName}
+        </span>
+      </div>
 
       <div
         style={{
           position: 'absolute',
-          bottom: 60,
+          bottom: 52,
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          gap: 12,
+          gap: 6,
         }}
       >
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            border: '2.5px solid rgba(255,255,255,0.3)',
-            borderTopColor: '#FFFFFF',
-            animation: 'pwa-spin 0.8s linear infinite',
-          }}
-        />
         <span
           style={{
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.5)',
+            fontSize: 12,
+            color: subtextColor,
             fontWeight: 500,
-            letterSpacing: '0.02em',
+            letterSpacing: '0.01em',
           }}
         >
           Powered by Styll
@@ -148,10 +126,20 @@ export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProp
       </div>
 
       <style>{`
-        @keyframes pwa-spin {
-          to { transform: rotate(360deg); }
+        @keyframes splashEntry {
+          from { opacity: 0; transform: scale(0.85); }
+          to   { opacity: 1; transform: scale(1); }
         }
       `}</style>
     </div>
   )
+}
+
+function isLightColor(hex: string): boolean {
+  const clean = hex.replace('#', '')
+  if (clean.length !== 6) return false
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6
 }

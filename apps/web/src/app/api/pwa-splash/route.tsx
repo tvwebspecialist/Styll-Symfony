@@ -26,6 +26,15 @@ function safeColor(value: string | null | undefined): string {
   return value && /^#[0-9A-Fa-f]{6}$/.test(value) ? value : '#1A1A1A'
 }
 
+function isLightColorHex(hex: string): boolean {
+  const clean = hex.replace('#', '')
+  if (clean.length !== 6) return false
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const slug = searchParams.get('slug')
@@ -48,8 +57,10 @@ export async function GET(request: NextRequest) {
   const logoUrl = data?.logo_url ?? null
   const logoBase64 = logoUrl ? await fetchLogoBase64(logoUrl) : null
 
-  const logoSize = Math.round(w * 0.28)
-  const fontSize = Math.round(w * 0.055)
+  const textColor = isLightColorHex(bgColor) ? '#111111' : '#FFFFFF'
+  const subtextColor = isLightColorHex(bgColor) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)'
+  const logoDisplaySize = Math.round(w * 0.30)
+  const nameFontSize = Math.round(w * 0.052)
 
   return new ImageResponse(
     (
@@ -62,61 +73,37 @@ export async function GET(request: NextRequest) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: Math.round(h * 0.025),
+          gap: Math.round(h * 0.022),
         }}
       >
         {logoBase64 ? (
-          <div
-            style={{
-              width: logoSize,
-              height: logoSize,
-              borderRadius: Math.round(logoSize * 0.22),
-              background: 'rgba(255,255,255,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={logoBase64}
-              width={Math.round(logoSize * 0.75)}
-              height={Math.round(logoSize * 0.75)}
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoBase64}
+            width={logoDisplaySize}
+            height={logoDisplaySize}
+            style={{ objectFit: 'contain' }}
+          />
         ) : (
-          <div
+          <span
             style={{
-              width: logoSize,
-              height: logoSize,
-              borderRadius: Math.round(logoSize * 0.22),
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              fontSize: Math.round(logoDisplaySize * 0.75),
+              fontWeight: 800,
+              color: textColor,
+              lineHeight: 1,
+              letterSpacing: '-4px',
             }}
           >
-            <span
-              style={{
-                fontSize: Math.round(logoSize * 0.52),
-                fontWeight: 800,
-                color: '#FFFFFF',
-                lineHeight: 1,
-              }}
-            >
-              {initial}
-            </span>
-          </div>
+            {initial}
+          </span>
         )}
 
         <span
           style={{
-            fontSize,
+            fontSize: nameFontSize,
             fontWeight: 700,
-            color: '#FFFFFF',
-            opacity: 0.95,
+            color: textColor,
+            opacity: 0.92,
             letterSpacing: '-0.02em',
           }}
         >
@@ -126,16 +113,15 @@ export async function GET(request: NextRequest) {
         <div
           style={{
             position: 'absolute',
-            bottom: Math.round(h * 0.06),
+            bottom: Math.round(h * 0.055),
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
           <span
             style={{
-              fontSize: Math.round(w * 0.03),
-              color: 'rgba(255,255,255,0.4)',
+              fontSize: Math.round(w * 0.028),
+              color: subtextColor,
               fontWeight: 500,
             }}
           >
@@ -153,3 +139,4 @@ export async function GET(request: NextRequest) {
     }
   )
 }
+
