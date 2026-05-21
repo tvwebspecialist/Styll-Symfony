@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const DEFAULT_ICON_SIZE = 192
 const MAX_ICON_SIZE = 1024
@@ -33,8 +33,8 @@ function escapeSvgText(value: string) {
 }
 
 async function getTenantIconData(slug: string): Promise<TenantIconRow | null> {
-  const supabase = await createClient()
-  const { data } = await supabase
+  const db = createAdminClient()
+  const { data } = await db
     .from('tenants')
     .select('business_name, primary_color, logo_url')
     .eq('slug', slug)
@@ -58,13 +58,20 @@ async function fetchLogoBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
-async function renderLogoIcon(logoBuffer: Buffer, size: number, background: string) {
+async function renderLogoIcon(logoBuffer: Buffer, size: number) {
   return sharp(logoBuffer)
-    .resize(size, size, {
+    .resize(Math.round(size * 0.70), Math.round(size * 0.70), {
       fit: 'contain',
-      background,
+      background: { r: 255, g: 255, b: 255, alpha: 0 },
     })
-    .flatten({ background })
+    .extend({
+      top: Math.round(size * 0.15),
+      bottom: Math.round(size * 0.15),
+      left: Math.round(size * 0.15),
+      right: Math.round(size * 0.15),
+      background: { r: 255, g: 255, b: 255, alpha: 255 },
+    })
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
     .png()
     .toBuffer()
 }
@@ -116,7 +123,7 @@ export async function GET(request: NextRequest) {
 
   if (logoBuffer) {
     try {
-      return pngResponse(await renderLogoIcon(logoBuffer, size, background))
+      return pngResponse(await renderLogoIcon(logoBuffer, size))
     } catch {
       return pngResponse(await renderFallbackIcon(initial, size, background))
     }
