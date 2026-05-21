@@ -70,23 +70,22 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
   }
 
   return (
-    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      <ConfermaForm
-        slug={slug}
-        tenantId={tenant.tenant_id}
-        locationId={locationId}
-        staffId={staffId}
-        serviceIds={serviceIds}
-        date={date}
-        time={time}
-        location={location}
-        staff={staffMember}
-        services={services}
-        initialFullName={clientRecord?.fullName ?? ''}
-        initialPhone={clientRecord?.phone ?? ''}
-        initialEmail={clientRecord?.email ?? ''}
-        isLoggedIn={clientRecord !== null}
-      />
-    </main>
+    <ConfermaForm
+      slug={slug}
+      tenantId={tenant.tenant_id}
+      locationId={locationId}
+      staffId={staffId}
+      serviceIds={serviceIds}
+      date={date}
+      time={time}
+      location={location}
+      staff={staffMember}
+      services={services}
+      primaryColor={tenant.primary_color}
+      initialFullName={clientRecord?.fullName ?? ''}
+      initialPhone={clientRecord?.phone ?? ''}
+      initialEmail={clientRecord?.email ?? ''}
+      isLoggedIn={clientRecord !== null}
+    />
   )
 }

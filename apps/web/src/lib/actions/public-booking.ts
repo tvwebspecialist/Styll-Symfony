@@ -587,7 +587,7 @@ export async function getPublicStaffMemberById(
   const db = createAdminClient()
   const { data } = await db
     .from('staff_members')
-    .select('id, bio, photo_url, profile:profiles(full_name)')
+    .select('id, bio, photo_url, profile:profiles(full_name, avatar_url)')
     .eq('tenant_id', tenantId)
     .eq('id', staffId)
     .eq('is_active', true)
@@ -598,12 +598,18 @@ export async function getPublicStaffMemberById(
     return null
   }
 
-  const member = data as unknown as RawPublicStaffMember
+  const member = data as unknown as {
+    id: string
+    bio: string | null
+    photo_url: string | null
+    profile: RawProfileWithAvatar
+  }
+  const profileData = readProfileWithAvatar(member.profile)
   return {
     id: member.id,
-    full_name: readProfileFullName(member.profile),
+    full_name: profileData.full_name,
     bio: member.bio,
-    photo_url: member.photo_url,
+    photo_url: profileData.avatar_url ?? member.photo_url,
   }
 }
 
@@ -762,6 +768,32 @@ export async function getServicesForStaff(
   staffId: string
 ): Promise<{ services: ServiceForStaff[] }> {
   const db = createAdminClient()
+
+  if (staffId === 'any') {
+    const { data } = await db
+      .from('services')
+      .select('id, name, price, duration_minutes, category, display_order')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+
+    const services: ServiceForStaff[] = ((data ?? []) as unknown as Array<{
+      id: string
+      name: string
+      price: number | null
+      duration_minutes: number | null
+      category: string | null
+      display_order: number | null
+    }>).map((s) => ({
+      id: s.id,
+      name: s.name,
+      price: Number(s.price ?? 0),
+      duration_minutes: Number(s.duration_minutes ?? 30),
+      category: s.category ?? null,
+    }))
+
+    return { services }
+  }
 
   const { data: ssRows } = await db
     .from('staff_services')

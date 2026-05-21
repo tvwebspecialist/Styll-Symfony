@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { BottomNavPWA } from './BottomNavPWA'
 import { PwaTopBar } from './PwaTopBar'
+import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 const AUTH_SEGMENTS = ['/accesso', '/auth/callback']
 
@@ -29,7 +30,11 @@ export function PwaShell({
   children,
 }: PwaShellProps) {
   const pathname = usePathname() ?? ''
+  const tenantPath = useTenantPath(slug)
   const isAuthPage = AUTH_SEGMENTS.some((seg) => pathname.includes(seg))
+
+  // Hide the bottom nav (and its padding) for all prenota subroutes — BottomCTA handles spacing there
+  const isPrenotaSubroute = pathname.startsWith(`${tenantPath('/prenota')}/`)
 
   if (isAuthPage) {
     return <>{children}</>
@@ -61,10 +66,12 @@ export function PwaShell({
           clientAvatarUrl={clientAvatarUrl}
           slug={slug}
         />
-        <div style={{ paddingBottom: 96 }}>
+        <div style={{ paddingBottom: isPrenotaSubroute ? 0 : 96 }}>
           {children}
         </div>
-        <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+        {!isPrenotaSubroute && (
+          <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+        )}
       </div>
     </>
   )

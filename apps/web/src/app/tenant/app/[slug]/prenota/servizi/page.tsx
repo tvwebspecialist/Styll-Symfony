@@ -1,6 +1,10 @@
 import { notFound, redirect } from 'next/navigation'
 import { ServiziSelector } from './_componenti/ServiziSelector'
-import { getServicesForStaff, type ServiceForStaff } from '@/lib/actions/public-booking'
+import {
+  getPublicStaffMemberById,
+  getServicesForStaff,
+  type ServiceForStaff,
+} from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 
@@ -61,17 +65,20 @@ export default async function ServiziPage({ params, searchParams }: Props) {
     notFound()
   }
 
-  const { services } = await getServicesForStaff(tenant.tenant_id, staffId)
+  const [{ services }, staffMember] = await Promise.all([
+    getServicesForStaff(tenant.tenant_id, staffId),
+    getPublicStaffMemberById(tenant.tenant_id, staffId),
+  ])
 
   return (
-    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      <ServiziSelector
-        slug={slug}
-        locationId={locationId}
-        staffId={staffId}
-        skip={skipParam}
-        groups={groupServices(services)}
-      />
-    </main>
+    <ServiziSelector
+      slug={slug}
+      locationId={locationId}
+      staffId={staffId}
+      skip={skipParam}
+      groups={groupServices(services)}
+      staff={staffMember}
+      primaryColor={tenant.primary_color}
+    />
   )
 }
