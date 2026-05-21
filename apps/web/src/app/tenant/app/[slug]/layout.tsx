@@ -20,6 +20,44 @@ const GOOGLE_FONT_URLS: Record<string, string> = {
   montserrat: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap',
 }
 
+function buildSplashUrl(slug: string, w: number, h: number): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
+  return `${base}/api/pwa-splash?slug=${encodeURIComponent(slug)}&w=${w}&h=${h}`
+}
+
+const IOS_SPLASH_SIZES = [
+  // iPhone 15 Pro Max / 15 Plus
+  { w: 1290, h: 2796, media: '(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 15 Pro / 15 / 14 Pro
+  { w: 1179, h: 2556, media: '(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 14 Plus / 13 Pro Max / 12 Pro Max
+  { w: 1284, h: 2778, media: '(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 13 / 13 Pro / 14 / 12 / 12 Pro
+  { w: 1170, h: 2532, media: '(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 13 mini / 12 mini
+  { w: 1080, h: 2340, media: '(device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 11 Pro Max / XS Max
+  { w: 1242, h: 2688, media: '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 11 / XR
+  { w: 828,  h: 1792, media: '(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPhone 11 Pro / X / XS
+  { w: 1125, h: 2436, media: '(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 8 Plus / 7 Plus / 6s Plus
+  { w: 1242, h: 2208, media: '(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)' },
+  // iPhone 8 / 7 / 6s / SE 2nd & 3rd gen
+  { w: 750,  h: 1334, media: '(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPhone SE 1st gen
+  { w: 640,  h: 1136, media: '(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPad Pro 12.9"
+  { w: 2048, h: 2732, media: '(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPad Pro 11" / Air 4
+  { w: 1668, h: 2388, media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPad 10th gen
+  { w: 1640, h: 2360, media: '(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2)' },
+  // iPad mini 6
+  { w: 1488, h: 2266, media: '(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2)' },
+] as const
+
 interface Props {
   params: Promise<{ slug: string }>
   children: ReactNode
@@ -115,6 +153,16 @@ export default async function AppLayout({ params, children }: Props) {
           <link rel="stylesheet" href={googleFontUrl} />
         </>
       )}
+
+      {/* Apple Touch Startup Images — splash screen nativo iOS */}
+      {IOS_SPLASH_SIZES.map(({ w, h, media }) => (
+        <link
+          key={`splash-${w}-${h}`}
+          rel="apple-touch-startup-image"
+          href={buildSplashUrl(slug, w, h)}
+          media={media}
+        />
+      ))}
       <div
         style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
         className="text-foreground [font-family:var(--font-active)]"
