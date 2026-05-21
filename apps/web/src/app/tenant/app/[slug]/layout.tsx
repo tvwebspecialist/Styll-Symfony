@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
 import { PwaShell } from '@/components/pwa/PwaShell'
+import { PwaSplash } from '@/components/pwa/PwaSplash'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
@@ -118,6 +119,11 @@ export default async function AppLayout({ params, children }: Props) {
         style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
         className="text-foreground [font-family:var(--font-active)]"
       >
+        <PwaSplash
+          businessName={tenant.business_name}
+          primaryColor={tenant.primary_color ?? '#1A1A1A'}
+          logoUrl={tenant.logo_url}
+        />
         <PwaShell
           slug={slug}
           businessName={tenant.business_name}
