@@ -1,12 +1,37 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { usePathname } from 'next/navigation'
+import { Suspense, type ReactNode } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { BottomNavPWA } from './BottomNavPWA'
 import { PwaTopBar } from './PwaTopBar'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 const AUTH_SEGMENTS = ['/accesso', '/auth/callback']
+
+interface PrenotaFirstStepNavProps {
+  slug: string
+  primaryColor?: string | null
+  fontFamily?: string | null
+}
+
+// Reads _skip from search params to render BottomNavPWA only on the first visible booking step.
+// Must be wrapped in Suspense because it uses useSearchParams().
+function PrenotaFirstStepNavInner({ slug, primaryColor, fontFamily }: PrenotaFirstStepNavProps) {
+  const pathname = usePathname() ?? ''
+  const searchParams = useSearchParams()
+  const tenantPath = useTenantPath(slug)
+  const prenotaBase = tenantPath('/prenota')
+  const skipItems = (searchParams?.get('_skip') ?? '').split(',').filter(Boolean)
+
+  const isFirstStep =
+    (pathname.startsWith(`${prenotaBase}/barbiere`) && skipItems.includes('sede')) ||
+    (pathname.startsWith(`${prenotaBase}/servizi`) &&
+      skipItems.includes('sede') &&
+      skipItems.includes('barbiere'))
+
+  if (!isFirstStep) return null
+  return <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+}
 
 interface PwaShellProps {
   slug: string
@@ -73,6 +98,11 @@ export function PwaShell({
         </div>
         {!isPrenotaSubroute && !isBookRoute && (
           <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+        )}
+        {isPrenotaSubroute && (
+          <Suspense fallback={null}>
+            <PrenotaFirstStepNavInner slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+          </Suspense>
         )}
       </div>
     </>
