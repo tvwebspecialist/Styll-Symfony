@@ -11,7 +11,6 @@ const PAGE_TITLES: Record<string, string> = {
   profilo: 'Profilo',
   punti: 'Punti fedeltà',
   loyalty: 'Loyalty',
-  book: 'Prenota',
   accesso: 'Accesso',
 }
 
@@ -44,13 +43,8 @@ function TopBarInner({
   const isHome = pathname === homePath
   const isInSuccesso = pathname.startsWith(tenantPath('/prenota/successo'))
   const isInPrenota = pathname.startsWith(tenantPath('/prenota')) && !isInSuccesso
-  // /book route: BookingFlow renders its own top bar — opt out of the shell's bar
-  const isInBook = pathname.startsWith(tenantPath('/book'))
 
-  if (isInBook) return null
-
-  if (isHome) {
-    return (
+  if (isHome) {    return (
       <PwaPageHeader
         variant="home"
         clientName={clientName}
