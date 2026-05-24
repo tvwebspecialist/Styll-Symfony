@@ -1,8 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { usePathname } from 'next/navigation'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { PwaPageHeader } from './PwaPageHeader'
@@ -38,6 +37,8 @@ function TopBarInner({
   const pathname = usePathname() ?? ''
   const tenantPath = useTenantPath(slug)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const skipItems = (searchParams?.get('_skip') ?? '').split(',').filter(Boolean)
 
   const homePath = tenantPath('')
   const isHome = pathname === homePath
@@ -72,14 +73,21 @@ function TopBarInner({
     // Step 1 (location selection): no top bar — the step component shows its own title
     if (isPrenotaRoot) return null
 
-    // Step 2+ (barbiere, servizi, data, conferma): sticky header with back button
+    const segment = pathname.slice(prenotaBase.length + 1).split('/')[0] ?? ''
+
+    // First visible step (location and/or staff were auto-skipped): bottom nav shows, no top bar
+    const isFirstStep =
+      (segment === 'barbiere' && skipItems.includes('sede')) ||
+      (segment === 'servizi' && skipItems.includes('sede') && skipItems.includes('barbiere'))
+    if (isFirstStep) return null
+
+    // Step 2+: sticky header with back button
     const BOOKING_STEP_TITLES: Record<string, string> = {
       barbiere: 'Barbiere',
       servizi: 'Servizi',
       data: 'Quando',
       conferma: 'Conferma',
     }
-    const segment = pathname.slice(prenotaBase.length + 1).split('/')[0] ?? ''
     const title = BOOKING_STEP_TITLES[segment] ?? 'Prenota'
 
     return (
