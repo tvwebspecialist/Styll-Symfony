@@ -212,9 +212,10 @@ export default function BookingFlow({ tenant, initialLocations, slug, fontFamily
   const handleRestart = useCallback(() => {
     navigate(
       {
-        step: initialStep,
+        step: firstVisibleStep,
         selectedLocationId: initialLocationId,
-        selectedStaffId: null,
+        // Keep staff pre-selected when the first visible step is 'service' (1-staff auto-advance)
+        selectedStaffId: firstVisibleStep === 'service' ? state.selectedStaffId : null,
         selectedServiceIds: [],
         selectedDate: null,
         selectedSlot: null,
@@ -223,7 +224,7 @@ export default function BookingFlow({ tenant, initialLocations, slug, fontFamily
       },
       'back'
     )
-  }, [initialLocationId, initialStep, navigate])
+  }, [firstVisibleStep, initialLocationId, state.selectedStaffId, navigate])
 
   const handleTopBarBack = useCallback(() => {
     if (state.step === 'staff') {
