@@ -60,8 +60,6 @@ export function PwaShell({
 
   // Hide the bottom nav (and its padding) for all prenota subroutes — BottomCTA handles spacing there
   const isPrenotaSubroute = pathname.startsWith(`${tenantPath('/prenota')}/`)
-  // /book route: BookingFlow manages its own BottomNavPWA and spacing
-  const isBookRoute = pathname.startsWith(tenantPath('/book'))
 
   if (isAuthPage) {
     return <>{children}</>
@@ -93,10 +91,10 @@ export function PwaShell({
           clientAvatarUrl={clientAvatarUrl}
           slug={slug}
         />
-        <div style={{ paddingBottom: isPrenotaSubroute || isBookRoute ? 0 : 96 }}>
+        <div style={{ paddingBottom: isPrenotaSubroute ? 0 : 96 }}>
           {children}
         </div>
-        {!isPrenotaSubroute && !isBookRoute && (
+        {!isPrenotaSubroute && (
           <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
         )}
         {isPrenotaSubroute && (
