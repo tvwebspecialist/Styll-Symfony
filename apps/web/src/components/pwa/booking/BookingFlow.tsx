@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition, type CSSProperties } from 'react'
 import { getPublicStaffByLocation } from '@/lib/actions/booking-public'
 import BookingStep1Locations from './BookingStep1Locations'
 import BookingStep2Staff from './BookingStep2Staff'
+import BookingTopBar from './BookingTopBar'
+import { BottomNavPWA } from '../BottomNavPWA'
 import type {
   BookingState,
   BookingStep,
@@ -15,6 +17,15 @@ import type {
 interface Props {
   tenant: PublicBookingTenant
   initialLocations: PublicBookingLocation[]
+  slug: string
+  fontFamily?: string | null
+}
+
+const STEP_TITLES: Partial<Record<BookingStep, string>> = {
+  staff: 'Barbiere',
+  service: 'Servizi',
+  datetime: 'Quando',
+  confirm: 'Conferma',
 }
 
 type TransitionDirection = 'forward' | 'back'
@@ -25,10 +36,11 @@ type TransitionState = {
   direction: TransitionDirection
 } | null
 
-export default function BookingFlow({ tenant, initialLocations }: Props) {
+export default function BookingFlow({ tenant, initialLocations, slug, fontFamily }: Props) {
   const primaryColor = tenant.primary_color
-  const initialStep: BookingStep = initialLocations.length === 1 ? 'staff' : 'location'
-  const initialLocationId = initialLocations.length === 1 ? initialLocations[0]?.id ?? null : null
+  const skipLocation = initialLocations.length === 1
+  const initialStep: BookingStep = skipLocation ? 'staff' : 'location'
+  const initialLocationId = skipLocation ? (initialLocations[0]?.id ?? null) : null
 
   const [state, setState] = useState<BookingState>({
     step: initialStep,
@@ -41,12 +53,22 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
     guestPhone: null,
   })
   const [completedSteps, setCompletedSteps] = useState<BookingStep[]>(
-    initialLocations.length === 1 ? ['location'] : []
+    skipLocation ? ['location'] : []
   )
   const [staff, setStaff] = useState<PublicBookingStaffMember[]>([])
-  const [staffLoading, setStaffLoading] = useState(false)
+  // Start as true when skipLocation so the firstVisibleStep effect waits for the real load
+  const [staffLoading, setStaffLoading] = useState(skipLocation)
   const [transitionState, setTransitionState] = useState<TransitionState>(null)
   const [, startTransition] = useTransition()
+
+  // --- firstVisibleStep ---
+  // Computed once: 'location' | 'staff' | 'service'.
+  // When skipLocation=true it may be updated a single time (to 'service') after staff loads.
+  const [firstVisibleStep, setFirstVisibleStep] = useState<BookingStep>(
+    skipLocation ? 'staff' : 'location'
+  )
+  // Already finalised when skipLocation=false; deferred until first staff load otherwise.
+  const firstVisibleStepFinalizedRef = useRef(!skipLocation)
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +105,30 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
       cancelled = true
     }
   }, [state.selectedLocationId, tenant.id])
+
+  // After staff loads for the single-location case: finalise firstVisibleStep.
+  // If there is exactly 1 active staff member, skip the staff step and jump straight to service.
+  useEffect(() => {
+    if (firstVisibleStepFinalizedRef.current) return
+    if (staffLoading) return
+
+    firstVisibleStepFinalizedRef.current = true
+
+    if (staff.length === 1 && staff[0]) {
+      setFirstVisibleStep('service')
+      setCompletedSteps(['location', 'staff'])
+      setState((prev) => ({
+        ...prev,
+        step: 'service',
+        selectedStaffId: staff[0]!.id,
+        selectedServiceIds: [],
+        selectedDate: null,
+        selectedSlot: null,
+      }))
+    }
+    // else: firstVisibleStep remains 'staff'
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffLoading, staff])
 
   useEffect(() => {
     if (!transitionState) {
@@ -179,7 +225,21 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
     )
   }, [initialLocationId, initialStep, navigate])
 
+  const handleTopBarBack = useCallback(() => {
+    if (state.step === 'staff') {
+      handleBack()
+    }
+    // TODO: handle back for service, datetime, confirm when those steps are implemented
+  }, [state.step, handleBack])
+
   const selectedLocation = initialLocations.find((location) => location.id === state.selectedLocationId)
+
+  // showBottomNav = true only on the first visible step (landing experience)
+  // showTopBar / showBottomCTA = true on all subsequent steps
+  const showBottomNav = state.step === firstVisibleStep
+  const showTopBar = !showBottomNav
+  // Height of BookingTopBar — used as sticky offset for step indicators below it
+  const topBarOffset = showTopBar ? 56 : 0
 
   const containerStyle: CSSProperties = {
     maxWidth: 480,
@@ -217,8 +277,9 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
           locationName={selectedLocation?.name ?? ''}
           onSelect={handleSelectStaff}
           onBack={handleBack}
-          showBack={initialLocations.length > 1}
+          showBack={!skipLocation}
           primaryColor={primaryColor}
+          stickyTopOverride={topBarOffset}
         />
       )
     }
@@ -251,6 +312,13 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
 
   return (
     <div style={containerStyle}>
+      {showTopBar && (
+        <BookingTopBar
+          title={STEP_TITLES[state.step] ?? ''}
+          onBack={state.step === 'staff' && !skipLocation ? handleTopBarBack : undefined}
+        />
+      )}
+
       <div style={{ position: 'relative', minHeight: '100dvh', overflow: 'hidden' }}>
         {transitionState ? (
           <>
@@ -281,6 +349,10 @@ export default function BookingFlow({ tenant, initialLocations }: Props) {
           <div style={{ minHeight: '100dvh' }}>{renderStep(state.step)}</div>
         )}
       </div>
+
+      {showBottomNav && (
+        <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+      )}
 
       <style>{`
         @keyframes booking-slide-in-right {

@@ -114,6 +114,8 @@ interface Props {
   onBack?: () => void
   showBack?: boolean
   primaryColor?: string
+  /** Overrides the default sticky top offset (76) for the step indicator. Pass 0 when this is the first visible step. */
+  stickyTopOverride?: number
 }
 
 export default function BookingStep2Staff({
@@ -124,6 +126,7 @@ export default function BookingStep2Staff({
   onBack,
   showBack = true,
   primaryColor,
+  stickyTopOverride,
 }: Props) {
   const [pressedId, setPressedId] = useState<string | null>(null)
   const brandColor = primaryColor ?? '#1a1a1a'
@@ -135,7 +138,7 @@ export default function BookingStep2Staff({
         completedSteps={showBack ? ['location'] : []}
         tenantPrimary={brandColor}
         skipLocationStep={!showBack}
-        stickyTopOverride={76}
+        stickyTopOverride={stickyTopOverride ?? 76}
       />
 
       {locationName ? (
