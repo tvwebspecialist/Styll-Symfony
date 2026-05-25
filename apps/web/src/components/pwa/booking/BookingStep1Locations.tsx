@@ -51,7 +51,7 @@ export default function BookingStep1Locations({
         currentStep="location"
         completedSteps={[]}
         tenantPrimary={primaryColor ?? '#1a1a1a'}
-        stickyTopOverride={0}
+        stickyTopOverride={76}
       />
 
       <p

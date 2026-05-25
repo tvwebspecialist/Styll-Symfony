@@ -63,26 +63,52 @@ function TopBarInner({
   if (isInPrenota) {
     const prenotaBase = tenantPath('/prenota')
     const isPrenotaRoot = pathname === prenotaBase || pathname === `${prenotaBase}/`
+    const segment = isPrenotaRoot ? '' : (pathname.slice(prenotaBase.length + 1).split('/')[0] ?? '')
 
-    // Step 1 (location selection): no top bar — the step component shows its own title
-    if (isPrenotaRoot) return null
-
-    const segment = pathname.slice(prenotaBase.length + 1).split('/')[0] ?? ''
-
-    // First visible step (location and/or staff were auto-skipped): bottom nav shows, no top bar
-    const isFirstStep =
-      (segment === 'barbiere' && skipItems.includes('sede')) ||
-      (segment === 'servizi' && skipItems.includes('sede') && skipItems.includes('barbiere'))
-    if (isFirstStep) return null
-
-    // Step 2+: sticky header with back button
-    const BOOKING_STEP_TITLES: Record<string, string> = {
+    const STEP_TITLES: Record<string, string> = {
+      '': 'Sede',
       barbiere: 'Barbiere',
       servizi: 'Servizi',
       data: 'Quando',
       conferma: 'Conferma',
     }
-    const title = BOOKING_STEP_TITLES[segment] ?? 'Prenota'
+    const title = STEP_TITLES[segment] ?? 'Prenota'
+
+    // First visible step: show title with no back arrow (nothing before this in the funnel)
+    const isFirstStep =
+      isPrenotaRoot ||
+      (segment === 'barbiere' && skipItems.includes('sede')) ||
+      (segment === 'servizi' && skipItems.includes('sede') && skipItems.includes('barbiere'))
+
+    if (isFirstStep) {
+      return (
+        <div style={{ position: 'sticky', top: 0, zIndex: 60, background: '#F7F7F7' }}>
+          <PwaPageHeader variant="page-with-actions" title={title} fontFamily={fontFamily} />
+        </div>
+      )
+    }
+
+    // Subsequent steps: explicit back navigation — never uses router.back()
+    const location = searchParams?.get('location') ?? ''
+    const staff = searchParams?.get('staff') ?? ''
+    const services = searchParams?.get('services') ?? ''
+    const rawSkip = searchParams?.get('_skip') ?? ''
+    const skipSuffix = rawSkip ? `&_skip=${rawSkip}` : ''
+
+    let backUrl: string
+    if (segment === 'barbiere') {
+      backUrl = tenantPath('/prenota')
+    } else if (segment === 'servizi') {
+      backUrl = skipItems.includes('barbiere')
+        ? tenantPath('/prenota')
+        : tenantPath(`/prenota/barbiere?location=${location}${skipSuffix}`)
+    } else if (segment === 'data') {
+      backUrl = tenantPath(`/prenota/servizi?location=${location}&staff=${staff}${skipSuffix}`)
+    } else if (segment === 'conferma') {
+      backUrl = tenantPath(`/prenota/data?location=${location}&staff=${staff}&services=${services}${skipSuffix}`)
+    } else {
+      backUrl = tenantPath('/prenota')
+    }
 
     return (
       <div style={{ position: 'sticky', top: 0, zIndex: 60, background: '#F7F7F7' }}>
@@ -91,7 +117,7 @@ function TopBarInner({
           title={title}
           leftAction={{
             icon: <ArrowLeft size={20} color="#111111" strokeWidth={2} />,
-            onPress: () => router.back(),
+            onPress: () => router.push(backUrl),
             ariaLabel: 'Torna indietro',
           }}
           fontFamily={fontFamily}

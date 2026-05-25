@@ -554,7 +554,9 @@ export type Database = {
           longitude: number | null
           name: string
           phone: string | null
+          /** @deprecated Use photos[0] for the primary image */
           photo_url: string | null
+          photos: string[]
           tenant_id: string
           updated_at: string
           zip_code: string | null
@@ -570,7 +572,9 @@ export type Database = {
           longitude?: number | null
           name: string
           phone?: string | null
+          /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
+          photos?: string[]
           tenant_id: string
           updated_at?: string
           zip_code?: string | null
@@ -586,7 +590,9 @@ export type Database = {
           longitude?: number | null
           name?: string
           phone?: string | null
+          /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
+          photos?: string[]
           tenant_id?: string
           updated_at?: string
           zip_code?: string | null
