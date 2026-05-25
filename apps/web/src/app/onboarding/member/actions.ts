@@ -107,6 +107,18 @@ export async function completeMemberOnboarding(
       // Delete existing working hours
       await db.from('working_hours').delete().eq('staff_id', staffData.id)
 
+      // Resolve default location for this tenant (auto-assign when single location)
+      const { data: tenantLocationsForHours } = await db
+        .from('locations')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .limit(2)
+      const defaultLocId =
+        (tenantLocationsForHours ?? []).length === 1
+          ? (tenantLocationsForHours![0].id as string)
+          : null
+
       // Insert new working hours
       const rows = data.workingHours
         .filter((h) => h.is_open)
@@ -116,6 +128,7 @@ export async function completeMemberOnboarding(
           day_of_week: h.day_of_week,
           start_time: h.open_time,
           end_time: h.close_time,
+          location_id: defaultLocId,
         }))
 
       if (rows.length > 0) {

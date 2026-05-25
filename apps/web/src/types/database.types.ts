@@ -557,6 +557,7 @@ export type Database = {
           /** @deprecated Use photos[0] for the primary image */
           photo_url: string | null
           photos: string[]
+          show_on_website: boolean
           tenant_id: string
           updated_at: string
           zip_code: string | null
@@ -575,6 +576,7 @@ export type Database = {
           /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
           photos?: string[]
+          show_on_website?: boolean
           tenant_id: string
           updated_at?: string
           zip_code?: string | null
@@ -593,6 +595,7 @@ export type Database = {
           /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
           photos?: string[]
+          show_on_website?: boolean
           tenant_id?: string
           updated_at?: string
           zip_code?: string | null
@@ -1117,6 +1120,7 @@ export type Database = {
           is_active: boolean
           name: string
           price: number
+          show_on_website: boolean
           tenant_id: string
           updated_at: string
         }
@@ -1131,6 +1135,7 @@ export type Database = {
           is_active?: boolean
           name: string
           price: number
+          show_on_website?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -1145,12 +1150,45 @@ export type Database = {
           is_active?: boolean
           name?: string
           price?: number
+          show_on_website?: boolean
           tenant_id?: string
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "services_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_photos: {
+        Row: {
+          created_at: string
+          id: string
+          sort_order: number
+          tenant_id: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tenant_id: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sort_order?: number
+          tenant_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_photos_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1211,6 +1249,7 @@ export type Database = {
           photo_url: string | null
           profile_id: string
           role: string
+          show_on_website: boolean
           tenant_id: string
           updated_at: string
         }
@@ -1223,6 +1262,7 @@ export type Database = {
           photo_url?: string | null
           profile_id: string
           role?: string
+          show_on_website?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -1235,6 +1275,7 @@ export type Database = {
           photo_url?: string | null
           profile_id?: string
           role?: string
+          show_on_website?: boolean
           tenant_id?: string
           updated_at?: string
         }
@@ -1541,6 +1582,7 @@ export type Database = {
           day_of_week: number
           end_time: string
           id: string
+          location_id: string | null
           staff_id: string
           start_time: string
           tenant_id: string
@@ -1550,6 +1592,7 @@ export type Database = {
           day_of_week: number
           end_time: string
           id?: string
+          location_id?: string | null
           staff_id: string
           start_time: string
           tenant_id: string
@@ -1559,6 +1602,7 @@ export type Database = {
           day_of_week?: number
           end_time?: string
           id?: string
+          location_id?: string | null
           staff_id?: string
           start_time?: string
           tenant_id?: string

@@ -1,254 +1,547 @@
-# Database — Styll
+## Table `admin_audit_log`
 
-> **Documento tecnico** per la tesi e come riferimento per le AI che lavorano al progetto.
-> Aggiornato alla versione v1 del database (33 tabelle).
+### Columns
 
----
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `actor_id` | `uuid` |  Nullable |
+| `action` | `text` |  |
+| `entity_type` | `text` |  |
+| `entity_id` | `text` |  Nullable |
+| `tenant_id` | `uuid` |  Nullable |
+| `details` | `jsonb` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
 
-## Schema ER — Relazioni principali
+## Table `admin_settings`
 
-```
-auth.users (Supabase)
-    └── profiles (1:1)
-            └── staff_members (1:N) ← un utente può essere staff in più tenant
-                    └── tenants (N:1)
+### Columns
 
-tenants
-    ├── locations (1:N)
-    ├── services (1:N)
-    │       └── staff_services (N:N con staff_members)
-    ├── products (1:N)
-    │       └── product_inventory (1:N per location)
-    ├── staff_members (1:N)
-    │       └── staff_locations (N:N con locations)
-    ├── clients (1:N)
-    │       ├── client_notes (1:N) [PRIVATO — mai visibile al cliente]
-    │       ├── client_loyalty (1:1)
-    │       │       └── loyalty_transactions (1:N)
-    │       └── reward_redemptions (1:N)
-    ├── appointments (1:N)
-    │       ├── appointment_services (1:N)
-    │       ├── appointment_products (1:N)
-    │       └── payments (1:N)
-    ├── loyalty_configs (1:N versioned)
-    ├── rewards (1:N, max 6)
-    ├── tenant_subscriptions (1:1 attiva)
-    └── portfolio_photos (1:N)
+| Name | Type | Constraints |
+|------|------|-------------|
+| `key` | `text` | Primary |
+| `value` | `jsonb` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+| `updated_by` | `uuid` |  Nullable |
 
--- Tabelle globali (no tenant_id):
-subscription_plans
-admin_audit_log
-admin_settings
-email_templates
-```
+## Table `appointment_products`
 
----
+### Columns
 
-## Tabelle — Riferimento Rapido
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `appointment_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `quantity` | `int4` |  |
+| `price_at_sale` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
 
-| Tabella | Area | Righe chiave | Note |
-|---------|------|-------------|------|
-| `tenants` | Platform | id, slug, status, primary_color | Una per barbiere |
-| `profiles` | Auth | id=auth.user.id, is_superadmin | Globale, no tenant_id |
-| `staff_members` | Auth | tenant_id, profile_id, role | Collega profilo a tenant |
-| `locations` | Sedi | tenant_id, name, is_active | Multi-sede da Tier 2 |
-| `services` | Catalogo | tenant_id, price, duration_minutes | Servizi offerti |
-| `products` | Catalogo | tenant_id, price_sell, price_cost | Prodotti fisici |
-| `product_inventory` | Catalogo | product_id, location_id, quantity | Per sede! |
-| `staff_services` | Catalogo | staff_id, service_id | N:N |
-| `staff_locations` | Auth | staff_id, location_id | N:N |
-| `appointments` | Operativo | status, booking_source, deleted_at | Soft delete |
-| `appointment_services` | Operativo | price_at_booking | Snapshot immutabile |
-| `appointment_products` | Operativo | price_at_sale | Snapshot immutabile |
-| `clients` | CRM | profile_id nullable, deleted_at | Soft delete |
-| `client_notes` | CRM | staff_id, note_text | SEMPRE privato |
-| `client_loyalty` | Loyalty | total_points, available_points, current_streak | Aggregato |
-| `loyalty_transactions` | Loyalty | type, points | Log immutabile |
-| `loyalty_configs` | Loyalty | template, version | Versionato |
-| `rewards` | Loyalty | points_cost, reward_type | Max 6 per tenant |
-| `reward_redemptions` | Loyalty | confirmed_by, confirmed_at | Nullable = non confermato |
-| `payments` | Pagamenti | amount, payment_method, status | |
-| `portfolio_photos` | Media | photo_url, service_tags | |
-| `subscription_plans` | Platform | slug, price_monthly, feature_flags | Globale |
-| `tenant_subscriptions` | Platform | status, trial_ends_at | |
-| `admin_audit_log` | Admin | actor_id, action, entity_type | Globale, immutabile |
-| `admin_settings` | Admin | key, value (jsonb) | Globale |
-| `email_templates` | Admin | slug, body | Globale |
-| `working_hours` | Calendario | staff_id, day_of_week, start_time, end_time | Ricorrenti |
-| `working_hour_overrides` | Calendario | staff_id, date, is_closed | Eccezioni/ferie |
+## Table `appointment_services`
 
----
+### Columns
 
-## Valori Enum
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `appointment_id` | `uuid` |  |
+| `service_id` | `uuid` |  |
+| `price_at_booking` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
 
-### `appointments.status`
-```
-'pending'       → in attesa di conferma
-'confirmed'     → confermato
-'completed'     → visita completata
-'cancelled'     → cancellato
-'no_show'       → cliente non si è presentato
-```
+## Table `appointments`
 
-### `appointments.booking_source`
-```
-'pwa'                    → prenotato dal cliente via PWA
-'dashboard_owner'        → inserito dal titolare
-'dashboard_manager'      → inserito dal manager
-'dashboard_staff'        → inserito dallo staff
-'dashboard_receptionist' → inserito dalla receptionist
-'walk_in'               → walk-in senza prenotazione
-'phone'                 → prenotato per telefono
-```
+### Columns
 
-### `staff_members.role`
-```
-'owner'         → titolare, vede tutto
-'manager'       → come owner meno billing
-'staff'         → solo suo calendario
-'receptionist'  → tutti i calendari, solo lettura + walk-in
-```
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `location_id` | `uuid` |  |
+| `start_time` | `timestamptz` |  |
+| `end_time` | `timestamptz` |  |
+| `status` | `text` |  |
+| `booking_source` | `text` |  |
+| `booked_by` | `uuid` |  Nullable |
+| `notes` | `text` |  Nullable |
+| `deleted_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
 
-### `clients.preferred_contact_channel`
-```
-'push'          → notifica PWA
-'whatsapp'      → WhatsApp
-'sms'           → SMS
-'email'         → email
-```
+## Table `client_analytics`
 
-### `loyalty_configs.template`
-```
-'classic'       → punti fissi per visita (points_per_visit)
-'streak_master' → punti per €1 speso (points_per_euro) + streak
-'vip_club'      → come streak_master + badge + tier (v2)
-```
+### Columns
 
-### `loyalty_transactions.type`
-```
-'earn'          → punti guadagnati da visita
-'redeem'        → punti riscattati per reward
-'bonus'         → bonus manuale dello staff
-'import'        → punti importati da altro sistema
-'adjustment'    → rettifica manuale (errore)
-```
+| Name | Type | Constraints |
+|------|------|-------------|
+| `client_id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `total_visits` | `int4` |  |
+| `avg_frequency_days` | `numeric` |  Nullable |
+| `last_visit_date` | `timestamptz` |  Nullable |
+| `days_since_last_visit` | `int4` |  Nullable |
+| `churn_status` | `text` |  |
+| `computed_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
 
-### `rewards.reward_type`
-```
-'product'       → prodotto omaggio
-'service'       → servizio gratis
-'discount'      → sconto percentuale o fisso
-'custom'        → custom definito dal barbiere
-```
+## Table `client_import_jobs`
 
-### `payments.payment_method`
-```
-'cash'              → contanti
-'card_terminal'     → POS fisico
-'stripe_online'     → pagamento online (v2)
-'bank_transfer'     → bonifico
-'other'             → altro
-```
+### Columns
 
-### `tenant_subscriptions.status`
-```
-'trial'         → periodo di prova
-'active'        → abbonamento attivo
-'past_due'      → pagamento in ritardo
-'cancelled'     → disdetto
-```
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `initiated_by` | `uuid` |  Nullable |
+| `source` | `text` |  Nullable |
+| `filename` | `text` |  Nullable |
+| `total_rows` | `int4` |  |
+| `imported_count` | `int4` |  |
+| `skipped_count` | `int4` |  |
+| `error_count` | `int4` |  |
+| `errors` | `jsonb` |  Nullable |
+| `status` | `text` |  |
+| `created_at` | `timestamptz` |  |
 
-### `tenants.status`
-```
-'active'        → attivo e funzionante
-'suspended'     → sospeso (soft disable)
-'trial'         → in prova
-```
+## Table `client_loyalty`
 
-### `profiles.user_type`
-```
-'staff'         → membro dello staff (include owner, manager, ecc.)
-'client'        → cliente finale con account PWA
-'admin'         → superadmin della piattaforma
-```
+### Columns
 
----
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `total_points` | `int4` |  |
+| `available_points` | `int4` |  |
+| `current_streak` | `int4` |  |
+| `longest_streak` | `int4` |  |
+| `last_visit_date` | `date` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
 
-## Query Utili
+## Table `client_notes`
 
-### Trovare il tenant di un utente autenticato
-```sql
-SELECT sm.tenant_id, sm.role, t.business_name, t.slug
-FROM staff_members sm
-JOIN tenants t ON t.id = sm.tenant_id
-WHERE sm.profile_id = auth.uid()
-  AND sm.is_active = true
-  AND sm.deleted_at IS NULL;
-```
+### Columns
 
-### Controllare se un utente è superadmin
-```sql
-SELECT is_superadmin
-FROM profiles
-WHERE id = auth.uid();
-```
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `note_text` | `text` |  |
+| `created_at` | `timestamptz` |  |
 
-### Clienti a rischio churn (non vengono da più di 45 giorni)
-```sql
-SELECT c.id, c.full_name, c.phone,
-       cl.last_visit_date,
-       NOW()::date - cl.last_visit_date AS days_since_visit
-FROM clients c
-JOIN client_loyalty cl ON cl.client_id = c.id
-WHERE c.tenant_id = $1
-  AND c.deleted_at IS NULL
-  AND cl.last_visit_date IS NOT NULL
-  AND NOW()::date - cl.last_visit_date > 45
-ORDER BY days_since_visit DESC;
-```
+## Table `clients`
 
-### Punti disponibili di un cliente
-```sql
-SELECT available_points, total_points, current_streak
-FROM client_loyalty
-WHERE tenant_id = $1 AND client_id = $2;
-```
+### Columns
 
-### Appuntamenti di oggi per un tenant
-```sql
-SELECT a.*, c.full_name as client_name, s.name as service_name
-FROM appointments a
-JOIN clients c ON c.id = a.client_id
-JOIN appointment_services aps ON aps.appointment_id = a.id
-JOIN services s ON s.id = aps.service_id
-WHERE a.tenant_id = $1
-  AND a.start_time::date = CURRENT_DATE
-  AND a.deleted_at IS NULL
-  AND a.status NOT IN ('cancelled')
-ORDER BY a.start_time;
-```
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `profile_id` | `uuid` |  Nullable |
+| `full_name` | `text` |  |
+| `phone` | `text` |  |
+| `email` | `text` |  Nullable |
+| `date_of_birth` | `date` |  Nullable |
+| `preferred_contact_channel` | `text` |  Nullable |
+| `marketing_consent` | `bool` |  |
+| `tags` | `jsonb` |  |
+| `deleted_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
 
----
+## Table `email_templates`
 
-## Note Implementative
+### Columns
 
-### Perché `client_loyalty` e `loyalty_transactions` coesistono?
-- `loyalty_transactions` è il log immutabile di ogni singola operazione (append-only)
-- `client_loyalty` è l'aggregato pre-calcolato per performance
-- Quando si aggiunge una transazione, si aggiorna anche `client_loyalty`
-- In caso di discrepanza, `loyalty_transactions` è la fonte di verità
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `slug` | `text` |  Unique |
+| `name` | `text` |  |
+| `subject` | `text` |  |
+| `body` | `text` |  |
+| `variables` | `jsonb` |  Nullable |
+| `is_active` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  Nullable |
 
-### Perché `clients.profile_id` è nullable?
-Un cliente può esistere nel CRM del barbiere senza avere un account Supabase:
-- Roberto (54 anni) è stato aggiunto a mano dal barbiere
-- Non ha mai installato la PWA
-- Ha comunque un profilo CRM, punti loyalty, storico appuntamenti
-- Se un giorno si registra, il suo `profile_id` viene aggiornato e i dati si sincronizzano
+## Table `locations`
 
-### Perché i prezzi sono snapshot?
-`appointment_services.price_at_booking` non deve mai cambiare, nemmeno se il barbiere aggiorna i prezzi dei servizi. Lo storico deve riflettere quanto il cliente ha pagato realmente.
+### Columns
 
-### Perché `working_hours` + `working_hour_overrides`?
-- `working_hours` = orari ricorrenti settimanali (es. "ogni Lunedì dalle 9 alle 19")
-- `working_hour_overrides` = eccezioni per date specifiche (ferie, chiusura straordinaria, orario esteso)
-- La logica di disponibilità slot combina entrambe le tabelle
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `address` | `text` |  Nullable |
+| `city` | `text` |  Nullable |
+| `zip_code` | `text` |  Nullable |
+| `phone` | `text` |  Nullable |
+| `email` | `text` |  Nullable |
+| `latitude` | `numeric` |  Nullable |
+| `longitude` | `numeric` |  Nullable |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `photo_url` | `text` |  Nullable |
+| `photos` | `_text` |  Nullable |
+| `show_on_website` | `bool` |  Nullable |
+
+## Table `loyalty_configs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `template` | `text` |  |
+| `points_per_visit` | `int4` |  Nullable |
+| `points_per_euro` | `int4` |  Nullable |
+| `streak_threshold_days` | `int4` |  |
+| `version` | `int4` |  |
+| `started_at` | `timestamptz` |  |
+| `ended_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `loyalty_transactions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `type` | `text` |  |
+| `points` | `int4` |  |
+| `description` | `text` |  Nullable |
+| `appointment_id` | `uuid` |  Nullable |
+| `staff_id` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `payments`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `appointment_id` | `uuid` |  Nullable |
+| `client_id` | `uuid` |  |
+| `amount` | `numeric` |  |
+| `tip_amount` | `numeric` |  |
+| `payment_method` | `text` |  |
+| `status` | `text` |  |
+| `notes` | `text` |  Nullable |
+| `paid_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `portfolio_photos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `staff_id` | `uuid` |  Nullable |
+| `photo_url` | `text` |  |
+| `service_tags` | `_text` |  |
+| `is_visible` | `bool` |  |
+| `display_order` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `product_inventory`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `location_id` | `uuid` |  |
+| `quantity` | `int4` |  |
+| `low_stock_threshold` | `int4` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `products`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `brand` | `text` |  Nullable |
+| `price_sell` | `numeric` |  |
+| `price_cost` | `numeric` |  Nullable |
+| `sku` | `text` |  Nullable |
+| `photo_url` | `text` |  Nullable |
+| `category` | `text` |  Nullable |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `description` | `text` |  Nullable |
+
+## Table `profiles`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `user_type` | `text` |  |
+| `full_name` | `text` |  Nullable |
+| `phone` | `text` |  Nullable |
+| `avatar_url` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `email` | `text` |  Nullable |
+| `work_mode` | `text` |  Nullable |
+| `onboarding_completed` | `bool` |  Nullable |
+| `is_superadmin` | `bool` |  |
+| `bio` | `text` |  Nullable |
+| `language` | `text` |  Nullable |
+| `timezone` | `text` |  Nullable |
+| `notification_preferences` | `jsonb` |  |
+
+## Table `promotions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `title` | `text` |  |
+| `description` | `text` |  Nullable |
+| `discount_type` | `text` |  Nullable |
+| `discount_value` | `numeric` |  Nullable |
+| `service_id` | `uuid` |  Nullable |
+| `valid_from` | `timestamptz` |  |
+| `valid_until` | `timestamptz` |  Nullable |
+| `show_on_landing` | `bool` |  |
+| `show_in_app` | `bool` |  |
+| `is_active` | `bool` |  |
+| `display_order` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `reward_redemptions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `reward_id` | `uuid` |  |
+| `points_spent` | `int4` |  |
+| `confirmed_by` | `uuid` |  Nullable |
+| `confirmed_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `rewards`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `points_cost` | `int4` |  |
+| `reward_type` | `text` |  |
+| `display_order` | `int4` |  |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `services`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `price` | `numeric` |  |
+| `duration_minutes` | `int4` |  |
+| `category` | `text` |  Nullable |
+| `display_order` | `int4` |  |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `color` | `text` |  Nullable |
+| `show_on_website` | `bool` |  Nullable |
+
+## Table `staff_locations`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `location_id` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `staff_members`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `profile_id` | `uuid` |  |
+| `role` | `text` |  |
+| `bio` | `text` |  Nullable |
+| `photo_url` | `text` |  Nullable |
+| `is_active` | `bool` |  |
+| `deleted_at` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+| `show_on_website` | `bool` |  Nullable |
+
+## Table `staff_services`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `service_id` | `uuid` |  |
+
+## Table `subscription_plans`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `slug` | `text` |  Unique |
+| `price_monthly` | `numeric` |  |
+| `max_staff` | `int4` |  Nullable |
+| `max_locations` | `int4` |  Nullable |
+| `feature_flags` | `jsonb` |  |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `team_invitations`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `email` | `text` |  |
+| `token` | `text` |  Unique |
+| `role` | `text` |  |
+| `created_by` | `uuid` |  |
+| `created_at` | `timestamptz` |  |
+| `expires_at` | `timestamptz` |  |
+| `accepted_at` | `timestamptz` |  Nullable |
+| `status` | `text` |  |
+
+## Table `tenant_subscriptions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `plan_id` | `uuid` |  |
+| `status` | `text` |  |
+| `trial_ends_at` | `timestamptz` |  Nullable |
+| `current_period_start` | `timestamptz` |  |
+| `current_period_end` | `timestamptz` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `tenants`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `business_name` | `text` |  |
+| `slug` | `text` |  Unique |
+| `timezone` | `text` |  |
+| `logo_url` | `text` |  Nullable |
+| `primary_color` | `text` |  Nullable |
+| `secondary_color` | `text` |  Nullable |
+| `font_family` | `text` |  Nullable |
+| `settings` | `jsonb` |  |
+| `status` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `website_photos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `url` | `text` |  |
+| `sort_order` | `int4` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `working_hour_overrides`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `date` | `date` |  |
+| `is_closed` | `bool` |  |
+| `start_time` | `time` |  Nullable |
+| `end_time` | `time` |  Nullable |
+| `reason` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `working_hours`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `staff_id` | `uuid` |  |
+| `day_of_week` | `int4` |  |
+| `start_time` | `time` |  |
+| `end_time` | `time` |  |
+| `created_at` | `timestamptz` |  |
+| `location_id` | `uuid` |  Nullable |
+

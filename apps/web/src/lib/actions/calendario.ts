@@ -13,6 +13,7 @@ export interface CalendarioAppointment {
   client_id: string
   staff_id: string
   client_name: string
+  total_price: number
   services: Array<{
     id: string
     name: string
@@ -60,6 +61,7 @@ function addDays(dateStr: string, days: number): string {
 }
 
 type RawApptService = {
+  price_at_booking: number
   services: {
     id: string
     name: string
@@ -98,7 +100,7 @@ export async function getCalendarioData(
   let apptQuery = db
     .from('appointments')
     .select(
-      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(services(id, name, category, color, duration_minutes))'
+      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(price_at_booking, services(id, name, category, color, duration_minutes))'
     )
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
@@ -142,6 +144,7 @@ export async function getCalendarioData(
     client_id: a.client_id,
     staff_id: a.staff_id,
     client_name: a.clients?.full_name ?? 'Cliente',
+    total_price: (a.appointment_services ?? []).reduce((sum, as) => sum + (as.price_at_booking ?? 0), 0),
     services: (a.appointment_services ?? [])
       .filter((as) => as.services !== null)
       .map((as) => ({
