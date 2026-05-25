@@ -267,9 +267,11 @@ function GaugeSVG({ value, total }: { value: number; total: number }) {
 
 function MiniCalendarCard({
   weekStart,
+  activeDay,
   onNavigate,
 }: {
   weekStart: string
+  activeDay?: string
   onNavigate: (date: string) => void
 }) {
   const init = () => {
@@ -308,7 +310,7 @@ function MiniCalendarCard({
   }
 
   return (
-    <div style={{ background: '#FFFFFF', borderRadius: 16, border: '1px solid #E9E9E9', padding: 16 }}>
+    <div style={{ background: '#FFFFFF', borderRadius: 16, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
           {MONTHS_IT[view.m]} {view.y}
@@ -316,20 +318,25 @@ function MiniCalendarCard({
         <div style={{ display: 'flex', gap: 3 }}>
           {([-1, 1] as const).map((dir) => (
             <button key={dir} type="button" onClick={() => shift(dir)}
-              style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid #E5E7EB', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              {dir === -1 ? <ChevronLeft size={11} /> : <ChevronRight size={11} />}
+              style={{ width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#9CA3AF' }}>
+              {dir === -1 ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
             </button>
           ))}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', textAlign: 'center', marginBottom: 3 }}>
-        {['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((l, i) => (
-          <div key={i} style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, padding: '2px 0' }}>{l}</div>
+        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((l, i) => (
+          <div key={i} style={{ fontSize: 9, color: '#9CA3AF', fontWeight: 600, padding: '2px 0' }}>{l}</div>
         ))}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', textAlign: 'center' }}>
         {cells.map((day, i) => {
-          const cur = day !== null && isThisMonth && day === todayNum
+          const cellDate = day !== null
+            ? `${view.y}-${String(view.m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            : null
+          const isSelected = cellDate !== null && cellDate === activeDay
+          const isToday = day !== null && isThisMonth && day === todayNum
+          const isPast = cellDate !== null && !isThisMonth
           return (
             <div
               key={i}
@@ -337,9 +344,13 @@ function MiniCalendarCard({
               style={{
                 width: 24, height: 24, borderRadius: 100, margin: '1px auto',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: cur ? 700 : 400,
-                background: cur ? '#111827' : 'transparent',
-                color: day === null ? 'transparent' : cur ? '#FFF' : '#374151',
+                fontSize: 11, fontWeight: isSelected || isToday ? 700 : 400,
+                background: isSelected ? '#111827' : isToday && !isSelected ? '#F3F4F6' : 'transparent',
+                color: day === null ? 'transparent'
+                  : isSelected ? '#FFF'
+                  : isToday ? '#111827'
+                  : isPast ? '#D1D5DB'
+                  : '#374151',
                 cursor: day !== null ? 'pointer' : 'default',
               }}
             >
@@ -1053,6 +1064,14 @@ export function CalendarioClient({
     () => todayAppts.filter((a) => ['confirmed', 'pending'].includes(a.status)).length,
     [todayAppts]
   )
+  const todayRevenue = React.useMemo(
+    () => todayAppts.reduce((sum, a) => sum + (a.total_price ?? 0), 0),
+    [todayAppts]
+  )
+  const avgTicket = React.useMemo(
+    () => todayAppts.length > 0 ? todayRevenue / todayAppts.length : 0,
+    [todayAppts, todayRevenue]
+  )
   const nextEmptySlot = React.useMemo(() => findNextEmptySlot(todayAppts), [todayAppts])
 
   const dayComparison = React.useMemo(() => {
@@ -1662,27 +1681,32 @@ export function CalendarioClient({
       </div>
 
       {/* ── RIGHT SIDEBAR (desktop only) ── */}
-      {!isMobile && <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
+      {!isMobile && <div style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', height: '100%' }}>
 
         {/* Card 1 — Nuovo appuntamento */}
-        <div style={{ background: '#111827', borderRadius: 16, padding: 18, position: 'relative' }}>
-          <button
-            type="button"
-            onClick={() => setNewApptCell({ date: todayStr, hour: 9 })}
-            style={{ position: 'absolute', top: 12, right: 12, width: 48, height: 48, borderRadius: 14, background: '#2563eb', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}
-          >
-            <Plus size={22} color="#FFF" strokeWidth={2.5} />
-          </button>
-          <p style={{ margin: '0 0 5px', fontSize: 14, fontWeight: 700, color: '#FFF', paddingRight: 56 }}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setNewApptCell({ date: todayStr, hour: 9 })}
+          onKeyDown={(e) => e.key === 'Enter' && setNewApptCell({ date: todayStr, hour: 9 })}
+          style={{ background: '#111827', borderRadius: 16, padding: 18, position: 'relative', overflow: 'hidden', cursor: 'pointer' }}
+        >
+          {/* Decorative 3D + icon */}
+          <img
+            src="/img/+_icon.png"
+            alt=""
+            style={{ position: 'absolute', right: -8, bottom: -8, width: 88, height: 88, objectFit: 'contain', pointerEvents: 'none', opacity: 0.9 }}
+          />
+          <p style={{ margin: '0 0 5px', fontSize: 14, fontWeight: 700, color: '#FFF', paddingRight: 72 }}>
             Nuovo appuntamento
           </p>
-          <p style={{ margin: 0, fontSize: 11, color: '#6B7280', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 11, color: '#6B7280', lineHeight: 1.5, paddingRight: 72 }}>
             Inserisci manualmente un nuovo appuntamento nel tuo calendario.
           </p>
         </div>
 
         {/* Card 2 — Mini calendar */}
-        <MiniCalendarCard weekStart={weekStart} onNavigate={navigateToDate} />
+        <MiniCalendarCard weekStart={weekStart} activeDay={activeDayStr} onNavigate={navigateToDate} />
 
         {/* Card 3 — Overview Giornata */}
         <div style={{ background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', padding: '16px 18px' }}>
@@ -1719,29 +1743,38 @@ export function CalendarioClient({
           <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
               <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 2 }}>Revenue Giornata</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>—</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                {todayRevenue > 0 ? `€ ${todayRevenue.toFixed(0)}` : '—'}
+              </div>
             </div>
             <div>
               <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 2 }}>Scontrino medio</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>—</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                {avgTicket > 0 ? `€ ${avgTicket.toFixed(0)}` : '—'}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Card 4 — Slot vuoto */}
         {nextEmptySlot ? (
-          <div style={{ borderRadius: 16, padding: 18, background: 'linear-gradient(135deg, #1e1b4b 0%, #4c1d95 55%, #831843 100%)', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', top: -8, right: -8, fontSize: 52, opacity: 0.18, pointerEvents: 'none', userSelect: 'none' }}>🔊</div>
-            <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 700, color: '#FFF' }}>Slot vuoto</p>
+          <div style={{ borderRadius: 16, padding: 18, background: '#111827', position: 'relative', overflow: 'hidden' }}>
+            {/* Decorative megafono icon */}
+            <img
+              src="/img/megafono_icon.png"
+              alt=""
+              style={{ position: 'absolute', right: -8, bottom: -8, width: 90, height: 90, objectFit: 'contain', pointerEvents: 'none', opacity: 0.85 }}
+            />
+            <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 700, color: '#F97316' }}>Slot vuoto</p>
             <p style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 800, color: '#FFF', lineHeight: 1.1 }}>
               {nextEmptySlot.start} – {nextEmptySlot.end}
             </p>
-            <p style={{ margin: '0 0 14px', fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 14px', fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5, paddingRight: 64 }}>
               {parseInt(nextEmptySlot.start) >= 14
                 ? "Un'ora libera nel pomeriggio."
                 : "Un'ora libera in mattinata."}
             </p>
-            <button type="button" style={{ padding: '7px 13px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.9)', color: '#1e1b4b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+            <button type="button" style={{ padding: '7px 13px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.12)', color: '#FFF', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
               Notifica i clienti vicini
             </button>
           </div>

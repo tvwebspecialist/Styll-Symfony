@@ -354,6 +354,134 @@ export async function removeStaffMember(staffId: string): Promise<{ success: boo
   return { success: true }
 }
 
+// ─── getStaffAvailability ─────────────────────────────────────────────────────
+
+// day_of_week DB convention: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+// Display order: [1,2,3,4,5,6,0]
+
+export interface AvailabilityDay {
+  day_of_week: number // DB value: 0=Sun, 1=Mon … 6=Sat
+  is_active: boolean
+  start_time: string
+  end_time: string
+  location_id: string | null
+}
+
+export interface StaffAvailabilityData {
+  days: AvailabilityDay[]
+  locations: Array<{ id: string; name: string }>
+}
+
+export async function getStaffAvailability(staffId: string): Promise<StaffAvailabilityData> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { days: [], locations: [] }
+
+  const db = createAdminClient()
+  const [whRes, locsRes] = await Promise.all([
+    db
+      .from('working_hours')
+      .select('day_of_week, start_time, end_time, location_id')
+      .eq('staff_id', staffId)
+      .eq('tenant_id', tenantId),
+    db
+      .from('locations')
+      .select('id, name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('name', { ascending: true }),
+  ])
+
+  const wh = (whRes.data ?? []) as Array<{
+    day_of_week: number; start_time: string; end_time: string; location_id: string | null
+  }>
+  const locations = (locsRes.data ?? []) as Array<{ id: string; name: string }>
+  const defaultLocationId = locations.length === 1 ? locations[0].id : null
+
+  // Build rows in display order: Mon(1), Tue(2), Wed(3), Thu(4), Fri(5), Sat(6), Sun(0)
+  const displayOrder = [1, 2, 3, 4, 5, 6, 0]
+  const days: AvailabilityDay[] = displayOrder.map((d) => {
+    const row = wh.find((r) => r.day_of_week === d)
+    return {
+      day_of_week: d,
+      is_active: !!row,
+      start_time: row?.start_time ?? '09:00',
+      end_time: row?.end_time ?? '18:00',
+      location_id: row?.location_id ?? defaultLocationId,
+    }
+  })
+
+  return { days, locations }
+}
+
+// ─── saveStaffAvailability ────────────────────────────────────────────────────
+
+export async function saveStaffAvailability(
+  staffId: string,
+  days: AvailabilityDay[]
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  // Delete all existing hours then re-insert active ones (clean approach)
+  const { error: delErr } = await db
+    .from('working_hours')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('tenant_id', tenantId)
+  if (delErr) return { success: false, error: delErr.message }
+
+  const activeDays = days.filter((d) => d.is_active)
+  if (activeDays.length > 0) {
+    const { error: insErr } = await db.from('working_hours').insert(
+      activeDays.map((d) => ({
+        tenant_id: tenantId,
+        staff_id: staffId,
+        day_of_week: d.day_of_week,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        location_id: d.location_id,
+      }))
+    )
+    if (insErr) return { success: false, error: insErr.message }
+  }
+
+  // Sync staff_locations: keep only locations used in at least one active day
+  const usedLocationIds = [
+    ...new Set(activeDays.map((d) => d.location_id).filter((id): id is string => id !== null)),
+  ]
+
+  const { data: currentLinks } = await db
+    .from('staff_locations')
+    .select('id, location_id')
+    .eq('staff_id', staffId)
+    .eq('tenant_id', tenantId)
+
+  const currentLocIds = ((currentLinks ?? []) as Array<{ id: string; location_id: string }>).map(
+    (r) => r.location_id
+  )
+  const toAdd = usedLocationIds.filter((id) => !currentLocIds.includes(id))
+  const toRemove = currentLocIds.filter((id) => !usedLocationIds.includes(id))
+
+  if (toRemove.length > 0) {
+    await db
+      .from('staff_locations')
+      .delete()
+      .eq('staff_id', staffId)
+      .eq('tenant_id', tenantId)
+      .in('location_id', toRemove)
+  }
+  if (toAdd.length > 0) {
+    await db.from('staff_locations').insert(
+      toAdd.map((locId) => ({ tenant_id: tenantId, staff_id: staffId, location_id: locId }))
+    )
+  }
+
+  revalidatePath('/dashboard/team')
+  return { success: true }
+}
+
 // ─── startStaffView ───────────────────────────────────────────────────────────
 
 const STAFF_VIEW_COOKIE = 'styll_staff_view'

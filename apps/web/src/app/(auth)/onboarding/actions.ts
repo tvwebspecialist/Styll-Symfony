@@ -259,6 +259,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
             day_of_week: toDbDayOfWeek(h.day_of_week),
             start_time: h.open_time,
             end_time: h.close_time,
+            location_id: locationId ?? null,
           }))
         )
         if (whErr) throw new Error(whErr.message)

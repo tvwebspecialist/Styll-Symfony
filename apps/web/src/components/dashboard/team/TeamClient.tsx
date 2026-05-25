@@ -3,11 +3,12 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Users, Eye, MoreHorizontal, UserPlus } from 'lucide-react'
+import { Loader2, Users, Eye, MoreHorizontal, UserPlus, Clock } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
+import { StaffAvailabilityEditor } from './StaffAvailabilityEditor'
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -314,6 +315,7 @@ function StaffCard({
   onEdit,
   onRemove,
   onBecomeStaff,
+  onAvailability,
 }: {
   member: StaffMemberRow
   canEdit: boolean
@@ -322,6 +324,7 @@ function StaffCard({
   onEdit: (m: StaffMemberRow) => void
   onRemove: (m: StaffMemberRow) => void
   onBecomeStaff: (m: StaffMemberRow) => void
+  onAvailability: (m: StaffMemberRow) => void
 }) {
   const [hovered, setHovered] = React.useState(false)
 
@@ -440,32 +443,60 @@ function StaffCard({
           </p>
         </div>
 
-        {/* Eye button — impersonate (owner only, not self) */}
-        {isOwner && !isSelf && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onBecomeStaff(member) }}
-            title={`Visualizza come ${member.fullName ?? 'Staff'}`}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 'var(--radius-sm)',
-              border: 'none',
-              background: 'var(--color-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              marginLeft: 12,
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary-hover)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary)' }}
-          >
-            <Eye size={15} color="var(--color-primary-fg)" />
-          </button>
-        )}
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+          {/* Availability button — visible for editors, not self */}
+          {canEdit && !isSelf && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAvailability(member) }}
+              title="Disponibilità & Sedi"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-secondary)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-bg)' }}
+            >
+              <Clock size={15} color="var(--color-fg-muted)" />
+            </button>
+          )}
+
+          {/* Eye button — impersonate (owner only, not self) */}
+          {isOwner && !isSelf && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onBecomeStaff(member) }}
+              title={`Visualizza come ${member.fullName ?? 'Staff'}`}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                background: 'var(--color-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary-hover)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-primary)' }}
+            >
+              <Eye size={15} color="var(--color-primary-fg)" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -478,6 +509,7 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
   const [inviteOpen, setInviteOpen] = React.useState(false)
   const [editMember, setEditMember] = React.useState<StaffMemberRow | null>(null)
   const [removeMember, setRemoveMember] = React.useState<StaffMemberRow | null>(null)
+  const [availabilityMember, setAvailabilityMember] = React.useState<StaffMemberRow | null>(null)
   const [isMobile, setIsMobile] = React.useState(false)
 
   React.useEffect(() => {
@@ -597,6 +629,7 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
               onEdit={setEditMember}
               onRemove={setRemoveMember}
               onBecomeStaff={handleBecomeStaff}
+              onAvailability={setAvailabilityMember}
             />
           ))}
         </div>
@@ -636,6 +669,22 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
       >
         {removeMember && (
           <RemoveModal member={removeMember} onClose={() => setRemoveMember(null)} />
+        )}
+      </StyllModal>
+
+      {/* Availability modal */}
+      <StyllModal
+        open={availabilityMember !== null}
+        onClose={() => setAvailabilityMember(null)}
+        title="Disponibilità & Sedi"
+        description={`Configura orari e sede per ogni giorno di ${availabilityMember?.fullName ?? 'questo membro'}.`}
+        size="lg"
+      >
+        {availabilityMember && (
+          <StaffAvailabilityEditor
+            member={availabilityMember}
+            onClose={() => setAvailabilityMember(null)}
+          />
         )}
       </StyllModal>
 
