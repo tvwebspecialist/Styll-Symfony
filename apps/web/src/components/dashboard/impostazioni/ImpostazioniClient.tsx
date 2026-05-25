@@ -380,7 +380,7 @@ function LocationForm({
     if (result.success) {
       toast.success(isEdit ? 'Sede aggiornata' : 'Sede creata')
       onSaved({
-        id: location?.id ?? '',
+        id: result.id ?? location?.id ?? '',
         name: name.trim(),
         address: address.trim() || null,
         phone: phone.trim() || null,
@@ -494,21 +494,35 @@ function SediTab({ locations: initialLocations }: { locations: LocationSettings[
             className="styll-card"
             style={{ padding: '16px 18px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}
           >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>{loc.name}</p>
-                {!loc.isActive && (
-                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-fg-muted)', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '2px 7px' }}>
-                    Inattiva
-                  </span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0 }}>
+              {loc.photos[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={loc.photos[0]}
+                  alt={loc.name}
+                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--color-border)' }}
+                />
+              ) : (
+                <div style={{ width: 48, height: 48, borderRadius: 8, flexShrink: 0, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-muted)' }}>
+                  <MapPin size={18} />
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>{loc.name}</p>
+                  {!loc.isActive && (
+                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-fg-muted)', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '2px 7px' }}>
+                      Inattiva
+                    </span>
+                  )}
+                </div>
+                {loc.address && (
+                  <p style={{ fontSize: 13, color: 'var(--color-fg-secondary)', margin: '3px 0 0' }}>{loc.address}</p>
+                )}
+                {loc.phone && (
+                  <p style={{ fontSize: 13, color: 'var(--color-fg-muted)', margin: '2px 0 0' }}>{loc.phone}</p>
                 )}
               </div>
-              {loc.address && (
-                <p style={{ fontSize: 13, color: 'var(--color-fg-secondary)', margin: '3px 0 0' }}>{loc.address}</p>
-              )}
-              {loc.phone && (
-                <p style={{ fontSize: 13, color: 'var(--color-fg-muted)', margin: '2px 0 0' }}>{loc.phone}</p>
-              )}
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               <button

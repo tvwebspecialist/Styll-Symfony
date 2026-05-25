@@ -161,7 +161,7 @@ export async function upsertLocation(data: {
   phone?: string | null
   isActive?: boolean
   photos?: string[]
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{ success: boolean; id?: string; error?: string }> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
   const db = createAdminClient()
@@ -180,21 +180,27 @@ export async function upsertLocation(data: {
       .eq('id', data.id)
       .eq('tenant_id', tenantId)
     if (error) return { success: false, error: error.message }
+    revalidatePath('/dashboard/impostazioni')
+    return { success: true, id: data.id }
   } else {
-    const { error } = await db.from('locations').insert({
-      tenant_id: tenantId,
-      name: data.name,
-      address: data.address ?? null,
-      phone: data.phone ?? null,
-      is_active: data.isActive ?? true,
-      photos: data.photos ?? [],
-      created_at: now,
-      updated_at: now,
-    })
+    const { data: inserted, error } = await db
+      .from('locations')
+      .insert({
+        tenant_id: tenantId,
+        name: data.name,
+        address: data.address ?? null,
+        phone: data.phone ?? null,
+        is_active: data.isActive ?? true,
+        photos: data.photos ?? [],
+        created_at: now,
+        updated_at: now,
+      })
+      .select('id')
+      .single()
     if (error) return { success: false, error: error.message }
+    revalidatePath('/dashboard/impostazioni')
+    return { success: true, id: (inserted as { id: string }).id }
   }
-  revalidatePath('/dashboard/impostazioni')
-  return { success: true }
 }
 
 // ─── deleteLocation ───────────────────────────────────────────────────────────

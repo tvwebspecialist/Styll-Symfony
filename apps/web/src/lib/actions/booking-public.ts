@@ -80,7 +80,7 @@ export async function getPublicBookingLocations(tenantId: string): Promise<Publi
       const db = createAdminClient()
       const { data } = await db
         .from('locations')
-        .select('id, name, address, city, phone, photo_url')
+        .select('id, name, address, city, phone, photos')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('name', { ascending: true })
@@ -91,14 +91,14 @@ export async function getPublicBookingLocations(tenantId: string): Promise<Publi
         address: string | null
         city: string | null
         phone: string | null
-        photo_url: string | null
+        photos: string[]
       }>).map((location) => ({
         id: location.id,
         name: location.name,
         address: location.address,
         city: location.city,
         phone: location.phone,
-        cover_image_url: location.photo_url,
+        cover_image_url: location.photos?.[0] ?? null,
       }))
     },
     [`booking-locations-${tenantId}`],
