@@ -216,9 +216,10 @@ export default function LandingFooter({ tenant, firstLocation, slug }: Props) {
             </p>
             <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, listStyle: 'none', padding: 0, margin: 0 }}>
               {[
+                { label: 'Chi siamo', href: '#chi-siamo' },
+                { label: 'Sedi', href: '#sedi' },
                 { label: 'Servizi', href: '#servizi' },
-                { label: 'Il team', href: '#' },
-                { label: 'Galleria', href: '#' },
+                { label: 'Team', href: '#team' },
               ].map((item) => (
                 <li key={item.label}>
                   <Link

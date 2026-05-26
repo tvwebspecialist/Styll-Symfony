@@ -7,6 +7,11 @@ export type PublicLocation = Pick<
   'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'photos' | 'email' | 'latitude' | 'longitude'
 >
 
+export type PublicProduct = Pick<
+  Tables<'products'>,
+  'id' | 'name' | 'brand' | 'price_sell' | 'photo_url' | 'category'
+>
+
 export interface PublicPortfolioPhoto {
   id: string
   photo_url: string
@@ -874,4 +879,34 @@ export async function getServicesForStaff(
   }))
 
   return { services }
+}
+
+export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
+  return unstable_cache(
+    async () => {
+      const db = createAdminClient()
+      const { data } = await db
+        .from('products')
+        .select('id, name, brand, price_sell, photo_url, category')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .eq('show_on_site', true)
+        .order('display_order', { ascending: true })
+        .order('name', { ascending: true })
+
+      return ((data ?? []) as unknown as PublicProduct[]).map((p) => ({
+        id: p.id,
+        name: p.name,
+        brand: p.brand ?? null,
+        price_sell: Number(p.price_sell ?? 0),
+        photo_url: p.photo_url ?? null,
+        category: p.category ?? null,
+      }))
+    },
+    [`public-products-${tenantId}`],
+    {
+      revalidate: 120,
+      tags: [`tenant-${tenantId}-products`],
+    }
+  )()
 }

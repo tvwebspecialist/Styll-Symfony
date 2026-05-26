@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { ImagePlus, Trash2, GripVertical, Loader2, Star } from 'lucide-react'
+import { ImagePlus, Trash2, GripVertical, Loader2, Star, AlertTriangle, Package } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -24,6 +24,7 @@ import {
   deleteWebsitePhoto,
   reorderWebsitePhotos,
   updateShowOnWebsite,
+  updateProductShowOnSite,
 } from '@/lib/actions/app-settings'
 import type {
   WebsiteData,
@@ -31,6 +32,7 @@ import type {
   WebsiteStaff,
   WebsiteLocation,
   WebsiteService,
+  WebsiteProduct,
 } from '@/lib/actions/app-settings'
 
 function SortableWebsitePhoto({
@@ -250,6 +252,7 @@ export function WebsiteTabClient({
   const [staff, setStaff] = React.useState<WebsiteStaff[]>(initialData.staff)
   const [locations, setLocations] = React.useState<WebsiteLocation[]>(initialData.locations)
   const [services, setServices] = React.useState<WebsiteService[]>(initialData.services)
+  const [products, setProducts] = React.useState<WebsiteProduct[]>(initialData.products)
   const [uploading, setUploading] = React.useState(false)
   const fileRef = React.useRef<HTMLInputElement>(null)
 
@@ -311,6 +314,25 @@ export function WebsiteTabClient({
       reorderWebsitePhotos(reordered.map((photo) => photo.id)).catch(() => toast.error('Errore riordinamento'))
       return reordered
     })
+  }
+
+  async function handleProductToggle(id: string, value: boolean) {
+    const prev = products.find((p) => p.id === id)
+    if (!prev) return
+
+    if (value && prev.isOutOfStock) {
+      const confirmed = window.confirm(
+        'Attenzione: questo prodotto è esaurito. Sei sicuro di volerlo mostrare sul sito?',
+      )
+      if (!confirmed) return
+    }
+
+    setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, showOnSite: value } : p)))
+    const result = await updateProductShowOnSite(id, value)
+    if (!result.ok) {
+      toast.error(result.error ?? 'Errore salvataggio')
+      setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, showOnSite: !value } : p)))
+    }
   }
 
   function handleToggle(
@@ -504,6 +526,126 @@ export function WebsiteTabClient({
           />
         ))}
       </SectionCard>
+
+      <SectionCard
+        title="Prodotti in vetrina"
+        description="Scegli quali prodotti mostrare nella sezione prodotti della tua pagina pubblica."
+      >
+        {products.length === 0 && (
+          <div style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#9CA3AF' }}>
+              <Package size={18} />
+              <p style={{ margin: 0, fontSize: 13 }}>Non hai ancora aggiunto prodotti al catalogo.</p>
+            </div>
+            <a
+              href="../catalogo"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#111827', textDecoration: 'none' }}
+            >
+              Vai al catalogo prodotti →
+            </a>
+          </div>
+        )}
+
+        {products.length > 0 && (
+          <>
+            {products.map((product) => (
+              <ProductToggleRow
+                key={product.id}
+                product={product}
+                onChange={handleProductToggle}
+              />
+            ))}
+            <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0' }}>
+              {products.filter((p) => p.showOnSite).length} prodott{products.filter((p) => p.showOnSite).length === 1 ? 'o visibile' : 'i visibili'} sul sito
+            </p>
+          </>
+        )}
+
+        {products.length > 0 && !products.some((p) => p.showOnSite) && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#FFF9ED', border: '1px solid #FDE68A', borderRadius: 10, marginTop: 4 }}>
+            <AlertTriangle size={14} style={{ color: '#B45309', flexShrink: 0, marginTop: 1 }} />
+            <p style={{ margin: 0, fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+              La sezione prodotti non sarà visibile sul tuo sito finché non attivi almeno un prodotto.
+            </p>
+          </div>
+        )}
+      </SectionCard>
+    </div>
+  )
+}
+
+function ProductToggleRow({
+  product,
+  onChange,
+}: {
+  product: WebsiteProduct
+  onChange: (id: string, value: boolean) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
+      {/* Thumbnail */}
+      <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F3F4F6', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+        {product.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={product.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <Package size={16} />
+        )}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: product.showOnSite ? '#111827' : '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {product.name}
+          </p>
+          {product.isOutOfStock && (
+            <span
+              title="Questo prodotto è esaurito. Valuta se nasconderlo dal sito"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 4, background: '#FFF7ED', border: '1px solid #FDBA74', fontSize: 10, fontWeight: 700, color: '#C2410C', flexShrink: 0, cursor: 'help' }}
+            >
+              <AlertTriangle size={9} />
+              Esaurito
+            </span>
+          )}
+        </div>
+        <p style={{ margin: '1px 0 0', fontSize: 11, color: '#9CA3AF' }}>
+          {[product.brand, `€ ${product.priceSell.toFixed(2)}`].filter(Boolean).join(' · ')}
+        </p>
+        {!product.showOnSite && <p style={{ margin: '1px 0 0', fontSize: 11, color: '#9CA3AF', fontStyle: 'italic' }}>Non visibile nel sito</p>}
+      </div>
+
+      {/* Toggle */}
+      <button
+        type="button"
+        onClick={() => onChange(product.id, !product.showOnSite)}
+        style={{
+          width: 44,
+          height: 24,
+          borderRadius: 12,
+          padding: 2,
+          border: 'none',
+          cursor: 'pointer',
+          background: product.showOnSite ? '#111827' : '#D1D5DB',
+          flexShrink: 0,
+          position: 'relative',
+          transition: 'background 150ms ease',
+        }}
+        aria-label={product.showOnSite ? 'Rimuovi dal sito' : 'Mostra sul sito'}
+      >
+        <div
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            background: '#FFF',
+            position: 'absolute',
+            top: 2,
+            left: product.showOnSite ? 22 : 2,
+            transition: 'left 150ms ease',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+          }}
+        />
+      </button>
     </div>
   )
 }

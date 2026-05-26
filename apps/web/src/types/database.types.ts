@@ -895,12 +895,14 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
+          display_order: number
           id: string
           is_active: boolean
           name: string
           photo_url: string | null
           price_cost: number | null
           price_sell: number
+          show_on_site: boolean
           sku: string | null
           tenant_id: string
           updated_at: string
@@ -910,12 +912,14 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number
           id?: string
           is_active?: boolean
           name: string
           photo_url?: string | null
           price_cost?: number | null
           price_sell: number
+          show_on_site?: boolean
           sku?: string | null
           tenant_id: string
           updated_at?: string
@@ -925,12 +929,14 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number
           id?: string
           is_active?: boolean
           name?: string
           photo_url?: string | null
           price_cost?: number | null
           price_sell?: number
+          show_on_site?: boolean
           sku?: string | null
           tenant_id?: string
           updated_at?: string
