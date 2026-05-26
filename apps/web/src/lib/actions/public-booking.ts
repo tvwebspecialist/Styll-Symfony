@@ -268,13 +268,20 @@ export function getPublicTeam(tenantId: string): Promise<PublicTeamMember[]> {
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
 
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[getPublicTeam] raw staff_members:', JSON.stringify(data, null, 2))
+      }
+
       return ((data ?? []) as unknown as RawTeamMember[]).map((member) => {
         const profile = Array.isArray(member.profile) ? member.profile[0] : member.profile
+        // Prefer staff-specific photo (set on staff_members row) over generic profile avatar.
+        // Use || instead of ?? so empty strings are also skipped.
+        const photo_url = member.photo_url || profile?.avatar_url || null
         return {
           id: member.id,
           full_name: profile?.full_name ?? null,
           bio: member.bio ?? null,
-          photo_url: profile?.avatar_url ?? member.photo_url ?? null,
+          photo_url,
           role: member.role,
         }
       })
