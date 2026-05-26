@@ -16,6 +16,7 @@ import LandingTeam from '@/components/landing/LandingTeam'
 import LandingLocations from '@/components/landing/LandingLocations'
 import LandingGallery from '@/components/landing/LandingGallery'
 import LandingPromo from '@/components/landing/LandingPromo'
+import LandingPWACta from '@/components/landing/LandingPWACta'
 import LandingFooter from '@/components/landing/LandingFooter'
 import LandingInstallBanner from '@/components/landing/LandingInstallBanner'
 import ScrollRevealInit from '@/components/landing/ScrollRevealInit'
@@ -171,6 +172,12 @@ export default async function LandingPage({ params }: Props) {
         tenant={tenant}
         promotions={promotions}
         slug={slug}
+      />
+
+      <LandingPWACta
+        tenantName={tenant.business_name}
+        logoUrl={tenant.logo_url}
+        primaryColor={tenant.primary_color ?? '#1a1a1a'}
       />
 
       <LandingFooter
