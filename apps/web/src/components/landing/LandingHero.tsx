@@ -78,7 +78,7 @@ export default function LandingHero({ tenant, firstLocation, websitePhotos, slug
         </div>
 
         <Link
-          href={`/tenant/app/${slug}/prenota`}
+          href={`https://${slug}-app.styll.it/prenota`}
           aria-label={`Prenota da ${tenant.business_name}`}
           className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/25"
           style={
@@ -149,7 +149,7 @@ export default function LandingHero({ tenant, firstLocation, websitePhotos, slug
         {/* CTAs */}
         <div className="flex flex-wrap gap-3">
           <Link
-            href={`/tenant/app/${slug}/prenota`}
+            href={`https://${slug}-app.styll.it/prenota`}
             aria-label={`Prenota appuntamento da ${tenant.business_name}`}
             className="inline-flex items-center gap-2 rounded-full px-7 py-4 text-[15px] font-bold text-white shadow-xl transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand-primary)' }}

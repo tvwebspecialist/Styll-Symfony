@@ -169,7 +169,7 @@ export default function LandingPromo({ tenant, promotions, slug }: Props) {
               )}
 
               <Link
-                href={`/tenant/app/${slug}/prenota`}
+                href={`https://${slug}-app.styll.it/prenota`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -226,7 +226,7 @@ export default function LandingPromo({ tenant, promotions, slug }: Props) {
           </div>
 
           <Link
-            href={`/tenant/app/${slug}/prenota`}
+            href={`https://${slug}-app.styll.it/prenota`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

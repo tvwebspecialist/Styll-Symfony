@@ -93,11 +93,18 @@ export default async function LandingPage({ params }: Props) {
           box-shadow: 0 16px 40px rgba(0,0,0,0.12) !important;
         }
 
+        .lp-team-card {
+          transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+        }
+        .lp-team-card:hover {
+          transform: scale(1.02);
+          box-shadow: 0 24px 56px rgba(0,0,0,0.4);
+        }
         .lp-team-card .lp-team-photo {
           transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .lp-team-card:hover .lp-team-photo {
-          transform: scale(1.05);
+          transform: scale(1.06);
         }
 
         .lp-gallery-img {
