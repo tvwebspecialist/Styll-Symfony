@@ -3,11 +3,10 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Users, Eye, MoreHorizontal, UserPlus, Clock, Camera } from 'lucide-react'
+import { Loader2, Users, Eye, MoreHorizontal, UserPlus, Clock } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import { CustomSelect } from '@/components/ui/custom-select'
-import { createClient } from '@/lib/supabase/client'
-import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView, updateStaffPhoto } from '@/lib/actions/team'
+import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
 import { StaffAvailabilityEditor } from './StaffAvailabilityEditor'
 
@@ -328,37 +327,7 @@ function StaffCard({
   onAvailability: (m: StaffMemberRow) => void
 }) {
   const [hovered, setHovered] = React.useState(false)
-  const [uploading, setUploading] = React.useState(false)
-  const [localAvatarUrl, setLocalAvatarUrl] = React.useState<string | null>(member.avatarUrl)
-  const fileRef = React.useRef<HTMLInputElement>(null)
-
-  const canEditPhoto = canEdit || isSelf
-  const hasPhoto = !!(localAvatarUrl && localAvatarUrl.trim())
-
-  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const supabase = createClient()
-      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-      const path = `staff-photos/${member.id}.${ext}`
-      const { error: uploadError } = await supabase.storage
-        .from('tenants')
-        .upload(path, file, { upsert: true })
-      if (uploadError) throw uploadError
-      const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
-      const result = await updateStaffPhoto(member.id, urlData.publicUrl)
-      if (!result.success) throw new Error(result.error)
-      setLocalAvatarUrl(urlData.publicUrl)
-      toast.success('Foto aggiornata')
-    } catch (err) {
-      toast.error('Errore upload: ' + (err instanceof Error ? err.message : String(err)))
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
+  const hasPhoto = !!(member.avatarUrl && member.avatarUrl.trim())
 
   return (
     <div
@@ -381,7 +350,7 @@ function StaffCard({
       {/* Photo / initials layer */}
       {hasPhoto ? (
         <img
-          src={localAvatarUrl!}
+          src={member.avatarUrl!}
           alt={member.fullName ?? ''}
           style={{
             position: 'absolute',
@@ -412,52 +381,6 @@ function StaffCard({
         >
           {getInitials(member.fullName)}
         </div>
-      )}
-
-      {/* Hidden file input for photo upload */}
-      {canEditPhoto && (
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={handlePhotoChange}
-        />
-      )}
-
-      {/* Camera button — top-left corner, visible when canEditPhoto */}
-      {canEditPhoto && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
-          disabled={uploading}
-          title="Cambia foto professionale"
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: uploading ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.35)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            border: 'none',
-            cursor: uploading ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2,
-            transition: 'background 200ms ease',
-          } as React.CSSProperties}
-          onMouseEnter={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.55)' }}
-          onMouseLeave={(e) => { if (!uploading) (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.35)' }}
-        >
-          {uploading
-            ? <Loader2 size={14} color="#FFF" style={{ animation: 'spin 1s linear infinite' }} />
-            : <Camera size={14} color="#FFF" />
-          }
-        </button>
       )}
 
       {/* Three-dots edit button — top-right corner */}
