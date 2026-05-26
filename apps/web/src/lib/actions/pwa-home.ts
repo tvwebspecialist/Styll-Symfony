@@ -78,7 +78,7 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
     return {
       id: member.id,
       fullName: profile?.full_name ?? null,
-      avatarUrl: profile?.avatar_url ?? member.photo_url ?? null,
+      avatarUrl: member.photo_url || profile?.avatar_url || null,
     }
   })
 
