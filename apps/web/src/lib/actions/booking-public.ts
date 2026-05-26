@@ -209,7 +209,7 @@ export async function getPublicStaffByLocation(
       return {
         id: member.id,
         full_name: profile.full_name,
-        avatar_url: profile.avatar_url ?? member.photo_url,
+        avatar_url: member.photo_url || profile.avatar_url || null,
         role: member.role,
         bio: member.bio,
         service_count: serviceCountMap.get(member.id) ?? 0,

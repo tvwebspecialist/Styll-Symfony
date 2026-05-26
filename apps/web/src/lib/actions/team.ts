@@ -42,7 +42,7 @@ export async function getTeamData(): Promise<TeamData> {
   const [staffRes, locsRes, currentStaffRes] = await Promise.all([
     db
       .from('staff_members')
-      .select('id, profile_id, role, is_active, profiles(full_name, email, avatar_url)')
+      .select('id, profile_id, role, is_active, photo_url, profiles(full_name, email, avatar_url)')
       .eq('tenant_id', tenantId)
       .is('deleted_at', null)
       .order('role', { ascending: true }),
@@ -84,7 +84,7 @@ export async function getTeamData(): Promise<TeamData> {
       isActive: (sm as any).is_active ?? true,
       fullName: profile.full_name ?? null,
       email: profile.email ?? null,
-      avatarUrl: profile.avatar_url ?? null,
+      avatarUrl: (sm as any).photo_url || profile.avatar_url || null,
       locationNames: myLocs as string[],
       serviceCount: 0,
     }
