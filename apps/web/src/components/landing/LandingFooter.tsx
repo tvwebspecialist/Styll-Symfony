@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { MapPin, Phone, Mail, Map } from 'lucide-react'
@@ -21,101 +22,177 @@ export default function LandingFooter({ tenant, firstLocation, slug }: Props) {
   return (
     <footer
       aria-label="Footer"
-      className="border-t"
-      style={{
-        background: '#050505',
-        borderColor: 'var(--landing-border)',
-      }}
+      style={{ background: '#050505' } as CSSProperties}
     >
-      <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8">
-        <div className="grid gap-12 md:grid-cols-3">
-          {/* Brand */}
+      {/* Main footer content */}
+      <div
+        style={{
+          maxWidth: 1120,
+          margin: '0 auto',
+          padding: 'clamp(4rem, 8vw, 6rem) clamp(20px, 5vw, 48px) 0',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 'clamp(2.5rem, 5vw, 4rem)',
+            paddingBottom: 'clamp(3rem, 6vw, 5rem)',
+            borderBottom: '1px solid rgba(255,255,255,0.07)',
+          }}
+        >
+          {/* Brand column */}
           <div>
-            {tenant.logo_url ? (
-              <div className="mb-4">
+            {tenant.logo_url && (
+              <div style={{ marginBottom: 16 }}>
                 <Image
                   src={tenant.logo_url}
                   alt={tenant.business_name}
-                  width={48}
-                  height={48}
-                  className="rounded-xl object-cover"
+                  width={52}
+                  height={52}
+                  className="rounded-2xl object-cover"
                 />
               </div>
-            ) : null}
+            )}
+
             <p
-              className="mb-2 text-base font-bold"
-              style={{ color: 'var(--landing-text-primary)' }}
+              style={{
+                fontSize: '1.1rem',
+                fontWeight: 800,
+                color: '#FFFFFF',
+                letterSpacing: '-0.02em',
+                marginBottom: 8,
+              }}
             >
               {tenant.business_name}
             </p>
+
             {bio && (
               <p
-                className="mb-4 line-clamp-1 text-sm"
-                style={{ color: 'var(--landing-text-muted)' }}
+                style={{
+                  fontSize: '0.82rem',
+                  color: 'rgba(255,255,255,0.4)',
+                  lineHeight: 1.65,
+                  marginBottom: 20,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  maxWidth: 220,
+                } as CSSProperties}
               >
                 {bio}
               </p>
             )}
+
             <a
               href="https://styll.it"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] transition-opacity hover:opacity-80"
-              style={{ color: 'var(--landing-text-dim)' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                color: 'rgba(255,255,255,0.22)',
+                textDecoration: 'none',
+                letterSpacing: '0.05em',
+                transition: 'color 0.2s',
+              } as CSSProperties}
             >
-              Powered by Styll
+              Powered by Styll ↗
             </a>
           </div>
 
-          {/* Contatti */}
+          {/* Contatti column */}
           <div>
             <p
-              className="mb-5 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: 'var(--landing-text-dim)' }}
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.15em',
+                color: 'rgba(255,255,255,0.3)',
+                marginBottom: 20,
+              }}
             >
               Contatti
             </p>
-            <ul className="space-y-3">
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 14, listStyle: 'none', padding: 0, margin: 0 }}>
               {address && (
-                <li className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--landing-text-muted)' }}>
-                  <MapPin size={14} className="mt-0.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                <li
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    fontSize: '0.875rem',
+                    color: 'rgba(255,255,255,0.5)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <MapPin size={14} style={{ color: 'var(--brand-primary)', marginTop: 2, flexShrink: 0 }} />
                   {address}
                 </li>
               )}
+
               {firstLocation?.phone && (
                 <li>
                   <a
                     href={`tel:${firstLocation.phone}`}
-                    className="flex items-center gap-2.5 text-sm transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--landing-text-muted)' }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: '0.875rem',
+                      color: 'rgba(255,255,255,0.5)',
+                      textDecoration: 'none',
+                      transition: 'color 0.2s',
+                    } as CSSProperties}
                   >
-                    <Phone size={14} className="shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                    <Phone size={14} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
                     {firstLocation.phone}
                   </a>
                 </li>
               )}
+
               {firstLocation?.email && (
                 <li>
                   <a
                     href={`mailto:${firstLocation.email}`}
-                    className="flex items-center gap-2.5 text-sm transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--landing-text-muted)' }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: '0.875rem',
+                      color: 'rgba(255,255,255,0.5)',
+                      textDecoration: 'none',
+                      transition: 'color 0.2s',
+                    } as CSSProperties}
                   >
-                    <Mail size={14} className="shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                    <Mail size={14} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
                     {firstLocation.email}
                   </a>
                 </li>
               )}
+
               {mapsUrl && (
                 <li>
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2.5 text-sm transition-opacity hover:opacity-80"
-                    style={{ color: 'var(--landing-text-muted)' }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: '0.875rem',
+                      color: 'rgba(255,255,255,0.5)',
+                      textDecoration: 'none',
+                      transition: 'color 0.2s',
+                    } as CSSProperties}
                   >
-                    <Map size={14} className="shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                    <Map size={14} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
                     Vedi su Google Maps
                   </a>
                 </li>
@@ -123,55 +200,137 @@ export default function LandingFooter({ tenant, firstLocation, slug }: Props) {
             </ul>
           </div>
 
-          {/* Azione */}
+          {/* Esplora column */}
           <div>
             <p
-              className="mb-5 text-[0.75rem] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: 'var(--landing-text-dim)' }}
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.15em',
+                color: 'rgba(255,255,255,0.3)',
+                marginBottom: 20,
+              }}
+            >
+              Esplora
+            </p>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, listStyle: 'none', padding: 0, margin: 0 }}>
+              {[
+                { label: 'Servizi', href: '#servizi' },
+                { label: 'Il team', href: '#' },
+                { label: 'Galleria', href: '#' },
+              ].map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
+                    style={{
+                      fontSize: '0.875rem',
+                      color: 'rgba(255,255,255,0.45)',
+                      textDecoration: 'none',
+                      transition: 'color 0.2s',
+                      display: 'block',
+                    } as CSSProperties}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* CTA column */}
+          <div>
+            <p
+              style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.15em',
+                color: 'rgba(255,255,255,0.3)',
+                marginBottom: 20,
+              }}
             >
               Inizia ora
             </p>
-            <div className="flex flex-col gap-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Link
                 href={`/tenant/app/${slug}/prenota`}
-                className="inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
-                style={{ background: 'var(--brand-primary)' }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 7,
+                  background: 'var(--brand-primary)',
+                  color: '#FFFFFF',
+                  borderRadius: 99,
+                  padding: '12px 20px',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  transition: 'opacity 0.2s',
+                } as CSSProperties}
               >
                 Prenota ora
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
               </Link>
+
               <Link
                 href={`/tenant/app/${slug}`}
-                className="inline-flex items-center justify-center rounded-full border px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-80"
                 style={{
-                  borderColor: 'var(--landing-border)',
-                  color: 'var(--landing-text-muted)',
-                }}
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 99,
+                  padding: '12px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'rgba(255,255,255,0.45)',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  transition: 'border-color 0.2s, color 0.2s',
+                } as CSSProperties}
               >
-                Accedi all'app
+                Accedi all&apos;app
               </Link>
             </div>
           </div>
         </div>
 
+        {/* Bottom bar */}
         <div
-          className="mt-12 flex flex-col gap-3 border-t pt-8 sm:flex-row sm:items-center sm:justify-between"
-          style={{ borderColor: 'var(--landing-border)' }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            padding: '24px 0 32px',
+          }}
+          className="sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="text-xs" style={{ color: 'var(--landing-text-dim)' }}>
-            © 2025 {tenant.business_name}. Tutti i diritti riservati.
+          <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.2)' }}>
+            © {new Date().getFullYear()} {tenant.business_name}. Tutti i diritti riservati.
           </p>
-          <div className="flex gap-4">
+          <div style={{ display: 'flex', gap: 20 }}>
             <Link
               href="#"
-              className="text-xs transition-opacity hover:opacity-80"
-              style={{ color: 'var(--landing-text-dim)' }}
+              style={{
+                fontSize: '0.75rem',
+                color: 'rgba(255,255,255,0.2)',
+                textDecoration: 'none',
+                transition: 'color 0.2s',
+              } as CSSProperties}
             >
               Privacy Policy
             </Link>
             <Link
               href="#"
-              className="text-xs transition-opacity hover:opacity-80"
-              style={{ color: 'var(--landing-text-dim)' }}
+              style={{
+                fontSize: '0.75rem',
+                color: 'rgba(255,255,255,0.2)',
+                textDecoration: 'none',
+                transition: 'color 0.2s',
+              } as CSSProperties}
             >
               Cookie Policy
             </Link>
