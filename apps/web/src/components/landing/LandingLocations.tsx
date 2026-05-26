@@ -78,6 +78,7 @@ export default function LandingLocations({ locations }: Props) {
       {/* Scroll track */}
       <div className="lp-locations-track">
         {locations.map((loc) => {
+          const coverPhoto = loc.photos?.[0] || loc.photo_url || null
           const hasCoords = loc.latitude != null && loc.longitude != null
           const mapsUrl = hasCoords
             ? `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`
@@ -88,9 +89,9 @@ export default function LandingLocations({ locations }: Props) {
           return (
             <div key={loc.id} className="lp-loc-card">
               {/* Background photo or placeholder */}
-              {loc.photo_url ? (
+              {coverPhoto ? (
                 <img
-                  src={loc.photo_url}
+                  src={coverPhoto}
                   alt={loc.name}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                 />

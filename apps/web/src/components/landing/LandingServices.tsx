@@ -9,255 +9,343 @@ interface Props {
   slug: string
 }
 
-interface ServiceGroup {
-  category: string
-  services: PublicService[]
+function getCategoryIcon(category: string | null): string {
+  const cat = (category ?? '').toLowerCase()
+  if (cat.includes('taglio') || cat.includes('capell') || cat.includes('hair')) return '✂️'
+  if (cat.includes('barba') || cat.includes('rasatura') || cat.includes('beard')) return '🪒'
+  if (cat.includes('color') || cat.includes('tinta')) return '🎨'
+  if (cat.includes('trattament') || cat.includes('cura')) return '✨'
+  if (cat.includes('massagg')) return '💆'
+  if (cat.includes('sopraccig') || cat.includes('brow')) return '👁️'
+  if (cat.includes('uomo') || cat.includes('man')) return '👔'
+  return '💈'
 }
 
-function groupServicesByCategory(services: PublicService[]): ServiceGroup[] {
-  const groups = new Map<string, PublicService[]>()
-  for (const service of services) {
-    const cat = service.category?.trim() || 'Servizi principali'
-    const current = groups.get(cat) ?? []
-    current.push(service)
-    groups.set(cat, current)
-  }
-  return Array.from(groups.entries()).map(([category, items]) => ({
-    category,
-    services: items.sort((a, b) => a.display_order - b.display_order),
-  }))
-}
-
-function formatPriceNumber(price: number): string {
+function formatPrice(price: number): string {
   return new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(price)
 }
 
-interface ServiceCardProps {
-  service: PublicService
-  slug: string
+// Derive a stable glow color for each service
+function resolveGlowColor(service: PublicService, primaryColor: string, index: number): string {
+  if (service.color) return service.color
+  return primaryColor
 }
 
-function ServiceCard({ service, slug }: ServiceCardProps) {
-  return (
-    <Link
-      href={`https://${slug}-app.styll.it/prenota?service=${service.id}`}
-      className="lp-service-card"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        background: '#FFFFFF',
-        borderRadius: 20,
-        padding: '24px 24px 20px',
-        boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
-        border: '1px solid #EFEFEF',
-        textDecoration: 'none',
-        minHeight: 140,
-      } as CSSProperties}
-    >
-      <div>
-        <p
-          style={{
-            fontSize: '1.05rem',
-            fontWeight: 700,
-            color: '#111111',
-            lineHeight: 1.3,
-            marginBottom: 6,
-          }}
-        >
-          {service.name}
-        </p>
-        {service.description && (
-          <p
-            style={{
-              fontSize: '0.82rem',
-              color: '#888888',
-              lineHeight: 1.6,
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-            } as CSSProperties}
-          >
-            {service.description}
-          </p>
-        )}
-      </div>
+// Slight opacity variation per card index to create visual rhythm
+const glowOpacities = [0.28, 0.22, 0.25, 0.18, 0.30, 0.20]
 
-      <div
-        style={{
-          marginTop: 18,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            background: '#F5F5F5',
-            borderRadius: 99,
-            padding: '4px 10px',
-            fontSize: 12,
-            fontWeight: 600,
-            color: '#777',
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          {service.duration_minutes} min
-        </span>
+export default function LandingServices({ tenant, services, slug }: Props) {
+  if (!services.length) return null
 
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-          <span
-            style={{
-              fontSize: '1.5rem',
-              fontWeight: 900,
-              color: 'var(--brand-primary)',
-              lineHeight: 1,
-            }}
-          >
-            {formatPriceNumber(service.price)}
-          </span>
-          <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#AAA' }}>€</span>
-        </div>
-      </div>
-
-      {/* Prenota arrow */}
-      <div
-        style={{
-          marginTop: 14,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          fontSize: '0.78rem',
-          fontWeight: 700,
-          color: 'var(--brand-primary)',
-        }}
-      >
-        Prenota
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-          <path d="M5 12h14M12 5l7 7-7 7" />
-        </svg>
-      </div>
-    </Link>
-  )
-}
-
-export default function LandingServices({ services, slug }: Props) {
-  if (services.length === 0) return null
-  const grouped = groupServicesByCategory(services)
+  const primaryColor = tenant.primary_color
 
   return (
     <section
-      aria-label="Servizi"
       id="servizi"
+      aria-label="Servizi"
       data-reveal
-      style={{ background: '#F7F7F7', padding: 'clamp(5rem, 10vw, 8rem) 0' } as CSSProperties}
+      style={{ background: '#0a0a0a', padding: 'clamp(5rem, 10vw, 8rem) 0', position: 'relative' } as CSSProperties}
     >
+      <style>{`
+        .lp-svc-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+        }
+        @media (max-width: 1024px) {
+          .lp-svc-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 640px) {
+          .lp-svc-grid { grid-template-columns: 1fr; }
+        }
+        .lp-svc-card {
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          background: #141414;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 20px;
+          padding: 26px 24px 22px;
+          text-decoration: none;
+          overflow: hidden;
+          transition: transform 0.25s ease, border-color 0.25s ease;
+        }
+        .lp-svc-card:hover {
+          transform: translateY(-4px) scale(1.015);
+          border-color: rgba(255,255,255,0.14);
+        }
+        .lp-svc-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        @media (max-width: 640px) {
+          .lp-svc-header-text { flex-direction: column; }
+        }
+      `}</style>
+
       <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 clamp(20px, 5vw, 48px)' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 'clamp(3rem, 6vw, 4.5rem)' }}>
-          <span
+
+        {/* Section header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: 32,
+            marginBottom: 'clamp(2.5rem, 5vw, 3.5rem)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <span
+              style={{
+                display: 'block',
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.22em',
+                color: primaryColor,
+                marginBottom: 14,
+              }}
+            >
+              Cosa offriamo
+            </span>
+            <h2
+              style={{
+                fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
+                fontWeight: 800,
+                color: '#FFFFFF',
+                lineHeight: 1.06,
+                letterSpacing: '-0.03em',
+                margin: 0,
+              }}
+            >
+              I Nostri Servizi
+            </h2>
+          </div>
+          <p
             style={{
-              display: 'block',
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.22em',
-              color: 'var(--brand-primary)',
-              marginBottom: 16,
+              fontSize: '1rem',
+              color: 'rgba(255,255,255,0.45)',
+              lineHeight: 1.6,
+              maxWidth: 320,
+              margin: 0,
+              paddingBottom: 6,
             }}
           >
-            Cosa offriamo
-          </span>
-          <h2
-            style={{
-              fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
-              fontWeight: 800,
-              color: '#111111',
-              lineHeight: 1.08,
-              letterSpacing: '-0.03em',
-              marginBottom: 0,
-            }}
-          >
-            I Nostri Servizi
-          </h2>
+            Scegli il servizio che fa per te e prenota in pochi secondi.
+          </p>
         </div>
 
-        {/* Categories */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(2.5rem, 5vw, 4rem)' }}>
-          {grouped.map((group) => (
-            <div key={group.category}>
-              {/* Category label */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 20,
-                }}
+        {/* Cards grid */}
+        <div className="lp-svc-grid">
+          {services.map((service, i) => {
+            const glowColor = resolveGlowColor(service, primaryColor, i)
+            const glowOpacity = glowOpacities[i % glowOpacities.length]
+            const icon = getCategoryIcon(service.category)
+
+            return (
+              <Link
+                key={service.id}
+                href={`https://${slug}-app.styll.it/prenota?service=${service.id}`}
+                className="lp-svc-card"
               >
+                {/* Bottom glow */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    bottom: -10,
+                    left: '15%',
+                    right: '15%',
+                    height: 80,
+                    background: `radial-gradient(ellipse at 50% 100%, ${glowColor} 0%, transparent 70%)`,
+                    opacity: glowOpacity,
+                    filter: 'blur(16px)',
+                    pointerEvents: 'none',
+                    borderRadius: '50%',
+                  }}
+                />
+
+                {/* Icon badge */}
                 <div
                   style={{
-                    width: 4,
-                    height: 22,
-                    background: 'var(--brand-primary)',
-                    borderRadius: 99,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'rgba(255,255,255,0.06)',
+                    fontSize: 20,
+                    marginBottom: 18,
                     flexShrink: 0,
                   }}
                   aria-hidden="true"
-                />
-                <span
+                >
+                  {icon}
+                </div>
+
+                {/* Name */}
+                <p
                   style={{
-                    fontSize: 11,
+                    fontSize: '1.1rem',
                     fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.18em',
-                    color: '#999',
+                    color: '#FFFFFF',
+                    lineHeight: 1.3,
+                    marginBottom: 8,
                   }}
                 >
-                  {group.category}
-                </span>
-              </div>
+                  {service.name}
+                </p>
 
-              {/* Cards grid */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                  gap: 14,
-                }}
-              >
-                {group.services.map((service) => (
-                  <ServiceCard key={service.id} service={service} slug={slug} />
-                ))}
-              </div>
-            </div>
+                {/* Description */}
+                {service.description && (
+                  <p
+                    style={{
+                      fontSize: '0.82rem',
+                      color: 'rgba(255,255,255,0.4)',
+                      lineHeight: 1.55,
+                      marginBottom: 0,
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                    } as CSSProperties}
+                  >
+                    {service.description}
+                  </p>
+                )}
+
+                {/* Spacer */}
+                <div style={{ flex: 1 }} />
+
+                {/* Duration + Price row */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    marginTop: 20,
+                    paddingTop: 16,
+                    borderTop: '1px solid rgba(255,255,255,0.07)',
+                  }}
+                >
+                  {/* Duration badge */}
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      background: 'rgba(255,255,255,0.06)',
+                      borderRadius: 99,
+                      padding: '4px 10px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,0.45)',
+                    }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {service.duration_minutes} min
+                  </span>
+
+                  {/* Price */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                    <span
+                      style={{
+                        fontSize: '1.6rem',
+                        fontWeight: 900,
+                        color: primaryColor,
+                        lineHeight: 1,
+                        letterSpacing: '-0.02em',
+                      }}
+                    >
+                      {formatPrice(service.price)}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)', marginLeft: 1 }}>€</span>
+                  </div>
+                </div>
+
+                {/* Prenota link */}
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: primaryColor,
+                  }}
+                >
+                  Prenota
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+
+        {/* Trust badges */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '12px 32px',
+            justifyContent: 'center',
+            marginTop: 'clamp(2rem, 4vw, 3rem)',
+          }}
+        >
+          {[
+            'Prenotazione online',
+            'Pagamento in loco',
+            'Cancellazione gratuita',
+          ].map((badge) => (
+            <span
+              key={badge}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                color: 'rgba(255,255,255,0.35)',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={primaryColor} strokeWidth="2.5" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              {badge}
+            </span>
           ))}
         </div>
 
-        {/* Bottom CTA */}
-        <div style={{ marginTop: 'clamp(2.5rem, 5vw, 4rem)', textAlign: 'center' }}>
+        {/* CTA */}
+        <div style={{ marginTop: 'clamp(2rem, 4vw, 3rem)', textAlign: 'center' }}>
           <Link
             href={`https://${slug}-app.styll.it/prenota`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 8,
-              background: '#111111',
+              gap: 10,
+              border: '1.5px solid rgba(255,255,255,0.18)',
               color: '#FFFFFF',
+              background: 'transparent',
               borderRadius: 999,
-              padding: '15px 36px',
+              padding: '14px 36px',
               fontSize: 15,
               fontWeight: 700,
               textDecoration: 'none',
-              transition: 'background 0.2s ease',
+              transition: 'background 0.2s ease, border-color 0.2s ease',
             } as CSSProperties}
           >
             Prenota un appuntamento

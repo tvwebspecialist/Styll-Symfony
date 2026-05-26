@@ -4,7 +4,7 @@ import type { Tables } from '@/types'
 
 export type PublicLocation = Pick<
   Tables<'locations'>,
-  'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'email' | 'latitude' | 'longitude'
+  'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'photos' | 'email' | 'latitude' | 'longitude'
 >
 
 export interface PublicPortfolioPhoto {
@@ -22,7 +22,7 @@ export interface PublicWebsitePhoto {
 
 export type PublicService = Pick<
   Tables<'services'>,
-  'id' | 'name' | 'description' | 'price' | 'duration_minutes' | 'category' | 'display_order'
+  'id' | 'name' | 'description' | 'price' | 'duration_minutes' | 'category' | 'display_order' | 'color'
 >
 
 export interface PublicStaffMember {
@@ -208,7 +208,7 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
       const db = createAdminClient()
       const { data } = await db
         .from('locations')
-        .select('id, name, address, city, phone, photo_url, email, latitude, longitude')
+        .select('id, name, address, city, phone, photo_url, photos, email, latitude, longitude')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_website', true)
@@ -221,6 +221,7 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
         city: location.city,
         phone: location.phone,
         photo_url: location.photo_url,
+        photos: location.photos ?? [],
         email: location.email,
         latitude: location.latitude,
         longitude: location.longitude,
@@ -351,7 +352,7 @@ export function getPublicLocationById(
       const db = createAdminClient()
       const { data } = await db
         .from('locations')
-        .select('id, name, address, city, phone, photo_url, email, latitude, longitude')
+        .select('id, name, address, city, phone, photo_url, photos, email, latitude, longitude')
         .eq('tenant_id', tenantId)
         .eq('id', locationId)
         .eq('is_active', true)
@@ -369,6 +370,7 @@ export function getPublicLocationById(
         city: location.city,
         phone: location.phone,
         photo_url: location.photo_url,
+        photos: location.photos ?? [],
         email: location.email,
         latitude: location.latitude,
         longitude: location.longitude,
@@ -388,7 +390,7 @@ export function getPublicServices(tenantId: string): Promise<PublicService[]> {
       const db = createAdminClient()
       const { data } = await db
         .from('services')
-        .select('id, name, description, price, duration_minutes, category, display_order')
+        .select('id, name, description, price, duration_minutes, category, color, display_order')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_website', true)
@@ -401,6 +403,7 @@ export function getPublicServices(tenantId: string): Promise<PublicService[]> {
         price: Number(service.price ?? 0),
         duration_minutes: Number(service.duration_minutes ?? 0),
         category: service.category,
+        color: service.color ?? null,
         display_order: Number(service.display_order ?? 0),
       }))
     },
@@ -423,7 +426,7 @@ export async function getPublicServicesByIds(
   const db = createAdminClient()
   const { data } = await db
     .from('services')
-    .select('id, name, description, price, duration_minutes, category, display_order')
+    .select('id, name, description, price, duration_minutes, category, color, display_order')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .in('id', serviceIds)
@@ -435,6 +438,7 @@ export async function getPublicServicesByIds(
     price: Number(service.price ?? 0),
     duration_minutes: Number(service.duration_minutes ?? 0),
     category: service.category,
+    color: service.color ?? null,
     display_order: Number(service.display_order ?? 0),
   }))
 
