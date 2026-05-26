@@ -43,17 +43,19 @@ export function InviteClient({
   }
 
   async function handleAccept() {
+    if (processingRef.current) return
+    processingRef.current = true
     setStep('processing')
     const result = await acceptInvitation(token, userId)
     if (result.success) {
       setStep('success')
-      // Redirect to member onboarding after 1.5 seconds
-      setTimeout(() => {
-        router.push(`/onboarding/member?tenant=${result.tenantId}`)
-      }, 1500)
+    setTimeout(() => {
+      router.push(`/onboarding/member?tenant=${result.tenantId}`)
+    }, 1500)
     } else {
-      setErrorMessage(result.error || 'Errore nell\'accettazione dell\'invito')
-      setStep('error')
+    setErrorMessage(result.error || 'Errore nell\'accettazione dell\'invito')
+    setStep('error')
+    processingRef.current = false
     }
   }
 
@@ -152,7 +154,7 @@ export function InviteClient({
 
             <button
               onClick={handleAccept}
-              disabled={false}
+              disabled={step !== 'confirm'}
               style={{
                 width: '100%',
                 backgroundColor: '#111',
