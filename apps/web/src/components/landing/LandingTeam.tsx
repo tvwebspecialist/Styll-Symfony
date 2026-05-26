@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { PublicTeamMember } from '@/lib/actions/public-booking'
@@ -9,77 +10,157 @@ interface Props {
 
 function formatRole(role: string): string {
   switch (role) {
-    case 'owner':
-      return 'Titolare'
-    case 'manager':
-      return 'Manager'
-    case 'staff':
-      return 'Barbiere'
-    case 'receptionist':
-      return 'Receptionist'
-    default:
-      return role
+    case 'owner': return 'Titolare'
+    case 'manager': return 'Manager'
+    case 'staff': return 'Barbiere'
+    case 'receptionist': return 'Receptionist'
+    default: return role
   }
 }
 
 interface MemberCardProps {
   member: PublicTeamMember
   slug: string
+  index: number
 }
 
-function MemberCard({ member, slug }: MemberCardProps) {
+function MemberCard({ member, slug, index }: MemberCardProps) {
   const initial = (member.full_name ?? '?')[0]?.toUpperCase() ?? '?'
   const hasPhoto = Boolean(member.photo_url)
 
   return (
-    <article className="group w-[220px] shrink-0 md:w-auto" style={{ scrollSnapAlign: 'start' }}>
-      <div className="relative mb-4 w-full overflow-hidden rounded-2xl" style={{ aspectRatio: '3/4', background: '#F9FAFB' }}>
-        {member.photo_url ? (
+    <article
+      className="lp-team-card"
+      data-reveal
+      data-reveal-delay={String(index * 80)}
+      style={{ display: 'flex', flexDirection: 'column' } as CSSProperties}
+    >
+      {/* Photo container */}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          borderRadius: 24,
+          overflow: 'hidden',
+          aspectRatio: '3/4',
+          background: '#1E1E1E',
+          marginBottom: 16,
+        }}
+      >
+        {hasPhoto && member.photo_url ? (
           <>
             <Image
               fill
               src={member.photo_url}
               alt={member.full_name ?? 'Membro del team'}
-              className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
-              sizes="(max-width: 768px) 220px, 280px"
+              className="lp-team-photo object-cover object-top"
+              sizes="(max-width: 768px) 50vw, 280px"
               loading="lazy"
             />
             <div
-              className="absolute inset-0"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 50%)' }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%)',
+              }}
             />
           </>
         ) : (
-          <div className="flex h-full w-full items-center justify-center" style={{ background: '#F3F4F6' }}>
-            <span className="select-none text-[4rem] font-black" style={{ color: '#111111', opacity: 0.75 }}>
+          <div
+            style={{
+              display: 'flex',
+              height: '100%',
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#1E1E1E',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '4rem',
+                fontWeight: 900,
+                color: 'var(--brand-primary)',
+                opacity: 0.7,
+                userSelect: 'none',
+              }}
+            >
               {initial}
             </span>
           </div>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <p className="font-bold leading-tight" style={{ fontSize: '1.05rem', color: hasPhoto ? '#FFFFFF' : '#111111' }}>
+        {/* Name overlay (on photo) */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '16px 20px',
+          }}
+        >
+          <p
+            style={{
+              fontSize: '1rem',
+              fontWeight: 700,
+              color: '#FFFFFF',
+              lineHeight: 1.25,
+            }}
+          >
             {member.full_name ?? 'Barbiere'}
           </p>
-          <p className="mt-0.5 text-[0.75rem]" style={{ color: hasPhoto ? 'rgba(255,255,255,0.75)' : 'var(--brand-primary)' }}>
+          <p
+            style={{
+              marginTop: 3,
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.15em',
+              color: 'var(--brand-primary)',
+            }}
+          >
             {formatRole(member.role)}
           </p>
         </div>
       </div>
 
+      {/* Bio */}
       {member.bio && (
-        <p className="line-clamp-2 px-1 text-[0.8rem]" style={{ color: '#6B7280' }}>
+        <p
+          style={{
+            fontSize: '0.82rem',
+            lineHeight: 1.65,
+            color: 'rgba(255,255,255,0.5)',
+            marginBottom: 12,
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+          } as CSSProperties}
+        >
           {member.bio}
         </p>
       )}
 
+      {/* Prenota link */}
       <Link
         href={`/tenant/app/${slug}/prenota?barbiere=${member.id}`}
-        className="mt-3 flex items-center gap-1.5 text-[0.8rem] font-semibold opacity-70 transition-opacity group-hover:opacity-100"
-        style={{ color: 'var(--brand-primary)' }}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          color: 'rgba(255,255,255,0.45)',
+          textDecoration: 'none',
+          transition: 'color 0.2s',
+          marginTop: 'auto',
+        } as CSSProperties}
+        className="hover:!text-white"
       >
         Prenota con lui
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
           <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>
       </Link>
@@ -93,34 +174,86 @@ export default function LandingTeam({ team, slug }: Props) {
   return (
     <section
       aria-label="Il nostro team"
-      className="py-[clamp(4rem,8vw,7rem)]"
-      style={{ background: '#FFFFFF' }}
+      style={{
+        background: '#0F0F0F',
+        padding: 'clamp(5rem, 10vw, 8rem) 0',
+      } as CSSProperties}
     >
-      <div className="mx-auto max-w-5xl px-5 sm:px-8">
-        <div className="mb-10">
-          <span
-            className="text-xs font-semibold uppercase tracking-[0.2em]"
-            style={{ color: 'var(--brand-primary)' }}
-          >
-            Il team
-          </span>
-          <h2
-            className="mt-2 font-bold tracking-tight"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#111111' }}
-          >
-            Chi ti servirà
-          </h2>
-        </div>
-
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 clamp(20px, 5vw, 48px)' }}>
+        {/* Header */}
         <div
-          className="flex gap-6 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:overflow-visible md:pb-0"
+          data-reveal
           style={{
-            scrollSnapType: 'x mandatory',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 20,
+            marginBottom: 'clamp(2.5rem, 5vw, 4rem)',
           }}
         >
-          {team.map((member) => (
-            <MemberCard key={member.id} member={member} slug={slug} />
+          <div>
+            <span
+              style={{
+                display: 'block',
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.22em',
+                color: 'var(--brand-primary)',
+                marginBottom: 16,
+              }}
+            >
+              Il team
+            </span>
+            <h2
+              style={{
+                fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
+                fontWeight: 800,
+                color: '#FFFFFF',
+                lineHeight: 1.08,
+                letterSpacing: '-0.03em',
+              }}
+            >
+              Chi ti servirà
+            </h2>
+          </div>
+
+          <Link
+            href={`/tenant/app/${slug}/prenota`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              borderRadius: 999,
+              padding: '11px 22px',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#FFFFFF',
+              textDecoration: 'none',
+              border: '1.5px solid rgba(255,255,255,0.18)',
+              background: 'rgba(255,255,255,0.06)',
+              whiteSpace: 'nowrap',
+            } as CSSProperties}
+          >
+            Prenota ora
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+
+        {/* Team grid — horizontal scroll on mobile, grid on desktop */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(auto-fill, minmax(${team.length <= 2 ? '280px' : '200px'}, 1fr))`,
+            gap: 20,
+          }}
+          className="[&]:max-sm:flex [&]:max-sm:gap-5 [&]:max-sm:overflow-x-auto [&]:max-sm:pb-4 [&]:max-sm:[scrollbar-width:none]"
+        >
+          {team.map((member, index) => (
+            <MemberCard key={member.id} member={member} slug={slug} index={index} />
           ))}
         </div>
       </div>
