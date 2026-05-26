@@ -530,12 +530,21 @@ export async function inviteUser(input: {
     })
 
   if (input.tenantId) {
-    await db.from('staff_members').insert({
-      tenant_id: input.tenantId,
-      profile_id: userId,
-      role: input.role ?? 'staff',
-      is_active: true,
-    })
+    const { data: existingMember } = await db
+      .from('staff_members')
+      .select('id')
+      .eq('tenant_id', input.tenantId)
+      .eq('profile_id', userId)
+      .is('deleted_at', null)
+      .maybeSingle()
+    if (!existingMember) {
+      await db.from('staff_members').insert({
+        tenant_id: input.tenantId,
+        profile_id: userId,
+        role: input.role ?? 'staff',
+        is_active: true,
+      })
+    }
   }
 
   await logAdminAction(auth.id, 'user.invited', 'user', userId, input.tenantId ?? null, {

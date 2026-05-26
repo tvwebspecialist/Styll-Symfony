@@ -76,9 +76,25 @@ export async function acceptInvitation(
     .select('id')
     .single()
 
-  if (staffError || !staffData) {
-    console.error('[acceptInvitation] Staff member creation error:', staffError)
-    return { success: false, error: 'Errore nella creazione del profilo staff' }
+  if (staffError) {
+    // Unique constraint violation → a concurrent request already created the row.
+    // Treat as success: fetch the existing record so we can continue.
+    if ((staffError as any).code === '23505') {
+      const { data: concurrent } = await db
+        .from('staff_members')
+        .select('id')
+        .eq('tenant_id', invitationData.tenant_id)
+        .eq('profile_id', userId)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (!concurrent) {
+        return { success: false, error: 'Errore nella creazione del profilo staff' }
+      }
+      // Fall through with the existing row — mark invitation accepted below.
+    } else {
+      console.error('[acceptInvitation] Staff member creation error:', staffError)
+      return { success: false, error: 'Errore nella creazione del profilo staff' }
+    }
   }
 
   // Update invitation status
