@@ -40,7 +40,7 @@ interface ServiceCardProps {
 function ServiceCard({ service, slug }: ServiceCardProps) {
   return (
     <Link
-      href={`/tenant/app/${slug}/prenota?service=${service.id}`}
+      href={`https://${slug}-app.styll.it/prenota?service=${service.id}`}
       className="lp-service-card"
       style={{
         display: 'flex',
@@ -245,7 +245,7 @@ export default function LandingServices({ services, slug }: Props) {
         {/* Bottom CTA */}
         <div style={{ marginTop: 'clamp(2.5rem, 5vw, 4rem)', textAlign: 'center' }}>
           <Link
-            href={`/tenant/app/${slug}/prenota`}
+            href={`https://${slug}-app.styll.it/prenota`}
             style={{
               display: 'inline-flex',
               alignItems: 'center',

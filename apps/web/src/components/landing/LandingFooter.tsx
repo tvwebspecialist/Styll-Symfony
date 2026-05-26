@@ -254,7 +254,7 @@ export default function LandingFooter({ tenant, firstLocation, slug }: Props) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Link
-                href={`/tenant/app/${slug}/prenota`}
+                href={`https://${slug}-app.styll.it/prenota`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
