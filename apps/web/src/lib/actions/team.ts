@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -355,6 +355,7 @@ export async function updateStaffPhoto(
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/dashboard/team')
+  revalidateTag(`tenant-${tenantId}-staff`, {})
   return { success: true }
 }
 
