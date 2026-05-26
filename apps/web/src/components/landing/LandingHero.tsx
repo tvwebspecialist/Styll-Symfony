@@ -1,7 +1,5 @@
 import type { CSSProperties } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { MapPin, ArrowRight } from 'lucide-react'
 import type { TenantBranding } from '@/lib/tenant'
 import type { PublicLocation, PublicWebsitePhoto } from '@/lib/actions/public-booking'
 
@@ -19,9 +17,11 @@ const NOISE_SVG =
 export default function LandingHero({ tenant, firstLocation, websitePhotos, slug, servicesCount }: Props) {
   const heroUrl = websitePhotos[0]?.url ?? firstLocation?.photo_url ?? null
   const bio = (tenant.settings?.bio as string | undefined) ?? null
+  const tagline = (tenant.settings?.tagline as string | undefined) ?? null
 
   return (
     <section
+      id="hero"
       aria-label="Presentazione"
       className="relative flex min-h-screen flex-col overflow-hidden"
       style={{ background: '#0a0a0a' }}
@@ -29,12 +29,12 @@ export default function LandingHero({ tenant, firstLocation, websitePhotos, slug
       {/* Background */}
       {heroUrl ? (
         <>
-          <Image fill priority src={heroUrl} alt="" className="object-cover" sizes="100vw" />
+          <Image fill priority src={heroUrl} alt="" className="object-cover object-center" sizes="100vw" />
           <div
             className="absolute inset-0"
             style={{
               background:
-                'linear-gradient(160deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.75) 100%)',
+                'linear-gradient(160deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.8) 100%)',
             }}
           />
         </>
@@ -57,168 +57,138 @@ export default function LandingHero({ tenant, firstLocation, websitePhotos, slug
         </>
       )}
 
-      {/* Top bar */}
-      <div className="relative z-20 flex items-center justify-between px-6 py-6 sm:px-10">
-        <div className="flex items-center gap-3">
-          {tenant.logo_url && (
-            <Image
-              src={tenant.logo_url}
-              alt={tenant.business_name}
-              width={40}
-              height={40}
-              className="rounded-xl object-cover"
-            />
+      {/* Main content — vertically centered */}
+      <div
+        className="relative z-10 flex flex-1 flex-col justify-center px-6 sm:px-10"
+        style={{ paddingTop: 120, paddingBottom: 80 }}
+      >
+        <div style={{ maxWidth: 1120, margin: '0 auto', width: '100%' }}>
+
+          {/* Eyebrow: city badge */}
+          {firstLocation?.city && (
+            <div
+              className="mb-8 inline-flex items-center gap-2"
+              style={
+                {
+                  background: 'rgba(255,255,255,0.1)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 999,
+                  padding: '6px 14px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'rgba(255,255,255,0.8)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                } as CSSProperties
+              }
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+              {firstLocation.city}
+            </div>
           )}
-          <span
-            className="hidden text-sm font-semibold text-white/70 sm:block"
-            style={{ letterSpacing: '-0.01em' }}
+
+          {/* Headline */}
+          <h1
+            className="mb-6 max-w-4xl font-black text-white"
+            style={{
+              fontSize: 'clamp(3.5rem, 10vw, 7.5rem)',
+              lineHeight: 0.95,
+              letterSpacing: '-0.04em',
+            }}
           >
             {tenant.business_name}
-          </span>
-        </div>
+          </h1>
 
-        <Link
-          href={`https://${slug}-app.styll.it/prenota`}
-          aria-label={`Prenota da ${tenant.business_name}`}
-          className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-white/25"
-          style={
-            {
-              background: 'rgba(255,255,255,0.15)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.2)',
-            } as CSSProperties
-          }
-        >
-          Prenota
-          <ArrowRight size={13} />
-        </Link>
-      </div>
-
-      {/* Main content */}
-      <div className="relative z-10 flex flex-1 flex-col justify-end px-6 pb-20 sm:px-10 md:justify-center md:pb-0 md:py-12">
-        {/* Location badge */}
-        {firstLocation?.city && (
+          {/* Accent line */}
           <div
-            className="mb-6 inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-white/90"
-            style={
-              {
-                background: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.18)',
-              } as CSSProperties
-            }
+            className="mb-8"
+            style={{
+              width: 56,
+              height: 4,
+              background: 'var(--brand-primary)',
+              borderRadius: 99,
+            }}
+            aria-hidden="true"
+          />
+
+          {/* Bio / tagline */}
+          <p
+            className="mb-12 max-w-md"
+            style={{
+              fontSize: 'clamp(1rem, 2vw, 1.15rem)',
+              lineHeight: 1.75,
+              color: 'rgba(255,255,255,0.6)',
+            }}
           >
-            <MapPin size={10} />
-            {firstLocation.city}
-          </div>
-        )}
+            {tagline ?? bio ?? 'Il tuo barbiere di fiducia. Prenota il tuo appuntamento in pochi secondi.'}
+          </p>
 
-        {/* Headline */}
-        <h1
-          className="mb-5 max-w-3xl font-black text-white"
-          style={{
-            fontSize: 'clamp(3rem, 9vw, 6.5rem)',
-            lineHeight: 1.0,
-            letterSpacing: '-0.04em',
-          }}
-        >
-          {tenant.business_name}
-        </h1>
-
-        {/* Divider line */}
-        <div
-          className="mb-6 h-px w-16"
-          style={{ background: 'var(--brand-primary)' }}
-          aria-hidden="true"
-        />
-
-        {/* Bio */}
-        <p
-          className="mb-10 max-w-lg"
-          style={{
-            fontSize: 'clamp(1rem, 2vw, 1.125rem)',
-            lineHeight: 1.75,
-            color: 'rgba(255,255,255,0.62)',
-          }}
-        >
-          {bio ?? 'Il tuo barbiere di fiducia. Prenota il tuo appuntamento in pochi secondi.'}
-        </p>
-
-        {/* CTAs */}
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`https://${slug}-app.styll.it/prenota`}
-            aria-label={`Prenota appuntamento da ${tenant.business_name}`}
-            className="inline-flex items-center gap-2 rounded-full px-7 py-4 text-[15px] font-bold text-white shadow-xl transition-opacity hover:opacity-90"
-            style={{ background: 'var(--brand-primary)' }}
-          >
-            Prenota ora
-            <ArrowRight size={16} />
-          </Link>
-          <Link
+          {/* Single CTA — scroll to services */}
+          <a
             href="#servizi"
-            className="inline-flex items-center gap-2 rounded-full px-7 py-4 text-[15px] font-semibold text-white transition-colors hover:bg-white/15"
-            style={
-              {
-                border: '1.5px solid rgba(255,255,255,0.22)',
-                background: 'rgba(255,255,255,0.06)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-              } as CSSProperties
-            }
+            aria-label="Scopri i servizi disponibili"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              borderRadius: 999,
+              padding: '16px 32px',
+              fontSize: '0.95rem',
+              fontWeight: 700,
+              color: '#FFFFFF',
+              background: 'var(--brand-primary)',
+              textDecoration: 'none',
+              transition: 'opacity 0.2s ease',
+            } as CSSProperties}
           >
             Scopri i servizi
-          </Link>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <path d="M12 5v14M5 12l7 7 7-7" />
+            </svg>
+          </a>
+
+          {/* Stats row */}
+          {servicesCount > 0 && (
+            <div
+              className="lp-hero-stats mt-14 flex items-center gap-10"
+              aria-label="Statistiche"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 32, width: 'fit-content' }}
+            >
+              <div>
+                <p className="font-black text-white" style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.04em' }}>
+                  {servicesCount}
+                </p>
+                <p style={{ marginTop: 6, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)' }}>
+                  Servizi
+                </p>
+              </div>
+              <div style={{ width: 1, height: 40, background: 'rgba(255,255,255,0.1)' }} aria-hidden="true" />
+              <div>
+                <p className="font-black text-white" style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.04em' }}>
+                  1&#39;
+                </p>
+                <p style={{ marginTop: 6, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)' }}>
+                  Per prenotare
+                </p>
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Stats row */}
-        {servicesCount > 0 && (
-          <div className="lp-hero-stats mt-12 flex items-center gap-8" aria-label="Numeri">
-            <div>
-              <p
-                className="font-black text-white"
-                style={{ fontSize: '2rem', lineHeight: 1 }}
-              >
-                {servicesCount}
-              </p>
-              <p
-                className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
-                style={{ color: 'rgba(255,255,255,0.38)' }}
-              >
-                Servizi
-              </p>
-            </div>
-
-            <div className="h-10 w-px" style={{ background: 'rgba(255,255,255,0.12)' }} aria-hidden="true" />
-
-            <div>
-              <p
-                className="font-black text-white"
-                style={{ fontSize: '2rem', lineHeight: 1 }}
-              >
-                1&apos;
-              </p>
-              <p
-                className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.2em]"
-                style={{ color: 'rgba(255,255,255,0.38)' }}
-              >
-                Per prenotare
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Scroll indicator */}
       <div
-        className="lp-scroll-indicator absolute bottom-7 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-1.5 md:flex"
-        style={{ color: 'rgba(255,255,255,0.3)' }}
+        className="lp-scroll-indicator absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 md:flex"
+        style={{ color: 'rgba(255,255,255,0.28)' }}
         aria-hidden="true"
       >
-        <span className="text-[9px] font-bold uppercase tracking-[0.25em]">Scroll</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.25em' }}>Scroll</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>

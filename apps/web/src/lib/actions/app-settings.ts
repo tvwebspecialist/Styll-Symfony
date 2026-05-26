@@ -218,20 +218,31 @@ export interface WebsiteService {
   showOnWebsite: boolean
 }
 
+export interface WebsiteProduct {
+  id: string
+  name: string
+  brand: string | null
+  priceSell: number
+  photoUrl: string | null
+  showOnSite: boolean
+  isOutOfStock: boolean
+}
+
 export interface WebsiteData {
   photos: WebsitePhoto[]
   staff: WebsiteStaff[]
   locations: WebsiteLocation[]
   services: WebsiteService[]
+  products: WebsiteProduct[]
 }
 
 export async function getWebsiteData(): Promise<WebsiteData> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { photos: [], staff: [], locations: [], services: [] }
+  if (!tenantId) return { photos: [], staff: [], locations: [], services: [], products: [] }
 
   const db = createAdminClient()
 
-  const [{ data: photos }, { data: staffRows }, { data: locRows }, { data: svcRows }] = await Promise.all([
+  const [{ data: photos }, { data: staffRows }, { data: locRows }, { data: svcRows }, { data: productRows }, { data: inventoryRows }] = await Promise.all([
     db.from('website_photos').select('id, url, sort_order').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
     db
       .from('staff_members')
@@ -252,7 +263,24 @@ export async function getWebsiteData(): Promise<WebsiteData> {
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('display_order', { ascending: true }),
+    db
+      .from('products')
+      .select('id, name, brand, price_sell, photo_url, show_on_site, display_order')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true }),
+    db
+      .from('product_inventory')
+      .select('product_id, quantity')
+      .eq('tenant_id', tenantId),
   ])
+
+  const inventoryByProduct = new Map<string, number>()
+  for (const row of (inventoryRows ?? [])) {
+    const prev = inventoryByProduct.get(row.product_id) ?? 0
+    inventoryByProduct.set(row.product_id, prev + (row.quantity ?? 0))
+  }
 
   return {
     photos: (photos ?? []).map((photo) => ({
@@ -280,6 +308,18 @@ export async function getWebsiteData(): Promise<WebsiteData> {
       category: service.category,
       showOnWebsite: service.show_on_website ?? true,
     })),
+    products: ((productRows ?? []) as Array<Record<string, unknown>>).map((product) => {
+      const totalQty = inventoryByProduct.get(product.id as string)
+      return {
+        id: product.id as string,
+        name: product.name as string,
+        brand: (product.brand as string | null) ?? null,
+        priceSell: Number(product.price_sell ?? 0),
+        photoUrl: (product.photo_url as string | null) ?? null,
+        showOnSite: (product.show_on_site as boolean | null) ?? false,
+        isOutOfStock: totalQty !== undefined ? totalQty === 0 : false,
+      }
+    }),
   }
 }
 
@@ -308,6 +348,27 @@ export async function updateShowOnWebsite(
   if (table === 'services') revalidateTag(`tenant-${tenantId}-services`, {})
   if (table === 'locations') revalidateTag(`tenant-${tenantId}-locations`, {})
 
+  return { ok: true }
+}
+
+export async function updateProductShowOnSite(
+  id: string,
+  value: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  const { error } = await db
+    .from('products')
+    .update({ show_on_site: value } as Record<string, unknown>)
+    .eq('id', id)
+    .eq('tenant_id', tenantId)
+
+  if (error) return { ok: false, error: error.message }
+
+  revalidateTag(`tenant-${tenantId}-products`, {})
   return { ok: true }
 }
 

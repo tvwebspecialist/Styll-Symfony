@@ -25,6 +25,7 @@ export default function LandingAbout({ tenant, websitePhotos, firstLocation, abo
 
   return (
     <section
+      id="chi-siamo"
       aria-label="Chi siamo"
       data-reveal
       style={{ background: '#FFFFFF', padding: 'clamp(5rem, 10vw, 8rem) 0' } as CSSProperties}

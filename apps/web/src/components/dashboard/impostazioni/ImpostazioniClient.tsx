@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { Loader2, Building2, MapPin, CreditCard, Plus, Pencil, Trash2, Check, ImagePlus, X as XIcon, Images } from 'lucide-react'
+import { Loader2, Building2, MapPin, CreditCard, Plus, Pencil, Trash2, Check, ImagePlus, X as XIcon, Images, Phone } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -446,6 +446,246 @@ function LocationForm({
   )
 }
 
+// ─── Location Card (horizontal) ───────────────────────────────────────────────
+
+function LocationCard({
+  loc,
+  onEdit,
+  onDelete,
+  isDeleting,
+}: {
+  loc: LocationSettings
+  onEdit: () => void
+  onDelete: () => void
+  isDeleting: boolean
+}) {
+  const [hovered, setHovered] = React.useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: 16,
+        overflow: 'hidden',
+        display: 'flex',
+        height: 148,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-bg)',
+        boxShadow: hovered ? '0 8px 28px rgba(0,0,0,0.10)' : '0 2px 10px rgba(0,0,0,0.05)',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        transition: 'box-shadow 280ms ease, transform 280ms ease',
+        opacity: loc.isActive ? 1 : 0.65,
+      }}
+    >
+      {/* Left — photo panel */}
+      <div
+        style={{
+          width: 156,
+          flexShrink: 0,
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'var(--color-bg-secondary)',
+        }}
+      >
+        {loc.photos[0] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={loc.photos[0]}
+            alt={loc.name}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              transform: hovered ? 'scale(1.07)' : 'scale(1)',
+              transition: 'transform 350ms ease',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-fg-muted)',
+              }}
+            >
+              <MapPin size={20} />
+            </div>
+          </div>
+        )}
+
+        {/* Photos count badge */}
+        {loc.photos.length > 1 && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              left: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              borderRadius: 999,
+              padding: '3px 8px',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 600,
+            } as React.CSSProperties}
+          >
+            <Images size={10} />
+            {loc.photos.length}
+          </div>
+        )}
+      </div>
+
+      {/* Right — info panel */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: '16px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        {/* Top: name + status + address + phone */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <p
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: 'var(--color-fg)',
+                margin: 0,
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {loc.name}
+            </p>
+            {!loc.isActive && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-fg-muted)',
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                  flexShrink: 0,
+                }}
+              >
+                Inattiva
+              </span>
+            )}
+          </div>
+
+          {loc.address && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+              <MapPin size={12} color="var(--color-fg-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
+              <p
+                style={{
+                  fontSize: 13,
+                  color: 'var(--color-fg-secondary)',
+                  margin: 0,
+                  lineHeight: 1.4,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {loc.address}
+              </p>
+            </div>
+          )}
+
+          {loc.phone && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Phone size={12} color="var(--color-fg-muted)" style={{ flexShrink: 0 }} />
+              <p style={{ fontSize: 13, color: 'var(--color-fg-muted)', margin: 0 }}>
+                {loc.phone}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom: action buttons */}
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onEdit}
+            title="Modifica sede"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: hovered ? 'var(--color-bg-secondary)' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--color-fg-secondary)',
+              transition: 'background 200ms ease',
+            }}
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleting}
+            title="Elimina sede"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: isDeleting ? 'wait' : 'pointer',
+              color: 'var(--color-danger)',
+              transition: 'background 200ms ease',
+            }}
+          >
+            {isDeleting
+              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Trash2 size={14} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sedi tab ─────────────────────────────────────────────────────────────────
 
 function SediTab({ locations: initialLocations }: { locations: LocationSettings[] }) {
@@ -453,6 +693,7 @@ function SediTab({ locations: initialLocations }: { locations: LocationSettings[
   const [modalOpen, setModalOpen] = React.useState(false)
   const [editingLoc, setEditingLoc] = React.useState<LocationSettings | null>(null)
   const [deletingId, setDeletingId] = React.useState<string | null>(null)
+  const [addHovered, setAddHovered] = React.useState(false)
 
   async function handleDelete(id: string) {
     if (!confirm('Eliminare questa sede? L\'operazione è irreversibile.')) return
@@ -489,72 +730,61 @@ function SediTab({ locations: initialLocations }: { locations: LocationSettings[
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {locations.map((loc) => (
-          <div
+          <LocationCard
             key={loc.id}
-            className="styll-card"
-            style={{ padding: '16px 18px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0 }}>
-              {loc.photos[0] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={loc.photos[0]}
-                  alt={loc.name}
-                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--color-border)' }}
-                />
-              ) : (
-                <div style={{ width: 48, height: 48, borderRadius: 8, flexShrink: 0, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-fg-muted)' }}>
-                  <MapPin size={18} />
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-fg)', margin: 0 }}>{loc.name}</p>
-                  {!loc.isActive && (
-                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-fg-muted)', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 999, padding: '2px 7px' }}>
-                      Inattiva
-                    </span>
-                  )}
-                </div>
-                {loc.address && (
-                  <p style={{ fontSize: 13, color: 'var(--color-fg-secondary)', margin: '3px 0 0' }}>{loc.address}</p>
-                )}
-                {loc.phone && (
-                  <p style={{ fontSize: 13, color: 'var(--color-fg-muted)', margin: '2px 0 0' }}>{loc.phone}</p>
-                )}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => { setEditingLoc(loc); setModalOpen(true) }}
-                style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--color-border)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-fg-secondary)' }}
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(loc.id)}
-                disabled={deletingId === loc.id}
-                style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--color-border)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-danger)' }}
-              >
-                {deletingId === loc.id
-                  ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  : <Trash2 size={14} />
-                }
-              </button>
-            </div>
-          </div>
+            loc={loc}
+            onEdit={() => { setEditingLoc(loc); setModalOpen(true) }}
+            onDelete={() => handleDelete(loc.id)}
+            isDeleting={deletingId === loc.id}
+          />
         ))}
 
+        {/* Add new location */}
         <button
           type="button"
           onClick={() => { setEditingLoc(null); setModalOpen(true) }}
-          className="styll-btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', fontSize: 14, minHeight: 44, borderStyle: 'dashed' }}
+          onMouseEnter={() => setAddHovered(true)}
+          onMouseLeave={() => setAddHovered(false)}
+          style={{
+            height: 148,
+            borderRadius: 16,
+            border: `2px dashed ${addHovered ? 'var(--color-fg-muted)' : 'var(--color-border)'}`,
+            background: addHovered ? 'var(--color-bg-secondary)' : 'transparent',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            transition: 'background 200ms ease, border-color 200ms ease',
+          }}
         >
-          <Plus size={16} />
-          Aggiungi sede
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: addHovered ? 'var(--color-bg)' : 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-fg-secondary)',
+              transition: 'background 200ms ease',
+            }}
+          >
+            <Plus size={18} />
+          </div>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: addHovered ? 'var(--color-fg-secondary)' : 'var(--color-fg-muted)',
+              transition: 'color 200ms ease',
+            }}
+          >
+            Aggiungi sede
+          </span>
         </button>
       </div>
 
