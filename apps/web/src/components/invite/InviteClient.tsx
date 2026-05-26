@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
@@ -22,6 +22,7 @@ export function InviteClient({
   const [tenantName, setTenantName] = useState<string>('')
   const [role, setRole] = useState<string>('')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const processingRef = useRef(false)
 
   useEffect(() => {
     loadInvitationDetails().catch(() => {
