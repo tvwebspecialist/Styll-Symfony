@@ -14,6 +14,12 @@ export interface PublicPortfolioPhoto {
   display_order: number
 }
 
+export interface PublicWebsitePhoto {
+  id: string
+  url: string
+  sort_order: number
+}
+
 export type PublicService = Pick<
   Tables<'services'>,
   'id' | 'name' | 'description' | 'price' | 'duration_minutes' | 'category' | 'display_order'
@@ -205,6 +211,7 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
         .select('id, name, address, city, phone, photo_url, email, latitude, longitude')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
+        .eq('show_on_website', true)
         .order('name', { ascending: true })
 
       return ((data ?? []) as unknown as PublicLocation[]).map((location) => ({
@@ -257,6 +264,7 @@ export function getPublicTeam(tenantId: string): Promise<PublicTeamMember[]> {
         .select('id, bio, photo_url, role, profile:profiles(full_name, avatar_url)')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
+        .eq('show_on_website', true)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
 
@@ -302,6 +310,31 @@ export function getPublicPortfolioPhotos(tenantId: string): Promise<PublicPortfo
     {
       revalidate: 60,
       tags: [`tenant-${tenantId}-portfolio`],
+    }
+  )()
+}
+
+export function getPublicWebsitePhotos(tenantId: string): Promise<PublicWebsitePhoto[]> {
+  return unstable_cache(
+    async () => {
+      const db = createAdminClient()
+      const { data } = await db
+        .from('website_photos')
+        .select('id, url, sort_order')
+        .eq('tenant_id', tenantId)
+        .order('sort_order', { ascending: true })
+        .limit(12)
+
+      return ((data ?? []) as unknown as PublicWebsitePhoto[]).map((photo) => ({
+        id: photo.id,
+        url: photo.url,
+        sort_order: Number(photo.sort_order ?? 0),
+      }))
+    },
+    [`public-website-photos-${tenantId}`],
+    {
+      revalidate: 60,
+      tags: [`tenant-${tenantId}-website-photos`],
     }
   )()
 }
@@ -355,6 +388,7 @@ export function getPublicServices(tenantId: string): Promise<PublicService[]> {
         .select('id, name, description, price, duration_minutes, category, display_order')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
+        .eq('show_on_website', true)
         .order('display_order', { ascending: true })
 
       return ((data ?? []) as unknown as PublicService[]).map((service) => ({

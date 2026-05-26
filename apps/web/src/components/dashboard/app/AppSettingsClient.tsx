@@ -132,6 +132,9 @@ export function AppSettingsClient({
   const [secondaryColor, setSecondaryColor] = React.useState(initialSettings?.secondaryColor ?? '#4B5563')
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
+  const [aboutTitle, setAboutTitle] = React.useState(initialSettings?.aboutTitle ?? '')
+  const [aboutText, setAboutText] = React.useState(initialSettings?.aboutText ?? '')
+  const [aboutImageUrl, setAboutImageUrl] = React.useState(initialSettings?.aboutImageUrl ?? '')
   const [saving, setSaving] = React.useState(false)
   const [isMobile, setIsMobile] = React.useState(false)
 
@@ -164,6 +167,9 @@ export function AppSettingsClient({
       secondaryColor: secondaryColor || null,
       fontFamily: fontFamily || null,
       logoUrl: logoUrl.trim() || null,
+      aboutTitle: aboutTitle.trim() || null,
+      aboutText: aboutText.trim() || null,
+      aboutImageUrl: aboutImageUrl.trim() || null,
     })
     setSaving(false)
     if (result.ok) {
@@ -225,7 +231,15 @@ export function AppSettingsClient({
       </div>
 
       {activeTab === 'website' ? (
-        <WebsiteTabClient initialData={initialWebsiteData} />
+        <WebsiteTabClient
+          initialData={initialWebsiteData}
+          aboutTitle={aboutTitle}
+          aboutText={aboutText}
+          aboutImageUrl={aboutImageUrl}
+          onAboutTitleChange={setAboutTitle}
+          onAboutTextChange={setAboutText}
+          onAboutImageUrlChange={setAboutImageUrl}
+        />
       ) : (
         <>
           <div style={{ background: '#F0FDF4', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 24, flexWrap: 'wrap', borderLeft: '4px solid #22c55e', border: '1px solid #bbf7d0', borderLeftWidth: 4, boxShadow: '0 6px 18px rgba(15, 23, 42, 0.06)' }}>
