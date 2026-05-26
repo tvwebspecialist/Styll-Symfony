@@ -6,13 +6,14 @@ import {
   getPublicServices,
   getActivePromotions,
   getPublicLocations,
-  getPublicPortfolioPhotos,
+  getPublicWebsitePhotos,
   getPublicTeam,
 } from '@/lib/actions/public-booking'
 import LandingHero from '@/components/landing/LandingHero'
 import LandingAbout from '@/components/landing/LandingAbout'
 import LandingServices from '@/components/landing/LandingServices'
 import LandingTeam from '@/components/landing/LandingTeam'
+import LandingLocations from '@/components/landing/LandingLocations'
 import LandingGallery from '@/components/landing/LandingGallery'
 import LandingPromo from '@/components/landing/LandingPromo'
 import LandingFooter from '@/components/landing/LandingFooter'
@@ -27,12 +28,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tenant = await getTenantBySlug(slug)
   if (!tenant || tenant.status !== 'active') return {}
 
-  const [portfolio, locations] = await Promise.all([
-    getPublicPortfolioPhotos(tenant.tenant_id),
+  const [websitePhotos, locations] = await Promise.all([
+    getPublicWebsitePhotos(tenant.tenant_id),
     getPublicLocations(tenant.tenant_id),
   ])
 
-  const heroImage = portfolio[0]?.photo_url ?? locations[0]?.photo_url ?? null
+  const heroImage = websitePhotos[0]?.url ?? locations[0]?.photo_url ?? null
 
   return {
     openGraph: {
@@ -64,15 +65,16 @@ export default async function LandingPage({ params }: Props) {
     notFound()
   }
 
-  const [services, promotions, locations, portfolio, team] = await Promise.all([
+  const [services, promotions, locations, websitePhotos, team] = await Promise.all([
     getPublicServices(tenant.tenant_id),
     getActivePromotions(tenant.tenant_id, 'landing'),
     getPublicLocations(tenant.tenant_id),
-    getPublicPortfolioPhotos(tenant.tenant_id),
+    getPublicWebsitePhotos(tenant.tenant_id),
     getPublicTeam(tenant.tenant_id),
   ])
 
   const firstLocation = locations[0] ?? null
+  const aboutData = tenant.settings?.about as { title?: string; text?: string; image_url?: string } | undefined
 
   return (
     <>
@@ -91,15 +93,16 @@ export default async function LandingPage({ params }: Props) {
         <LandingHero
           tenant={tenant}
           firstLocation={firstLocation}
-          portfolio={portfolio}
+          websitePhotos={websitePhotos}
           slug={slug}
           servicesCount={services.length}
         />
 
         <LandingAbout
           tenant={tenant}
-          portfolio={portfolio}
+          websitePhotos={websitePhotos}
           firstLocation={firstLocation}
+          aboutData={aboutData}
         />
 
         <LandingServices
@@ -113,10 +116,9 @@ export default async function LandingPage({ params }: Props) {
           slug={slug}
         />
 
-        <LandingGallery
-          tenant={tenant}
-          portfolio={portfolio}
-        />
+        <LandingLocations locations={locations} />
+
+        <LandingGallery websitePhotos={websitePhotos} />
 
         <LandingPromo
           tenant={tenant}

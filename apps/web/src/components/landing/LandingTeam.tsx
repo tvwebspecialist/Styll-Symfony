@@ -29,65 +29,53 @@ interface MemberCardProps {
 
 function MemberCard({ member, slug }: MemberCardProps) {
   const initial = (member.full_name ?? '?')[0]?.toUpperCase() ?? '?'
+  const hasPhoto = Boolean(member.photo_url)
 
   return (
     <article className="group w-[220px] shrink-0 md:w-auto" style={{ scrollSnapAlign: 'start' }}>
-      {/* Avatar portrait */}
-      <div className="relative mb-4 w-full overflow-hidden rounded-2xl" style={{ aspectRatio: '3/4' }}>
+      <div className="relative mb-4 w-full overflow-hidden rounded-2xl" style={{ aspectRatio: '3/4', background: '#F9FAFB' }}>
         {member.photo_url ? (
-          <Image
-            fill
-            src={member.photo_url}
-            alt={member.full_name ?? 'Membro del team'}
-            className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
-            sizes="(max-width: 768px) 220px, 280px"
-            loading="lazy"
-          />
+          <>
+            <Image
+              fill
+              src={member.photo_url}
+              alt={member.full_name ?? 'Membro del team'}
+              className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 768px) 220px, 280px"
+              loading="lazy"
+            />
+            <div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 50%)' }}
+            />
+          </>
         ) : (
-          /* Fallback avatar */
-          <div
-            className="flex h-full w-full items-center justify-center"
-            style={{
-              background: `linear-gradient(135deg, var(--brand-primary) 0%, #1a1a1a 100%)`,
-            }}
-          >
-            <span
-              className="select-none text-[4rem] font-black"
-              style={{ color: 'white', opacity: 0.6 }}
-            >
+          <div className="flex h-full w-full items-center justify-center" style={{ background: '#F3F4F6' }}>
+            <span className="select-none text-[4rem] font-black" style={{ color: '#111111', opacity: 0.75 }}>
               {initial}
             </span>
           </div>
         )}
 
-        {/* Overlay gradient bottom */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 50%)' }}
-        />
-
-        {/* Nome + ruolo sovrapposto */}
         <div className="absolute bottom-0 left-0 right-0 p-4">
-          <p className="font-bold leading-tight text-white" style={{ fontSize: '1.05rem' }}>
+          <p className="font-bold leading-tight" style={{ fontSize: '1.05rem', color: hasPhoto ? '#FFFFFF' : '#111111' }}>
             {member.full_name ?? 'Barbiere'}
           </p>
-          <p className="mt-0.5 text-[0.75rem]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          <p className="mt-0.5 text-[0.75rem]" style={{ color: hasPhoto ? 'rgba(255,255,255,0.75)' : 'var(--brand-primary)' }}>
             {formatRole(member.role)}
           </p>
         </div>
       </div>
 
-      {/* Bio */}
       {member.bio && (
-        <p className="line-clamp-2 px-1 text-[0.8rem]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+        <p className="line-clamp-2 px-1 text-[0.8rem]" style={{ color: '#6B7280' }}>
           {member.bio}
         </p>
       )}
 
-      {/* CTA */}
       <Link
         href={`/tenant/app/${slug}/prenota?barbiere=${member.id}`}
-        className="mt-3 flex items-center gap-1.5 text-[0.8rem] font-semibold opacity-60 transition-opacity group-hover:opacity-100"
+        className="mt-3 flex items-center gap-1.5 text-[0.8rem] font-semibold opacity-70 transition-opacity group-hover:opacity-100"
         style={{ color: 'var(--brand-primary)' }}
       >
         Prenota con lui
@@ -106,10 +94,9 @@ export default function LandingTeam({ team, slug }: Props) {
     <section
       aria-label="Il nostro team"
       className="py-[clamp(4rem,8vw,7rem)]"
-      style={{ background: '#0a0a0a' }}
+      style={{ background: '#FFFFFF' }}
     >
       <div className="mx-auto max-w-5xl px-5 sm:px-8">
-        {/* Header */}
         <div className="mb-10">
           <span
             className="text-xs font-semibold uppercase tracking-[0.2em]"
@@ -118,14 +105,13 @@ export default function LandingTeam({ team, slug }: Props) {
             Il team
           </span>
           <h2
-            className="mt-2 font-bold tracking-tight text-white"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3rem)' }}
+            className="mt-2 font-bold tracking-tight"
+            style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#111111' }}
           >
             Chi ti servirà
           </h2>
         </div>
 
-        {/* Grid / scroll */}
         <div
           className="flex gap-6 overflow-x-auto pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:overflow-visible md:pb-0"
           style={{

@@ -12,6 +12,9 @@ export interface AppSettings {
   secondaryColor: string | null
   fontFamily: string | null
   logoUrl: string | null
+  aboutTitle: string | null
+  aboutText: string | null
+  aboutImageUrl: string | null
   slug: string | null
 }
 
@@ -41,19 +44,25 @@ export async function getAppSettings(): Promise<AppSettings | null> {
   const db = createAdminClient()
   const { data } = await db
     .from('tenants')
-    .select('business_name, primary_color, secondary_color, font_family, logo_url, slug')
+    .select('business_name, primary_color, secondary_color, font_family, logo_url, settings, slug')
     .eq('id', tenantId)
     .maybeSingle()
 
   if (!data) return null
 
   const d = data as Record<string, unknown>
+  const settings = (d.settings as Record<string, unknown> | null) ?? null
+  const about = (settings?.about as Record<string, unknown> | null) ?? null
+
   return {
     businessName: (d.business_name as string | null) ?? '',
     primaryColor: (d.primary_color as string | null) ?? null,
     secondaryColor: (d.secondary_color as string | null) ?? null,
     fontFamily: (d.font_family as string | null) ?? null,
     logoUrl: (d.logo_url as string | null) ?? null,
+    aboutTitle: (about?.title as string | null) ?? null,
+    aboutText: (about?.text as string | null) ?? null,
+    aboutImageUrl: (about?.image_url as string | null) ?? null,
     slug: (d.slug as string | null) ?? null,
   }
 }
@@ -81,6 +90,38 @@ export async function updateAppSettings(
     .eq('id', tenantId)
 
   if (error) return { ok: false, error: error.message }
+
+  if (
+    settings.aboutTitle !== undefined ||
+    settings.aboutText !== undefined ||
+    settings.aboutImageUrl !== undefined
+  ) {
+    const { data: current, error: currentError } = await db
+      .from('tenants')
+      .select('settings')
+      .eq('id', tenantId)
+      .single()
+
+    if (currentError) return { ok: false, error: currentError.message }
+
+    const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+    const merged = {
+      ...currentSettings,
+      about: {
+        ...((currentSettings.about as Record<string, unknown> | null) ?? {}),
+        ...(settings.aboutTitle !== undefined ? { title: settings.aboutTitle } : {}),
+        ...(settings.aboutText !== undefined ? { text: settings.aboutText } : {}),
+        ...(settings.aboutImageUrl !== undefined ? { image_url: settings.aboutImageUrl } : {}),
+      },
+    }
+
+    const { error: settingsError } = await db
+      .from('tenants')
+      .update({ settings: merged })
+      .eq('id', tenantId)
+
+    if (settingsError) return { ok: false, error: settingsError.message }
+  }
 
   await revalidateTenantApp(db, tenantId)
 
@@ -262,7 +303,49 @@ export async function updateShowOnWebsite(
   const { error } = await query
 
   if (error) return { ok: false, error: error.message }
+
+  if (table === 'staff_members') revalidateTag(`tenant-${tenantId}-staff`, {})
+  if (table === 'services') revalidateTag(`tenant-${tenantId}-services`, {})
+  if (table === 'locations') revalidateTag(`tenant-${tenantId}-locations`, {})
+
   return { ok: true }
+}
+
+export async function uploadAboutImage(
+  formData: FormData,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'Nessun file' }
+
+  const MAX_SIZE = 5 * 1024 * 1024
+  if (file.size > MAX_SIZE) return { ok: false, error: 'File troppo grande (max 5MB)' }
+
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP)' }
+  }
+
+  const db = createAdminClient()
+  const extByType: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+  }
+  const ext = extByType[file.type] ?? 'jpg'
+  const path = `about/${tenantId}/about.${ext}`
+  const arrayBuffer = await file.arrayBuffer()
+
+  const { error: uploadError } = await db.storage
+    .from('tenants')
+    .upload(path, arrayBuffer, { contentType: file.type, upsert: true })
+
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = db.storage.from('tenants').getPublicUrl(path)
+  return { ok: true, url: urlData.publicUrl }
 }
 
 export async function uploadWebsitePhoto(
@@ -320,6 +403,8 @@ export async function uploadWebsitePhoto(
 
   if (insertError) return { ok: false, error: insertError.message }
 
+  revalidateTag(`tenant-${tenantId}-website-photos`, {})
+
   return {
     ok: true,
     photo: {
@@ -344,6 +429,8 @@ export async function deleteWebsitePhoto(
     .eq('tenant_id', tenantId)
 
   if (error) return { ok: false, error: error.message }
+
+  revalidateTag(`tenant-${tenantId}-website-photos`, {})
   return { ok: true }
 }
 
@@ -362,5 +449,7 @@ export async function reorderWebsitePhotos(
 
   const firstError = results.find((result) => result.error)?.error
   if (firstError) return { ok: false, error: firstError.message }
+
+  revalidateTag(`tenant-${tenantId}-website-photos`, {})
   return { ok: true }
 }

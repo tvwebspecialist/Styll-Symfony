@@ -19,6 +19,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
+  uploadAboutImage,
   uploadWebsitePhoto,
   deleteWebsitePhoto,
   reorderWebsitePhotos,
@@ -191,7 +192,60 @@ function SectionCard({ title, description, children }: { title: string; descript
   )
 }
 
-export function WebsiteTabClient({ initialData }: { initialData: WebsiteData }) {
+function AboutImageUploader({ currentUrl, onUploaded }: { currentUrl: string; onUploaded: (url: string) => void }) {
+  const [uploading, setUploading] = React.useState(false)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    const result = await uploadAboutImage(fd)
+    setUploading(false)
+    if (result.ok && result.url) {
+      onUploaded(result.url)
+      toast.success('Immagine caricata')
+    } else {
+      toast.error(result.error ?? 'Errore upload')
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: uploading ? 'default' : 'pointer' }}
+      >
+        {uploading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <ImagePlus size={14} />}
+        {uploading ? 'Caricamento…' : currentUrl ? 'Cambia foto' : 'Carica foto'}
+      </button>
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handleFile} />
+    </div>
+  )
+}
+
+export function WebsiteTabClient({
+  initialData,
+  aboutTitle,
+  aboutText,
+  aboutImageUrl,
+  onAboutTitleChange,
+  onAboutTextChange,
+  onAboutImageUrlChange,
+}: {
+  initialData: WebsiteData
+  aboutTitle: string
+  aboutText: string
+  aboutImageUrl: string
+  onAboutTitleChange: (v: string) => void
+  onAboutTextChange: (v: string) => void
+  onAboutImageUrlChange: (v: string) => void
+}) {
   const [photos, setPhotos] = React.useState<WebsitePhoto[]>(initialData.photos)
   const [staff, setStaff] = React.useState<WebsiteStaff[]>(initialData.staff)
   const [locations, setLocations] = React.useState<WebsiteLocation[]>(initialData.locations)
@@ -295,6 +349,58 @@ export function WebsiteTabClient({ initialData }: { initialData: WebsiteData }) 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionCard
+        title="Chi siamo"
+        description="Presentati ai tuoi clienti con un titolo, un testo e una foto."
+      >
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+            Titolo <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 80 caratteri)</span>
+          </label>
+          <input
+            style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 10, border: '1.5px solid #E5E7EB', outline: 'none', background: '#FFFFFF', color: '#111111', boxSizing: 'border-box' }}
+            value={aboutTitle}
+            onChange={(e) => onAboutTitleChange(e.target.value.slice(0, 80))}
+            placeholder='Es. "Il tuo barbiere di fiducia a Milano"'
+            maxLength={80}
+          />
+          <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{aboutTitle.length}/80</p>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+            Testo di presentazione <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 400 caratteri)</span>
+          </label>
+          <textarea
+            style={{ width: '100%', padding: '10px 12px', fontSize: 14, borderRadius: 10, border: '1.5px solid #E5E7EB', outline: 'none', background: '#FFFFFF', color: '#111111', boxSizing: 'border-box', minHeight: 100, resize: 'vertical' }}
+            value={aboutText}
+            onChange={(e) => onAboutTextChange(e.target.value.slice(0, 400))}
+            placeholder='Es. "Dal 2018 offriamo taglio e barba nel cuore di Milano..."'
+            maxLength={400}
+          />
+          <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{aboutText.length}/400</p>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>
+            Foto About
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {aboutImageUrl && (
+              <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #E5E7EB' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={aboutImageUrl} alt="About" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            <AboutImageUploader currentUrl={aboutImageUrl} onUploaded={onAboutImageUrlChange} />
+          </div>
+        </div>
+
+        <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0 }}>
+          💡 Premi &quot;Salva impostazioni&quot; nel tab App per salvare le modifiche.
+        </p>
+      </SectionCard>
+
       <SectionCard
         title="Foto del sito"
         description="Le foto che appaiono nella tua pagina pubblica. La prima è la hero image principale."

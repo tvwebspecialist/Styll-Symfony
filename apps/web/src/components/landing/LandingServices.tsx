@@ -41,29 +41,24 @@ function ServiceRow({ service, slug }: ServiceRowProps) {
     <Link
       href={`/tenant/app/${slug}/prenota?service=${service.id}`}
       className="group flex items-start justify-between gap-4 py-5 transition-colors"
-      style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+      style={{ borderBottom: '1px solid #F3F4F6' }}
     >
-      {/* Info sinistra */}
       <div className="min-w-0 flex-1">
         <p
           className="font-semibold leading-snug transition-colors group-hover:text-[var(--brand-primary)]"
-          style={{ fontSize: '1.05rem', color: 'var(--landing-text-primary)' }}
+          style={{ fontSize: '1.05rem', color: '#111111' }}
         >
           {service.name}
         </p>
         {service.description && (
-          <p
-            className="mt-1 line-clamp-1 text-[0.8rem]"
-            style={{ color: 'rgba(255,255,255,0.4)' }}
-          >
+          <p className="mt-1 line-clamp-1 text-[0.8rem]" style={{ color: '#6B7280' }}>
             {service.description}
           </p>
         )}
         <div className="mt-2 flex items-center gap-3">
-          {/* Badge durata */}
           <span
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-            style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)' }}
+            style={{ background: '#F3F4F6', color: '#6B7280' }}
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
@@ -71,7 +66,6 @@ function ServiceRow({ service, slug }: ServiceRowProps) {
             </svg>
             {service.duration_minutes} min
           </span>
-          {/* Prenota — appare on hover */}
           <span
             className="flex items-center gap-1 text-[11px] font-semibold opacity-0 transition-opacity group-hover:opacity-100"
             style={{ color: 'var(--brand-primary)' }}
@@ -84,7 +78,6 @@ function ServiceRow({ service, slug }: ServiceRowProps) {
         </div>
       </div>
 
-      {/* Prezzo destra */}
       <div className="shrink-0 pt-0.5 text-right">
         <span
           className="font-black leading-none"
@@ -92,10 +85,7 @@ function ServiceRow({ service, slug }: ServiceRowProps) {
         >
           {formatPriceNumber(service.price)}
         </span>
-        <span
-          className="ml-0.5 text-[0.7rem] font-medium"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
-        >
+        <span className="ml-0.5 text-[0.7rem] font-medium" style={{ color: '#6B7280' }}>
           €
         </span>
       </div>
@@ -115,21 +105,16 @@ function CategoryBlock({ group, slug }: CategoryBlockProps) {
 
   return (
     <div>
-      {/* Header categoria */}
       <div
         className="mb-4 flex items-center gap-3 pb-3"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ borderBottom: '1px solid #E5E7EB' }}
       >
         <div className="h-5 w-1 rounded-full" style={{ background: 'var(--brand-primary)' }} />
-        <span
-          className="text-[11px] font-bold uppercase tracking-[0.15em]"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
-        >
+        <span className="text-[11px] font-bold uppercase tracking-[0.15em]" style={{ color: '#9CA3AF' }}>
           {group.category}
         </span>
       </div>
 
-      {/* Servizi */}
       <div className="md:grid md:grid-cols-2 md:gap-x-12">
         <div>
           {col1.map((service) => (
@@ -157,10 +142,9 @@ export default function LandingServices({ services, slug }: Props) {
       aria-label="Servizi"
       id="servizi"
       className="py-[clamp(4rem,8vw,7rem)]"
-      style={{ background: 'var(--landing-surface)' }}
+      style={{ background: '#FFFFFF' }}
     >
       <div className="mx-auto max-w-5xl px-5 sm:px-8">
-        {/* Header sezione */}
         <div className="mb-12">
           <span
             className="text-xs font-semibold uppercase tracking-[0.2em]"
@@ -169,8 +153,8 @@ export default function LandingServices({ services, slug }: Props) {
             Cosa offriamo
           </span>
           <h2
-            className="mt-2 font-bold tracking-tight text-white"
-            style={{ fontSize: 'clamp(2rem, 5vw, 3rem)' }}
+            className="mt-2 font-bold tracking-tight"
+            style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#111111' }}
           >
             Servizi
           </h2>

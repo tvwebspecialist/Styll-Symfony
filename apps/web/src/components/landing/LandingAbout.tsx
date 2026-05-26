@@ -1,52 +1,49 @@
+import type { CSSProperties } from 'react'
 import Image from 'next/image'
 import type { TenantBranding } from '@/lib/tenant'
-import type { PublicLocation, PublicPortfolioPhoto } from '@/lib/actions/public-booking'
+import type { PublicLocation, PublicWebsitePhoto } from '@/lib/actions/public-booking'
+
+interface AboutData {
+  title?: string
+  text?: string
+  image_url?: string
+}
 
 interface Props {
   tenant: TenantBranding
-  portfolio: PublicPortfolioPhoto[]
+  websitePhotos: PublicWebsitePhoto[]
   firstLocation: PublicLocation | null
+  aboutData?: AboutData
 }
 
-export default function LandingAbout({ tenant, portfolio, firstLocation }: Props) {
-  const bio = (tenant.settings?.bio as string | undefined) ?? null
-  if (!bio?.trim()) return null
+export default function LandingAbout({ tenant, websitePhotos, firstLocation, aboutData }: Props) {
+  const title = aboutData?.title?.trim() || null
+  const text = aboutData?.text?.trim() || (tenant.settings?.bio as string | undefined)?.trim() || null
+  const imageUrl = aboutData?.image_url?.trim() || websitePhotos[1]?.url || firstLocation?.photo_url || null
 
-  const imageUrl = portfolio[1]?.photo_url ?? firstLocation?.photo_url ?? null
-  const displayBio = bio.length > 300 ? bio.slice(0, 300) : bio
+  if (!text?.trim() && !title?.trim()) return null
 
   return (
     <section
       aria-label="Chi siamo"
-      className="py-[clamp(4rem,8vw,7rem)]"
-      style={{ background: 'var(--landing-surface)' }}
+      style={{ background: '#FFFFFF', padding: 'clamp(4rem, 8vw, 7rem) 0' } as CSSProperties}
     >
-      <div className="mx-auto max-w-5xl px-5 sm:px-8">
-        <div className="grid gap-12 md:grid-cols-2 md:items-center">
+      <div style={{ maxWidth: 1024, margin: '0 auto', padding: '0 clamp(20px, 5vw, 48px)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'clamp(2rem, 5vw, 4rem)', alignItems: 'center' }}>
           <div>
-            <h2
-              className="mb-6 font-bold leading-tight tracking-[-0.02em]"
-              style={{
-                fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
-                color: 'var(--landing-text-primary)',
-              }}
-            >
-              Il tuo barbiere
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: tenant.primary_color ?? '#1a1a1a' }}>
+              Chi siamo
+            </span>
+            <h2 style={{ marginTop: 10, marginBottom: 20, fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 800, color: '#111111', lineHeight: 1.15, letterSpacing: '-0.02em' }}>
+              {title || 'Il tuo barbiere di fiducia'}
             </h2>
-            <p
-              className="leading-relaxed"
-              style={{
-                color: 'var(--landing-text-muted)',
-                fontSize: '1rem',
-                lineHeight: '1.6',
-              }}
-            >
-              {displayBio}
+            <p style={{ fontSize: '1rem', lineHeight: 1.7, color: '#4B5563' }}>
+              {text}
             </p>
           </div>
 
           {imageUrl && (
-            <div className="relative aspect-square overflow-hidden rounded-2xl">
+            <div style={{ position: 'relative', borderRadius: 24, overflow: 'hidden', aspectRatio: '4/5' }}>
               <Image
                 src={imageUrl}
                 alt={`${tenant.business_name} — foto`}
