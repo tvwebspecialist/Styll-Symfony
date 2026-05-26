@@ -14,7 +14,6 @@ import {
   Scissors,
   Smartphone,
   Settings,
-  Images,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -53,7 +52,6 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Catalogo', href: '/catalogo', icon: Scissors },
       { label: 'La mia App', href: '/app', icon: Smartphone },
-      { label: 'Gallery', href: '/gallery', icon: Images },
       { label: 'Impostazioni', href: '/impostazioni', icon: Settings },
     ],
   },

@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath } from 'next/cache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -312,50 +312,6 @@ export async function updateStaffRole(
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/dashboard/team')
-  return { success: true }
-}
-
-// ─── updateStaffPhoto ─────────────────────────────────────────────────────────
-
-export async function updateStaffPhoto(
-  staffId: string,
-  photoUrl: string,
-): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
-  const { data: currentStaff } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!currentStaff) return { success: false, error: 'Non sei un membro del team' }
-
-  const canEditAny = ['owner', 'manager'].includes(currentStaff.role)
-  const isSelf = currentStaff.id === staffId
-  if (!canEditAny && !isSelf) {
-    return { success: false, error: 'Non hai i permessi per modificare questa foto' }
-  }
-
-  const { error } = await db
-    .from('staff_members')
-    .update({ photo_url: photoUrl })
-    .eq('id', staffId)
-    .eq('tenant_id', tenantId)
-
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath('/dashboard/team')
-  revalidateTag(`tenant-${tenantId}-staff`, {})
   return { success: true }
 }
 
