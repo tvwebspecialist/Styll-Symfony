@@ -17,21 +17,17 @@ function detectPlatform(): 'ios' | 'android' | 'generic' {
   return 'generic'
 }
 
-function AppleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.15-2.18 1.27-2.15 3.8.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.78M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-    </svg>
-  )
-}
-
-function AndroidIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C6.97 3.26 6 5.01 6 7h12c0-1.99-.97-3.75-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z" />
-    </svg>
-  )
-}
+// Decorative squares data
+const SQUARES = [
+  { top: 14,  right: 96,  size: 44, r: 10 },
+  { top: 56,  right: 46,  size: 24, r:  6 },
+  { top: 110, right: 76,  size: 14, r:  4 },
+  { top: 22,  right: 162, size: 16, r:  4 },
+  { top: 42,  left:  84,  size: 20, r:  5 },
+  { top: 90,  left:  44,  size: 12, r:  3 },
+  { bottom: 30, left: 58, size: 30, r:  8 },
+  { bottom: 80, left: 26, size: 16, r:  4 },
+] as const
 
 export default function LandingPWACta({ tenant }: Props) {
   const { canInstall, isInstalled, install } = usePWAInstall()
@@ -49,94 +45,184 @@ export default function LandingPWACta({ tenant }: Props) {
     }
   }
 
+  const primary = tenant.primary_color || '#1a1a1a'
+
   return (
     <>
       <section
         aria-label="Installa l'app"
-        className="w-full"
-        style={{ background: '#111' }}
+        style={{ background: '#0D0D0D', padding: '80px 20px 100px' }}
       >
-        <div className="w-full max-w-[1120px] mx-auto px-5 py-20 sm:py-28">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-10 lg:gap-16">
-
-            {/* Text side */}
-            <div className="flex-1 max-w-xl">
-              {tenant.logo_url && (
-                <div className="mb-6">
-                  <Image
-                    src={tenant.logo_url}
-                    alt={tenant.business_name}
-                    width={52}
-                    height={52}
-                    className="rounded-2xl object-cover"
-                  />
-                </div>
-              )}
-
-              <h2
-                className="font-black text-white mb-4 leading-tight"
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          {/* Gradient card */}
+          <div
+            style={{
+              position: 'relative',
+              borderRadius: 28,
+              overflow: 'hidden',
+              padding: 'clamp(48px, 7vw, 72px) clamp(24px, 6vw, 64px)',
+              background: `linear-gradient(145deg, ${primary} 0%, rgba(0,0,0,0.92) 100%)`,
+              textAlign: 'center',
+            }}
+          >
+            {/* Decorative squares */}
+            {SQUARES.map((s, i) => (
+              <div
+                key={i}
+                aria-hidden="true"
                 style={{
-                  fontSize: 'clamp(26px, 4vw, 44px)',
-                  letterSpacing: '-0.025em',
+                  position: 'absolute',
+                  top:    'top'    in s ? s.top    : undefined,
+                  bottom: 'bottom' in s ? s.bottom : undefined,
+                  left:   'left'   in s ? s.left   : undefined,
+                  right:  'right'  in s ? s.right  : undefined,
+                  width:  s.size,
+                  height: s.size,
+                  borderRadius: s.r,
+                  background: 'rgba(255,255,255,0.08)',
+                }}
+              />
+            ))}
+
+            {/* Logo badge */}
+            {tenant.logo_url && (
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'inline-flex',
+                  background: 'rgba(255,255,255,0.12)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.20)',
+                  borderRadius: 18,
+                  padding: 10,
+                  marginBottom: 28,
                 }}
               >
-                Prenota, accumula punti,<br />non aspettare.
-              </h2>
-
-              <p className="text-white/55 text-base mb-8 leading-relaxed">
-                Installa l&apos;app di <span className="text-white/80 font-medium">{tenant.business_name}</span>{' '}
-                sul tuo telefono. Gratis, senza App Store.
-              </p>
-
-              <div className="flex flex-wrap gap-3 mb-5">
-                <button
-                  onClick={handleInstall}
-                  className="inline-flex items-center gap-2.5 font-semibold text-sm rounded-full border border-white/20 text-white hover:bg-white/10 transition-colors"
-                  style={{ padding: '11px 20px' }}
-                >
-                  <AppleIcon />
-                  Aggiungi su iPhone
-                </button>
-                <button
-                  onClick={handleInstall}
-                  className="inline-flex items-center gap-2.5 font-semibold text-sm rounded-full border border-white/20 text-white hover:bg-white/10 transition-colors"
-                  style={{ padding: '11px 20px' }}
-                >
-                  <AndroidIcon />
-                  Aggiungi su Android
-                </button>
+                <Image
+                  src={tenant.logo_url}
+                  alt={tenant.business_name}
+                  width={52}
+                  height={52}
+                  style={{ borderRadius: 10, objectFit: 'cover', display: 'block' }}
+                />
               </div>
+            )}
 
-              <p className="text-white/30 text-xs">Nessun download richiesto — funziona dal browser</p>
-            </div>
+            {/* Headline */}
+            <h2
+              style={{
+                position: 'relative',
+                margin: '0 0 16px',
+                fontSize: 'clamp(26px, 4.5vw, 46px)',
+                fontWeight: 800,
+                color: '#FFFFFF',
+                lineHeight: 1.1,
+                letterSpacing: '-0.03em',
+              }}
+            >
+              Prenota, accumula punti,<br />non aspettare.
+            </h2>
+
+            {/* Subtitle */}
+            <p
+              style={{
+                position: 'relative',
+                margin: '0 auto 40px',
+                maxWidth: 460,
+                fontSize: 16,
+                color: 'rgba(255,255,255,0.60)',
+                lineHeight: 1.65,
+              }}
+            >
+              Installa l&apos;app di{' '}
+              <span style={{ color: 'rgba(255,255,255,0.88)', fontWeight: 600 }}>
+                {tenant.business_name}
+              </span>{' '}
+              sul tuo telefono. Gratis, senza App Store.
+            </p>
+
+            {/* CTA */}
+            <button
+              onClick={handleInstall}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                background: '#FFFFFF',
+                color: '#111111',
+                border: 'none',
+                borderRadius: 99,
+                padding: '15px 36px',
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: 'pointer',
+                letterSpacing: '-0.01em',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.22)',
+              }}
+            >
+              Installa l&apos;app gratis
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+
+            {/* Fine print */}
+            <p
+              style={{
+                position: 'relative',
+                margin: '18px 0 0',
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.28)',
+              }}
+            >
+              Nessun download richiesto — funziona dal browser
+            </p>
           </div>
         </div>
       </section>
 
-      {/* Install instructions modal */}
+      {/* Install modal */}
       {showModal && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Come installare l'app"
-          className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center bg-black/60 backdrop-blur-sm"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: 16,
+            background: 'rgba(0,0,0,0.62)',
+            backdropFilter: 'blur(6px)',
+          }}
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl"
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              background: '#FFFFFF',
+              borderRadius: 24,
+              padding: 28,
+              boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="font-black text-[#111] text-lg mb-6">Installa l&apos;app</p>
+            <p style={{ fontWeight: 800, fontSize: 18, color: '#111', margin: '0 0 24px' }}>
+              Installa l&apos;app
+            </p>
 
             {(modalPlatform === 'ios' || modalPlatform === 'generic') && (
-              <div className="mb-5">
-                <p
-                  className="font-bold uppercase tracking-wider text-xs mb-2"
-                  style={{ color: tenant.primary_color }}
-                >
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: primary, margin: '0 0 8px' }}>
                   Su iPhone
                 </p>
-                <p className="text-sm text-[#555] leading-relaxed">
+                <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, margin: 0 }}>
                   Apri con <strong>Safari</strong> → tocca <strong>Condividi ↑</strong> →{' '}
                   <strong>&ldquo;Aggiungi alla schermata Home&rdquo;</strong>
                 </p>
@@ -144,14 +230,11 @@ export default function LandingPWACta({ tenant }: Props) {
             )}
 
             {(modalPlatform === 'android' || modalPlatform === 'generic') && (
-              <div className="mb-7">
-                <p
-                  className="font-bold uppercase tracking-wider text-xs mb-2"
-                  style={{ color: tenant.primary_color }}
-                >
+              <div style={{ marginBottom: 28 }}>
+                <p style={{ fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: primary, margin: '0 0 8px' }}>
                   Su Android
                 </p>
-                <p className="text-sm text-[#555] leading-relaxed">
+                <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, margin: 0 }}>
                   In Chrome, tocca <strong>⋮</strong> → <strong>&ldquo;Installa app&rdquo;</strong>{' '}
                   o <strong>&ldquo;Aggiungi a schermata Home&rdquo;</strong>
                 </p>
@@ -160,8 +243,17 @@ export default function LandingPWACta({ tenant }: Props) {
 
             <button
               onClick={() => setShowModal(false)}
-              className="w-full font-bold text-sm text-white rounded-full"
-              style={{ background: tenant.primary_color, padding: '13px 0' }}
+              style={{
+                width: '100%',
+                fontWeight: 700,
+                fontSize: 15,
+                color: '#FFFFFF',
+                background: primary,
+                border: 'none',
+                borderRadius: 99,
+                padding: '14px 0',
+                cursor: 'pointer',
+              }}
             >
               Capito
             </button>
