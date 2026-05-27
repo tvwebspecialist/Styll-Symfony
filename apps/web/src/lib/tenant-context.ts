@@ -1,6 +1,116 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+const DASHBOARD_SUFFIX = '-dashboard'
+
+function firstHeaderValue(value: string | null): string | null {
+  return value?.split(',')[0]?.trim() || null
+}
+
+function dashboardSlugFromHost(hostValue: string | null): string | null {
+  const host = firstHeaderValue(hostValue)?.toLowerCase()
+  if (!host) return null
+
+  let subdomain: string | null = null
+  if (host.endsWith(`.${ROOT_DOMAIN}`)) {
+    subdomain = host.slice(0, -(ROOT_DOMAIN.length + 1))
+  } else if (host.endsWith('.localhost:3000')) {
+    subdomain = host.slice(0, -'.localhost:3000'.length)
+  }
+
+  if (!subdomain?.endsWith(DASHBOARD_SUFFIX)) return null
+  const slug = subdomain.slice(0, -DASHBOARD_SUFFIX.length)
+  return slug || null
+}
+
+function dashboardSlugFromUrlLike(value: string | null): string | null {
+  if (!value) return null
+
+  const pathMatch = value.match(/\/tenant\/dashboard\/([^/?#]+)/)
+  if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1])
+
+  const queryIndex = value.indexOf('?')
+  if (queryIndex === -1) return null
+  const query = value.slice(queryIndex + 1).split('#')[0]
+  const params = new URLSearchParams(query)
+  if (params.get('_tenant_type') !== 'dashboard') return null
+  return params.get('_tenant_slug')
+}
+
+async function getDashboardSlugFromRequest(): Promise<string | null> {
+  const headerStore = await headers()
+
+  const hostSlug =
+    dashboardSlugFromHost(headerStore.get('host')) ??
+    dashboardSlugFromHost(headerStore.get('x-forwarded-host')) ??
+    dashboardSlugFromHost(headerStore.get('x-original-host'))
+  if (hostSlug) return hostSlug
+
+  const urlHeaders = [
+    'next-url',
+    'x-invoke-path',
+    'x-matched-path',
+    'x-original-url',
+    'x-url',
+    'referer',
+  ]
+
+  for (const name of urlHeaders) {
+    const slug = dashboardSlugFromUrlLike(headerStore.get(name))
+    if (slug) return slug
+  }
+
+  return null
+}
+
+async function userCanAccessTenant(
+  db: ReturnType<typeof createAdminClient>,
+  userId: string,
+  tenantId: string
+): Promise<boolean> {
+  const { data: staffRow } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', userId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (staffRow) return true
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', userId)
+    .maybeSingle()
+
+  return !!profile?.is_superadmin
+}
+
+async function getDashboardTenantIdFromRequest(
+  db: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<{ matchedDashboardUrl: boolean; tenantId: string | null }> {
+  const slug = await getDashboardSlugFromRequest()
+  if (!slug) return { matchedDashboardUrl: false, tenantId: null }
+
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('id')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  const tenantId = tenant?.id as string | undefined
+  if (!tenantId) return { matchedDashboardUrl: true, tenantId: null }
+
+  return {
+    matchedDashboardUrl: true,
+    tenantId: (await userCanAccessTenant(db, userId, tenantId)) ? tenantId : null,
+  }
+}
 
 export const IMPERSONATE_STAFF_COOKIE = 'styll_impersonate_staff'
 
@@ -63,8 +173,9 @@ export const IMPERSONATE_COOKIE = 'styll_impersonate_tenant'
 /**
  * Resolve the active tenant id for the current request.
  *
- * - If a `styll_impersonate_tenant` cookie is set AND the current user is a
- *   superadmin, return the cookie value (admin shadow mode).
+ * - On tenant dashboard routes, the URL slug is the source of truth.
+ * - If no dashboard slug is present and a `styll_impersonate_tenant` cookie is
+ *   set AND the current user is a superadmin, return the cookie value.
  * - Otherwise, fall back to the user's primary `staff_members.tenant_id`.
  */
 export async function getActiveTenantId(): Promise<string | null> {
@@ -75,6 +186,11 @@ export async function getActiveTenantId(): Promise<string | null> {
   if (!user) return null
 
   const db = createAdminClient()
+  const tenantFromDashboardUrl = await getDashboardTenantIdFromRequest(db, user.id)
+  if (tenantFromDashboardUrl.matchedDashboardUrl) {
+    return tenantFromDashboardUrl.tenantId
+  }
+
   const cookieStore = await cookies()
   const impersonatedTenant = cookieStore.get(IMPERSONATE_COOKIE)?.value
 
@@ -175,10 +291,24 @@ export async function resolveActiveProfile(): Promise<ActiveProfileResolution | 
   }
 
   const db = createAdminClient()
+  const tenantFromDashboardUrl = await getDashboardTenantIdFromRequest(db, user.id)
+  const shadowTenantId = tenantFromDashboardUrl.matchedDashboardUrl
+    ? tenantFromDashboardUrl.tenantId
+    : impersonation.tenantId
+
+  if (!shadowTenantId) {
+    return {
+      profileId: user.id,
+      realUserId: user.id,
+      isShadow: false,
+      tenantId: null,
+    }
+  }
+
   const { data: ownerStaff } = await db
     .from('staff_members')
     .select('profile_id')
-    .eq('tenant_id', impersonation.tenantId)
+    .eq('tenant_id', shadowTenantId)
     .eq('role', 'owner')
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -190,6 +320,51 @@ export async function resolveActiveProfile(): Promise<ActiveProfileResolution | 
     profileId: ownerStaff?.profile_id ?? user.id,
     realUserId: user.id,
     isShadow: ownerStaff?.profile_id != null,
-    tenantId: impersonation.tenantId,
+    tenantId: shadowTenantId,
+  }
+}
+
+/**
+ * Resolve the active profile for a known dashboard tenant.
+ *
+ * This is used by `/tenant/dashboard/[slug]` so shadow mode cannot leak a
+ * different tenant's owner/profile into a dashboard selected by URL slug.
+ */
+export async function resolveActiveProfileForTenant(
+  tenantId: string
+): Promise<ActiveProfileResolution | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const impersonation = await getImpersonationState()
+  if (!impersonation.active) {
+    return {
+      profileId: user.id,
+      realUserId: user.id,
+      isShadow: false,
+      tenantId: null,
+    }
+  }
+
+  const db = createAdminClient()
+  const { data: ownerStaff } = await db
+    .from('staff_members')
+    .select('profile_id')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'owner')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    profileId: ownerStaff?.profile_id ?? user.id,
+    realUserId: user.id,
+    isShadow: ownerStaff?.profile_id != null,
+    tenantId,
   }
 }

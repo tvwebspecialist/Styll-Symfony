@@ -7,8 +7,9 @@ import { MainContent } from '@/components/dashboard/MainContent'
 import { ImpersonationBanner } from '@/components/dashboard/ImpersonationBanner'
 import { StaffImpersonationBanner } from '@/components/dashboard/StaffImpersonationBanner'
 import { ShadowModeProvider } from '@/lib/hooks/use-shadow-mode'
+import { TenantProvider } from '@/lib/hooks/use-tenant-context'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getImpersonationState, resolveActiveProfile } from '@/lib/tenant-context'
+import { getImpersonationState, resolveActiveProfileForTenant } from '@/lib/tenant-context'
 import { getTenantBySlug } from '@/lib/tenant'
 
 interface Props {
@@ -50,40 +51,36 @@ export default async function TenantDashboardLayout({ params, children }: Props)
   const tenantBySlug = await getTenantBySlug(slug)
   if (!tenantBySlug) notFound()
 
-  const ctx = await resolveActiveProfile()
+  const ctx = await resolveActiveProfileForTenant(tenantBySlug.tenant_id)
   if (!ctx) redirect(loginUrl())
 
   const db = createAdminClient()
   const impersonation = await getImpersonationState()
 
-  let primaryTenantId: string | null = impersonation.tenantId
+  const { data: profile } = await db
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', ctx.realUserId)
+    .maybeSingle()
 
-  if (!primaryTenantId) {
-    const { data: allStaffRows } = await db
-      .from('staff_members')
-      .select('tenant_id')
-      .eq('profile_id', ctx.realUserId)
-      .eq('is_active', true)
-      .is('deleted_at', null)
+  const isSuperadmin = !!profile?.is_superadmin
+  const { data: allStaffRows } = await db
+    .from('staff_members')
+    .select('tenant_id')
+    .eq('profile_id', ctx.realUserId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
 
-    const allTenantIds = (allStaffRows ?? []).map((r) => r.tenant_id as string)
+  const allTenantIds = (allStaffRows ?? []).map((r) => r.tenant_id as string)
 
-    if (allTenantIds.length === 0) redirect(onboardingUrl())
+  if (allTenantIds.length === 0 && !isSuperadmin) redirect(onboardingUrl())
 
-    // Access guard: user must have a staff_members row for this tenant
-    if (!allTenantIds.includes(tenantBySlug.tenant_id)) {
-      redirect(selectTenantUrl('error=access_denied'))
-    }
-
-    primaryTenantId = tenantBySlug.tenant_id
+  // Access guard: user must have access to the tenant selected by URL slug.
+  if (!allTenantIds.includes(tenantBySlug.tenant_id) && !isSuperadmin) {
+    redirect(selectTenantUrl('error=access_denied'))
   }
 
-  const [{ data: tenant }, { data: ownerProfile }, { data: adminProfile }] = await Promise.all([
-    db
-      .from('tenants')
-      .select('status, business_name, logo_url')
-      .eq('id', primaryTenantId)
-      .maybeSingle(),
+  const [{ data: ownerProfile }, { data: adminProfile }] = await Promise.all([
     db
       .from('profiles')
       .select('full_name, avatar_url, email')
@@ -94,7 +91,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
       : Promise.resolve({ data: null }),
   ])
 
-  if (tenant?.status === 'suspended' && !impersonation.active) {
+  if (tenantBySlug.status === 'suspended' && !impersonation.active) {
     redirect(suspendedUrl())
   }
 
@@ -110,34 +107,56 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     'Admin'
 
   return (
-    <ShadowModeProvider
+    <TenantProvider
       value={{
-        active: ctx.isShadow,
-        tenantId: ctx.tenantId,
-        tenantName: impersonation.businessName,
-        adminName: ctx.isShadow ? adminName : null,
+        tenantId: tenantBySlug.tenant_id,
+        tenant: {
+          tenantId: tenantBySlug.tenant_id,
+          slug: tenantBySlug.slug,
+          businessName: tenantBySlug.business_name,
+          primaryColor: tenantBySlug.primary_color,
+          secondaryColor: tenantBySlug.secondary_color,
+          logoUrl: tenantBySlug.logo_url,
+          fontFamily: tenantBySlug.font_family,
+          status: tenantBySlug.status,
+          settings: tenantBySlug.settings,
+        },
       }}
     >
-      <div style={{ minHeight: '100vh', background: '#F5F5F5' }}>
-        <ImpersonationBanner />
-        <StaffImpersonationBanner />
-        <TopBar
-          fullName={displayName}
-          avatarUrl={ownerProfile?.avatar_url ?? null}
-          impersonation={
-            ctx.isShadow && impersonation.businessName
-              ? { adminName, tenantName: impersonation.businessName }
-              : null
-          }
-        />
-        <Sidebar />
-        <MobileTopBar
-          fullName={displayName}
-          avatarUrl={ownerProfile?.avatar_url ?? null}
-        />
-        <BottomNav />
-        <MainContent>{children}</MainContent>
-      </div>
-    </ShadowModeProvider>
+      <ShadowModeProvider
+        value={{
+          active: ctx.isShadow,
+          tenantId: ctx.tenantId,
+          tenantName: ctx.isShadow ? tenantBySlug.business_name : null,
+          adminName: ctx.isShadow ? adminName : null,
+        }}
+      >
+        <div style={{ minHeight: '100vh', background: '#F5F5F5' }}>
+          <ImpersonationBanner
+            state={{
+              active: ctx.isShadow,
+              businessName: ctx.isShadow ? tenantBySlug.business_name : null,
+            }}
+          />
+          <StaffImpersonationBanner />
+          <TopBar
+            fullName={displayName}
+            avatarUrl={ownerProfile?.avatar_url ?? null}
+            impersonation={
+              ctx.isShadow
+                ? { adminName, tenantName: tenantBySlug.business_name }
+                : null
+            }
+          />
+          <Sidebar />
+          <MobileTopBar
+            fullName={displayName}
+            avatarUrl={ownerProfile?.avatar_url ?? null}
+          />
+          <BottomNav />
+          <MainContent>{children}</MainContent>
+        </div>
+      </ShadowModeProvider>
+    </TenantProvider>
   )
 }

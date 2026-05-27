@@ -1,8 +1,17 @@
 import { getImpersonationState } from '@/lib/tenant-context'
 import { StopImpersonationButton } from './ImpersonationBannerClient'
 
-export async function ImpersonationBanner() {
-  const state = await getImpersonationState()
+interface ImpersonationBannerState {
+  active: boolean
+  businessName: string | null
+}
+
+export async function ImpersonationBanner({
+  state: providedState,
+}: {
+  state?: ImpersonationBannerState
+}) {
+  const state = providedState ?? (await getImpersonationState())
   if (!state.active) return null
 
   return (

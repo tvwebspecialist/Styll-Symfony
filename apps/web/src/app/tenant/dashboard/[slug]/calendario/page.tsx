@@ -1,7 +1,7 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
+import { getTenantBySlug } from '@/lib/tenant'
 import { getCalendarioData } from '@/lib/actions/calendario'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { getWeekMonday } from '@/lib/utils/week'
@@ -10,14 +10,17 @@ import { CalendarioClient } from '@/components/dashboard/calendario/CalendarioCl
 export const dynamic = 'force-dynamic'
 
 export default async function CalendarioPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ slug: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const params = await searchParams
-  const weekParam = typeof params.week === 'string' ? params.week : null
-  const dayParam  = typeof params.day  === 'string' ? params.day  : null
-  const staffParam = typeof params.staff === 'string' ? params.staff : null
+  const { slug } = await params
+  const query = await searchParams
+  const weekParam = typeof query.week === 'string' ? query.week : null
+  const dayParam  = typeof query.day  === 'string' ? query.day  : null
+  const staffParam = typeof query.staff === 'string' ? query.staff : null
 
   const supabase = await createClient()
   const {
@@ -25,8 +28,9 @@ export default async function CalendarioPage({
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) redirect('/onboarding/step-1')
+  const tenant = await getTenantBySlug(slug)
+  if (!tenant) notFound()
+  const tenantId = tenant.tenant_id
 
   const db = createAdminClient()
   const { data: myStaff } = await db
