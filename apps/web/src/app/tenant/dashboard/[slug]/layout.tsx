@@ -57,7 +57,6 @@ export default async function TenantDashboardLayout({ params, children }: Props)
   const impersonation = await getImpersonationState()
 
   let primaryTenantId: string | null = impersonation.tenantId
-  let hasMultipleTenants = false
 
   if (!primaryTenantId) {
     const { data: allStaffRows } = await db
@@ -68,7 +67,6 @@ export default async function TenantDashboardLayout({ params, children }: Props)
       .is('deleted_at', null)
 
     const allTenantIds = (allStaffRows ?? []).map((r) => r.tenant_id as string)
-    hasMultipleTenants = allTenantIds.length > 1
 
     if (allTenantIds.length === 0) redirect(onboardingUrl())
 
@@ -132,12 +130,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
               : null
           }
         />
-        <Sidebar
-          tenantName={(tenant as { business_name?: string } | null)?.business_name ?? undefined}
-          tenantLogoUrl={(tenant as { logo_url?: string | null } | null)?.logo_url ?? null}
-          hasMultipleTenants={hasMultipleTenants}
-          selectTenantHref={hasMultipleTenants ? selectTenantUrl() : undefined}
-        />
+        <Sidebar />
         <MobileTopBar
           fullName={displayName}
           avatarUrl={ownerProfile?.avatar_url ?? null}
