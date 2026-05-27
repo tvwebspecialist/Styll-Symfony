@@ -8,6 +8,7 @@ import { Bell, Search, HelpCircle } from 'lucide-react'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
+import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
 
 interface TopBarHomeProps {
   fullName: string
@@ -176,8 +177,8 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
             )}
           </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/notifiche"
             aria-label="Notifiche"
             style={{
               width: 44,
@@ -191,22 +192,36 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               justifyContent: 'center',
               position: 'relative',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
+              textDecoration: 'none',
+              flexShrink: 0,
             }}
           >
             <Bell size={21} color="#111111" strokeWidth={1.8} />
-            <span
-              style={{
-                position: 'absolute',
-                top: 9,
-                right: 9,
-                width: 9,
-                height: 9,
-                borderRadius: '50%',
-                background: '#ef4444',
-                border: '1.5px solid rgba(250,251,253,0.9)',
-              }}
-            />
-          </button>
+            {MOCK_UNREAD_COUNT > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  minWidth: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: '#ef4444',
+                  color: '#FFFFFF',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 3px',
+                  border: '2px solid rgba(250,251,253,0.9)',
+                  lineHeight: 1,
+                }}
+              >
+                {MOCK_UNREAD_COUNT}
+              </span>
+            )}
+          </Link>
         </div>
 
         {/* ROW 2 — greeting + subtitle */}

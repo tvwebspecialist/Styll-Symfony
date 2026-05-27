@@ -4,6 +4,7 @@ import { Bell } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getDashboardSection } from '@/lib/dashboard-path'
+import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
 
 const PAGE_NAMES: Record<string, string> = {
   calendario: 'Calendario',
@@ -16,6 +17,7 @@ const PAGE_NAMES: Record<string, string> = {
   profilo: 'Profilo',
   loyalty: 'Loyalty',
   app: 'App',
+  notifiche: 'Notifiche',
 }
 
 interface TopBarSimpleProps {
@@ -118,8 +120,8 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
         </span>
 
         {/* BELL — right */}
-        <button
-          type="button"
+        <Link
+          href="/notifiche"
           aria-label="Notifiche"
           style={{
             width: 44,
@@ -134,22 +136,35 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
             flexShrink: 0,
             position: 'relative',
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
+            textDecoration: 'none',
           }}
         >
           <Bell size={20} color="#111111" strokeWidth={1.8} />
-          <span
-            style={{
-              position: 'absolute',
-              top: 9,
-              right: 9,
-              width: 9,
-              height: 9,
-              borderRadius: '50%',
-              background: '#ef4444',
-              border: '1.5px solid rgba(250,251,253,0.9)',
-            }}
-          />
-        </button>
+          {MOCK_UNREAD_COUNT > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                minWidth: 16,
+                height: 16,
+                borderRadius: 999,
+                background: '#ef4444',
+                color: '#FFFFFF',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 3px',
+                border: '2px solid rgba(250,251,253,0.9)',
+                lineHeight: 1,
+              }}
+            >
+              {MOCK_UNREAD_COUNT}
+            </span>
+          )}
+        </Link>
       </div>
     </div>
   )

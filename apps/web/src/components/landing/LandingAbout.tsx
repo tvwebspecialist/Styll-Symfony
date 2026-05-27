@@ -1,106 +1,69 @@
-import type { CSSProperties } from 'react'
 import Image from 'next/image'
-import type { TenantBranding } from '@/lib/tenant'
-import type { PublicLocation, PublicWebsitePhoto } from '@/lib/actions/public-booking'
-
-interface AboutData {
-  title?: string
-  text?: string
-  image_url?: string
-}
+import Link from 'next/link'
+import type { LandingTenant } from '@/types/landing'
 
 interface Props {
-  tenant: TenantBranding
-  websitePhotos: PublicWebsitePhoto[]
-  firstLocation: PublicLocation | null
-  aboutData?: AboutData
+  tenant: LandingTenant
 }
 
-export default function LandingAbout({ tenant, websitePhotos, firstLocation, aboutData }: Props) {
-  const title = aboutData?.title?.trim() || null
-  const text = aboutData?.text?.trim() || (tenant.settings?.bio as string | undefined)?.trim() || null
-  const imageUrl = aboutData?.image_url?.trim() || websitePhotos[1]?.url || firstLocation?.photo_url || null
+export default function LandingAbout({ tenant }: Props) {
+  if (!tenant.description?.trim()) return null
 
-  if (!title && !text) return null
+  const hasImage = Boolean(tenant.about_image_url)
 
   return (
     <section
       id="chi-siamo"
       aria-label="Chi siamo"
-      data-reveal
-      style={{ background: '#FFFFFF', padding: 'clamp(5rem, 10vw, 8rem) 0' } as CSSProperties}
+      className="w-full bg-white py-20 sm:py-24"
     >
-      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '0 clamp(20px, 5vw, 48px)' }}>
+      <div className="w-full max-w-[1120px] mx-auto px-5">
         <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: imageUrl ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr',
-            gap: 'clamp(3rem, 6vw, 5rem)',
-            alignItems: 'center',
-          }}
+          className={`grid items-center gap-12 lg:gap-20 ${
+            hasImage ? 'grid-cols-1 lg:grid-cols-[1fr_420px]' : 'grid-cols-1 max-w-2xl'
+          }`}
         >
+
           {/* Text column */}
           <div>
-            <span
-              style={{
-                display: 'block',
-                fontSize: 10,
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.22em',
-                color: 'var(--brand-primary)',
-                marginBottom: 16,
-              }}
+            <p
+              className="font-bold uppercase tracking-[0.14em] text-xs mb-5"
+              style={{ color: 'var(--brand-primary)' }}
             >
               Chi siamo
-            </span>
-
+            </p>
             <h2
-              style={{
-                fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
-                fontWeight: 800,
-                color: '#111111',
-                lineHeight: 1.08,
-                letterSpacing: '-0.03em',
-                marginBottom: 24,
-              }}
+              className="font-black text-[#111] mb-6 leading-tight"
+              style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
             >
-              {title || tenant.business_name}
+              {tenant.business_name}
             </h2>
-
-            <div
-              style={{ width: 48, height: 3, background: 'var(--brand-primary)', borderRadius: 99, marginBottom: 28 }}
-              aria-hidden="true"
-            />
-
-            {text && (
-              <p style={{ fontSize: '1.05rem', lineHeight: 1.85, color: '#555555', maxWidth: 500 }}>
-                {text}
-              </p>
-            )}
+            <p className="text-[#666] leading-relaxed mb-10 max-w-lg" style={{ fontSize: '16px' }}>
+              {tenant.description}
+            </p>
+            <Link
+              href="#sedi"
+              className="inline-flex items-center gap-2 font-semibold text-sm no-underline text-white rounded-full transition-colors hover:opacity-90"
+              style={{ background: '#111', padding: '13px 26px' }}
+            >
+              Contattaci
+            </Link>
           </div>
 
           {/* Image column */}
-          {imageUrl && (
-            <div>
-              <div
-                style={{
-                  borderRadius: 28,
-                  overflow: 'hidden',
-                  aspectRatio: '4/5',
-                  boxShadow: '0 32px 64px rgba(0,0,0,0.14)',
-                  position: 'relative',
-                }}
-              >
-                <Image
-                  src={imageUrl}
-                  alt={`${tenant.business_name} — salone`}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  loading="lazy"
-                />
-              </div>
+          {tenant.about_image_url && (
+            <div
+              className="relative overflow-hidden rounded-2xl w-full"
+              style={{ aspectRatio: '4/5' }}
+            >
+              <Image
+                src={tenant.about_image_url}
+                alt={`${tenant.business_name} — il salone`}
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 420px"
+                loading="lazy"
+              />
             </div>
           )}
         </div>
