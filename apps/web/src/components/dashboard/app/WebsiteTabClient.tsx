@@ -501,6 +501,7 @@ export function WebsiteTabClient({
   const [values, setValues] = React.useState(init)
   const [savedValues, setSavedValues] = React.useState(init)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [isPreviewRefreshing, setIsPreviewRefreshing] = React.useState(false)
   type SaveStatus = 'idle' | 'typing' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle')
   const [saveError, setSaveError] = React.useState<string | null>(null)
@@ -563,7 +564,12 @@ export function WebsiteTabClient({
       setLastSaved(new Date())
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      setTimeout(() => iframeRef.current?.contentWindow?.location.reload(), 600)
+      setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          setIsPreviewRefreshing(true)
+          iframeRef.current.contentWindow.location.reload()
+        }
+      }, 800)
       // If the user kept typing while the save was in flight, re-trigger debounce
       if (JSON.stringify(valuesRef.current) !== JSON.stringify(currentValues)) {
         setSaveStatus('typing')
@@ -594,7 +600,12 @@ export function WebsiteTabClient({
       toast.success('Sito salvato')
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      setTimeout(() => iframeRef.current?.contentWindow?.location.reload(), 600)
+      setTimeout(() => {
+        if (iframeRef.current?.contentWindow) {
+          setIsPreviewRefreshing(true)
+          iframeRef.current.contentWindow.location.reload()
+        }
+      }, 800)
     } else {
       setSaveStatus('error')
       setSaveError(result.error ?? 'Errore durante il salvataggio')
@@ -1215,13 +1226,20 @@ export function WebsiteTabClient({
               {siteUrl ? (
                 previewDevice === 'mobile' ? (
                   /* Mobile: narrow iframe centred */
-                  <div style={{ width: 390, maxWidth: '100%', height: '100%', transition: 'width 300ms ease' }}>
+                  <div style={{ width: 390, maxWidth: '100%', height: '100%', transition: 'width 300ms ease', position: 'relative' }}>
                     <iframe
                       ref={iframeRef}
                       src={`${siteUrl}?preview=true`}
                       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                       title="Anteprima sito"
+                      onLoad={() => setIsPreviewRefreshing(false)}
                     />
+                    {isPreviewRefreshing && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 10 }}>
+                        <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#6B7280' }} />
+                        <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>Aggiornamento anteprima…</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* Desktop: 1440 px iframe scaled down to fit the panel */
@@ -1238,7 +1256,14 @@ export function WebsiteTabClient({
                         transformOrigin: 'top left',
                       }}
                       title="Anteprima sito"
+                      onLoad={() => setIsPreviewRefreshing(false)}
                     />
+                    {isPreviewRefreshing && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 10 }}>
+                        <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#6B7280' }} />
+                        <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>Aggiornamento anteprima…</span>
+                      </div>
+                    )}
                   </div>
                 )
               ) : (

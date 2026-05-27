@@ -545,3 +545,4 @@
 | `created_at` | `timestamptz` |  |
 | `location_id` | `uuid` |  Nullable |
 
+
