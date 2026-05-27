@@ -28,6 +28,8 @@ interface ParsedSettings {
   about_image_url: string | null
   google_rating: number | null
   google_reviews_count: number | null
+  team_description: string | null
+  locations_description: string | null
   social_links: {
     instagram?: string
     facebook?: string
@@ -44,6 +46,8 @@ function parseSettings(raw: unknown): ParsedSettings {
     about_image_url: null,
     google_rating: null,
     google_reviews_count: null,
+    team_description: null,
+    locations_description: null,
     social_links: {},
   }
 
@@ -66,6 +70,8 @@ function parseSettings(raw: unknown): ParsedSettings {
     about_image_url: typeof about.image_url === 'string' ? about.image_url : null,
     google_rating: typeof s.google_rating === 'number' ? s.google_rating : null,
     google_reviews_count: typeof s.google_reviews_count === 'number' ? s.google_reviews_count : null,
+    team_description: typeof s.team_description === 'string' ? s.team_description : null,
+    locations_description: typeof s.locations_description === 'string' ? s.locations_description : null,
     social_links: {
       instagram: typeof socialLinks.instagram === 'string' ? socialLinks.instagram : undefined,
       facebook: typeof socialLinks.facebook === 'string' ? socialLinks.facebook : undefined,
@@ -263,6 +269,8 @@ export function useLandingData(slug: string): UseLandingDataResult {
           about_image_url: settings.about_image_url,
           google_rating: settings.google_rating,
           google_reviews_count: settings.google_reviews_count,
+          team_description: settings.team_description ?? null,
+          locations_description: settings.locations_description ?? null,
           social_links: settings.social_links,
         }
 

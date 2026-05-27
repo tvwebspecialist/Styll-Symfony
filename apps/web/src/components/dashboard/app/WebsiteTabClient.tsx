@@ -34,6 +34,8 @@ import type {
   WebsiteService,
   WebsiteProduct,
 } from '@/lib/actions/app-settings'
+import { HeroEditor } from './HeroEditor'
+import { TeamEditor } from './TeamEditor'
 
 function SortableWebsitePhoto({
   photo,
@@ -239,6 +241,11 @@ export function WebsiteTabClient({
   onAboutTitleChange,
   onAboutTextChange,
   onAboutImageUrlChange,
+  heroImageUrl,
+  heroTagline,
+  heroDescription,
+  tenantSlug,
+  teamDescription,
 }: {
   initialData: WebsiteData
   aboutTitle: string
@@ -247,6 +254,11 @@ export function WebsiteTabClient({
   onAboutTitleChange: (v: string) => void
   onAboutTextChange: (v: string) => void
   onAboutImageUrlChange: (v: string) => void
+  heroImageUrl: string | null
+  heroTagline: string | null
+  heroDescription: string | null
+  tenantSlug: string | null
+  teamDescription: string | null
 }) {
   const [photos, setPhotos] = React.useState<WebsitePhoto[]>(initialData.photos)
   const [staff, setStaff] = React.useState<WebsiteStaff[]>(initialData.staff)
@@ -371,6 +383,21 @@ export function WebsiteTabClient({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ── Hero — always first ─────────────────────────────────────────────── */}
+      <HeroEditor
+        initialImageUrl={heroImageUrl}
+        initialTagline={heroTagline}
+        initialDescription={heroDescription}
+        tenantSlug={tenantSlug}
+      />
+
+      {/* ── Team — always second ─────────────────────────────────────────────── */}
+      <TeamEditor
+        staff={staff}
+        onToggle={(id, val) => handleToggle('staff_members', id, val)}
+        initialTeamDescription={teamDescription}
+      />
+
       <SectionCard
         title="Chi siamo"
         description="Presentati ai tuoi clienti con un titolo, un testo e una foto."
@@ -415,6 +442,12 @@ export function WebsiteTabClient({
               </div>
             )}
             <AboutImageUploader currentUrl={aboutImageUrl} onUploaded={onAboutImageUrlChange} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#F8F8F8', borderRadius: 8, padding: 12, marginTop: 10 }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.5 }}>
+              Per un risultato ottimale usa un&apos;immagine orizzontale di almeno <strong>730 × 600 px</strong> (proporzione 6:5). Foto verticali o quadrate verranno tagliate lateralmente.
+            </p>
           </div>
         </div>
 
@@ -471,26 +504,6 @@ export function WebsiteTabClient({
             </SortableContext>
           </DndContext>
         )}
-      </SectionCard>
-
-      <SectionCard
-        title="Team nel sito"
-        description="Scegli quali membri del team mostrare nella sezione Team della tua pagina pubblica."
-      >
-        {staff.length === 0 && <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>Nessun membro dello staff attivo.</p>}
-        {staff.map((member) => (
-          <ToggleRow
-            key={member.id}
-            id={member.id}
-            label={member.fullName ?? 'Staff'}
-            sublabel={member.role}
-            photoUrl={member.photoUrl}
-            initials={(member.fullName ?? '?').charAt(0).toUpperCase()}
-            isOn={member.showOnWebsite}
-            onChange={(toggleId, nextValue) => handleToggle('staff_members', toggleId, nextValue)}
-          />
-        ))}
-        <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0 }}>I membri disabilitati non appariranno nella sezione Team della tua app.</p>
       </SectionCard>
 
       <SectionCard
