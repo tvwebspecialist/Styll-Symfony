@@ -211,6 +211,66 @@ interface MagicContext {
   city: string
   services: string[]
   staff_count: number
+  staff_names?: string[]
+}
+
+const MAGIC_TEMPLATES: Record<MagicField, (ctx: MagicContext) => string[]> = {
+  tagline: (ctx) => [
+    `Il tuo barbiere di fiducia${ctx.city ? ` a ${ctx.city}` : ''}`,
+    `Dove ogni taglio racconta una storia`,
+    `Stile, cura e precisione — ogni volta`,
+    `${ctx.business_name}: l'arte del grooming`,
+    `Non solo un taglio. Un'esperienza`,
+  ],
+  description: (ctx) => [
+    `Prenota il tuo appuntamento e lascia fare a noi`,
+    ctx.services.length >= 2
+      ? `${ctx.services[0]}, ${ctx.services[1]} e molto altro — sempre al massimo`
+      : `Servizi professionali sempre al massimo livello`,
+    `Artigianato e stile${ctx.city ? ` nel cuore di ${ctx.city}` : ''}`,
+  ],
+  about_title: (ctx) => [
+    `La nostra storia`,
+    `Chi c'è dietro ${ctx.business_name}`,
+    `Passione che si vede`,
+    `Nati per fare questo`,
+    `${ctx.business_name} — dal taglio alla cura`,
+  ],
+  about_text: (ctx) => {
+    const staffLine =
+      ctx.staff_count > 1
+        ? `Il nostro team di ${ctx.staff_count} professionisti`
+        : `Con anni di esperienza`
+    const servicesLine =
+      ctx.services.length >= 2
+        ? `Dai ${ctx.services[0]} alla ${ctx.services[1]}`
+        : ctx.services[0] ? `Dal ${ctx.services[0]}` : `Da ogni servizio`
+    const namesLine =
+      (ctx.staff_names?.length ?? 0) >= 2
+        ? `${ctx.staff_names![0]} e ${ctx.staff_names![1]} ti aspettano`
+        : 'Ti aspettiamo'
+    return [
+      `Da ${ctx.business_name} non trovi solo un taglio — trovi un posto dove sentirti a tuo agio.\n${staffLine} lavora ogni giorno per offrirti il meglio.\n${servicesLine}, curiamo ogni dettaglio.`,
+      `${ctx.city ? `${ctx.city}, ` : ''}${ctx.business_name}.\nUn posto dove il tempo si ferma e tu sei al centro.\n${namesLine} per un'esperienza che non dimenticherai.`,
+      `Crediamo che ogni cliente meriti il meglio.\nPer questo in ${ctx.business_name} usiamo solo prodotti selezionati e tecniche aggiornate — per un risultato che parla da solo.`,
+    ]
+  },
+  team_description: (ctx) => [
+    `Chi ti servirà con passione e competenza`,
+    `Il team che fa la differenza`,
+    `${ctx.staff_count > 0 ? `${ctx.staff_count} professionisti` : 'Professionisti'} al tuo servizio`,
+    `Mani esperte, risultati garantiti`,
+  ],
+}
+
+function typeWriter(text: string, setValue: (v: string) => void) {
+  setValue('')
+  let i = 0
+  const interval = setInterval(() => {
+    setValue(text.slice(0, i + 1))
+    i++
+    if (i >= text.length) clearInterval(interval)
+  }, 18)
 }
 
 function MagicWandButton({
@@ -221,82 +281,60 @@ function MagicWandButton({
 }: {
   field: MagicField
   context: MagicContext
-  onResult: (result: string | string[]) => void
+  onResult: (text: string) => void
   disabled?: boolean
 }) {
-  const [loading, setLoading] = React.useState(false)
+  const [currentIndex, setCurrentIndex] = React.useState(0)
 
-  async function handleClick() {
-    if (loading || disabled || !context.business_name) return
-    setLoading(true)
-    try {
-      const res = await fetch('/api/magic-wand', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field, context }),
-      })
-      if (!res.ok) throw new Error('API error')
-      const data = await res.json() as Record<string, unknown>
-      if ('options' in data) onResult(data.options as string[])
-      else if ('text' in data) onResult(data.text as string)
-    } catch {
-      toast.error('Generazione non disponibile, riprova')
-    } finally {
-      setLoading(false)
-    }
+  function handleClick() {
+    if (disabled || !context.business_name) return
+    const options = MAGIC_TEMPLATES[field](context)
+    const nextIndex = currentIndex % options.length
+    setCurrentIndex(nextIndex + 1)
+    onResult(options[nextIndex])
   }
+
+  const total = MAGIC_TEMPLATES[field](context).length
+  const isDisabled = disabled || !context.business_name
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={loading || disabled || !context.business_name}
+      disabled={isDisabled}
+      title={!context.business_name ? 'Configura prima il nome del salone' : 'Genera testo'}
       style={{
+        position: 'relative',
         display: 'inline-flex', alignItems: 'center', gap: 4,
-        fontSize: 12, color: '#F97316',
-        background: 'transparent', border: 'none',
-        cursor: loading || disabled || !context.business_name ? 'default' : 'pointer',
-        padding: '2px 6px', borderRadius: 4,
-        opacity: disabled || !context.business_name ? 0.4 : 1,
-        transition: 'opacity 120ms ease',
+        padding: '3px 10px', borderRadius: 20, border: 'none',
+        fontSize: 11, fontWeight: 700, color: '#FFF',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+        backgroundSize: '200% 200%',
+        animation: isDisabled ? 'none' : 'wand-gradient 3s ease infinite',
+        cursor: isDisabled ? 'default' : 'pointer',
+        opacity: isDisabled ? 0.4 : 1,
+        overflow: 'hidden',
+        transition: 'transform 120ms ease, opacity 120ms ease',
+        boxShadow: isDisabled ? 'none' : '0 2px 10px rgba(102,126,234,0.35)',
       }}
-      title={!context.business_name ? 'Configura prima il nome del salone' : 'Genera con AI'}
     >
-      {loading ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={12} />}
-      {loading ? 'Generazione…' : 'Genera con AI'}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute', inset: 0, opacity: 0.25,
+          background: 'linear-gradient(90deg, transparent 0%, white 50%, transparent 100%)',
+          backgroundSize: '200% 100%',
+          animation: isDisabled ? 'none' : 'wand-shimmer 2s infinite',
+        }}
+      />
+      <Wand2 size={11} style={{ position: 'relative', zIndex: 1 }} />
+      <span style={{ position: 'relative', zIndex: 1 }}>Genera</span>
+      {total > 1 && (
+        <span style={{ position: 'relative', zIndex: 1, opacity: 0.7 }}>
+          {(currentIndex % total) + 1}/{total}
+        </span>
+      )}
     </button>
-  )
-}
-
-function AIOptions({ options, onSelect, onRegen, onDismiss }: {
-  options: string[]
-  onSelect: (o: string) => void
-  onRegen: () => void
-  onDismiss: () => void
-}) {
-  return (
-    <div style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', overflow: 'hidden', marginTop: 6 }}>
-      {options.map((opt, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => onSelect(opt)}
-          style={{
-            display: 'block', width: '100%', padding: '10px 14px',
-            textAlign: 'left', fontSize: 13, color: '#111827',
-            background: 'none', border: 'none',
-            borderBottom: i < options.length - 1 ? '1px solid #F3F4F6' : 'none',
-            cursor: 'pointer',
-          }}
-        >
-          {opt}
-        </button>
-      ))}
-      <div style={{ padding: '8px 14px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 12 }}>
-        <button type="button" onClick={onRegen} style={{ fontSize: 11, color: '#F97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Genera altri</button>
-        <button type="button" onClick={onDismiss} style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Ignora</button>
-      </div>
-    </div>
   )
 }
 
@@ -639,13 +677,8 @@ export function WebsiteTabClient({
     city: initialData.locations[0]?.city ?? initialData.locations[0]?.address?.split(',').pop()?.trim() ?? '',
     services: initialData.services.map((s) => s.name).slice(0, 6),
     staff_count: initialData.staff.length,
+    staff_names: initialData.staff.map((m) => m.fullName ?? '').filter(Boolean).slice(0, 3),
   }
-
-  // ── AI options popovers ──────────────────────────────────────────────────────
-  const [aiOptions, setAiOptions] = React.useState<Partial<Record<string, string[]>>>({})
-
-  function setOptions(field: string, opts: string[]) { setAiOptions((v) => ({ ...v, [field]: opts })) }
-  function clearOptions(field: string) { setAiOptions((v) => { const next = { ...v }; delete next[field]; return next }) }
 
   // ── Extra social channels ────────────────────────────────────────────────────
   type ExtraChannel = { id: string; type: 'gmaps' | 'youtube' | 'telegram' | 'website'; value: string }
@@ -696,6 +729,8 @@ export function WebsiteTabClient({
         @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
         .magic-hover:hover { background: rgba(249,115,22,0.08) !important; }
+        @keyframes wand-gradient { 0% { background-position: 0% 50% } 50% { background-position: 100% 50% } 100% { background-position: 0% 50% } }
+        @keyframes wand-shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
       `}</style>
 
       <div
@@ -745,13 +780,9 @@ export function WebsiteTabClient({
               <label style={labelStyle}>
                 <span>Titolo hero <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 60 caratteri)</span></span>
                 <MagicWandButton field="tagline" context={magicContext} disabled={isSaving}
-                  onResult={(r) => typeof r === 'string' ? setValue('tagline', r) : setOptions('tagline', r)} />
-              </label>
-              <input style={inputStyle} value={values.tagline} onChange={(e) => setValue('tagline', e.target.value.slice(0, 60))} placeholder="Es. Il tuo barbiere di fiducia" maxLength={60} />
-              {aiOptions.tagline && (
-                <AIOptions options={aiOptions.tagline} onSelect={(o) => { setValue('tagline', o); clearOptions('tagline') }}
-                  onRegen={() => { clearOptions('tagline') }} onDismiss={() => clearOptions('tagline')} />
-              )}
+                  onResult={(text) => typeWriter(text, (v) => setValue('tagline', v))} />
+               </label>
+               <input style={inputStyle} value={values.tagline} onChange={(e) => setValue('tagline', e.target.value.slice(0, 60))} placeholder="Es. Il tuo barbiere di fiducia" maxLength={60} />
               <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{values.tagline.length}/60</p>
             </div>
 
@@ -760,7 +791,7 @@ export function WebsiteTabClient({
               <label style={labelStyle}>
                 <span>Descrizione breve <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 120 caratteri)</span></span>
                 <MagicWandButton field="description" context={magicContext} disabled={isSaving}
-                  onResult={(r) => typeof r === 'string' && setValue('description', r)} />
+                  onResult={(text) => typeWriter(text, (v) => setValue('description', v))} />
               </label>
               <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }} rows={3} value={values.description} onChange={(e) => setValue('description', e.target.value.slice(0, 120))} placeholder="Es. Taglio, barba e esperienza dal 2010" maxLength={120} />
               <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{values.description.length}/120</p>
@@ -774,7 +805,7 @@ export function WebsiteTabClient({
               <label style={labelStyle}>
                 <span>Sottotitolo sezione <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 80 caratteri)</span></span>
                 <MagicWandButton field="team_description" context={magicContext} disabled={isSaving}
-                  onResult={(r) => typeof r === 'string' && setValue('teamDescription', r)} />
+                  onResult={(text) => typeWriter(text, (v) => setValue('teamDescription', v))} />
               </label>
               <input style={inputStyle} value={values.teamDescription} onChange={(e) => setValue('teamDescription', e.target.value.slice(0, 80))} placeholder="Chi ti servirà con passione e competenza" maxLength={80} />
               <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{values.teamDescription.length}/80</p>
@@ -809,13 +840,9 @@ export function WebsiteTabClient({
               <label style={labelStyle}>
                 <span>Titolo sezione <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 80 caratteri)</span></span>
                 <MagicWandButton field="about_title" context={magicContext} disabled={isSaving}
-                  onResult={(r) => typeof r === 'string' ? setValue('aboutTitle', r) : setOptions('about_title', r)} />
+                  onResult={(text) => typeWriter(text, (v) => setValue('aboutTitle', v))} />
               </label>
               <input style={inputStyle} value={values.aboutTitle} onChange={(e) => setValue('aboutTitle', e.target.value.slice(0, 80))} placeholder='Es. "Il tuo barbiere di fiducia a Milano"' maxLength={80} />
-              {aiOptions.about_title && (
-                <AIOptions options={aiOptions.about_title} onSelect={(o) => { setValue('aboutTitle', o); clearOptions('about_title') }}
-                  onRegen={() => clearOptions('about_title')} onDismiss={() => clearOptions('about_title')} />
-              )}
               <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{values.aboutTitle.length}/80</p>
             </div>
 
@@ -823,7 +850,7 @@ export function WebsiteTabClient({
               <label style={labelStyle}>
                 <span>Testo di presentazione <span style={{ color: '#9CA3AF', fontWeight: 400 }}>(max 400 caratteri)</span></span>
                 <MagicWandButton field="about_text" context={magicContext} disabled={isSaving}
-                  onResult={(r) => typeof r === 'string' && setValue('aboutText', r)} />
+                  onResult={(text) => typeWriter(text, (v) => setValue('aboutText', v))} />
               </label>
               <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} value={values.aboutText} onChange={(e) => setValue('aboutText', e.target.value.slice(0, 400))} placeholder='Es. "Dal 2018 offriamo taglio e barba nel cuore di Milano..."' maxLength={400} />
               <p style={{ fontSize: 11, color: '#9CA3AF', margin: '4px 0 0', textAlign: 'right' }}>{values.aboutText.length}/400</p>
@@ -1018,9 +1045,9 @@ export function WebsiteTabClient({
 
         {/* ── RIGHT: preview ─────────────────────────────────────────────────── */}
         {!isMobile && (
-          <div style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 0, height: 'calc(100vh - 80px)' }}>
             {/* Preview header */}
-            <div style={{ background: '#F8F8F8', borderRadius: '16px 16px 0 0', border: '1px solid rgba(0,0,0,0.08)', borderBottom: 'none', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ background: '#F8F8F8', borderRadius: '16px 16px 0 0', border: '1px solid rgba(0,0,0,0.08)', borderBottom: 'none', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Anteprima sito</span>
                 {lastSaved && (
@@ -1054,16 +1081,36 @@ export function WebsiteTabClient({
             </div>
 
             {/* Iframe */}
-            <div style={{ border: '1px solid rgba(0,0,0,0.08)', borderTop: 'none', borderRadius: '0 0 16px 16px', overflow: 'hidden', background: '#F3F4F6', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', minHeight: 'calc(100vh - 200px)' }}>
+            <div style={{ border: '1px solid rgba(0,0,0,0.08)', borderTop: 'none', borderRadius: '0 0 16px 16px', overflow: 'hidden', background: '#F3F4F6', display: 'flex', flex: 1, alignItems: 'flex-start', justifyContent: 'center' }}>
               {siteUrl ? (
-                <div style={{ width: previewDevice === 'mobile' ? 390 : '100%', transition: 'width 300ms ease' }}>
-                  <iframe
-                    ref={iframeRef}
-                    src={`${siteUrl}?preview=true`}
-                    style={{ width: '100%', minHeight: 'calc(100vh - 200px)', border: 'none', display: 'block' }}
-                    title="Anteprima sito"
-                  />
-                </div>
+                previewDevice === 'mobile' ? (
+                  /* Mobile: narrow iframe centred */
+                  <div style={{ width: 390, height: '100%', transition: 'width 300ms ease' }}>
+                    <iframe
+                      ref={iframeRef}
+                      src={`${siteUrl}?preview=true`}
+                      style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                      title="Anteprima sito"
+                    />
+                  </div>
+                ) : (
+                  /* Desktop: 1440 px iframe scaled down to fit the panel */
+                  <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                    <iframe
+                      ref={iframeRef}
+                      src={`${siteUrl}?preview=true`}
+                      style={{
+                        width: 1440,
+                        height: '100%',
+                        border: 'none',
+                        display: 'block',
+                        transform: 'scale(0.55)',
+                        transformOrigin: 'top left',
+                      }}
+                      title="Anteprima sito"
+                    />
+                  </div>
+                )
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#9CA3AF', padding: 40, textAlign: 'center', flex: 1 }}>
                   <Monitor size={40} />

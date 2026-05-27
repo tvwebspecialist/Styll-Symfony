@@ -18,6 +18,10 @@ export default function LandingFooter({ tenant, locations }: Props) {
   const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
   const { instagram, facebook, tiktok, whatsapp } = tenant.social_links
 
+  // Use tenant-level contact info if set, fall back to first location
+  const contactPhone = tenant.contact_phone || firstLocation?.phone || null
+  const contactEmail = tenant.contact_email || firstLocation?.email || null
+
   return (
     <footer aria-label="Footer" className="w-full" style={{ background: '#0D0D0D' }}>
       <div className="w-full max-w-[1120px] mx-auto px-5 pt-16 pb-0">
@@ -106,19 +110,19 @@ export default function LandingFooter({ tenant, locations }: Props) {
                   <span className="text-[#888] text-sm">{address}</span>
                 </li>
               )}
-              {firstLocation?.phone && (
+              {contactPhone && (
                 <li>
-                  <a href={`tel:${firstLocation.phone}`} className="flex items-center gap-2.5 text-sm text-[#888] hover:text-white transition-colors no-underline">
+                  <a href={`tel:${contactPhone}`} className="flex items-center gap-2.5 text-sm text-[#888] hover:text-white transition-colors no-underline">
                     <Phone size={13} className="shrink-0" style={{ color: 'var(--brand-primary)' }} />
-                    {firstLocation.phone}
+                    {contactPhone}
                   </a>
                 </li>
               )}
-              {firstLocation?.email && (
+              {contactEmail && (
                 <li>
-                  <a href={`mailto:${firstLocation.email}`} className="flex items-center gap-2.5 text-sm text-[#888] hover:text-white transition-colors no-underline">
+                  <a href={`mailto:${contactEmail}`} className="flex items-center gap-2.5 text-sm text-[#888] hover:text-white transition-colors no-underline">
                     <Mail size={13} className="shrink-0" style={{ color: 'var(--brand-primary)' }} />
-                    {firstLocation.email}
+                    {contactEmail}
                   </a>
                 </li>
               )}

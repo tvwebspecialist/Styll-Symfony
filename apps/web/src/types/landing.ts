@@ -19,10 +19,14 @@ export interface LandingTenant {
   font_family: string
   /** Da settings.tagline */
   tagline: string | null
-  /** Da settings.bio o settings.about.text */
+  /** Da settings.bio — testo breve hero */
   description: string | null
   /** Da website_photos[0].url o settings.hero_image_url */
   hero_image_url: string | null
+  /** Da settings.about.title */
+  about_title: string | null
+  /** Da settings.about.text */
+  about_text: string | null
   /** Da settings.about.image_url */
   about_image_url: string | null
   /** Da settings.google_rating */
@@ -33,6 +37,10 @@ export interface LandingTenant {
   team_description: string | null
   /** Da settings.locations_description */
   locations_description: string | null
+  /** Da settings.contact_phone */
+  contact_phone: string | null
+  /** Da settings.contact_email */
+  contact_email: string | null
   /** Da settings.social_links */
   social_links: {
     instagram?: string
@@ -88,7 +96,7 @@ export interface LandingProduct {
 }
 
 export interface LandingSections {
-  /** true se tenant.description non è null/vuoto */
+  /** true se tenant.about_text non è null/vuoto */
   showAbout: boolean
   /** true se staff attivi con show_on_website > 1 */
   showTeam: boolean
