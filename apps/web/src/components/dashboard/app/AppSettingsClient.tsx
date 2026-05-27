@@ -132,9 +132,6 @@ export function AppSettingsClient({
   const [secondaryColor, setSecondaryColor] = React.useState(initialSettings?.secondaryColor ?? '#4B5563')
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
-  const [aboutTitle, setAboutTitle] = React.useState(initialSettings?.aboutTitle ?? '')
-  const [aboutText, setAboutText] = React.useState(initialSettings?.aboutText ?? '')
-  const [aboutImageUrl, setAboutImageUrl] = React.useState(initialSettings?.aboutImageUrl ?? '')
   const [saving, setSaving] = React.useState(false)
   const [isMobile, setIsMobile] = React.useState(false)
 
@@ -167,9 +164,6 @@ export function AppSettingsClient({
       secondaryColor: secondaryColor || null,
       fontFamily: fontFamily || null,
       logoUrl: logoUrl.trim() || null,
-      aboutTitle: aboutTitle.trim() || null,
-      aboutText: aboutText.trim() || null,
-      aboutImageUrl: aboutImageUrl.trim() || null,
     })
     setSaving(false)
     if (result.ok) {
@@ -233,17 +227,7 @@ export function AppSettingsClient({
       {activeTab === 'website' ? (
         <WebsiteTabClient
           initialData={initialWebsiteData}
-          aboutTitle={aboutTitle}
-          aboutText={aboutText}
-          aboutImageUrl={aboutImageUrl}
-          onAboutTitleChange={setAboutTitle}
-          onAboutTextChange={setAboutText}
-          onAboutImageUrlChange={setAboutImageUrl}
-          heroImageUrl={initialSettings?.heroImageUrl ?? null}
-          heroTagline={initialSettings?.heroTagline ?? null}
-          heroDescription={initialSettings?.heroDescription ?? null}
-          tenantSlug={initialSettings?.slug ?? null}
-          teamDescription={initialSettings?.teamDescription ?? null}
+          initialSettings={initialSettings}
         />
       ) : (
         <>

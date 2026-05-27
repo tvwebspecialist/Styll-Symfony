@@ -20,6 +20,28 @@ export interface AppSettings {
   heroTagline: string | null
   heroDescription: string | null
   teamDescription: string | null
+  locationsDescription: string | null
+  contactPhone: string | null
+  contactEmail: string | null
+  contactWhatsapp: string | null
+  socialInstagram: string | null
+  socialFacebook: string | null
+  socialTiktok: string | null
+}
+
+export interface SiteContent {
+  tagline: string | null
+  description: string | null
+  teamDescription: string | null
+  aboutTitle: string | null
+  aboutText: string | null
+  locationsDescription: string | null
+  contactPhone: string | null
+  contactEmail: string | null
+  contactWhatsapp: string | null
+  socialInstagram: string | null
+  socialFacebook: string | null
+  socialTiktok: string | null
 }
 
 async function revalidateTenantApp(db: ReturnType<typeof createAdminClient>, tenantId: string) {
@@ -58,6 +80,7 @@ export async function getAppSettings(): Promise<AppSettings | null> {
   const d = data as Record<string, unknown>
   const settings = (d.settings as Record<string, unknown> | null) ?? null
   const about = (settings?.about as Record<string, unknown> | null) ?? null
+  const social = (settings?.social_links as Record<string, unknown> | null) ?? null
 
   return {
     businessName: (d.business_name as string | null) ?? '',
@@ -73,6 +96,13 @@ export async function getAppSettings(): Promise<AppSettings | null> {
     heroTagline: (settings?.tagline as string | null) ?? null,
     heroDescription: (settings?.bio as string | null) ?? null,
     teamDescription: (settings?.team_description as string | null) ?? null,
+    locationsDescription: (settings?.locations_description as string | null) ?? null,
+    contactPhone: (settings?.contact_phone as string | null) ?? null,
+    contactEmail: (settings?.contact_email as string | null) ?? null,
+    contactWhatsapp: (social?.whatsapp as string | null) ?? null,
+    socialInstagram: (social?.instagram as string | null) ?? null,
+    socialFacebook: (social?.facebook as string | null) ?? null,
+    socialTiktok: (social?.tiktok as string | null) ?? null,
   }
 }
 
@@ -216,6 +246,9 @@ export interface WebsiteLocation {
   id: string
   name: string
   address: string | null
+  city: string | null
+  phone: string | null
+  email: string | null
   showOnWebsite: boolean
 }
 
@@ -262,7 +295,7 @@ export async function getWebsiteData(): Promise<WebsiteData> {
       .order('created_at', { ascending: true }),
     db
       .from('locations')
-      .select('id, name, address, show_on_website')
+      .select('id, name, address, city, phone, email, show_on_website')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name', { ascending: true }),
@@ -308,6 +341,9 @@ export async function getWebsiteData(): Promise<WebsiteData> {
       id: location.id,
       name: location.name,
       address: location.address,
+      city: (location as Record<string, unknown>).city as string | null ?? null,
+      phone: (location as Record<string, unknown>).phone as string | null ?? null,
+      email: (location as Record<string, unknown>).email as string | null ?? null,
       showOnWebsite: location.show_on_website ?? true,
     })),
     services: (svcRows ?? []).map((service) => ({
@@ -621,6 +657,58 @@ export async function updateHeroContent(
 
   await revalidateTenantApp(db, tenantId)
 
+  return { ok: true }
+}
+
+// ─── saveSiteContent ──────────────────────────────────────────────────────────
+
+export async function saveSiteContent(
+  content: SiteContent,
+): Promise<{ ok: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  const { data: current, error: fetchError } = await db
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchError) return { ok: false, error: fetchError.message }
+
+  const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+
+  const merged = {
+    ...currentSettings,
+    tagline: content.tagline ?? null,
+    bio: content.description ?? null,
+    team_description: content.teamDescription ?? null,
+    about: {
+      ...((currentSettings.about as Record<string, unknown> | null) ?? {}),
+      title: content.aboutTitle ?? null,
+      text: content.aboutText ?? null,
+    },
+    locations_description: content.locationsDescription ?? null,
+    contact_phone: content.contactPhone ?? null,
+    contact_email: content.contactEmail ?? null,
+    social_links: {
+      instagram: content.socialInstagram ?? null,
+      facebook: content.socialFacebook ?? null,
+      tiktok: content.socialTiktok ?? null,
+      whatsapp: content.contactWhatsapp ?? null,
+    },
+  }
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ settings: merged, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
   return { ok: true }
 }
 
