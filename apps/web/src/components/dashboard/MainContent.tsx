@@ -13,7 +13,8 @@ const DESKTOP_STYLE: React.CSSProperties = {
   borderRadius: 20,
   padding: 24,
   height: 'fit-content',
-  overflowY: 'auto',
+  // overflow must be 'visible' (default) so that position:sticky on descendants works.
+  // 'auto' would create a scroll container which breaks sticky positioning.
 }
 
 // Home page: fills viewport height — bicolonna layout handles inner scroll
