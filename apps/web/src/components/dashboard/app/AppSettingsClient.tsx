@@ -239,6 +239,11 @@ export function AppSettingsClient({
           onAboutTitleChange={setAboutTitle}
           onAboutTextChange={setAboutText}
           onAboutImageUrlChange={setAboutImageUrl}
+          heroImageUrl={initialSettings?.heroImageUrl ?? null}
+          heroTagline={initialSettings?.heroTagline ?? null}
+          heroDescription={initialSettings?.heroDescription ?? null}
+          tenantSlug={initialSettings?.slug ?? null}
+          teamDescription={initialSettings?.teamDescription ?? null}
         />
       ) : (
         <>

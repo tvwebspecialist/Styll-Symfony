@@ -29,6 +29,10 @@ export interface LandingTenant {
   google_rating: number | null
   /** Da settings.google_reviews_count */
   google_reviews_count: number | null
+  /** Da settings.team_description */
+  team_description: string | null
+  /** Da settings.locations_description */
+  locations_description: string | null
   /** Da settings.social_links */
   social_links: {
     instagram?: string

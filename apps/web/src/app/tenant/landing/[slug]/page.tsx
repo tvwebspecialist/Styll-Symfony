@@ -102,6 +102,8 @@ export default async function LandingPage({ params }: Props) {
     about_image_url: typeof about.image_url === 'string' ? about.image_url : null,
     google_rating: typeof s.google_rating === 'number' ? s.google_rating : null,
     google_reviews_count: typeof s.google_reviews_count === 'number' ? s.google_reviews_count : null,
+    team_description: typeof s.team_description === 'string' ? s.team_description : null,
+    locations_description: typeof s.locations_description === 'string' ? s.locations_description : null,
     social_links: {
       instagram: typeof socialLinks.instagram === 'string' ? socialLinks.instagram : undefined,
       facebook: typeof socialLinks.facebook === 'string' ? socialLinks.facebook : undefined,
@@ -196,15 +198,20 @@ export default async function LandingPage({ params }: Props) {
         )}
 
         {/* Team — internal AnimatedSection + AnimatedList */}
-        {sections.showTeam && <LandingTeam staff={staff} />}
-
-        {/* Locations — slides up */}
-        <AnimatedSection direction="up">
-          <LandingLocations
-            locations={locations}
-            isMultiple={sections.multipleLocations}
+        {sections.showTeam && (
+          <LandingTeam
+            staff={staff}
+            teamDescription={tenant.team_description}
+            googleRating={tenant.google_rating}
           />
-        </AnimatedSection>
+        )}
+
+        {/* Locations — single wraps its own AnimatedSection; multi handles sticky internally */}
+        <LandingLocations
+          locations={locations}
+          isMultiple={sections.multipleLocations}
+          locationsDescription={tenant.locations_description}
+        />
 
         {/* Services — internal AnimatedSection + AnimatedList */}
         <LandingServices tenant={tenant} services={services} />

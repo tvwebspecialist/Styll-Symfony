@@ -16,6 +16,10 @@ export interface AppSettings {
   aboutText: string | null
   aboutImageUrl: string | null
   slug: string | null
+  heroImageUrl: string | null
+  heroTagline: string | null
+  heroDescription: string | null
+  teamDescription: string | null
 }
 
 async function revalidateTenantApp(db: ReturnType<typeof createAdminClient>, tenantId: string) {
@@ -30,6 +34,7 @@ async function revalidateTenantApp(db: ReturnType<typeof createAdminClient>, ten
     revalidateTag(`tenant-${slug}`, {})
     revalidatePath(`/tenant/app/${slug}`)
     revalidatePath(`/tenant/app/${slug}/`, 'layout')
+    revalidatePath(`/tenant/landing/${slug}`)
   }
 
   revalidatePath('/dashboard/app')
@@ -64,6 +69,10 @@ export async function getAppSettings(): Promise<AppSettings | null> {
     aboutText: (about?.text as string | null) ?? null,
     aboutImageUrl: (about?.image_url as string | null) ?? null,
     slug: (d.slug as string | null) ?? null,
+    heroImageUrl: (settings?.hero_image_url as string | null) ?? null,
+    heroTagline: (settings?.tagline as string | null) ?? null,
+    heroDescription: (settings?.bio as string | null) ?? null,
+    teamDescription: (settings?.team_description as string | null) ?? null,
   }
 }
 
@@ -512,5 +521,138 @@ export async function reorderWebsitePhotos(
   if (firstError) return { ok: false, error: firstError.message }
 
   revalidateTag(`tenant-${tenantId}-website-photos`, {})
+  return { ok: true }
+}
+
+// ─── uploadHeroImage ──────────────────────────────────────────────────────────
+
+export async function uploadHeroImage(
+  formData: FormData,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'Nessun file' }
+
+  const MAX_SIZE = 5 * 1024 * 1024
+  if (file.size > MAX_SIZE) return { ok: false, error: 'Immagine troppo grande. Max 5MB' }
+
+  const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP)' }
+  }
+
+  const db = createAdminClient()
+  const extByType: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+  }
+  const ext = extByType[file.type] ?? 'jpg'
+  const path = `hero/${tenantId}/hero.${ext}`
+  const arrayBuffer = await file.arrayBuffer()
+
+  const { error: uploadError } = await db.storage
+    .from('tenants')
+    .upload(path, arrayBuffer, { contentType: file.type, upsert: true })
+
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = db.storage.from('tenants').getPublicUrl(path)
+  const publicUrl = urlData.publicUrl
+
+  // Merge hero_image_url into settings JSONB
+  const { data: current, error: fetchError } = await db
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchError) return { ok: false, error: fetchError.message }
+
+  const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+  const merged = { ...currentSettings, hero_image_url: publicUrl }
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ settings: merged, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
+
+  return { ok: true, url: publicUrl }
+}
+
+// ─── updateHeroContent ────────────────────────────────────────────────────────
+
+export async function updateHeroContent(
+  tagline: string | null,
+  description: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  const { data: current, error: fetchError } = await db
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchError) return { ok: false, error: fetchError.message }
+
+  const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+  const merged = {
+    ...currentSettings,
+    tagline: tagline ?? null,
+    bio: description ?? null,
+  }
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ settings: merged, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
+
+  return { ok: true }
+}
+
+// ─── updateTeamDescription ────────────────────────────────────────────────────
+
+export async function updateTeamDescription(
+  description: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  const { data: current, error: fetchError } = await db
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchError) return { ok: false, error: fetchError.message }
+
+  const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+  const merged = { ...currentSettings, team_description: description ?? null }
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ settings: merged, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
+
   return { ok: true }
 }

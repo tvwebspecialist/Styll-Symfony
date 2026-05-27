@@ -20,7 +20,7 @@ export default function LandingAbout({ tenant }: Props) {
       <div className="w-full max-w-[1120px] mx-auto px-5">
         <div
           className={`grid items-center gap-12 lg:gap-20 ${
-            hasImage ? 'grid-cols-1 lg:grid-cols-[1fr_420px]' : 'grid-cols-1 max-w-2xl'
+            hasImage ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : 'grid-cols-1 max-w-2xl'
           }`}
         >
 
@@ -54,14 +54,14 @@ export default function LandingAbout({ tenant }: Props) {
           {tenant.about_image_url && (
             <div
               className="relative overflow-hidden rounded-2xl w-full"
-              style={{ aspectRatio: '4/5' }}
+              style={{ maxWidth: 730, aspectRatio: '730/600', flexShrink: 0 }}
             >
               <Image
                 src={tenant.about_image_url}
                 alt={`${tenant.business_name} — il salone`}
                 fill
-                className="object-cover"
-                sizes="(max-width: 1024px) 100vw, 420px"
+                className="object-cover object-center"
+                sizes="(max-width: 1024px) 100vw, 730px"
                 loading="lazy"
               />
             </div>
