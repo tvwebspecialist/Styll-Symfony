@@ -14,7 +14,6 @@ import {
   Scissors,
   Smartphone,
   Settings,
-  ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -60,18 +59,10 @@ const SECTIONS: NavSection[] = [
 
 interface SidebarProps {
   currentPath?: string
-  tenantName?: string
-  tenantLogoUrl?: string | null
-  hasMultipleTenants?: boolean
-  selectTenantHref?: string
 }
 
 export function Sidebar({
   currentPath,
-  tenantName,
-  tenantLogoUrl,
-  hasMultipleTenants,
-  selectTenantHref,
 }: SidebarProps) {
   const pathname = usePathname()
   const path = currentPath ?? pathname ?? ''
@@ -99,77 +90,6 @@ export function Sidebar({
       }}
     >
       <nav style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-        {/* Tenant switcher */}
-        {tenantName && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 10px',
-              marginBottom: 8,
-              borderRadius: 10,
-              background: 'var(--sidebar-item-hover-bg, rgba(0,0,0,0.04))',
-            }}
-          >
-            {/* Logo */}
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                overflow: 'hidden',
-                flexShrink: 0,
-                background: '#E5E7EB',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {tenantLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={tenantLogoUrl}
-                  alt={tenantName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <Scissors size={14} color="#9CA3AF" />
-              )}
-            </div>
-            {/* Name */}
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--sidebar-item-text)',
-                flex: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {tenantName}
-            </span>
-            {/* Switch button */}
-            {hasMultipleTenants && selectTenantHref && (
-              <a
-                href={selectTenantHref}
-                title="Cambia spazio"
-                style={{
-                  color: 'var(--sidebar-item-text)',
-                  opacity: 0.5,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  textDecoration: 'none',
-                }}
-              >
-                <ArrowLeftRight size={14} />
-              </a>
-            )}
-          </div>
-        )}
         {SECTIONS.map((section, sectionIndex) => (
           <div key={section.label}>
             <div

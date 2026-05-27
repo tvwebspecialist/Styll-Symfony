@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronLeft,
   LogOut,
+  ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -70,9 +71,13 @@ const SECTIONS: {
 export function ProfiloClient({
   profile,
   subscription,
+  hasMultipleTenants,
+  selectTenantHref,
 }: {
   profile: ProfileData
   subscription: SubscriptionInfo
+  hasMultipleTenants?: boolean
+  selectTenantHref?: string
 }) {
   const router = useRouter()
   const [active, setActive] = React.useState<SectionKey>('profilo')
@@ -204,6 +209,31 @@ export function ProfiloClient({
             })}
 
             <div style={{ height: 1, background: '#F0F0F0', margin: '8px 4px' }} />
+
+            {hasMultipleTenants && selectTenantHref && (
+              <a
+                href={selectTenantHref}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  color: '#222222',
+                  background: 'transparent',
+                  transition: 'background 120ms ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F5F5' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <ArrowLeftRight size={16} />
+                <span>Cambia Salone</span>
+              </a>
+            )}
 
             <button
               onClick={handleLogout}
@@ -346,6 +376,40 @@ export function ProfiloClient({
                   </button>
                 )
               })}
+
+              {hasMultipleTenants && selectTenantHref && (
+                <a
+                  href={selectTenantHref}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '14px 16px',
+                    width: '100%',
+                    background: '#FFFFFF',
+                    borderTop: '1px solid #F0F0F0',
+                    textDecoration: 'none',
+                    color: '#222222',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: '#F5F5F5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ArrowLeftRight size={16} color="#222222" />
+                  </div>
+                  <span style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>Cambia Salone</span>
+                  <ChevronRight size={18} color="#B0B0B0" />
+                </a>
+              )}
 
               <button
                 onClick={handleLogout}

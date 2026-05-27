@@ -6,20 +6,37 @@ import { ProfiloClient } from '@/components/dashboard/profilo/ProfiloClient'
 
 export const dynamic = 'force-dynamic'
 
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+
+function selectTenantUrl() {
+  return process.env.NODE_ENV === 'development'
+    ? '/select-tenant'
+    : `https://${ROOT_DOMAIN}/select-tenant`
+}
+
 export default async function ProfiloPage() {
   const ctx = await resolveActiveProfile()
   if (!ctx) redirect('/login')
 
-  const [profile, subscription] = await Promise.all([
+  const db = createAdminClient()
+  const [profile, subscription, staffResult] = await Promise.all([
     getProfile(ctx.profileId),
     getSubscription(),
+    db
+      .from('staff_members')
+      .select('tenant_id')
+      .eq('profile_id', ctx.realUserId)
+      .eq('is_active', true)
+      .is('deleted_at', null),
   ])
+
+  const hasMultipleTenants = (staffResult.data?.length ?? 0) > 1
+  const tenantHref = hasMultipleTenants ? selectTenantUrl() : undefined
 
   let safeProfile: ProfileData
   if (profile) {
     safeProfile = profile
   } else {
-    const db = createAdminClient()
     const { data: fallback } = await db
       .from('profiles')
       .select('email, full_name, avatar_url')
@@ -38,5 +55,12 @@ export default async function ProfiloPage() {
     }
   }
 
-  return <ProfiloClient profile={safeProfile} subscription={subscription} />
+  return (
+    <ProfiloClient
+      profile={safeProfile}
+      subscription={subscription}
+      hasMultipleTenants={hasMultipleTenants}
+      selectTenantHref={tenantHref}
+    />
+  )
 }

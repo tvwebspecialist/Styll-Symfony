@@ -72,6 +72,16 @@ export default async function SelectTenantPage({
         color: 'var(--color-fg)',
       }}
     >
+      <style dangerouslySetInnerHTML={{ __html: `
+        .tenant-card {
+          border: 1.5px solid var(--color-border, #E5E7EB);
+          transition: border-color 120ms, box-shadow 120ms;
+        }
+        .tenant-card:not(.tenant-card--suspended):hover {
+          border-color: #111;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+      ` }} />
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div
@@ -143,38 +153,19 @@ export default async function SelectTenantPage({
             <a
               key={tenant.id}
               href={isSuspended ? undefined : dashboardUrl(tenant.slug)}
+              className={isSuspended ? 'tenant-card tenant-card--suspended' : 'tenant-card'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 16,
                 padding: '16px 20px',
                 borderRadius: 16,
-                border: '1.5px solid var(--color-border, #E5E7EB)',
                 background: 'var(--color-bg-secondary, #FFFFFF)',
                 textDecoration: 'none',
                 color: 'inherit',
                 cursor: isSuspended ? 'not-allowed' : 'pointer',
                 opacity: isSuspended ? 0.5 : 1,
-                transition: 'border-color 120ms, box-shadow 120ms',
               }}
-              onMouseEnter={
-                !isSuspended
-                  ? (e) => {
-                      ;(e.currentTarget as HTMLAnchorElement).style.borderColor = '#111'
-                      ;(e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                        '0 2px 12px rgba(0,0,0,0.08)'
-                    }
-                  : undefined
-              }
-              onMouseLeave={
-                !isSuspended
-                  ? (e) => {
-                      ;(e.currentTarget as HTMLAnchorElement).style.borderColor =
-                        'var(--color-border, #E5E7EB)'
-                      ;(e.currentTarget as HTMLAnchorElement).style.boxShadow = 'none'
-                    }
-                  : undefined
-              }
             >
               {/* Logo / placeholder */}
               <div
