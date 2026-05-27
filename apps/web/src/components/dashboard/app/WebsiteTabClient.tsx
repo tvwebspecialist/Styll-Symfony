@@ -658,6 +658,8 @@ export function WebsiteTabClient({
 
   // ── preview ──────────────────────────────────────────────────────────────────
   const iframeRef = React.useRef<HTMLIFrameElement>(null)
+  const desktopContainerRef = React.useRef<HTMLDivElement>(null)
+  const [desktopContainerSize, setDesktopContainerSize] = React.useState({ w: 0, h: 0 })
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null)
   const [previewDevice, setPreviewDevice] = React.useState<'desktop' | 'mobile'>('desktop')
   const [isMobile, setIsMobile] = React.useState(false)
@@ -670,6 +672,17 @@ export function WebsiteTabClient({
     const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
     mql.addEventListener('change', h)
     return () => mql.removeEventListener('change', h)
+  }, [])
+
+  // Measure the desktop iframe container to compute the correct scale dynamically
+  React.useEffect(() => {
+    const el = desktopContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setDesktopContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   // ── AI context ───────────────────────────────────────────────────────────────
@@ -723,6 +736,13 @@ export function WebsiteTabClient({
   const visibleServices = services.filter((s) => s.showOnWebsite).length
   const visibleProducts = products.filter((p) => p.showOnSite).length
 
+  // Dynamic iframe scale: fills the panel width exactly; height compensates so
+  // the visual viewport matches the panel's actual height.
+  const desktopScale = desktopContainerSize.w > 0 ? desktopContainerSize.w / 1440 : 0.55
+  const desktopIframeH = desktopContainerSize.h > 0 && desktopScale > 0
+    ? Math.round(desktopContainerSize.h / desktopScale)
+    : 900
+
   return (
     <>
       <style>{`
@@ -737,13 +757,18 @@ export function WebsiteTabClient({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : '540px 1fr',
+          // minmax(0, 1fr) is critical: allows the right column to shrink below its content
+          // size, preventing it from overflowing the available space. Without minmax(0,...),
+          // the 1fr column can expand due to children like the 390px mobile iframe box.
+          gridTemplateColumns: isMobile ? '1fr' : '540px minmax(0, 1fr)',
           gap: 24,
           alignItems: 'start',
+          width: '100%',
+          minWidth: 0,
         }}
       >
         {/* ── LEFT: editor ───────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 120 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 120, minWidth: 0 }}>
 
           {/* 1. HERO */}
           <SectionCard title="Hero — Prima impressione" icon={ImageIcon} tipTitle={TIPS.hero.title} tip={TIPS.hero.tip}>
@@ -1046,7 +1071,7 @@ export function WebsiteTabClient({
 
         {/* ── RIGHT: preview ─────────────────────────────────────────────────── */}
         {!isMobile && (
-          <div style={{ position: 'sticky', top: 'calc(var(--topbar-height) + 16px)', display: 'flex', flexDirection: 'column', gap: 0, height: 'calc(100vh - var(--topbar-height) - 32px)' }}>
+          <div style={{ position: 'sticky', top: 'calc(var(--topbar-height) + 16px)', display: 'flex', flexDirection: 'column', gap: 0, height: 'calc(100vh - var(--topbar-height) - 32px)', minWidth: 0, overflow: 'hidden' }}>
             {/* Preview header */}
             <div style={{ background: '#F8F8F8', borderRadius: '16px 16px 0 0', border: '1px solid rgba(0,0,0,0.08)', borderBottom: 'none', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1086,7 +1111,7 @@ export function WebsiteTabClient({
               {siteUrl ? (
                 previewDevice === 'mobile' ? (
                   /* Mobile: narrow iframe centred */
-                  <div style={{ width: 390, height: '100%', transition: 'width 300ms ease' }}>
+                  <div style={{ width: 390, maxWidth: '100%', height: '100%', transition: 'width 300ms ease' }}>
                     <iframe
                       ref={iframeRef}
                       src={`${siteUrl}?preview=true`}
@@ -1096,16 +1121,16 @@ export function WebsiteTabClient({
                   </div>
                 ) : (
                   /* Desktop: 1440 px iframe scaled down to fit the panel */
-                  <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                  <div ref={desktopContainerRef} style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
                     <iframe
                       ref={iframeRef}
                       src={`${siteUrl}?preview=true`}
                       style={{
                         width: 1440,
-                        height: '100%',
+                        height: desktopIframeH,
                         border: 'none',
                         display: 'block',
-                        transform: 'scale(0.55)',
+                        transform: `scale(${desktopScale})`,
                         transformOrigin: 'top left',
                       }}
                       title="Anteprima sito"
