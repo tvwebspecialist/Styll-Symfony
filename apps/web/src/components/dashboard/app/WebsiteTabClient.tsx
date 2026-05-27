@@ -509,6 +509,7 @@ export function WebsiteTabClient({
   const savingRef = React.useRef(false)
   const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedStatusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewRefreshSafetyTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const valuesRef = React.useRef(values)
   const savedValuesRef = React.useRef(savedValues)
 
@@ -542,6 +543,21 @@ export function WebsiteTabClient({
     }
   }
 
+  // Triggers an iframe reload safely across origins and shows the refreshing overlay.
+  // Falls back to hiding the overlay after 4 s if onLoad/onError never fires.
+  function triggerPreviewRefresh(delayMs: number) {
+    setTimeout(() => {
+      const iframe = iframeRef.current
+      if (!iframe || !iframe.src) return
+      if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current)
+      setIsPreviewRefreshing(true)
+      // Setting .src triggers a reload that fires onLoad cross-origin (unlike contentWindow.location.reload())
+      iframe.src = iframe.src
+      // Safety fallback: always hide overlay after 4 s
+      previewRefreshSafetyTimerRef.current = setTimeout(() => setIsPreviewRefreshing(false), 4000)
+    }, delayMs)
+  }
+
   // Called by the debounce timer (and self-reschedules if a save is already in flight)
   async function runAutoSave() {
     if (savingRef.current) {
@@ -564,12 +580,7 @@ export function WebsiteTabClient({
       setLastSaved(new Date())
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      setTimeout(() => {
-        if (iframeRef.current?.contentWindow) {
-          setIsPreviewRefreshing(true)
-          iframeRef.current.contentWindow.location.reload()
-        }
-      }, 800)
+      triggerPreviewRefresh(800)
       // If the user kept typing while the save was in flight, re-trigger debounce
       if (JSON.stringify(valuesRef.current) !== JSON.stringify(currentValues)) {
         setSaveStatus('typing')
@@ -600,12 +611,7 @@ export function WebsiteTabClient({
       toast.success('Sito salvato')
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
       savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
-      setTimeout(() => {
-        if (iframeRef.current?.contentWindow) {
-          setIsPreviewRefreshing(true)
-          iframeRef.current.contentWindow.location.reload()
-        }
-      }, 800)
+      triggerPreviewRefresh(800)
     } else {
       setSaveStatus('error')
       setSaveError(result.error ?? 'Errore durante il salvataggio')
@@ -773,6 +779,7 @@ export function WebsiteTabClient({
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
+      if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current)
     }
   }, [])
 
@@ -1232,7 +1239,8 @@ export function WebsiteTabClient({
                       src={`${siteUrl}?preview=true`}
                       style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
                       title="Anteprima sito"
-                      onLoad={() => setIsPreviewRefreshing(false)}
+                      onLoad={() => { setIsPreviewRefreshing(false); if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current) }}
+                      onError={() => { setIsPreviewRefreshing(false); if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current) }}
                     />
                     {isPreviewRefreshing && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 10 }}>
@@ -1256,7 +1264,8 @@ export function WebsiteTabClient({
                         transformOrigin: 'top left',
                       }}
                       title="Anteprima sito"
-                      onLoad={() => setIsPreviewRefreshing(false)}
+                      onLoad={() => { setIsPreviewRefreshing(false); if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current) }}
+                      onError={() => { setIsPreviewRefreshing(false); if (previewRefreshSafetyTimerRef.current) clearTimeout(previewRefreshSafetyTimerRef.current) }}
                     />
                     {isPreviewRefreshing && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 10 }}>
