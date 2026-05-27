@@ -255,7 +255,7 @@ function DesktopStackContent({
       <div
         ref={containerRef}
         className="relative"
-        style={{ height: `${locations.length * 100}vh` }}
+        style={{ height: `${(locations.length + 1) * 100}vh` }}
       >
         <div className="sticky top-0 h-screen overflow-hidden bg-[#111]">
           {locations.map((loc, i) => (

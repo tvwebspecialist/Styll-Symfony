@@ -2,12 +2,14 @@ import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getHomePageData } from '@/lib/actions/pwa-home'
+import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 function getInitials(value: string | null | undefined): string {
@@ -65,13 +67,18 @@ function animated(delay: number): CSSProperties {
   }
 }
 
-export default async function AppHomePage({ params }: Props) {
-  const { slug } = await params
+export default async function AppHomePage({ params, searchParams }: Props) {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const tenant = await getTenantBySlug(slug)
 
   if (!tenant || tenant.status !== 'active') {
     notFound()
   }
+
+  const preview = readPwaPreviewConfig(resolvedSearchParams)
+  const isPreview = preview.enabled
+  const displayBusinessName = preview.businessName ?? tenant.business_name
+  const displayLogoUrl = preview.logoUrl ?? tenant.logo_url
 
   const tp = await createTenantPaths(slug)
   const supabase = await createServerClient()
@@ -79,7 +86,7 @@ export default async function AppHomePage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user && !isPreview) {
     redirect(tp('/accesso?mode=login'))
   }
 
@@ -87,10 +94,11 @@ export default async function AppHomePage({ params }: Props) {
   const rewards = homeData.activeRewards ?? []
   const availablePoints = homeData.loyalty?.availablePoints ?? 0
   const nextReward = rewards.find((reward) => reward.pointsCost > availablePoints)
+  const shouldRenderGuestState = isPreview || !homeData.isLoggedIn
 
   return (
     <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      {!homeData.isLoggedIn ? (
+      {shouldRenderGuestState ? (
         <>
           <section
             style={{
@@ -102,10 +110,10 @@ export default async function AppHomePage({ params }: Props) {
               textAlign: 'center',
             }}
           >
-            {tenant.logo_url ? (
+            {displayLogoUrl ? (
               <img
-                src={tenant.logo_url}
-                alt={tenant.business_name}
+                src={displayLogoUrl}
+                alt={displayBusinessName}
                 style={{
                   width: 64,
                   height: 64,
@@ -130,7 +138,7 @@ export default async function AppHomePage({ params }: Props) {
                   margin: '0 auto 16px',
                 }}
               >
-                {getInitials(tenant.business_name)}
+                {getInitials(displayBusinessName)}
               </div>
             )}
             <p style={{ fontSize: 13, color: '#B0B0B0', marginBottom: 8 }}>Ciao! 👋</p>
@@ -146,7 +154,7 @@ export default async function AppHomePage({ params }: Props) {
                 marginTop: 2,
               }}
             >
-              {tenant.business_name}
+              {displayBusinessName}
             </p>
             <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 12 }}>
               Il tuo salone di fiducia, sempre con te.
