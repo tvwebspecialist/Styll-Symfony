@@ -2,6 +2,14 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveActiveProfile } from '@/lib/tenant-context'
 
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+
+function selectTenantUrl() {
+  return process.env.NODE_ENV === 'development'
+    ? '/select-tenant'
+    : `https://${ROOT_DOMAIN}/select-tenant`
+}
+
 export default async function DashboardRedirectLayout({
   children,
 }: {
@@ -11,26 +19,27 @@ export default async function DashboardRedirectLayout({
   if (!ctx) redirect('/login')
 
   const db = createAdminClient()
-  const { data } = await db
+  const { data: staffRows } = await db
     .from('staff_members')
     .select('tenant_id')
     .eq('profile_id', ctx.realUserId)
     .eq('is_active', true)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
 
-  if (!data?.tenant_id) redirect('/onboarding/step-1')
+  if (!staffRows || staffRows.length === 0) redirect('/onboarding/step-1')
 
+  // Multiple tenants → let the user choose
+  if (staffRows.length > 1) redirect(selectTenantUrl())
+
+  // Exactly one tenant → redirect directly
   const { data: tenant } = await db
     .from('tenants')
     .select('slug')
-    .eq('id', data.tenant_id)
+    .eq('id', staffRows[0].tenant_id)
     .maybeSingle()
 
   if (!tenant?.slug) redirect('/onboarding/step-1')
 
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-  redirect(`https://${tenant.slug}-dashboard.${rootDomain}`)
+  redirect(`https://${tenant.slug}-dashboard.${ROOT_DOMAIN}`)
 }

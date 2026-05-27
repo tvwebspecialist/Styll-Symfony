@@ -36,6 +36,14 @@ function suspendedUrl() {
     : `https://${ROOT_DOMAIN}/suspended`
 }
 
+function selectTenantUrl(qs?: string) {
+  const base =
+    process.env.NODE_ENV === 'development'
+      ? '/select-tenant'
+      : `https://${ROOT_DOMAIN}/select-tenant`
+  return qs ? `${base}?${qs}` : base
+}
+
 export default async function TenantDashboardLayout({ params, children }: Props) {
   const { slug } = await params
 
@@ -49,36 +57,35 @@ export default async function TenantDashboardLayout({ params, children }: Props)
   const impersonation = await getImpersonationState()
 
   let primaryTenantId: string | null = impersonation.tenantId
+  let hasMultipleTenants = false
+
   if (!primaryTenantId) {
-    const { data } = await db
+    const { data: allStaffRows } = await db
       .from('staff_members')
       .select('tenant_id')
       .eq('profile_id', ctx.realUserId)
       .eq('is_active', true)
       .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    primaryTenantId = data?.tenant_id ?? null
-  }
-  if (!primaryTenantId) redirect(onboardingUrl())
 
-  // Cross-tenant guard: redirect to the correct slug's subdomain
-  if (primaryTenantId !== tenantBySlug.tenant_id) {
-    const { data: correctTenant } = await db
-      .from('tenants')
-      .select('slug')
-      .eq('id', primaryTenantId)
-      .maybeSingle()
-    if (correctTenant?.slug) {
-      redirect(`https://${correctTenant.slug}-dashboard.${ROOT_DOMAIN}`)
-    } else {
-      redirect(onboardingUrl())
+    const allTenantIds = (allStaffRows ?? []).map((r) => r.tenant_id as string)
+    hasMultipleTenants = allTenantIds.length > 1
+
+    if (allTenantIds.length === 0) redirect(onboardingUrl())
+
+    // Access guard: user must have a staff_members row for this tenant
+    if (!allTenantIds.includes(tenantBySlug.tenant_id)) {
+      redirect(selectTenantUrl('error=access_denied'))
     }
+
+    primaryTenantId = tenantBySlug.tenant_id
   }
 
   const [{ data: tenant }, { data: ownerProfile }, { data: adminProfile }] = await Promise.all([
-    db.from('tenants').select('status').eq('id', primaryTenantId).maybeSingle(),
+    db
+      .from('tenants')
+      .select('status, business_name, logo_url')
+      .eq('id', primaryTenantId)
+      .maybeSingle(),
     db
       .from('profiles')
       .select('full_name, avatar_url, email')
@@ -125,7 +132,12 @@ export default async function TenantDashboardLayout({ params, children }: Props)
               : null
           }
         />
-        <Sidebar />
+        <Sidebar
+          tenantName={(tenant as { business_name?: string } | null)?.business_name ?? undefined}
+          tenantLogoUrl={(tenant as { logo_url?: string | null } | null)?.logo_url ?? null}
+          hasMultipleTenants={hasMultipleTenants}
+          selectTenantHref={hasMultipleTenants ? selectTenantUrl() : undefined}
+        />
         <MobileTopBar
           fullName={displayName}
           avatarUrl={ownerProfile?.avatar_url ?? null}
