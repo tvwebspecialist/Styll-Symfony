@@ -533,10 +533,11 @@ export function WebsiteTabClient({
     if (result.ok) {
       setSavedValues(values)
       toast.success('Sito salvato')
-      if (iframeRef.current) {
-        iframeRef.current.contentWindow?.location.reload()
-        setLastSaved(new Date())
-      }
+      setLastSaved(new Date())
+      // Delay reload so CDN/cache can propagate the change
+      setTimeout(() => {
+        iframeRef.current?.contentWindow?.location.reload()
+      }, 800)
     } else {
       toast.error(result.error ?? 'Errore durante il salvataggio')
     }
@@ -1045,7 +1046,7 @@ export function WebsiteTabClient({
 
         {/* ── RIGHT: preview ─────────────────────────────────────────────────── */}
         {!isMobile && (
-          <div style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', gap: 0, height: 'calc(100vh - 80px)' }}>
+          <div style={{ position: 'sticky', top: 'calc(var(--topbar-height) + 16px)', display: 'flex', flexDirection: 'column', gap: 0, height: 'calc(100vh - var(--topbar-height) - 32px)' }}>
             {/* Preview header */}
             <div style={{ background: '#F8F8F8', borderRadius: '16px 16px 0 0', border: '1px solid rgba(0,0,0,0.08)', borderBottom: 'none', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
