@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface TenantBranding {
   tenant_id: string
+  slug: string
   business_name: string
   primary_color: string
   secondary_color: string
@@ -16,7 +17,7 @@ async function fetchTenantBySlug(slug: string): Promise<TenantBranding | null> {
   const db = createAdminClient()
   const { data, error } = await db
     .from('tenants')
-    .select('id, business_name, primary_color, secondary_color, logo_url, font_family, status, settings')
+    .select('id, slug, business_name, primary_color, secondary_color, logo_url, font_family, status, settings')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -24,6 +25,7 @@ async function fetchTenantBySlug(slug: string): Promise<TenantBranding | null> {
 
   return {
     tenant_id: data.id as string,
+    slug: data.slug as string,
     business_name: data.business_name as string,
     primary_color: data.primary_color as string,
     secondary_color: data.secondary_color as string,
