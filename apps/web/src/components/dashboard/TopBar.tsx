@@ -4,6 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, HelpCircle, Moon, Bell, User as UserIcon, Calendar, Scissors } from 'lucide-react'
+import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
 
@@ -351,8 +352,8 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
             <Moon size={18} color="#222222" />
           </button>
 
-          <button
-            type="button"
+          <Link
+            href="/notifiche"
             aria-label="Notifiche"
             style={{
               width: 50,
@@ -364,10 +365,36 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
               justifyContent: 'center',
               alignItems: 'center',
               cursor: 'pointer',
+              position: 'relative',
+              textDecoration: 'none',
             }}
           >
             <Bell size={18} color="#222222" />
-          </button>
+            {MOCK_UNREAD_COUNT > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 7,
+                  right: 7,
+                  minWidth: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: '#EF4444',
+                  color: '#FFFFFF',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 3px',
+                  border: '2px solid #FFFFFF',
+                  lineHeight: 1,
+                }}
+              >
+                {MOCK_UNREAD_COUNT}
+              </span>
+            )}
+          </Link>
 
           <Link
             href="/profilo"

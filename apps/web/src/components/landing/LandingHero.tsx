@@ -1,180 +1,123 @@
-import type { CSSProperties } from 'react'
 import Image from 'next/image'
-import type { TenantBranding } from '@/lib/tenant'
-import type { PublicLocation, PublicWebsitePhoto } from '@/lib/actions/public-booking'
+import Link from 'next/link'
+import type { LandingTenant } from '@/types/landing'
 
 interface Props {
-  tenant: TenantBranding
-  firstLocation: PublicLocation | null
-  websitePhotos: PublicWebsitePhoto[]
-  slug: string
+  tenant: LandingTenant
   servicesCount: number
 }
 
-const NOISE_SVG =
-  "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+export default function LandingHero({ tenant, servicesCount }: Props) {
+  const tagline = tenant.tagline
+    ?? (tenant.description ? tenant.description.slice(0, 120) : null)
+    ?? 'Il tuo barbiere di fiducia. Prenota il tuo appuntamento in pochi secondi.'
 
-export default function LandingHero({ tenant, firstLocation, websitePhotos, slug, servicesCount }: Props) {
-  const heroUrl = websitePhotos[0]?.url ?? firstLocation?.photo_url ?? null
-  const bio = (tenant.settings?.bio as string | undefined) ?? null
-  const tagline = (tenant.settings?.tagline as string | undefined) ?? null
+  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
 
   return (
     <section
       id="hero"
       aria-label="Presentazione"
-      className="relative flex min-h-screen flex-col overflow-hidden"
-      style={{ background: '#0a0a0a' }}
+      className="relative flex min-h-screen flex-col overflow-hidden bg-[#111]"
     >
-      {/* Background */}
-      {heroUrl ? (
-        <>
-          <Image fill priority src={heroUrl} alt="" className="object-cover object-center" sizes="100vw" />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(160deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.8) 100%)',
-            }}
-          />
-        </>
-      ) : (
-        <>
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `
-                radial-gradient(ellipse 90% 70% at 10% 60%, var(--brand-primary) 0%, transparent 55%),
-                radial-gradient(ellipse 50% 60% at 90% 10%, color-mix(in srgb, var(--brand-primary) 35%, transparent) 0%, transparent 50%),
-                #0a0a0a
-              `,
-            }}
-          />
-          <div
-            className="absolute inset-0 opacity-[0.03]"
-            style={{ backgroundImage: NOISE_SVG, backgroundRepeat: 'repeat', backgroundSize: '200px 200px' }}
-          />
-        </>
+      {/* Background image */}
+      {tenant.hero_image_url && (
+        <Image
+          fill
+          priority
+          src={tenant.hero_image_url}
+          alt=""
+          className="object-cover object-center"
+          sizes="100vw"
+        />
       )}
 
-      {/* Main content — vertically centered */}
+      {/* Gradient overlays */}
       <div
-        className="relative z-10 flex flex-1 flex-col justify-center px-6 sm:px-10"
-        style={{ paddingTop: 120, paddingBottom: 80 }}
-      >
-        <div style={{ maxWidth: 1120, margin: '0 auto', width: '100%' }}>
+        className="absolute inset-0 z-[1]"
+        style={{
+          background:
+            'linear-gradient(to right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.15) 100%)',
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[1]"
+        style={{
+          background:
+            'linear-gradient(to top, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0) 55%)',
+        }}
+      />
 
-          {/* Eyebrow: city badge */}
-          {firstLocation?.city && (
-            <div
-              className="mb-8 inline-flex items-center gap-2"
-              style={
-                {
-                  background: 'rgba(255,255,255,0.1)',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 999,
-                  padding: '6px 14px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'rgba(255,255,255,0.8)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                } as CSSProperties
-              }
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                <circle cx="12" cy="9" r="2.5" />
-              </svg>
-              {firstLocation.city}
+      {/* Content */}
+      <div
+        className="relative z-10 flex flex-1 flex-col justify-end px-5 sm:px-10"
+        style={{ paddingTop: 120, paddingBottom: '5rem' }}
+      >
+        <div className="w-full max-w-[1120px] mx-auto">
+
+          {/* Google rating badge */}
+          {tenant.google_rating != null && (
+            <div className="mb-6 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2">
+              <span className="text-yellow-400 text-sm" aria-hidden="true">★</span>
+              <span className="text-white font-bold text-sm">{tenant.google_rating}</span>
+              {tenant.google_reviews_count != null && (
+                <span className="text-white/55 text-sm">({tenant.google_reviews_count} recensioni)</span>
+              )}
             </div>
           )}
 
-          {/* Headline */}
+          {/* H1 */}
           <h1
-            className="mb-6 max-w-4xl font-black text-white"
+            className="mb-5 font-black text-white"
             style={{
-              fontSize: 'clamp(3.5rem, 10vw, 7.5rem)',
-              lineHeight: 0.95,
-              letterSpacing: '-0.04em',
+              fontSize: 'clamp(40px, 7.5vw, 88px)',
+              lineHeight: 0.92,
+              letterSpacing: '-0.025em',
             }}
           >
             {tenant.business_name}
           </h1>
 
-          {/* Accent line */}
-          <div
-            className="mb-8"
-            style={{
-              width: 56,
-              height: 4,
-              background: 'var(--brand-primary)',
-              borderRadius: 99,
-            }}
-            aria-hidden="true"
-          />
-
-          {/* Bio / tagline */}
+          {/* Tagline */}
           <p
-            className="mb-12 max-w-md"
-            style={{
-              fontSize: 'clamp(1rem, 2vw, 1.15rem)',
-              lineHeight: 1.75,
-              color: 'rgba(255,255,255,0.6)',
-            }}
+            className="mb-10 text-white/65 leading-relaxed max-w-sm"
+            style={{ fontSize: 'clamp(14px, 2vw, 17px)' }}
           >
-            {tagline ?? bio ?? 'Il tuo barbiere di fiducia. Prenota il tuo appuntamento in pochi secondi.'}
+            {tagline.length > 130 ? tagline.slice(0, 130) + '…' : tagline}
           </p>
 
-          {/* Single CTA — scroll to services */}
-          <a
-            href="#servizi"
-            aria-label="Scopri i servizi disponibili"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 10,
-              borderRadius: 999,
-              padding: '16px 32px',
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              color: '#FFFFFF',
-              background: 'var(--brand-primary)',
-              textDecoration: 'none',
-              transition: 'opacity 0.2s ease',
-            } as CSSProperties}
-          >
-            Scopri i servizi
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-              <path d="M12 5v14M5 12l7 7 7-7" />
-            </svg>
-          </a>
+          {/* CTAs */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={bookingUrl}
+              className="inline-flex items-center gap-2 font-bold text-sm no-underline rounded-full bg-white text-[#111] hover:bg-white/90 transition-colors"
+              style={{ padding: '14px 28px' }}
+            >
+              Prenota ora
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </Link>
+            <a
+              href="#sedi"
+              className="inline-flex items-center gap-2 font-bold text-sm no-underline rounded-full text-white border border-white/30 hover:bg-white/10 transition-colors"
+              style={{ padding: '14px 28px' }}
+            >
+              Contattaci
+            </a>
+          </div>
 
           {/* Stats row */}
           {servicesCount > 0 && (
-            <div
-              className="lp-hero-stats mt-14 flex items-center gap-10"
-              aria-label="Statistiche"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 32, width: 'fit-content' }}
-            >
+            <div className="lp-hero-stats mt-12 flex items-center gap-8" aria-label="Statistiche">
               <div>
-                <p className="font-black text-white" style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.04em' }}>
-                  {servicesCount}
-                </p>
-                <p style={{ marginTop: 6, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)' }}>
-                  Servizi
-                </p>
+                <p className="font-black text-white text-2xl">{servicesCount}</p>
+                <p className="text-white/50 text-xs mt-1 uppercase tracking-wider">Servizi</p>
               </div>
-              <div style={{ width: 1, height: 40, background: 'rgba(255,255,255,0.1)' }} aria-hidden="true" />
+              <div className="w-px h-8 bg-white/20" aria-hidden="true" />
               <div>
-                <p className="font-black text-white" style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.04em' }}>
-                  1&#39;
-                </p>
-                <p style={{ marginTop: 6, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)' }}>
-                  Per prenotare
-                </p>
+                <p className="font-black text-white text-2xl">1&apos;</p>
+                <p className="text-white/50 text-xs mt-1 uppercase tracking-wider">Per prenotare</p>
               </div>
             </div>
           )}
@@ -183,12 +126,11 @@ export default function LandingHero({ tenant, firstLocation, websitePhotos, slug
 
       {/* Scroll indicator */}
       <div
-        className="lp-scroll-indicator absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 md:flex"
-        style={{ color: 'rgba(255,255,255,0.28)' }}
+        className="lp-scroll-indicator absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 md:flex z-10"
         aria-hidden="true"
       >
-        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.25em' }}>Scroll</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <span className="text-white/50 text-[10px] tracking-[0.15em] uppercase">Scroll</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" opacity="0.5">
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>

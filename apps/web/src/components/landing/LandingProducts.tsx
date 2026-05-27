@@ -1,165 +1,139 @@
-import type { CSSProperties } from 'react'
-import type { PublicProduct } from '@/lib/actions/public-booking'
+'use client'
+
+import { useRef } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import type { LandingProduct } from '@/types/landing'
 
 interface Props {
-  products: PublicProduct[]
+  products: LandingProduct[]
 }
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(price)
 }
 
-export default function LandingProducts({ products }: Props) {
-  if (!products.length) return null
+function ProductCard({ product }: { product: LandingProduct }) {
+  const initial = product.name.charAt(0).toUpperCase()
 
   return (
-    <section
-      id="prodotti"
-      aria-label="I nostri prodotti"
-      style={{ background: '#F8F8F8', padding: 'clamp(5rem, 10vw, 8rem) 0', overflow: 'hidden' } as CSSProperties}
+    <article
+      className="relative shrink-0 overflow-hidden rounded-2xl bg-[#1a1a1a]"
+      style={{ width: '200px', aspectRatio: '3/4' }}
     >
-      <style>{`
-        .lp-products-track {
-          display: flex;
-          overflow-x: auto;
-          scroll-snap-type: x mandatory;
-          -webkit-overflow-scrolling: touch;
-          gap: 16px;
-          padding: 0 clamp(20px, 5vw, 48px);
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        .lp-products-track::-webkit-scrollbar { display: none; }
-        .lp-product-card {
-          scroll-snap-align: start;
-          flex-shrink: 0;
-          width: 240px;
-          background: #FFFFFF;
-          border-radius: 18px;
-          overflow: hidden;
-          border: 1.5px solid #EBEBEB;
-          transition: box-shadow 0.25s ease, transform 0.25s ease;
-        }
-        .lp-product-card:hover {
-          box-shadow: 0 12px 32px rgba(0,0,0,0.08);
-          transform: translateY(-3px);
-        }
-        @media (max-width: 640px) {
-          .lp-product-card { width: 180px; }
-        }
-      `}</style>
-
-      {/* Header */}
-      <div
-        style={{
-          maxWidth: 1120,
-          margin: '0 auto',
-          padding: '0 clamp(20px, 5vw, 48px)',
-          marginBottom: 'clamp(2rem, 4vw, 3rem)',
-        }}
-      >
-        <div data-reveal>
-          <span
-            style={{
-              display: 'block',
-              fontSize: 10,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.22em',
-              color: 'var(--brand-primary)',
-              marginBottom: 14,
-            }}
-          >
-            Shop
-          </span>
-          <h2
-            style={{
-              fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
-              fontWeight: 800,
-              color: '#111111',
-              lineHeight: 1.08,
-              letterSpacing: '-0.03em',
-            }}
-          >
-            I nostri prodotti
-          </h2>
+      {product.photo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={product.photo_url}
+          alt={product.name}
+          className="absolute inset-0 w-full h-full object-cover block"
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="absolute inset-0 flex items-center justify-center font-black text-white select-none"
+          style={{ background: 'var(--brand-primary)', fontSize: '3.5rem' }}
+          aria-label={product.name}
+        >
+          {initial}
         </div>
+      )}
+
+      {/* Gradient overlay */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.15) 50%, transparent 75%)' }}
+        aria-hidden="true"
+      />
+
+      {/* Name + price */}
+      <div className="absolute bottom-0 left-0 right-0 p-4">
+        {product.brand && (
+          <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-1">
+            {product.brand}
+          </p>
+        )}
+        <p
+          className="font-bold text-white text-sm leading-snug mb-1 overflow-hidden"
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+          } as React.CSSProperties}
+        >
+          {product.name}
+        </p>
+        <p className="font-black text-white text-[15px]">{formatPrice(product.price_sell)}</p>
+      </div>
+    </article>
+  )
+}
+
+export default function LandingProducts({ products }: Props) {
+  const trackRef = useRef<HTMLDivElement>(null)
+
+  if (!products.length) return null
+
+  function scrollTrack(direction: 'left' | 'right') {
+    if (!trackRef.current) return
+    trackRef.current.scrollBy({
+      left: direction === 'left' ? -440 : 440,
+      behavior: 'smooth',
+    })
+  }
+
+  return (
+    <section id="prodotti" aria-label="I nostri prodotti" className="w-full bg-white py-20 sm:py-24 overflow-hidden">
+
+      {/* Header row */}
+      <div className="w-full max-w-[1120px] mx-auto px-5 mb-8 flex items-end justify-between gap-6">
+        <div>
+          <h2
+            className="font-black text-[#111]"
+            style={{ fontSize: 'clamp(28px, 4vw, 44px)', letterSpacing: '-0.02em' }}
+          >
+            Cosa offriamo
+          </h2>
+          <p className="text-[#888] text-sm mt-1.5">I nostri prodotti</p>
+        </div>
+
+        {/* Navigation arrows */}
+        {products.length > 3 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => scrollTrack('left')}
+              aria-label="Precedente"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-[#111] text-white hover:bg-[#333] transition-colors shrink-0"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              onClick={() => scrollTrack('right')}
+              aria-label="Successivo"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-[#111] text-white hover:bg-[#333] transition-colors shrink-0"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Scrollable track */}
-      <div className="lp-products-track" role="list" aria-label="Lista prodotti">
+      {/* Horizontal scroll track */}
+      <div
+        ref={trackRef}
+        className="flex overflow-x-auto gap-4 px-5"
+        style={{
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          paddingLeft: 'max(20px, calc((100vw - 1120px) / 2 + 20px))',
+          paddingRight: 'max(20px, calc((100vw - 1120px) / 2 + 20px))',
+        } as React.CSSProperties}
+        role="list"
+        aria-label="Lista prodotti"
+      >
         {products.map((product) => (
-          <div key={product.id} className="lp-product-card" role="listitem">
-            {/* Photo */}
-            <div style={{ aspectRatio: '1/1', background: '#F0F0F0', overflow: 'hidden', position: 'relative' }}>
-              {product.photo_url ? (
-                <img
-                  src={product.photo_url}
-                  alt={product.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  loading="lazy"
-                />
-              ) : (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.15)" strokeWidth="1.5" aria-hidden="true">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                    <line x1="8" y1="21" x2="16" y2="21" />
-                    <line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                </div>
-              )}
-            </div>
-
-            {/* Info */}
-            <div style={{ padding: '14px 16px 18px' }}>
-              {product.brand && (
-                <p
-                  style={{
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.14em',
-                    color: 'var(--brand-primary)',
-                    marginBottom: 4,
-                  }}
-                >
-                  {product.brand}
-                </p>
-              )}
-              <p
-                style={{
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  color: '#111111',
-                  lineHeight: 1.3,
-                  marginBottom: 8,
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                } as CSSProperties}
-              >
-                {product.name}
-              </p>
-              <p
-                style={{
-                  fontSize: '1rem',
-                  fontWeight: 800,
-                  color: '#111111',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                {formatPrice(product.price_sell)}
-              </p>
-            </div>
+          <div key={product.id} role="listitem" style={{ scrollSnapAlign: 'start' }}>
+            <ProductCard product={product} />
           </div>
         ))}
       </div>
