@@ -636,7 +636,7 @@ export function WebsiteTabClient({
     fd.append('file', file)
     const result = await uploadHeroImage(fd)
     setUploadingHero(false)
-    if (result.ok && result.url) { setHeroImageUrl(result.url); toast.success('Foto hero aggiornata') }
+    if (result.ok && result.url) { setHeroImageUrl(result.url); toast.success('Foto hero aggiornata'); triggerPreviewRefresh(800) }
     else toast.error(result.error ?? 'Errore upload')
   }
 
@@ -649,7 +649,7 @@ export function WebsiteTabClient({
     fd.append('file', file)
     const result = await uploadAboutImage(fd)
     setUploadingAbout(false)
-    if (result.ok && result.url) { setAboutImageUrl(result.url); toast.success('Foto about aggiornata') }
+    if (result.ok && result.url) { setAboutImageUrl(result.url); toast.success('Foto about aggiornata'); triggerPreviewRefresh(800) }
     else toast.error(result.error ?? 'Errore upload')
   }
 
@@ -680,6 +680,8 @@ export function WebsiteTabClient({
         if (table === 'staff_members') setStaff((prev) => prev.map((m) => m.id === id ? { ...m, showOnWebsite: !value } : m))
         if (table === 'locations') setLocations((prev) => prev.map((l) => l.id === id ? { ...l, showOnWebsite: !value } : l))
         if (table === 'services') setServices((prev) => prev.map((s) => s.id === id ? { ...s, showOnWebsite: !value } : s))
+      } else {
+        triggerPreviewRefresh(800)
       }
     }, 400)
   }
@@ -693,6 +695,8 @@ export function WebsiteTabClient({
     if (!result.ok) {
       toast.error(result.error ?? 'Errore salvataggio')
       setProducts((ps) => ps.map((p) => p.id === id ? { ...p, showOnSite: !value } : p))
+    } else {
+      triggerPreviewRefresh(800)
     }
   }
 
@@ -706,7 +710,7 @@ export function WebsiteTabClient({
     fd.append('file', file)
     const result = await uploadWebsitePhoto(fd)
     setUploadingPhoto(false)
-    if (result.ok && result.photo) { setPhotos((prev) => [...prev, result.photo!]); toast.success('Foto aggiunta') }
+    if (result.ok && result.photo) { setPhotos((prev) => [...prev, result.photo!]); toast.success('Foto aggiunta'); triggerPreviewRefresh(800) }
     else toast.error(result.error ?? 'Errore upload')
   }
 
@@ -715,7 +719,7 @@ export function WebsiteTabClient({
     setPhotos((p) => p.filter((ph) => ph.id !== id))
     const result = await deleteWebsitePhoto(id)
     if (!result.ok) { toast.error(result.error ?? 'Errore eliminazione'); setPhotos(prev) }
-    else toast.success('Foto eliminata')
+    else { toast.success('Foto eliminata'); triggerPreviewRefresh(800) }
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
@@ -727,7 +731,9 @@ export function WebsiteTabClient({
       const oldIndex = prev.findIndex((p) => p.id === active.id)
       const newIndex = prev.findIndex((p) => p.id === over.id)
       const reordered = arrayMove(prev, oldIndex, newIndex)
-      reorderWebsitePhotos(reordered.map((p) => p.id)).catch(() => toast.error('Errore riordinamento'))
+      reorderWebsitePhotos(reordered.map((p) => p.id))
+        .then(() => triggerPreviewRefresh(800))
+        .catch(() => toast.error('Errore riordinamento'))
       return reordered
     })
   }
