@@ -95,15 +95,17 @@ export default async function LandingPage({ params }: Props) {
     secondary_color: tenantRow.secondary_color ?? '#666666',
     font_family: tenantRow.font_family ?? 'outfit',
     tagline: typeof s.tagline === 'string' ? s.tagline : null,
-    description:
-      (typeof s.bio === 'string' ? s.bio : null) ??
-      (typeof about.text === 'string' ? about.text : null),
+    description: typeof s.bio === 'string' ? s.bio : null,
     hero_image_url: heroImageUrl,
+    about_title: typeof about.title === 'string' ? about.title : null,
+    about_text: typeof about.text === 'string' ? about.text : null,
     about_image_url: typeof about.image_url === 'string' ? about.image_url : null,
     google_rating: typeof s.google_rating === 'number' ? s.google_rating : null,
     google_reviews_count: typeof s.google_reviews_count === 'number' ? s.google_reviews_count : null,
     team_description: typeof s.team_description === 'string' ? s.team_description : null,
     locations_description: typeof s.locations_description === 'string' ? s.locations_description : null,
+    contact_phone: typeof s.contact_phone === 'string' ? s.contact_phone : null,
+    contact_email: typeof s.contact_email === 'string' ? s.contact_email : null,
     social_links: {
       instagram: typeof socialLinks.instagram === 'string' ? socialLinks.instagram : undefined,
       facebook: typeof socialLinks.facebook === 'string' ? socialLinks.facebook : undefined,
@@ -158,7 +160,7 @@ export default async function LandingPage({ params }: Props) {
 
   // ── Section flags ─────────────────────────────────────────────────────────
   const sections: LandingSections = {
-    showAbout: Boolean(tenant.description?.trim()),
+    showAbout: Boolean(tenant.about_text?.trim()),
     showTeam: staff.length > 1,
     showProducts: products.length > 0,
     multipleLocations: locations.length > 1,

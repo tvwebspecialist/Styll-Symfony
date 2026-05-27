@@ -25,11 +25,15 @@ interface ParsedSettings {
   tagline: string | null
   description: string | null
   hero_image_url: string | null
+  about_title: string | null
+  about_text: string | null
   about_image_url: string | null
   google_rating: number | null
   google_reviews_count: number | null
   team_description: string | null
   locations_description: string | null
+  contact_phone: string | null
+  contact_email: string | null
   social_links: {
     instagram?: string
     facebook?: string
@@ -43,11 +47,15 @@ function parseSettings(raw: unknown): ParsedSettings {
     tagline: null,
     description: null,
     hero_image_url: null,
+    about_title: null,
+    about_text: null,
     about_image_url: null,
     google_rating: null,
     google_reviews_count: null,
     team_description: null,
     locations_description: null,
+    contact_phone: null,
+    contact_email: null,
     social_links: {},
   }
 
@@ -63,15 +71,17 @@ function parseSettings(raw: unknown): ParsedSettings {
 
   return {
     tagline: typeof s.tagline === 'string' ? s.tagline : null,
-    description:
-      (typeof s.bio === 'string' ? s.bio : null) ??
-      (typeof about.text === 'string' ? about.text : null),
+    description: typeof s.bio === 'string' ? s.bio : null,
     hero_image_url: typeof s.hero_image_url === 'string' ? s.hero_image_url : null,
+    about_title: typeof about.title === 'string' ? about.title : null,
+    about_text: typeof about.text === 'string' ? about.text : null,
     about_image_url: typeof about.image_url === 'string' ? about.image_url : null,
     google_rating: typeof s.google_rating === 'number' ? s.google_rating : null,
     google_reviews_count: typeof s.google_reviews_count === 'number' ? s.google_reviews_count : null,
     team_description: typeof s.team_description === 'string' ? s.team_description : null,
     locations_description: typeof s.locations_description === 'string' ? s.locations_description : null,
+    contact_phone: typeof s.contact_phone === 'string' ? s.contact_phone : null,
+    contact_email: typeof s.contact_email === 'string' ? s.contact_email : null,
     social_links: {
       instagram: typeof socialLinks.instagram === 'string' ? socialLinks.instagram : undefined,
       facebook: typeof socialLinks.facebook === 'string' ? socialLinks.facebook : undefined,
@@ -266,17 +276,21 @@ export function useLandingData(slug: string): UseLandingDataResult {
           tagline: settings.tagline,
           description: settings.description,
           hero_image_url: heroImageUrl,
+          about_title: settings.about_title,
+          about_text: settings.about_text,
           about_image_url: settings.about_image_url,
           google_rating: settings.google_rating,
           google_reviews_count: settings.google_reviews_count,
           team_description: settings.team_description ?? null,
           locations_description: settings.locations_description ?? null,
+          contact_phone: settings.contact_phone ?? null,
+          contact_email: settings.contact_email ?? null,
           social_links: settings.social_links,
         }
 
         // ── Section flags ──────────────────────────────────────────────────
         const sections = {
-          showAbout: Boolean(tenant.description?.trim()),
+          showAbout: Boolean(tenant.about_text?.trim()),
           showTeam: staff.length > 1,
           showProducts: products.length > 0,
           multipleLocations: locations.length > 1,

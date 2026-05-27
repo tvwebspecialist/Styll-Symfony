@@ -7,8 +7,9 @@ interface Props {
 }
 
 export default function LandingAbout({ tenant }: Props) {
-  if (!tenant.description?.trim()) return null
+  if (!tenant.about_text?.trim()) return null
 
+  const title = tenant.about_title?.trim() || 'Chi siamo'
   const hasImage = Boolean(tenant.about_image_url)
 
   return (
@@ -36,10 +37,10 @@ export default function LandingAbout({ tenant }: Props) {
               className="font-black text-[#111] mb-6 leading-tight"
               style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
             >
-              {tenant.business_name}
+              {title}
             </h2>
             <p className="text-[#666] leading-relaxed mb-10 max-w-lg" style={{ fontSize: '16px' }}>
-              {tenant.description}
+              {tenant.about_text}
             </p>
             <Link
               href="#sedi"
