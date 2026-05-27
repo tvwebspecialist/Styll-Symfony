@@ -15,34 +15,38 @@ function formatPrice(price: number): string {
 export default function ProductCard({ product }: Props) {
   const [hovered, setHovered] = React.useState(false)
 
-  const supportingText = product.description?.trim() || product.brand?.trim() || null
-
   return (
     <article
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
-        borderRadius: 20,
+        borderRadius: 24,
         overflow: 'hidden',
         aspectRatio: '3 / 4',
         cursor: 'default',
+        background: '#0D0D0D',
         boxShadow: hovered
-          ? '0 16px 48px rgba(0, 0, 0, 0.20)'
-          : '0 8px 32px rgba(0, 0, 0, 0.12)',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+          ? '0 24px 64px rgba(0, 0, 0, 0.32)'
+          : '0 8px 32px rgba(0, 0, 0, 0.16)',
+        transform: hovered ? 'translateY(-5px)' : 'translateY(0)',
+        transition: 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.35s ease',
         willChange: 'transform',
       }}
     >
-      {/* Photo or initials placeholder */}
+      {/* Photo fills entire card */}
       {product.photo_url ? (
         <Image
           fill
           src={product.photo_url}
           alt={product.name}
-          style={{ objectFit: 'cover', objectPosition: 'center' }}
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          style={{
+            objectFit: 'cover',
+            objectPosition: 'center',
+            transform: hovered ? 'scale(1.04)' : 'scale(1)',
+            transition: 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
+          sizes="(max-width: 639px) 83vw, (max-width: 1023px) 38vw, 26vw"
           loading="lazy"
         />
       ) : (
@@ -54,7 +58,7 @@ export default function ProductCard({ product }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
             background: '#1A1A1A',
-            fontSize: 32,
+            fontSize: 40,
             fontWeight: 800,
             color: '#FFFFFF',
             userSelect: 'none',
@@ -65,67 +69,94 @@ export default function ProductCard({ product }: Props) {
         </div>
       )}
 
-      {/* Gradient overlay — bottom 50%, no backdrop-filter */}
+      {/* Feather: photo fades into the panel */}
       <div
         aria-hidden="true"
         style={{
           position: 'absolute',
-          bottom: 0,
           left: 0,
           right: 0,
-          height: '50%',
-          background:
-            'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.75) 100%)',
+          bottom: '38%',
+          height: 64,
+          background: 'linear-gradient(to bottom, rgba(13,13,13,0) 0%, rgba(13,13,13,1) 100%)',
         }}
       />
 
-      {/* Name + supporting text + price */}
+      {/* Info panel — solid dark, bottom 38% */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          padding: '20px 20px 24px 20px',
+          height: '38%',
+          background: '#0D0D0D',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '8px 18px 18px',
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            fontSize: 22,
-            fontWeight: 700,
-            color: '#FFFFFF',
-            lineHeight: 1.2,
-            letterSpacing: '-0.3px',
-          }}
-        >
-          {product.name}
-        </p>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: 6,
-          }}
-        >
-          {supportingText && (
-            <span
+        {/* Brand + name + description */}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {product.brand?.trim() && (
+            <p
               style={{
-                fontSize: 14,
-                fontWeight: 400,
-                color: 'rgba(255, 255, 255, 0.75)',
+                margin: '0 0 3px',
+                fontSize: 10,
+                fontWeight: 600,
+                color: 'rgba(255,255,255,0.38)',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
               }}
             >
-              {supportingText}
-            </span>
+              {product.brand.trim()}
+            </p>
           )}
+          <p
+            style={{
+              margin: 0,
+              fontSize: 19,
+              fontWeight: 700,
+              color: '#FFFFFF',
+              lineHeight: 1.15,
+              letterSpacing: '-0.3px',
+            }}
+          >
+            {product.name}
+          </p>
+          {product.description?.trim() && (
+            <p
+              style={{
+                margin: '5px 0 0',
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.44)',
+                lineHeight: 1.45,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              } as React.CSSProperties}
+            >
+              {product.description.trim()}
+            </p>
+          )}
+        </div>
+
+        {/* Price — separated by a divider */}
+        <div
+          style={{
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            paddingTop: 10,
+            marginTop: 8,
+          }}
+        >
           <span
             style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'rgba(255, 255, 255, 0.9)',
+              fontSize: 22,
+              fontWeight: 800,
+              color: '#FFFFFF',
+              letterSpacing: '-0.5px',
+              lineHeight: 1,
             }}
           >
             {formatPrice(product.price_sell)}

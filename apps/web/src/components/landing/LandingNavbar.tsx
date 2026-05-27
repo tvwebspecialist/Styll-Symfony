@@ -17,9 +17,39 @@ interface NavLink {
   href: string
 }
 
+function readRuntimeLocation() {
+  if (typeof window === 'undefined') return null
+
+  return {
+    protocol: window.location.protocol,
+    hostname: window.location.hostname,
+    port: window.location.port,
+  }
+}
+
+function buildBookingUrl(slug: string, runtimeLocation: ReturnType<typeof readRuntimeLocation>): string {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+
+  if (runtimeLocation && (
+    runtimeLocation.hostname === 'localhost'
+    || runtimeLocation.hostname.endsWith('.localhost')
+  )) {
+    const portSuffix = runtimeLocation.port ? `:${runtimeLocation.port}` : ''
+    return `${runtimeLocation.protocol}//localhost${portSuffix}/prenota?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app`
+  }
+
+  return `https://${slug}-app.${rootDomain}/prenota`
+}
+
+function getScrollOffset() {
+  if (typeof window === 'undefined') return -80
+  return window.innerWidth < 768 ? -72 : -80
+}
+
 export default function LandingNavbar({ tenant, sections }: Props) {
   const [scrolled, setScrolled] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [runtimeLocation] = useState<ReturnType<typeof readRuntimeLocation>>(() => readRuntimeLocation())
   const touchStartY = useRef(0)
 
   useEffect(() => {
@@ -33,13 +63,29 @@ export default function LandingNavbar({ tenant, sections }: Props) {
   useEffect(() => {
     if (drawerOpen) {
       pauseLenis()
+      document.documentElement.style.overflow = 'hidden'
       document.body.style.overflow = 'hidden'
     } else {
       resumeLenis()
+      document.documentElement.style.overflow = ''
       document.body.style.overflow = ''
     }
-    return () => { document.body.style.overflow = '' }
+    return () => {
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
   }, [drawerOpen])
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setDrawerOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const links: NavLink[] = [
     ...(sections.showAbout    ? [{ label: 'Chi siamo', id: 'chi-siamo', href: '#chi-siamo' }] : []),
@@ -49,17 +95,17 @@ export default function LandingNavbar({ tenant, sections }: Props) {
     ...(sections.showProducts ? [{ label: 'Prodotti',  id: 'prodotti',  href: '#prodotti'  }] : []),
   ]
 
-  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
+  const bookingUrl = buildBookingUrl(tenant.slug, runtimeLocation)
 
   function handleAnchorClick(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     e.preventDefault()
-    scrollToSection(id, -80)
+    scrollToSection(id, getScrollOffset())
   }
 
   function handleDrawerAnchorClick(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
     e.preventDefault()
     setDrawerOpen(false)
-    setTimeout(() => scrollToSection(id, -80), 50)
+    setTimeout(() => scrollToSection(id, getScrollOffset()), 50)
   }
 
   const pillBg = scrolled
@@ -77,7 +123,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
   const nameColor = scrolled ? '#111' : '#fff'
   const iconColor = scrolled ? '#111' : '#fff'
 
-  const ctaBg = scrolled ? 'var(--tenant-primary)' : '#fff'
+  const ctaBg = scrolled ? 'var(--brand-primary)' : '#fff'
   const ctaColor = scrolled ? '#fff' : '#111'
 
   return (
@@ -90,7 +136,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
           top: '16px',
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 'calc(100% - 48px)',
+          width: 'calc(100% - 24px)',
           maxWidth: '1200px',
           height: '56px',
           borderRadius: '9999px',
@@ -109,7 +155,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
             alignItems: 'center',
             justifyContent: 'space-between',
             height: '100%',
-            padding: '0 8px 0 16px',
+            padding: '0 8px 0 14px',
           }}
         >
           {/* Left: Logo + Name */}
@@ -158,6 +204,9 @@ export default function LandingNavbar({ tenant, sections }: Props) {
                 color: nameColor,
                 transition: 'color 0.4s ease',
                 whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 'min(46vw, 190px)',
               }}
             >
               {tenant.business_name}
@@ -194,8 +243,11 @@ export default function LandingNavbar({ tenant, sections }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             {/* Hamburger — mobile only */}
             <button
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Apri menu"
+              type="button"
+              onClick={() => setDrawerOpen((open) => !open)}
+              aria-label={drawerOpen ? 'Chiudi menu' : 'Apri menu'}
+              aria-expanded={drawerOpen}
+              aria-controls="landing-mobile-menu"
               className="md:hidden"
               style={{
                 display: 'flex',
@@ -223,6 +275,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
             <Link
               href={bookingUrl}
               aria-label={`Prenota da ${tenant.business_name}`}
+              className="hidden sm:inline-flex"
               style={{
                 borderRadius: '9999px',
                 padding: '10px 20px',
@@ -271,8 +324,9 @@ export default function LandingNavbar({ tenant, sections }: Props) {
         }}
       />
 
-      {/* Mobile drawer — slides up from bottom */}
+      {/* Mobile drawer — full mobile menu */}
       <div
+        id="landing-mobile-menu"
         role="dialog"
         aria-modal="true"
         aria-label="Menu navigazione"
@@ -282,30 +336,103 @@ export default function LandingNavbar({ tenant, sections }: Props) {
         }}
         style={{
           position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
+          top: '88px',
+          left: '12px',
+          right: '12px',
           zIndex: 1002,
-          background: '#111',
-          borderRadius: '24px 24px 0 0',
-          padding: '16px 24px 40px',
-          transform: drawerOpen ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
+          background: 'rgba(17, 17, 17, 0.96)',
+          borderRadius: '24px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '18px 18px calc(24px + env(safe-area-inset-bottom, 0px))',
+          transform: drawerOpen ? 'translateY(0)' : 'translateY(16px)',
+          opacity: drawerOpen ? 1 : 0,
+          pointerEvents: drawerOpen ? 'auto' : 'none',
+          transition: 'transform 0.28s ease, opacity 0.28s ease',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.28)',
+          maxHeight: 'calc(100dvh - 104px)',
+          overflowY: 'auto',
         }}
       >
-        {/* Drag handle */}
-        <div
-          style={{
-            width: '40px',
-            height: '4px',
-            borderRadius: '9999px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            margin: '0 auto 28px',
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {tenant.logo_url ? (
+              <Image
+                src={tenant.logo_url}
+                alt={tenant.business_name}
+                width={36}
+                height={36}
+                style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: 'var(--brand-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ color: '#fff', fontWeight: 900, fontSize: 12 }}>
+                  {tenant.business_name.slice(0, 2).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {tenant.business_name}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.58)' }}>
+                Menu
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Chiudi menu"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '9999px',
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 3l10 10M13 3L3 13" />
+            </svg>
+          </button>
+        </div>
 
         {/* Nav links */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '18px' }}>
+          <a
+            href="#hero"
+            onClick={(e) => handleDrawerAnchorClick(e, 'hero')}
+            style={{
+              fontSize: '18px',
+              fontWeight: 500,
+              color: 'rgba(255, 255, 255, 0.96)',
+              textDecoration: 'none',
+              display: 'block',
+              padding: '14px 16px',
+              borderRadius: '14px',
+              background: 'rgba(255,255,255,0.06)',
+            }}
+          >
+            Home
+          </a>
           {links.map((link) => (
             <a
               key={link.id}
@@ -318,7 +445,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
                 textDecoration: 'none',
                 display: 'block',
                 padding: '14px 16px',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 transition: 'background 0.15s ease',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
@@ -342,7 +469,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
             padding: '16px',
             fontSize: '16px',
             fontWeight: 700,
-            background: 'var(--tenant-primary)',
+            background: 'var(--brand-primary)',
             color: '#fff',
             textDecoration: 'none',
             transition: 'opacity 0.2s ease',
