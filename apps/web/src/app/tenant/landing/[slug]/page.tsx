@@ -154,8 +154,8 @@ export default async function LandingPage({ params }: Props) {
     brand: p.brand ?? null,
     price_sell: Number(p.price_sell ?? 0),
     photo_url: p.photo_url ?? null,
-    description: null,
-    display_order: 0,
+    description: p.description ?? null,
+    display_order: Number(p.display_order ?? 0),
   }))
 
   // ── Section flags ─────────────────────────────────────────────────────────
@@ -192,13 +192,6 @@ export default async function LandingPage({ params }: Props) {
         {/* Hero — no animation, already above the fold */}
         <LandingHero tenant={tenant} />
 
-        {/* About — slides up */}
-        {sections.showAbout && (
-          <AnimatedSection direction="up">
-            <LandingAbout tenant={tenant} />
-          </AnimatedSection>
-        )}
-
         {/* Team — internal AnimatedSection + AnimatedList */}
         {sections.showTeam && (
           <LandingTeam
@@ -206,6 +199,13 @@ export default async function LandingPage({ params }: Props) {
             teamDescription={tenant.team_description}
             googleRating={tenant.google_rating}
           />
+        )}
+
+        {/* About — slides up */}
+        {sections.showAbout && (
+          <AnimatedSection direction="up">
+            <LandingAbout tenant={tenant} />
+          </AnimatedSection>
         )}
 
         {/* Locations — single wraps its own AnimatedSection; multi handles sticky internally */}

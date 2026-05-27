@@ -9,7 +9,7 @@ export type PublicLocation = Pick<
 
 export type PublicProduct = Pick<
   Tables<'products'>,
-  'id' | 'name' | 'brand' | 'price_sell' | 'photo_url' | 'category'
+  'id' | 'name' | 'brand' | 'price_sell' | 'photo_url' | 'category' | 'description' | 'display_order'
 >
 
 export interface PublicPortfolioPhoto {
@@ -887,7 +887,7 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
       const db = createAdminClient()
       const { data } = await db
         .from('products')
-        .select('id, name, brand, price_sell, photo_url, category')
+        .select('id, name, brand, price_sell, photo_url, category, description, display_order')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_site', true)
@@ -901,6 +901,8 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
         price_sell: Number(p.price_sell ?? 0),
         photo_url: p.photo_url ?? null,
         category: p.category ?? null,
+        description: p.description ?? null,
+        display_order: Number(p.display_order ?? 0),
       }))
     },
     [`public-products-${tenantId}`],
