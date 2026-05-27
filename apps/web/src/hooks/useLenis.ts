@@ -9,7 +9,7 @@ import type { ScrollToOptions } from 'lenis'
 // share the same reference via this singleton.
 let _lenis: Lenis | null = null
 
-export function scrollToSection(id: string, offset = -68) {
+export function scrollToSection(id: string, offset = -80) {
   const el = document.getElementById(id)
   if (!el) return
   if (_lenis) {
