@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import Image from 'next/image'
 import type { LandingProduct } from '@/types/landing'
 
@@ -8,96 +9,128 @@ interface Props {
 }
 
 function formatPrice(price: number): string {
-  return `${price.toFixed(2)}€`
-}
-
-function getProductInitial(name: string): string {
-  return name.trim().charAt(0).toUpperCase() || '?'
-}
-
-function getProductSupportingText(product: LandingProduct): string | null {
-  const description = product.description?.trim()
-  if (description) return description
-
-  const brand = product.brand?.trim()
-  return brand || null
+  return `€${price.toFixed(2)}`
 }
 
 export default function ProductCard({ product }: Props) {
-  const supportingText = getProductSupportingText(product)
+  const [hovered, setHovered] = React.useState(false)
+
+  const supportingText = product.description?.trim() || product.brand?.trim() || null
 
   return (
     <article
-      className="group relative h-full overflow-hidden rounded-[24px] bg-[#1A1A1A] shadow-[0_12px_36px_rgba(0,0,0,0.14)]"
-      style={{ aspectRatio: '3 / 4' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        borderRadius: 20,
+        overflow: 'hidden',
+        aspectRatio: '3 / 4',
+        cursor: 'default',
+        boxShadow: hovered
+          ? '0 16px 48px rgba(0, 0, 0, 0.20)'
+          : '0 8px 32px rgba(0, 0, 0, 0.12)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+        willChange: 'transform',
+      }}
     >
+      {/* Photo or initials placeholder */}
       {product.photo_url ? (
         <Image
           fill
           src={product.photo_url}
           alt={product.name}
-          className="object-cover object-center transition-transform duration-300 ease-out group-hover:scale-[1.02]"
-          sizes="(max-width: 639px) 83vw, (max-width: 1023px) 38vw, 26vw"
+          style={{ objectFit: 'cover', objectPosition: 'center' }}
+          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          loading="lazy"
         />
       ) : (
         <div
-          className="absolute inset-0 flex items-center justify-center bg-[#1A1A1A] text-white select-none"
-          style={{ fontSize: '3.5rem', fontWeight: 800 }}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#1A1A1A',
+            fontSize: 32,
+            fontWeight: 800,
+            color: '#FFFFFF',
+            userSelect: 'none',
+          }}
           aria-label={product.name}
         >
-          {getProductInitial(product.name)}
+          {product.name.trim().charAt(0).toUpperCase() || '?'}
         </div>
       )}
 
+      {/* Gradient overlay — bottom 50%, no backdrop-filter */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-1/2"
         style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '50%',
           background:
-            'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.24) 32%, rgba(0,0,0,0.85) 100%)',
+            'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.75) 100%)',
         }}
       />
 
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 p-5 sm:p-6">
-        <h3
-          className="m-0 text-white"
+      {/* Name + supporting text + price */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '20px 20px 24px 20px',
+        }}
+      >
+        <p
           style={{
-            fontSize: 'clamp(1.125rem, 1.9vw, 1.375rem)',
+            margin: 0,
+            fontSize: 22,
             fontWeight: 700,
-            lineHeight: 1.15,
-            letterSpacing: '-0.02em',
+            color: '#FFFFFF',
+            lineHeight: 1.2,
+            letterSpacing: '-0.3px',
           }}
         >
           {product.name}
-        </h3>
+        </p>
 
-        {supportingText ? (
-          <p
-            className="m-0 text-white/75"
-            style={{
-              fontSize: '0.875rem',
-              lineHeight: 1.45,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {supportingText}
-          </p>
-        ) : null}
-
-        <p
-          className="m-0 pt-1 text-white"
+        <div
           style={{
-            fontSize: '1.0625rem',
-            fontWeight: 700,
-            lineHeight: 1.1,
-            letterSpacing: '-0.02em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 6,
           }}
         >
-          {formatPrice(product.price_sell)}
-        </p>
+          {supportingText && (
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 400,
+                color: 'rgba(255, 255, 255, 0.75)',
+              }}
+            >
+              {supportingText}
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'rgba(255, 255, 255, 0.9)',
+            }}
+          >
+            {formatPrice(product.price_sell)}
+          </span>
+        </div>
       </div>
     </article>
   )

@@ -13,7 +13,7 @@ export default function LandingLayout({ children }: Props) {
   useLenis()
 
   return (
-    <main className="overflow-x-hidden">
+    <main className="overflow-x-clip">
       {children}
     </main>
   )

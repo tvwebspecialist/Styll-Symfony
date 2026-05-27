@@ -102,7 +102,7 @@ export default function LandingProducts({ products }: Props) {
         <div
           id="products-track"
           ref={trackRef}
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto lg:gap-5"
+          className="flex items-start snap-x snap-mandatory gap-4 overflow-x-auto lg:gap-5"
           style={{
             scrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch',
@@ -116,7 +116,7 @@ export default function LandingProducts({ products }: Props) {
             <div
               key={product.id}
               role="listitem"
-              className="min-w-0 shrink-0 basis-[83.333%] snap-start sm:basis-[38%] lg:basis-[26%]"
+              className="shrink-0 basis-[83.333%] snap-start sm:basis-[38%] lg:basis-[26%]"
             >
               <ProductCard product={product} />
             </div>

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { ImagePlus, Loader2, Globe, Smartphone } from 'lucide-react'
 import { updateAppSettings, uploadTenantLogo } from '@/lib/actions/app-settings'
 import type { AppSettings, WebsiteData } from '@/lib/actions/app-settings'
+import { PWA_PREVIEW_PARAMS } from '@/lib/pwa-preview'
 import { WebsiteTabClient } from './WebsiteTabClient'
 
 const FONT_OPTIONS = [
@@ -22,6 +23,8 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   playfair: 'Playfair+Display:wght@400;600;700;800',
   montserrat: 'Montserrat:wght@400;500;600;700;800',
 }
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 
 function getFontFamily(value: string | null): string {
   if (!value) return 'system-ui, sans-serif'
@@ -77,44 +80,271 @@ function LogoUploader({ currentUrl, onUploaded }: { currentUrl: string; onUpload
   )
 }
 
-function PhonePreview({ businessName, primaryColor, fontFamily }: { businessName: string; primaryColor: string | null; fontFamily: string | null }) {
-  const fontFamilyCss = getFontFamily(fontFamily)
-  const accent = primaryColor || '#1A1A1A'
-  const initial = businessName ? businessName.charAt(0).toUpperCase() : 'S'
+function readRuntimeLocation() {
+  if (typeof window === 'undefined') return null
+
+  return {
+    protocol: window.location.protocol,
+    hostname: window.location.hostname,
+    port: window.location.port,
+  }
+}
+
+function buildAppPublicUrls(
+  slug: string,
+  runtimeLocation: ReturnType<typeof readRuntimeLocation>,
+  previewParams?: URLSearchParams,
+): { hostLabel: string; appUrl: string; previewUrl: string } {
+  if (runtimeLocation && (
+    runtimeLocation.hostname === 'localhost'
+    || runtimeLocation.hostname.endsWith('.localhost')
+  )) {
+    const portSuffix = runtimeLocation.port ? `:${runtimeLocation.port}` : ''
+    const baseUrl = `${runtimeLocation.protocol}//localhost${portSuffix}`
+    const appUrl = `${baseUrl}/?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app`
+    const previewSearch = new URLSearchParams(previewParams)
+    previewSearch.set('_tenant_slug', slug)
+    previewSearch.set('_tenant_type', 'app')
+
+    return {
+      hostLabel: `localhost${portSuffix} · ${slug} app`,
+      appUrl,
+      previewUrl: `${baseUrl}/?${previewSearch.toString()}`,
+    }
+  }
+
+  const baseUrl = `https://${slug}-app.${ROOT_DOMAIN}`
+  return {
+    hostLabel: `${slug}-app.${ROOT_DOMAIN}`,
+    appUrl: baseUrl,
+    previewUrl: previewParams?.toString()
+      ? `${baseUrl}/?${previewParams.toString()}`
+      : `${baseUrl}/`,
+  }
+}
+
+function readPhonePreviewScale(): number {
+  if (typeof window === 'undefined') return 1
+
+  const topbarHeightValue = getComputedStyle(document.documentElement)
+    .getPropertyValue('--topbar-height')
+    .trim()
+  const topbarHeight = Number.parseFloat(topbarHeightValue)
+  const resolvedTopbarHeight = Number.isFinite(topbarHeight) ? topbarHeight : 64
+  const availableHeight = window.innerHeight - resolvedTopbarHeight - 16 - 24
+
+  return Math.min(1, Math.max(0.58, availableHeight / 900))
+}
+
+function PhonePreview({
+  previewUrl,
+  appUrl,
+}: {
+  previewUrl: string | null
+  appUrl: string | null
+}) {
+  const [loadedPreviewUrl, setLoadedPreviewUrl] = React.useState<string | null>(null)
+  const [mockupScale, setMockupScale] = React.useState(
+    typeof window !== 'undefined' ? readPhonePreviewScale() : 1,
+  )
+  const isPreviewLoading = Boolean(previewUrl && loadedPreviewUrl !== previewUrl)
+  const scaledFrameWidth = 430 * mockupScale
+  const scaledFrameHeight = 900 * mockupScale
+
+  React.useEffect(() => {
+    const handleResize = () => setMockupScale(readPhonePreviewScale())
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   return (
-    <div style={{ width: 280, height: 560, border: '8px solid #1A1A1A', borderRadius: 44, overflow: 'hidden', background: '#F7F7F7', position: 'relative', display: 'flex', flexDirection: 'column', fontFamily: fontFamilyCss, boxShadow: '0 24px 60px rgba(0,0,0,0.20)', flexShrink: 0, userSelect: 'none' }}>
-      <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', width: 80, height: 20, background: '#1A1A1A', borderRadius: 10, zIndex: 10 }} />
-      <div style={{ background: '#FFFFFF', paddingTop: 40, paddingBottom: 10, paddingLeft: 16, paddingRight: 16, display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid #F0F0F0', flexShrink: 0 }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#FFFFFF', flexShrink: 0 }}>{initial}</div>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#111111', fontFamily: fontFamilyCss, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{businessName || 'Il tuo salone'}</span>
-      </div>
-      <div style={{ flex: 1, overflow: 'hidden', padding: '12px 12px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 10, color: '#9CA3AF', fontFamily: fontFamilyCss }}>Buongiorno 👋</p>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#111111', fontFamily: fontFamilyCss, lineHeight: 1.1 }}>Mario</p>
-        </div>
-        <div style={{ background: '#FFFFFF', borderRadius: 14, padding: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <p style={{ margin: '0 0 10px', fontSize: 11, fontWeight: 700, color: '#111111', fontFamily: fontFamilyCss }}>Prenota il tuo appuntamento</p>
-          <div style={{ height: 32, borderRadius: 10, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#FFFFFF', fontFamily: fontFamilyCss }}>Prenota ora</span>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <div
+        style={{
+          width: scaledFrameWidth,
+          height: scaledFrameHeight,
+          position: 'relative',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: 6 * mockupScale,
+            top: '25%',
+            width: 3 * mockupScale,
+            height: 35 * mockupScale,
+            borderRadius: 999,
+            background: 'linear-gradient(180deg, #3A3A3A 0%, #1B1B1B 100%)',
+            boxShadow: '-1px 0 2px rgba(255,255,255,0.08)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            left: 6 * mockupScale,
+            top: 'calc(25% + 47px)',
+            width: 3 * mockupScale,
+            height: 35 * mockupScale,
+            borderRadius: 999,
+            background: 'linear-gradient(180deg, #3A3A3A 0%, #1B1B1B 100%)',
+            boxShadow: '-1px 0 2px rgba(255,255,255,0.08)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            right: 6 * mockupScale,
+            top: '30%',
+            width: 3 * mockupScale,
+            height: 60 * mockupScale,
+            borderRadius: 999,
+            background: 'linear-gradient(180deg, #363636 0%, #151515 100%)',
+            boxShadow: '1px 0 2px rgba(255,255,255,0.06)',
+          }}
+        />
+
+        <div
+          style={{
+            width: 430,
+            height: 900,
+            background: '#1A1A1A',
+            borderRadius: 54,
+            overflow: 'hidden',
+            position: 'relative',
+            transform: `scale(${mockupScale})`,
+            transformOrigin: 'top center',
+            boxShadow:
+              '0 0 0 1px #333, 0 30px 80px rgba(0,0,0,0.4), inset 0 0 0 1px #444',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: 18,
+              bottom: 18,
+              width: 16,
+              borderRadius: 999,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 45%, rgba(255,255,255,0.03) 100%)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          <div
+            style={{
+              position: 'absolute',
+              top: 18,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 95,
+              height: 30,
+              borderRadius: 20,
+              background: '#000000',
+              zIndex: 20,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          <div
+            style={{
+              position: 'absolute',
+              top: 28,
+              left: 20,
+              width: 390,
+              height: 844,
+              overflow: 'hidden',
+              borderRadius: 44,
+              background: '#F3F4F6',
+            }}
+          >
+            {previewUrl ? (
+              <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                <iframe
+                  src={previewUrl}
+                  title="Anteprima live app"
+                  style={{
+                    width: 390,
+                    height: 844,
+                    border: 'none',
+                    borderRadius: 44,
+                    display: 'block',
+                    background: '#F7F7F7',
+                    overflow: 'hidden',
+                  }}
+                  onLoad={() => setLoadedPreviewUrl(previewUrl)}
+                  onError={() => setLoadedPreviewUrl(previewUrl)}
+                />
+
+                {isPreviewLoading && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(255,255,255,0.86)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      zIndex: 10,
+                    }}
+                  >
+                    <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#6B7280' }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#4B5563' }}>
+                      Aggiornamento anteprima…
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  padding: 24,
+                  textAlign: 'center',
+                  color: '#6B7280',
+                }}
+              >
+                <Smartphone size={28} />
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#374151' }}>
+                  Anteprima non disponibile
+                </p>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5 }}>
+                  Configura prima lo slug del tenant per vedere la PWA live.
+                </p>
+              </div>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['Taglio', 'Barba', 'Colore'].map((service) => (
-            <div key={service} style={{ padding: '4px 10px', borderRadius: 100, background: '#FFFFFF', border: `1.5px solid ${accent}`, fontSize: 9, fontWeight: 600, color: accent, fontFamily: fontFamilyCss }}>{service}</div>
-          ))}
-        </div>
       </div>
-      <div style={{ background: '#222222', padding: '5px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexShrink: 0, height: 52 }}>
-        <div style={{ background: '#FFFFFF', borderRadius: 100, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div style={{ width: 10, height: 10, background: '#222222', borderRadius: 2, flexShrink: 0 }} />
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#222222', fontFamily: fontFamilyCss }}>Home</span>
-        </div>
-        {['📅', '🛍️', '👤'].map((icon) => (
-          <div key={icon} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, opacity: 0.5 }}>{icon}</div>
-        ))}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            background: '#22C55E',
+            animation: 'appPreviewPulse 1.6s ease-in-out infinite',
+            boxShadow: '0 0 0 6px rgba(34,197,94,0.12)',
+          }}
+        />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Anteprima live app</span>
       </div>
+
+      <p style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', margin: 0, maxWidth: 260 }}>
+        Colori, logo e font si aggiornano nell&apos;anteprima prima del salvataggio.
+        {appUrl ? ' Puoi anche aprire la PWA completa in una nuova scheda.' : ''}
+      </p>
     </div>
   )
 }
@@ -133,11 +363,15 @@ export function AppSettingsClient({
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
   const [saving, setSaving] = React.useState(false)
-  const [isMobile, setIsMobile] = React.useState(false)
+  const [isMobile, setIsMobile] = React.useState(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
+  )
+  const [runtimeLocation] = React.useState<ReturnType<typeof readRuntimeLocation>>(
+    () => readRuntimeLocation(),
+  )
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 768px)')
-    setIsMobile(mql.matches)
     const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
     mql.addEventListener('change', h)
     return () => mql.removeEventListener('change', h)
@@ -192,11 +426,42 @@ export function AppSettingsClient({
     border: '1.5px solid #E5E7EB', outline: 'none', background: '#FFFFFF', color: '#111111', boxSizing: 'border-box',
   }
 
-  const appHost = initialSettings?.slug ? `${initialSettings.slug}.styll.it` : 'App non configurata'
-  const appUrl = initialSettings?.slug ? `https://${initialSettings.slug}.styll.it` : null
+  const previewSearchParams = React.useMemo(() => {
+    const params = new URLSearchParams({
+      [PWA_PREVIEW_PARAMS.enabled]: 'true',
+    })
+
+    if (primaryColor) {
+      params.set(PWA_PREVIEW_PARAMS.primaryColor, primaryColor)
+    }
+
+    if (logoUrl.trim()) {
+      params.set(PWA_PREVIEW_PARAMS.logoUrl, logoUrl.trim())
+    }
+
+    if (fontFamily) {
+      params.set(PWA_PREVIEW_PARAMS.fontFamily, fontFamily)
+    }
+
+    return params
+  }, [fontFamily, logoUrl, primaryColor])
+
+  const tenantSlug = initialSettings?.slug ?? null
+  const publicAppUrls = tenantSlug
+    ? buildAppPublicUrls(tenantSlug, runtimeLocation, previewSearchParams)
+    : null
+
+  const appHost = publicAppUrls?.hostLabel
+    ?? (tenantSlug ? `${tenantSlug}-app.${ROOT_DOMAIN}` : 'App non configurata')
+  const appUrl = publicAppUrls?.appUrl ?? null
+  const appPreviewUrl = publicAppUrls?.previewUrl ?? null
 
   return (
     <div style={{ padding: '0 0 80px' }}>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes appPreviewPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.9); } }
+      `}</style>
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#111111', margin: '0 0 4px' }}>La mia App</h1>
         <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>Personalizza l&apos;aspetto della tua app cliente e la tua pagina pubblica</p>
@@ -246,7 +511,7 @@ export function AppSettingsClient({
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 320px', gap: 32, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 430px', gap: 32, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={cardStyle}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111111', margin: 0 }}>Identità</h2>
@@ -355,12 +620,10 @@ export function AppSettingsClient({
             </div>
 
             {!isMobile && (
-              <div style={{ position: 'sticky', top: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#374151', margin: 0 }}>Anteprima live</p>
-                <PhonePreview businessName={businessName} primaryColor={primaryColor} fontFamily={fontFamily} />
-                <p style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', margin: 0, maxWidth: 260 }}>
-                  La preview si aggiorna in tempo reale mentre modifichi le impostazioni
-                </p>
+              <div style={{ alignSelf: 'stretch', minHeight: '100%' }}>
+                <div style={{ position: 'sticky', top: 'calc(var(--topbar-height, 64px) + 16px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                  <PhonePreview previewUrl={appPreviewUrl} appUrl={appUrl} />
+                </div>
               </div>
             )}
           </div>

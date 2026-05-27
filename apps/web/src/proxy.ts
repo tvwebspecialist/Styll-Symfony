@@ -261,9 +261,11 @@ export async function proxy(request: NextRequest) {
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
     })
-    // Allow landing pages to be embedded in iframes from any *.styll.it subdomain
-    // (e.g. the dashboard preview panel at slug-dashboard.styll.it)
-    if (tenantRewriteUrl.pathname.startsWith('/tenant/landing/')) {
+    // Allow public tenant surfaces to be embedded in dashboard previews.
+    if (
+      tenantRewriteUrl.pathname.startsWith('/tenant/landing/')
+      || tenantRewriteUrl.pathname.startsWith('/tenant/app/')
+    ) {
       rewriteResponse.headers.set(
         'Content-Security-Policy',
         "frame-ancestors 'self' https://*.styll.it http://localhost:3000"
