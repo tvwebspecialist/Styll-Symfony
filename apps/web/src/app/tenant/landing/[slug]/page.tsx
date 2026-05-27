@@ -190,7 +190,7 @@ export default async function LandingPage({ params }: Props) {
       <LandingLayout>
 
         {/* Hero — no animation, already above the fold */}
-        <LandingHero tenant={tenant} servicesCount={services.length} />
+        <LandingHero tenant={tenant} />
 
         {/* About — slides up */}
         {sections.showAbout && (

@@ -4,13 +4,12 @@ import type { LandingTenant } from '@/types/landing'
 
 interface Props {
   tenant: LandingTenant
-  servicesCount: number
+  servicesCount?: number
 }
 
-export default function LandingHero({ tenant, servicesCount }: Props) {
-  const tagline = tenant.tagline
-    ?? (tenant.description ? tenant.description.slice(0, 120) : null)
-    ?? 'Il tuo barbiere di fiducia. Prenota il tuo appuntamento in pochi secondi.'
+export default function LandingHero({ tenant }: Props) {
+  const tagline = tenant.tagline?.trim() || null
+  const description = tenant.description?.trim() || null
 
   const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
 
@@ -66,25 +65,32 @@ export default function LandingHero({ tenant, servicesCount }: Props) {
             </div>
           )}
 
-          {/* H1 */}
-          <h1
-            className="mb-5 font-black text-white"
-            style={{
-              fontSize: 'clamp(40px, 7.5vw, 88px)',
-              lineHeight: 0.92,
-              letterSpacing: '-0.025em',
-            }}
-          >
-            {tenant.business_name}
-          </h1>
+          {/* Tagline — big title chosen by the barber */}
+          {tagline && (
+            <h1
+              className="mb-5 font-black text-white"
+              style={{
+                fontSize: 'clamp(40px, 7.5vw, 88px)',
+                lineHeight: 0.92,
+                letterSpacing: '-0.025em',
+              }}
+            >
+              {tagline}
+            </h1>
+          )}
 
-          {/* Tagline */}
-          <p
-            className="mb-10 text-white/65 leading-relaxed max-w-sm"
-            style={{ fontSize: 'clamp(14px, 2vw, 17px)' }}
-          >
-            {tagline.length > 130 ? tagline.slice(0, 130) + '…' : tagline}
-          </p>
+          {/* Description — smaller paragraph */}
+          {description && (
+            <p
+              className="mb-10 text-white/65 leading-relaxed max-w-sm"
+              style={{ fontSize: 'clamp(14px, 2vw, 17px)' }}
+            >
+              {description.length > 130 ? description.slice(0, 130) + '…' : description}
+            </p>
+          )}
+
+          {/* Spacer when no text at all */}
+          {!tagline && !description && <div className="mb-10" />}
 
           {/* CTAs */}
           <div className="flex flex-wrap items-center gap-3">
@@ -107,21 +113,7 @@ export default function LandingHero({ tenant, servicesCount }: Props) {
             </a>
           </div>
 
-          {/* Stats row */}
-          {servicesCount > 0 && (
-            <div className="lp-hero-stats mt-12 flex items-center gap-8" aria-label="Statistiche">
-              <div>
-                <p className="font-black text-white text-2xl">{servicesCount}</p>
-                <p className="text-white/50 text-xs mt-1 uppercase tracking-wider">Servizi</p>
-              </div>
-              <div className="w-px h-8 bg-white/20" aria-hidden="true" />
-              <div>
-                <p className="font-black text-white text-2xl">1&apos;</p>
-                <p className="text-white/50 text-xs mt-1 uppercase tracking-wider">Per prenotare</p>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
       </div>
 
       {/* Scroll indicator */}
