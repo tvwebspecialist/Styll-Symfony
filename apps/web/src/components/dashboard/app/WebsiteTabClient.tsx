@@ -501,6 +501,15 @@ export function WebsiteTabClient({
   const [values, setValues] = React.useState(init)
   const [savedValues, setSavedValues] = React.useState(init)
   const [isSaving, setIsSaving] = React.useState(false)
+  type SaveStatus = 'idle' | 'typing' | 'saving' | 'saved' | 'error'
+  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>('idle')
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+  // Refs used inside timers to always read the latest values without stale closures
+  const savingRef = React.useRef(false)
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const savedStatusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const valuesRef = React.useRef(values)
+  const savedValuesRef = React.useRef(savedValues)
 
   const isDirty = JSON.stringify(values) !== JSON.stringify(savedValues)
 
@@ -510,35 +519,85 @@ export function WebsiteTabClient({
 
   function handleDiscard() {
     setValues(savedValues)
+    setSaveStatus('idle')
+    setSaveError(null)
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
   }
 
-  async function handleSave() {
-    setIsSaving(true)
-    const result = await saveSiteContent({
-      tagline: values.tagline.trim() || null,
-      description: values.description.trim() || null,
-      teamDescription: values.teamDescription.trim() || null,
-      aboutTitle: values.aboutTitle.trim() || null,
-      aboutText: values.aboutText.trim() || null,
-      locationsDescription: values.locationsDescription.trim() || null,
-      contactPhone: values.contactPhone.trim() || null,
-      contactEmail: values.contactEmail.trim() || null,
-      contactWhatsapp: values.contactWhatsapp.trim() || null,
-      socialInstagram: values.socialInstagram.trim() || null,
-      socialFacebook: values.socialFacebook.trim() || null,
-      socialTiktok: values.socialTiktok.trim() || null,
-    })
-    setIsSaving(false)
+  function buildPayload(v: typeof values) {
+    return {
+      tagline: v.tagline.trim() || null,
+      description: v.description.trim() || null,
+      teamDescription: v.teamDescription.trim() || null,
+      aboutTitle: v.aboutTitle.trim() || null,
+      aboutText: v.aboutText.trim() || null,
+      locationsDescription: v.locationsDescription.trim() || null,
+      contactPhone: v.contactPhone.trim() || null,
+      contactEmail: v.contactEmail.trim() || null,
+      contactWhatsapp: v.contactWhatsapp.trim() || null,
+      socialInstagram: v.socialInstagram.trim() || null,
+      socialFacebook: v.socialFacebook.trim() || null,
+      socialTiktok: v.socialTiktok.trim() || null,
+    }
+  }
 
+  // Called by the debounce timer (and self-reschedules if a save is already in flight)
+  async function runAutoSave() {
+    if (savingRef.current) {
+      debounceTimerRef.current = setTimeout(runAutoSave, 1000)
+      return
+    }
+    const currentValues = valuesRef.current
+    if (JSON.stringify(currentValues) === JSON.stringify(savedValuesRef.current)) {
+      setSaveStatus('idle')
+      return
+    }
+    savingRef.current = true
+    setSaveStatus('saving')
+    const result = await saveSiteContent(buildPayload(currentValues))
+    savingRef.current = false
+    if (result.ok) {
+      setSavedValues(currentValues)
+      savedValuesRef.current = currentValues
+      setSaveStatus('saved')
+      setLastSaved(new Date())
+      if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
+      savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+      setTimeout(() => iframeRef.current?.contentWindow?.location.reload(), 600)
+      // If the user kept typing while the save was in flight, re-trigger debounce
+      if (JSON.stringify(valuesRef.current) !== JSON.stringify(currentValues)) {
+        setSaveStatus('typing')
+        debounceTimerRef.current = setTimeout(runAutoSave, 1500)
+      }
+    } else {
+      setSaveStatus('error')
+      setSaveError(result.error ?? 'Errore durante il salvataggio')
+    }
+  }
+
+  // Manual save — immediate, cancels any pending debounce timer
+  async function handleSave() {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    if (savingRef.current) return
+    savingRef.current = true
+    setIsSaving(true)
+    setSaveStatus('saving')
+    setSaveError(null)
+    const result = await saveSiteContent(buildPayload(values))
+    savingRef.current = false
+    setIsSaving(false)
     if (result.ok) {
       setSavedValues(values)
-      toast.success('Sito salvato')
+      savedValuesRef.current = values
+      setSaveStatus('saved')
       setLastSaved(new Date())
-      // Delay reload so CDN/cache can propagate the change
-      setTimeout(() => {
-        iframeRef.current?.contentWindow?.location.reload()
-      }, 800)
+      toast.success('Sito salvato')
+      if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
+      savedStatusTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
+      setTimeout(() => iframeRef.current?.contentWindow?.location.reload(), 600)
     } else {
+      setSaveStatus('error')
+      setSaveError(result.error ?? 'Errore durante il salvataggio')
       toast.error(result.error ?? 'Errore durante il salvataggio')
     }
   }
@@ -685,6 +744,27 @@ export function WebsiteTabClient({
     return () => ro.disconnect()
   }, [])
 
+  // Keep value refs in sync so timer callbacks always see the latest state
+  React.useEffect(() => { valuesRef.current = values }, [values])
+  React.useEffect(() => { savedValuesRef.current = savedValues }, [savedValues])
+
+  // Debounce auto-save: schedule a save 1.5s after the last text change
+  React.useEffect(() => {
+    if (JSON.stringify(values) === JSON.stringify(savedValuesRef.current)) return
+    setSaveStatus('typing')
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(runAutoSave, 1500)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values])
+
+  // Cancel pending timers when the component unmounts
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      if (savedStatusTimerRef.current) clearTimeout(savedStatusTimerRef.current)
+    }
+  }, [])
+
   // ── AI context ───────────────────────────────────────────────────────────────
   const magicContext: MagicContext = {
     business_name: initialSettings?.businessName ?? '',
@@ -769,6 +849,14 @@ export function WebsiteTabClient({
       >
         {/* ── LEFT: editor ───────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 120, minWidth: 0 }}>
+
+          {/* Mobile: save status indicator (desktop shows this in the preview header) */}
+          {isMobile && saveStatus !== 'idle' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: saveStatus === 'saved' ? '#10B981' : saveStatus === 'error' ? '#EF4444' : '#6B7280' }}>
+              {saveStatus === 'saving' && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+              {saveStatus === 'typing' ? 'Modifiche in corso…' : saveStatus === 'saving' ? 'Salvataggio…' : saveStatus === 'saved' ? '✓ Salvato' : saveError ?? '⚠ Errore nel salvataggio'}
+            </div>
+          )}
 
           {/* 1. HERO */}
           <SectionCard title="Hero — Prima impressione" icon={ImageIcon} tipTitle={TIPS.hero.title} tip={TIPS.hero.tip}>
@@ -1050,22 +1138,23 @@ export function WebsiteTabClient({
             )}
           </SectionCard>
 
-          {/* Main save button */}
+          {/* Manual save — secondary fallback; auto-save handles typing automatically */}
           <button
             type="button"
             onClick={handleSave}
-            disabled={!isDirty || isSaving}
+            disabled={saveStatus === 'saving'}
             style={{
-              width: '100%', padding: '14px', borderRadius: 12, border: 'none',
-              fontSize: 15, fontWeight: 700, cursor: !isDirty || isSaving ? 'default' : 'pointer',
-              background: !isDirty || isSaving ? '#D1D5DB' : '#111827',
-              color: !isDirty || isSaving ? '#9CA3AF' : '#FFF',
+              width: '100%', padding: '12px', borderRadius: 12,
+              border: '1.5px solid #E5E7EB', fontSize: 14, fontWeight: 600,
+              cursor: saveStatus === 'saving' ? 'default' : 'pointer',
+              background: '#F9FAFB',
+              color: saveStatus === 'saving' ? '#9CA3AF' : '#374151',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               transition: 'background 150ms ease, color 150ms ease',
             }}
           >
-            {isSaving && <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />}
-            {isSaving ? 'Salvataggio…' : 'Salva modifiche sito'}
+            {saveStatus === 'saving' && isSaving && <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />}
+            {isSaving ? 'Salvataggio…' : 'Salva ora'}
           </button>
         </div>
 
@@ -1076,10 +1165,25 @@ export function WebsiteTabClient({
             <div style={{ background: '#F8F8F8', borderRadius: '16px 16px 0 0', border: '1px solid rgba(0,0,0,0.08)', borderBottom: 'none', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Anteprima sito</span>
-                {lastSaved && (
+                {saveStatus === 'idle' && lastSaved && (
                   <span style={{ fontSize: 11, color: '#9CA3AF' }}>
                     Aggiornata alle {lastSaved.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                   </span>
+                )}
+                {saveStatus === 'typing' && (
+                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>Modifiche in corso…</span>
+                )}
+                {saveStatus === 'saving' && (
+                  <span style={{ fontSize: 11, color: '#9CA3AF', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                    Salvataggio…
+                  </span>
+                )}
+                {saveStatus === 'saved' && (
+                  <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600 }}>✓ Salvato</span>
+                )}
+                {saveStatus === 'error' && (
+                  <span style={{ fontSize: 11, color: '#EF4444' }}>⚠ Errore — riprova</span>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1162,41 +1266,6 @@ export function WebsiteTabClient({
         )}
       </div>
 
-      {/* ── Sticky dirty banner ────────────────────────────────────────────────── */}
-      {isDirty && (
-        <div
-          role="alert"
-          aria-live="polite"
-          style={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-            background: '#1A1A1A', color: '#FFF',
-            borderRadius: 14, padding: '14px 18px',
-            display: 'flex', alignItems: 'center', gap: 12,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-            animation: 'slideUp 250ms ease',
-            maxWidth: 360,
-          }}
-        >
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F97316', flexShrink: 0, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          <span style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>Hai modifiche non salvate</span>
-          <button
-            type="button"
-            onClick={handleDiscard}
-            style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#FFF', cursor: 'pointer' }}
-          >
-            Annulla
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            style={{ padding: '6px 14px', background: '#F97316', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#FFF', cursor: isSaving ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            {isSaving && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-            {isSaving ? 'Salvo…' : 'Salva'}
-          </button>
-        </div>
-      )}
     </>
   )
 }
