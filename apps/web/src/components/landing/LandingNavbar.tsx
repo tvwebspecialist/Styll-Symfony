@@ -249,9 +249,8 @@ export default function LandingNavbar({ tenant, sections }: Props) {
               aria-label={drawerOpen ? 'Chiudi menu' : 'Apri menu'}
               aria-expanded={drawerOpen}
               aria-controls="landing-mobile-menu"
-              className="md:hidden"
+              className="md:hidden flex"
               style={{
-                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 width: '36px',
@@ -276,7 +275,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
             <Link
               href={bookingUrl}
               aria-label={`Prenota da ${tenant.business_name}`}
-              className="hidden sm:inline-flex"
+              className="hidden md:inline-flex"
               style={{
                 borderRadius: '9999px',
                 padding: '10px 20px',
