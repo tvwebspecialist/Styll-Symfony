@@ -23,8 +23,8 @@ export default function ProductCard({ product, primaryColor }: Props) {
         overflow: 'hidden',
         aspectRatio: '3 / 4',
         cursor: 'default',
-        boxShadow: '0 16px 48px rgba(0, 0, 0, 0.18)',
-        background: '#1A1A1A',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.22)',
+        isolation: 'isolate',
       }}
     >
       {/* Photo or placeholder */}
@@ -33,8 +33,12 @@ export default function ProductCard({ product, primaryColor }: Props) {
           fill
           src={product.photo_url}
           alt={product.name}
-          style={{ objectFit: 'cover', objectPosition: 'center' }}
-          sizes="(max-width: 639px) 83vw, (max-width: 1023px) 38vw, 26vw"
+          style={{
+            objectFit: 'cover',
+            objectPosition: 'center',
+            display: 'block',
+          }}
+          sizes="(max-width: 639px) 90vw, (max-width: 1023px) 44vw, 30vw"
           loading="lazy"
         />
       ) : (
@@ -42,13 +46,13 @@ export default function ProductCard({ product, primaryColor }: Props) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%)',
+            background: 'linear-gradient(135deg, #c8c8c8 0%, #a0a0a0 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 64,
+            fontSize: 72,
             fontWeight: 800,
-            color: 'rgba(255,255,255,0.08)',
+            color: 'rgba(255,255,255,0.35)',
             userSelect: 'none',
           }}
           aria-label={product.name}
@@ -57,58 +61,30 @@ export default function ProductCard({ product, primaryColor }: Props) {
         </div>
       )}
 
-      {/* Gradient overlay — covers bottom 68% */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '68%',
-          background:
-            'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.88) 100%)',
-        }}
-      />
-
-      {/* Content area */}
+      {/* Apple-style white glass panel */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          padding: '0 20px 22px 20px',
+          padding: '18px 18px 22px 18px',
           display: 'flex',
           flexDirection: 'column',
+          gap: 10,
+          background: 'rgba(255, 255, 255, 0.28)',
+          backdropFilter: 'blur(32px) saturate(200%) brightness(1.08)',
+          WebkitBackdropFilter: 'blur(32px) saturate(200%) brightness(1.08)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.55)',
         }}
       >
-        {/* Carousel indicator dots */}
-        <div
-          aria-hidden="true"
-          style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 14 }}
-        >
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background:
-                  i === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.32)',
-              }}
-            />
-          ))}
-        </div>
-
         {/* Title */}
         <h3
           style={{
-            margin: '0 0 7px 0',
-            fontSize: 21,
+            margin: 0,
+            fontSize: 22,
             fontWeight: 700,
-            color: '#FFFFFF',
+            color: '#111111',
             lineHeight: 1.2,
             letterSpacing: '-0.3px',
           }}
@@ -118,14 +94,12 @@ export default function ProductCard({ product, primaryColor }: Props) {
 
         {/* Brand with icon */}
         {product.brand?.trim() && (
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}
-          >
-            <Package size={14} color="rgba(255,255,255,0.60)" strokeWidth={1.5} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Package size={14} color="rgba(0,0,0,0.45)" strokeWidth={1.5} />
             <span
               style={{
                 fontSize: 13,
-                color: 'rgba(255,255,255,0.60)',
+                color: 'rgba(0,0,0,0.45)',
                 fontWeight: 400,
                 letterSpacing: '0.01em',
               }}
@@ -138,11 +112,7 @@ export default function ProductCard({ product, primaryColor }: Props) {
         {/* Divider */}
         <div
           aria-hidden="true"
-          style={{
-            height: 1,
-            background: 'rgba(255,255,255,0.18)',
-            marginBottom: 14,
-          }}
+          style={{ height: 1, background: 'rgba(0, 0, 0, 0.10)' }}
         />
 
         {/* Buttons row */}
@@ -151,12 +121,13 @@ export default function ProductCard({ product, primaryColor }: Props) {
           <div
             style={{
               flexShrink: 0,
-              padding: '13px 20px',
+              padding: '12px 18px',
               borderRadius: 999,
-              background: 'rgba(255,255,255,0.20)',
+              background: 'rgba(0, 0, 0, 0.10)',
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
-              color: '#FFFFFF',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              color: '#111111',
               fontSize: 16,
               fontWeight: 700,
               letterSpacing: '-0.2px',
@@ -171,10 +142,10 @@ export default function ProductCard({ product, primaryColor }: Props) {
           <div
             style={{
               flex: 1,
-              padding: '13px 20px',
+              padding: '12px 18px',
               borderRadius: 999,
-              background: '#FFFFFF',
-              color: '#111111',
+              background: '#111111',
+              color: '#FFFFFF',
               fontSize: 15,
               fontWeight: 600,
               display: 'flex',
