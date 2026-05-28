@@ -149,11 +149,11 @@ function LocationStackCard({ location, index, total, scrollYProgress }: StackCar
   return (
     <motion.div
       style={{ y, scale, zIndex: index + 1, willChange: 'transform' }}
-      className="absolute inset-0 flex items-center justify-center px-6 py-6"
+      className="absolute inset-0 flex items-center justify-center px-4 py-4"
     >
       <div
         className="relative w-full overflow-hidden rounded-[20px]"
-        style={{ maxWidth: '90vw', height: '84vh', margin: '0 auto' }}
+        style={{ maxWidth: '90vw', height: '72vh', margin: '0 auto' }}
       >
         {coverPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -235,7 +235,7 @@ function DesktopStackContent({
   return (
     <>
       {/* Section header — scrolls normally before sticky kicks in */}
-      <div className="w-full max-w-[1120px] mx-auto px-5 pt-20 pb-16 text-center">
+      <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-5 text-center">
         <h2
           className="font-black text-[#0A0A0A]"
           style={{ fontSize: 'clamp(32px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
@@ -258,7 +258,7 @@ function DesktopStackContent({
         className="relative"
         style={{ height: `${(locations.length + 1) * 100}vh` }}
       >
-        <div className="sticky top-0 h-screen overflow-hidden bg-[#F5F5F5]">
+        <div className="sticky top-0 h-screen overflow-hidden bg-white">
           {locations.map((loc, i) => (
             <LocationStackCard
               key={loc.id}
@@ -285,7 +285,7 @@ function MobileStackContent({
 }) {
   return (
     <>
-      <div className="w-full max-w-[1120px] mx-auto px-5 pt-12 pb-8 text-center">
+      <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-4 text-center">
         <h2
           className="font-black text-[#0A0A0A]"
           style={{ fontSize: 'clamp(28px, 6vw, 40px)', letterSpacing: '-0.02em' }}
@@ -299,14 +299,14 @@ function MobileStackContent({
         )}
       </div>
 
-      <div className="flex flex-col gap-4 px-5 pb-12 max-w-[1120px] mx-auto w-full">
+      <div className="flex flex-col gap-3 px-5 pb-8 max-w-[1120px] mx-auto w-full">
         {locations.map((loc) => {
           const coverPhoto = loc.photos?.[0] ?? loc.photo_url ?? null
           return (
             <div
               key={loc.id}
               className="relative overflow-hidden rounded-2xl bg-[#1A1A1A]"
-              style={{ aspectRatio: '16/9' }}
+              style={{ aspectRatio: '2/1' }}
             >
               {coverPhoto && (
                 // eslint-disable-next-line @next/next/no-img-element
