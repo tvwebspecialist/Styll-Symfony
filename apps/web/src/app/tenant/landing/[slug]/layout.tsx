@@ -14,6 +14,8 @@ interface Props {
   children: ReactNode
 }
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'
+
 export async function generateMetadata({
   params,
 }: {
@@ -24,20 +26,41 @@ export async function generateMetadata({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      title: 'Landing page | Styll',
-      description: 'Scopri l’app cliente Styll.',
+      title: 'Barbiere non trovato',
+      robots: { index: false },
     }
   }
 
+  const url = `${SITE_URL}/${slug}`
+  const ogImageUrl = `${SITE_URL}/tenant/landing/${slug}/opengraph-image`
+  const title = `${tenant.business_name} — Prenota online`
+  const description = `Prenota il tuo appuntamento da ${tenant.business_name}. Scegli servizio, data e ora in pochi secondi. Fedeltà premiata.`
+
   return {
-    title: `${tenant.business_name} | Prenota con Styll`,
-    description: `Scopri i servizi di ${tenant.business_name}, le promozioni attive e come installare la web app sul tuo telefono.`,
+    title,
+    description,
+    alternates: { canonical: url },
+    robots: { index: true, follow: true },
     manifest: `/tenant/app/${slug}/manifest.webmanifest`,
-    themeColor: tenant.primary_color ?? '#1a1a1a',
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
       title: tenant.business_name,
+    },
+    openGraph: {
+      title,
+      description: `Prenota il tuo appuntamento da ${tenant.business_name} in pochi secondi.`,
+      url,
+      type: 'website',
+      locale: 'it_IT',
+      siteName: tenant.business_name,
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: tenant.business_name }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: `Prenota il tuo appuntamento da ${tenant.business_name} in pochi secondi.`,
+      images: [ogImageUrl],
     },
   }
 }

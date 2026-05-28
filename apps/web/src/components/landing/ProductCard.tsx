@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Image from 'next/image'
+import { Package } from 'lucide-react'
 import type { LandingProduct } from '@/types/landing'
 
 interface Props {
@@ -14,24 +15,16 @@ function formatPrice(price: number): string {
 }
 
 export default function ProductCard({ product, primaryColor }: Props) {
-  const [hovered, setHovered] = React.useState(false)
-
   return (
     <article
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
-        borderRadius: 20,
+        borderRadius: 28,
         overflow: 'hidden',
         aspectRatio: '3 / 4',
         cursor: 'default',
-        boxShadow: hovered
-          ? '0 16px 48px rgba(0, 0, 0, 0.20)'
-          : '0 8px 32px rgba(0, 0, 0, 0.12)',
-        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-        willChange: 'transform',
+        boxShadow: '0 16px 48px rgba(0, 0, 0, 0.18)',
+        background: '#1A1A1A',
       }}
     >
       {/* Photo or placeholder */}
@@ -40,12 +33,7 @@ export default function ProductCard({ product, primaryColor }: Props) {
           fill
           src={product.photo_url}
           alt={product.name}
-          style={{
-            objectFit: 'cover',
-            objectPosition: 'center',
-            transform: hovered ? 'scale(1.04)' : 'scale(1)',
-            transition: 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          }}
+          style={{ objectFit: 'cover', objectPosition: 'center' }}
           sizes="(max-width: 639px) 83vw, (max-width: 1023px) 38vw, 26vw"
           loading="lazy"
         />
@@ -54,13 +42,13 @@ export default function ProductCard({ product, primaryColor }: Props) {
           style={{
             position: 'absolute',
             inset: 0,
+            background: 'linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#1A1A1A',
-            fontSize: 48,
+            fontSize: 64,
             fontWeight: 800,
-            color: 'rgba(255,255,255,0.15)',
+            color: 'rgba(255,255,255,0.08)',
             userSelect: 'none',
           }}
           aria-label={product.name}
@@ -69,7 +57,7 @@ export default function ProductCard({ product, primaryColor }: Props) {
         </div>
       )}
 
-      {/* Gradient overlay — bottom 55%, like TeamCard */}
+      {/* Gradient overlay — covers bottom 68% */}
       <div
         aria-hidden="true"
         style={{
@@ -77,41 +65,48 @@ export default function ProductCard({ product, primaryColor }: Props) {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '60%',
+          height: '68%',
           background:
-            'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.30) 30%, rgba(0,0,0,0.80) 100%)',
+            'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.88) 100%)',
         }}
       />
 
-      {/* Text overlay — bottom */}
+      {/* Content area */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          padding: '20px 20px 24px 20px',
+          padding: '0 20px 22px 20px',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        {product.brand?.trim() && (
-          <p
-            style={{
-              margin: '0 0 4px',
-              fontSize: 10,
-              fontWeight: 600,
-              color: 'rgba(255,255,255,0.50)',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {product.brand.trim()}
-          </p>
-        )}
+        {/* Carousel indicator dots */}
+        <div
+          aria-hidden="true"
+          style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 14 }}
+        >
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background:
+                  i === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.32)',
+              }}
+            />
+          ))}
+        </div>
 
-        <p
+        {/* Title */}
+        <h3
           style={{
-            margin: 0,
-            fontSize: 20,
+            margin: '0 0 7px 0',
+            fontSize: 21,
             fontWeight: 700,
             color: '#FFFFFF',
             lineHeight: 1.2,
@@ -119,20 +114,76 @@ export default function ProductCard({ product, primaryColor }: Props) {
           }}
         >
           {product.name}
-        </p>
+        </h3>
 
-        <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
-          <span
+        {/* Brand with icon */}
+        {product.brand?.trim() && (
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}
+          >
+            <Package size={14} color="rgba(255,255,255,0.60)" strokeWidth={1.5} />
+            <span
+              style={{
+                fontSize: 13,
+                color: 'rgba(255,255,255,0.60)',
+                fontWeight: 400,
+                letterSpacing: '0.01em',
+              }}
+            >
+              {product.brand.trim()}
+            </span>
+          </div>
+        )}
+
+        {/* Divider */}
+        <div
+          aria-hidden="true"
+          style={{
+            height: 1,
+            background: 'rgba(255,255,255,0.18)',
+            marginBottom: 14,
+          }}
+        />
+
+        {/* Buttons row */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {/* Price pill */}
+          <div
             style={{
+              flexShrink: 0,
+              padding: '13px 20px',
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.20)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              color: '#FFFFFF',
               fontSize: 16,
-              fontWeight: 800,
-              color: primaryColor,
-              lineHeight: 1,
-              letterSpacing: '-0.3px',
+              fontWeight: 700,
+              letterSpacing: '-0.2px',
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
             {formatPrice(product.price_sell)}
-          </span>
+          </div>
+
+          {/* CTA pill */}
+          <div
+            style={{
+              flex: 1,
+              padding: '13px 20px',
+              borderRadius: 999,
+              background: '#FFFFFF',
+              color: '#111111',
+              fontSize: 15,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Scopri
+          </div>
         </div>
       </div>
     </article>
