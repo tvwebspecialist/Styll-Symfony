@@ -76,6 +76,15 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon.svg', sizes: '32x32' },
+      { url: '/icon.svg', sizes: '64x64' },
+    ],
+    apple: [{ url: '/icon.svg', sizes: '180x180' }],
+    shortcut: '/icon.svg',
+  },
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
