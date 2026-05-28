@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useScroll, useTransform, motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, MapPin } from 'lucide-react'
 import AnimatedSection from './AnimatedSection'
 import AnimatedList from './AnimatedList'
@@ -250,7 +251,104 @@ function LocationCard({
   )
 }
 
-// ── Multi-location grid ───────────────────────────────────────────────────────
+// ── Desktop sticky-scroll ─────────────────────────────────────────────────────
+// Title lives INSIDE the sticky canvas so there's no empty-canvas flash.
+// Cards animate up from y=85vh → 0 as the user scrolls through the section.
+
+function DesktopScrollContent({
+  locations,
+  locationsDescription,
+  primaryColor,
+}: {
+  locations: LandingLocation[]
+  locationsDescription?: string | null
+  primaryColor?: string
+}) {
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const prefersReduced = useReducedMotion()
+
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end end'],
+  })
+
+  // Cards rise from below into view as the user scrolls
+  const cardsY = useTransform(
+    scrollYProgress,
+    [0, 0.7],
+    prefersReduced ? ['0vh', '0vh'] : ['85vh', '0vh'],
+  )
+
+  const gridCols = locations.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+
+  return (
+    // 200vh gives ~140vh of scroll travel for the animation + 60vh to hold before exit
+    <div ref={sectionRef} style={{ height: '200vh' }}>
+      <div className="sticky top-0 h-screen overflow-hidden bg-white">
+        {/* Title — always visible at the top of the sticky canvas */}
+        <div className="w-full max-w-[1120px] mx-auto px-5 pt-12 pb-4 text-center">
+          <h2
+            className="font-black text-[#0A0A0A]"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
+          >
+            Le nostre sedi
+          </h2>
+          {locationsDescription && (
+            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+              {locationsDescription}
+            </p>
+          )}
+        </div>
+
+        {/* Card grid — rises from below the fold */}
+        <motion.div className="w-full max-w-[1120px] mx-auto px-5" style={{ y: cardsY }}>
+          <div className={`grid gap-4 ${gridCols}`}>
+            {locations.map((loc) => (
+              <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
+// ── Mobile content (static, no sticky) ───────────────────────────────────────
+
+function MobileScrollContent({
+  locations,
+  locationsDescription,
+  primaryColor,
+}: {
+  locations: LandingLocation[]
+  locationsDescription?: string | null
+  primaryColor?: string
+}) {
+  return (
+    <div className="w-full px-5 pt-8 pb-12">
+      <div className="text-center mb-6">
+        <h2
+          className="font-black text-[#0A0A0A]"
+          style={{ fontSize: 'clamp(28px, 6vw, 36px)', letterSpacing: '-0.025em' }}
+        >
+          Le nostre sedi
+        </h2>
+        {locationsDescription && (
+          <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+            {locationsDescription}
+          </p>
+        )}
+      </div>
+      <AnimatedList staggerDelay={0.08} className="flex flex-col gap-4">
+        {locations.map((loc) => (
+          <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
+        ))}
+      </AnimatedList>
+    </div>
+  )
+}
+
+// ── Multi-location wrapper ────────────────────────────────────────────────────
 
 function MultiLocationContent({
   locations,
@@ -261,38 +359,25 @@ function MultiLocationContent({
   locationsDescription?: string | null
   primaryColor?: string
 }) {
-  const gridClass =
-    locations.length === 2
-      ? 'grid-cols-1 sm:grid-cols-2'
-      : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-
   return (
-    <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-12">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h2
-          className="font-black text-[#0A0A0A]"
-          style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
-        >
-          Le nostre sedi
-        </h2>
-        {locationsDescription && (
-          <p
-            className="mx-auto max-w-lg"
-            style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8, marginBottom: 0 }}
-          >
-            {locationsDescription}
-          </p>
-        )}
+    <>
+      {/* Desktop: sticky scroll animation */}
+      <div className="hidden md:block">
+        <DesktopScrollContent
+          locations={locations}
+          locationsDescription={locationsDescription}
+          primaryColor={primaryColor}
+        />
       </div>
-
-      {/* Grid */}
-      <AnimatedList staggerDelay={0.07} className={`grid gap-4 ${gridClass}`}>
-        {locations.map((loc) => (
-          <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
-        ))}
-      </AnimatedList>
-    </div>
+      {/* Mobile: simple stacked list */}
+      <div className="md:hidden">
+        <MobileScrollContent
+          locations={locations}
+          locationsDescription={locationsDescription}
+          primaryColor={primaryColor}
+        />
+      </div>
+    </>
   )
 }
 
@@ -312,13 +397,11 @@ export default function LandingLocations({
 
   return (
     <section id="sedi" aria-label="Le nostre sedi" className="w-full bg-white">
-      <AnimatedSection direction="up">
-        <MultiLocationContent
-          locations={locations}
-          locationsDescription={locationsDescription}
-          primaryColor={primaryColor}
-        />
-      </AnimatedSection>
+      <MultiLocationContent
+        locations={locations}
+        locationsDescription={locationsDescription}
+        primaryColor={primaryColor}
+      />
     </section>
   )
 }
