@@ -15,6 +15,7 @@ interface Props {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 
 export async function generateMetadata({
   params,
@@ -31,15 +32,17 @@ export async function generateMetadata({
     }
   }
 
-  const url = `${SITE_URL}/${slug}`
-  const ogImageUrl = `${SITE_URL}/tenant/landing/${slug}/opengraph-image`
+  // Canonical = subdomain (white-label), OG image via API route (edge-compatible)
+  const canonicalUrl = `https://${slug}.${ROOT_DOMAIN}`
+  const ogImageUrl = `${SITE_URL}/api/og?slug=${slug}`
+  const faviconUrl = `${SITE_URL}/api/favicon?slug=${slug}`
   const title = `${tenant.business_name} — Prenota online`
   const description = `Prenota il tuo appuntamento da ${tenant.business_name}. Scegli servizio, data e ora in pochi secondi. Fedeltà premiata.`
 
   return {
     title,
     description,
-    alternates: { canonical: url },
+    alternates: { canonical: canonicalUrl },
     robots: { index: true, follow: true },
     manifest: `/tenant/app/${slug}/manifest.webmanifest`,
     appleWebApp: {
@@ -47,14 +50,23 @@ export async function generateMetadata({
       statusBarStyle: 'black-translucent',
       title: tenant.business_name,
     },
+    icons: {
+      icon: [
+        { url: faviconUrl, type: 'image/svg+xml' },
+        { url: faviconUrl, sizes: '32x32' },
+        { url: faviconUrl, sizes: '64x64' },
+      ],
+      apple: [{ url: faviconUrl, sizes: '180x180' }],
+      shortcut: faviconUrl,
+    },
     openGraph: {
       title,
       description: `Prenota il tuo appuntamento da ${tenant.business_name} in pochi secondi.`,
-      url,
+      url: canonicalUrl,
       type: 'website',
       locale: 'it_IT',
       siteName: tenant.business_name,
-      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: tenant.business_name }],
+      images: [{ url: ogImageUrl, width: 1200, height: 630, alt: `${tenant.business_name} — Prenota il tuo appuntamento online` }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -94,11 +106,27 @@ export default async function LandingLayout({ params, children }: Props) {
     '--font-active': fontFamily,
   } as CSSProperties
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HealthAndBeautyBusiness',
+    name: tenant.business_name,
+    url: `https://${slug}.${ROOT_DOMAIN}`,
+    ...(tenant.logo_url ? { image: tenant.logo_url } : {}),
+    makesOffer: {
+      '@type': 'Offer',
+      description: 'Prenotazione online disponibile',
+    },
+  }
+
   return (
     <div
       style={brandVars}
       className="min-h-screen bg-background text-foreground [font-family:var(--font-active)]"
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {children}
     </div>
   )

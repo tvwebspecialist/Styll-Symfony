@@ -58,7 +58,7 @@ export default function LandingProducts({ tenant, products }: Props) {
       aria-label="I nostri prodotti"
       className="w-full overflow-hidden bg-white py-20 sm:py-24"
     >
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-5">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 overflow-hidden px-5">
         <div className="flex items-start justify-between gap-6">
           <div>
             <h2
@@ -117,7 +117,7 @@ export default function LandingProducts({ tenant, products }: Props) {
             <div
               key={product.id}
               role="listitem"
-              className="shrink-0 basis-[83.333%] snap-start sm:basis-[38%] lg:basis-[26%]"
+              className="shrink-0 basis-[90%] snap-start sm:basis-[46%] lg:basis-[32%]"
             >
               <ProductCard product={product} primaryColor={tenant.primary_color} />
             </div>
