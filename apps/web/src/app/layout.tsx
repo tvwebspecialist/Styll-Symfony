@@ -22,18 +22,65 @@ const inter = Inter({
   display: 'swap',
 })
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'
+
 export const metadata: Metadata = {
-  title: 'Styll — Il tuo salone, organizzato.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'Styll — Il tuo salone, organizzato.',
+    template: '%s — Styll',
+  },
   description:
     'La piattaforma all-in-one per barbieri e parrucchieri: prenotazioni, team e fidelizzazione clienti.',
-  manifest: '/manifest.json',
+  keywords: [
+    'gestionale barbieri',
+    'app barbiere',
+    'fidelizzazione clienti barber',
+    'software prenotazioni barbiere',
+    'loyalty barbiere',
+    'prenotazioni barbiere online',
+    'gestionale parrucchiere',
+  ],
+  authors: [{ name: 'Styll', url: SITE_URL }],
+  creator: 'Styll',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'it_IT',
+    url: SITE_URL,
+    siteName: 'Styll',
+    title: 'Styll — Il tuo salone, organizzato.',
+    description:
+      'La piattaforma all-in-one per barbieri e parrucchieri: prenotazioni, team e fidelizzazione clienti.',
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Styll — La piattaforma per barbieri e parrucchieri',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Styll — Il tuo salone, organizzato.',
+    description:
+      'La piattaforma all-in-one per barbieri e parrucchieri: prenotazioni, team e fidelizzazione clienti.',
+    images: ['/opengraph-image'],
+    creator: '@styllapp',
+  },
+  alternates: {
+    canonical: '/',
+  },
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Styll',
-  },
-  icons: {
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 }
 
