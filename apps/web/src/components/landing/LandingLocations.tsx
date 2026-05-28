@@ -1,11 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { useScroll, useTransform, motion, useReducedMotion } from 'framer-motion'
-import type { MotionValue } from 'framer-motion'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowRight, MapPin } from 'lucide-react'
 import AnimatedSection from './AnimatedSection'
-import AnimatedList from './AnimatedList'
 import type { LandingLocation } from '@/types/landing'
 
 interface Props {
@@ -137,7 +135,8 @@ function LocationCard({
         position: 'relative',
         borderRadius: 20,
         overflow: 'hidden',
-        aspectRatio: '4 / 3',
+        aspectRatio: '16 / 9',
+        maxHeight: '50vh',
         background: '#1A1A1A',
         boxShadow: hovered
           ? '0 16px 48px rgba(0,0,0,0.18)'
@@ -252,135 +251,7 @@ function LocationCard({
   )
 }
 
-// ── Per-card animation wrapper ────────────────────────────────────────────────
-// Each card receives its own [start, end] scroll range so they rise sequentially.
-
-function AnimatedCard({
-  location,
-  primaryColor,
-  scrollYProgress,
-  range,
-}: {
-  location: LandingLocation
-  primaryColor?: string
-  scrollYProgress: MotionValue<number>
-  range: [number, number]
-}) {
-  const prefersReduced = useReducedMotion()
-  const y = useTransform(
-    scrollYProgress,
-    range,
-    prefersReduced ? ['0vh', '0vh'] : ['100vh', '0vh'],
-  )
-  return (
-    <motion.div style={{ y, willChange: 'transform' }}>
-      <LocationCard location={location} primaryColor={primaryColor} />
-    </motion.div>
-  )
-}
-
-// ── Desktop sticky-scroll: sequential card animation ──────────────────────────
-// Section height = (N+1)×100vh.
-// Each card gets a dedicated, non-overlapping scroll range (+ tiny overlap for smoothness).
-// Title is anchored at the bottom of the sticky canvas, just above the cards.
-
-function DesktopScrollContent({
-  locations,
-  locationsDescription,
-  primaryColor,
-}: {
-  locations: LandingLocation[]
-  locationsDescription?: string | null
-  primaryColor?: string
-}) {
-  const sectionRef = useRef<HTMLDivElement>(null)
-  const n = locations.length
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start start', 'end end'],
-  })
-
-  // 75% of total scroll for animations; last 25% is the settled view before exit.
-  // step = slot per card; windowSize adds a tiny overlap for smooth handoff.
-  const step = 0.75 / n
-  const windowSize = step + 0.04
-  const cardRanges = locations.map((_, i): [number, number] => [i * step, i * step + windowSize])
-
-  const gridCols = n === 2 ? 'grid-cols-2' : 'grid-cols-3'
-
-  return (
-    <div ref={sectionRef} style={{ height: `${(n + 1) * 100}vh` }}>
-      {/* sticky canvas — overflow hidden clips cards while they're below the fold */}
-      <div className="sticky top-0 h-screen overflow-hidden bg-white flex flex-col justify-end">
-        {/* Title — bottom-anchored, immediately above the cards */}
-        <div className="w-full max-w-[1120px] mx-auto px-5 pb-4">
-          <h2
-            className="font-black text-[#0A0A0A]"
-            style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
-          >
-            Le nostre sedi
-          </h2>
-          {locationsDescription && (
-            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 6 }}>
-              {locationsDescription}
-            </p>
-          )}
-        </div>
-
-        {/* Cards — each rises from y:100vh → 0 in its own scroll range */}
-        <div className={`w-full max-w-[1120px] mx-auto px-5 pb-10 grid gap-4 ${gridCols}`}>
-          {locations.map((loc, i) => (
-            <AnimatedCard
-              key={loc.id}
-              location={loc}
-              primaryColor={primaryColor}
-              scrollYProgress={scrollYProgress}
-              range={cardRanges[i]!}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Mobile content (static, no sticky) ───────────────────────────────────────
-
-function MobileScrollContent({
-  locations,
-  locationsDescription,
-  primaryColor,
-}: {
-  locations: LandingLocation[]
-  locationsDescription?: string | null
-  primaryColor?: string
-}) {
-  return (
-    <div className="w-full px-5 pt-8 pb-12">
-      <div className="text-center mb-6">
-        <h2
-          className="font-black text-[#0A0A0A]"
-          style={{ fontSize: 'clamp(28px, 6vw, 36px)', letterSpacing: '-0.025em' }}
-        >
-          Le nostre sedi
-        </h2>
-        {locationsDescription && (
-          <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
-            {locationsDescription}
-          </p>
-        )}
-      </div>
-      <AnimatedList staggerDelay={0.08} className="flex flex-col gap-4">
-        {locations.map((loc) => (
-          <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
-        ))}
-      </AnimatedList>
-    </div>
-  )
-}
-
-// ── Multi-location wrapper ────────────────────────────────────────────────────
+// ── Multi-location content (whileInView sequential) ──────────────────────────
 
 function MultiLocationContent({
   locations,
@@ -392,24 +263,35 @@ function MultiLocationContent({
   primaryColor?: string
 }) {
   return (
-    <>
-      {/* Desktop: sticky scroll animation */}
-      <div className="hidden md:block">
-        <DesktopScrollContent
-          locations={locations}
-          locationsDescription={locationsDescription}
-          primaryColor={primaryColor}
-        />
+    <div className="w-full max-w-[1120px] mx-auto px-5 pt-16 pb-16">
+      {/* Centered header */}
+      <div className="text-center mb-8">
+        <h2
+          className="font-black text-[#0A0A0A] mb-2"
+          style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
+        >
+          Le nostre sedi
+        </h2>
+        {locationsDescription && (
+          <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)' }}>{locationsDescription}</p>
+        )}
       </div>
-      {/* Mobile: simple stacked list */}
-      <div className="md:hidden">
-        <MobileScrollContent
-          locations={locations}
-          locationsDescription={locationsDescription}
-          primaryColor={primaryColor}
-        />
+
+      {/* Cards — each enters when scrolled into view, one at a time */}
+      <div className="flex flex-col gap-6">
+        {locations.map((loc) => (
+          <motion.div
+            key={loc.id}
+            initial={{ opacity: 0, y: 80 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+            viewport={{ once: true, amount: 0.3 }}
+          >
+            <LocationCard location={loc} primaryColor={primaryColor} />
+          </motion.div>
+        ))}
       </div>
-    </>
+    </div>
   )
 }
 
