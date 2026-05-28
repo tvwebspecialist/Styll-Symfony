@@ -56,7 +56,7 @@ export default function LandingProducts({ tenant, products }: Props) {
     <section
       id="prodotti"
       aria-label="I nostri prodotti"
-      className="w-full overflow-hidden bg-white py-20 sm:py-24"
+      className="w-full overflow-hidden py-20 sm:py-24"
     >
       <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-5">
         <div className="flex items-start justify-between gap-6">
