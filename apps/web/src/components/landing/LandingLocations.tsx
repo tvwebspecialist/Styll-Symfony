@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useRef, useState } from 'react'
+import { useScroll, useTransform, motion, useReducedMotion } from 'framer-motion'
+import type { MotionValue } from 'framer-motion'
 import { ArrowRight, MapPin } from 'lucide-react'
 import AnimatedSection from './AnimatedSection'
 import type { LandingLocation } from '@/types/landing'
@@ -136,7 +137,6 @@ function LocationCard({
         borderRadius: 20,
         overflow: 'hidden',
         aspectRatio: '16 / 9',
-        maxHeight: '50vh',
         background: '#1A1A1A',
         boxShadow: hovered
           ? '0 16px 48px rgba(0,0,0,0.18)'
@@ -251,7 +251,59 @@ function LocationCard({
   )
 }
 
-// ── Multi-location content (whileInView sequential) ──────────────────────────
+// ── Per-card stacked animation ────────────────────────────────────────────────
+// Each card has its own [start, end] scroll range and lands at the same absolute
+// position. Higher-index cards have later ranges and higher z-index → they rise
+// after and cover the previous ones (classic stacked-cards effect).
+
+function StackedCard({
+  location,
+  primaryColor,
+  scrollYProgress,
+  index,
+  total,
+}: {
+  location: LandingLocation
+  primaryColor?: string
+  scrollYProgress: MotionValue<number>
+  index: number
+  total: number
+}) {
+  const prefersReduced = useReducedMotion()
+  // Spread animation ranges across 80% of scroll progress so the last 20%
+  // shows all cards settled before the section exits.
+  const start = (index / total) * 0.8
+  const end = start + 0.4
+
+  const y = useTransform(
+    scrollYProgress,
+    [start, end],
+    prefersReduced ? ['0vh', '0vh'] : ['100vh', '0vh'],
+  )
+
+  return (
+    <motion.div
+      style={{
+        position: 'absolute',
+        bottom: '10%',
+        // Centre horizontally with auto margins (works on absolutely-positioned elements)
+        left: 0,
+        right: 0,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        width: '90%',
+        maxWidth: 960,
+        zIndex: index + 1,
+        y,
+        willChange: 'transform',
+      }}
+    >
+      <LocationCard location={location} primaryColor={primaryColor} />
+    </motion.div>
+  )
+}
+
+// ── Stacked cards sticky-scroll container ─────────────────────────────────────
 
 function MultiLocationContent({
   locations,
@@ -262,33 +314,59 @@ function MultiLocationContent({
   locationsDescription?: string | null
   primaryColor?: string
 }) {
-  return (
-    <div className="w-full max-w-[1120px] mx-auto px-5 pt-16 pb-16">
-      {/* Centered header */}
-      <div className="text-center mb-8">
-        <h2
-          className="font-black text-[#0A0A0A] mb-2"
-          style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
-        >
-          Le nostre sedi
-        </h2>
-        {locationsDescription && (
-          <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)' }}>{locationsDescription}</p>
-        )}
-      </div>
+  const sectionRef = useRef<HTMLDivElement>(null)
 
-      {/* Cards — each enters when scrolled into view, one at a time */}
-      <div className="flex flex-col gap-6">
-        {locations.map((loc) => (
-          <motion.div
-            key={loc.id}
-            initial={{ opacity: 0, y: 80 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-            viewport={{ once: true, amount: 0.3 }}
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start start', 'end end'],
+  })
+
+  return (
+    // (N+1) × 100vh: N slots for sequential entries + 1 slot with all cards settled
+    <div ref={sectionRef} style={{ height: `${(locations.length + 1) * 100}vh` }}>
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          overflow: 'hidden',
+          background: 'white',
+        }}
+      >
+        {/* Title — centered at top of sticky canvas, always visible */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '10%',
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            padding: '0 20px',
+          }}
+        >
+          <h2
+            className="font-black text-[#0A0A0A]"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
           >
-            <LocationCard location={loc} primaryColor={primaryColor} />
-          </motion.div>
+            Le nostre sedi
+          </h2>
+          {locationsDescription && (
+            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+              {locationsDescription}
+            </p>
+          )}
+        </div>
+
+        {/* Cards — all positioned at the same spot, rise sequentially */}
+        {locations.map((loc, i) => (
+          <StackedCard
+            key={loc.id}
+            location={loc}
+            primaryColor={primaryColor}
+            scrollYProgress={scrollYProgress}
+            index={i}
+            total={locations.length}
+          />
         ))}
       </div>
     </div>
