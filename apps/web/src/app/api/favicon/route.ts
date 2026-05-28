@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get('slug')
 
   if (!slug) {
-    return NextResponse.redirect(new URL('/favicon.ico', req.url))
+    return NextResponse.redirect(new URL('/icon.svg', req.url))
   }
 
   const db = createAdminClient()

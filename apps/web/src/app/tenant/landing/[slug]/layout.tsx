@@ -35,7 +35,7 @@ export async function generateMetadata({
   // Canonical = subdomain (white-label), OG image via API route (edge-compatible)
   const canonicalUrl = `https://${slug}.${ROOT_DOMAIN}`
   const ogImageUrl = `${SITE_URL}/api/og?slug=${slug}`
-  const faviconUrl = `${SITE_URL}/api/favicon?slug=${slug}`
+  const faviconUrl = `/api/favicon?slug=${slug}`
   const title = `${tenant.business_name} — Prenota online`
   const description = `Prenota il tuo appuntamento da ${tenant.business_name}. Scegli servizio, data e ora in pochi secondi. Fedeltà premiata.`
 
