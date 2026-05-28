@@ -102,6 +102,8 @@ export interface LandingSections {
   showTeam: boolean
   /** true se almeno 1 prodotto con show_on_site = true */
   showProducts: boolean
+  /** true se almeno 1 foto portfolio con is_visible = true */
+  showPortfolio: boolean
   /** true se locations.length > 1 */
   multipleLocations: boolean
 }

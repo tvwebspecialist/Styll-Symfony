@@ -293,6 +293,7 @@ export function useLandingData(slug: string): UseLandingDataResult {
           showAbout: Boolean(tenant.about_text?.trim()),
           showTeam: staff.length > 1,
           showProducts: products.length > 0,
+          showPortfolio: false,
           multipleLocations: locations.length > 1,
         }
 

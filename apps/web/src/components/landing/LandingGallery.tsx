@@ -22,6 +22,7 @@ export default function LandingGallery({ websitePhotos }: Props) {
   return (
     <section
       aria-label="Galleria"
+      id="galleria"
       data-reveal
       style={
         {

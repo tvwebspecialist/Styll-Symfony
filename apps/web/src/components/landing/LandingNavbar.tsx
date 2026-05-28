@@ -93,6 +93,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
     { label: 'Sedi',     id: 'sedi',     href: '#sedi'     },
     { label: 'Servizi',  id: 'servizi',  href: '#servizi'  },
     ...(sections.showProducts ? [{ label: 'Prodotti',  id: 'prodotti',  href: '#prodotti'  }] : []),
+    ...(sections.showPortfolio ? [{ label: 'Galleria', id: 'galleria',  href: '#galleria'  }] : []),
   ]
 
   const bookingUrl = buildBookingUrl(tenant.slug, runtimeLocation)
