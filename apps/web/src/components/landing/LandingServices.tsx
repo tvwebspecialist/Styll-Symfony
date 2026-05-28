@@ -46,7 +46,7 @@ interface ServiceCardProps {
 
 function ServiceCard({ service, primaryColor }: ServiceCardProps) {
   return (
-    <article className="flex flex-col bg-white rounded-2xl p-5 sm:p-6">
+    <article className="flex flex-col h-full bg-white rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
       {/* Icon */}
       <div
         className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4 shrink-0"
@@ -109,7 +109,7 @@ export default function LandingServices({ tenant, services }: Props) {
         </AnimatedSection>
 
         {/* Cards */}
-        <AnimatedList staggerDelay={0.06} className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <AnimatedList staggerDelay={0.06} className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
           {services.map((service) => (
             <ServiceCard
               key={service.id}

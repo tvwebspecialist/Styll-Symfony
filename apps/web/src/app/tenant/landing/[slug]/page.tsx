@@ -213,6 +213,7 @@ export default async function LandingPage({ params }: Props) {
           locations={locations}
           isMultiple={sections.multipleLocations}
           locationsDescription={tenant.locations_description}
+          primaryColor={tenant.primary_color}
         />
 
         {/* Services — internal AnimatedSection + AnimatedList */}
@@ -221,7 +222,7 @@ export default async function LandingPage({ params }: Props) {
         {/* Products — slides up */}
         {sections.showProducts && (
           <AnimatedSection direction="up">
-            <LandingProducts products={products} />
+            <LandingProducts tenant={tenant} products={products} />
           </AnimatedSection>
         )}
 

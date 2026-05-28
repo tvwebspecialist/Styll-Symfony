@@ -51,7 +51,7 @@ export default function LandingPWACta({ tenant }: Props) {
     <>
       <section
         aria-label="Installa l'app"
-        style={{ background: '#0D0D0D', padding: '80px 20px 100px' }}
+        style={{ background: '#F5F5F5', padding: '80px 20px 100px' }}
       >
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
           {/* Gradient card */}

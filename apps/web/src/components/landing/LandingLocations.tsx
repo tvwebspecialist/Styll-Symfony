@@ -10,6 +10,7 @@ interface Props {
   locations: LandingLocation[]
   isMultiple: boolean
   locationsDescription?: string | null
+  primaryColor?: string
 }
 
 function buildMapsUrl(loc: LandingLocation): string | null {
@@ -26,7 +27,7 @@ function buildMapsUrl(loc: LandingLocation): string | null {
 
 // ── CTA pill button ───────────────────────────────────────────────────────────
 
-function CTAPill({ url }: { url: string }) {
+function CTAPill({ url, primaryColor = '#0A0A0A' }: { url: string; primaryColor?: string }) {
   const [hovered, setHovered] = useState(false)
   return (
     <a
@@ -54,7 +55,7 @@ function CTAPill({ url }: { url: string }) {
           width: 32,
           height: 32,
           borderRadius: '50%',
-          background: '#0A0A0A',
+          background: primaryColor,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -69,7 +70,7 @@ function CTAPill({ url }: { url: string }) {
 
 // ── Single location ───────────────────────────────────────────────────────────
 
-function SingleLocation({ loc }: { loc: LandingLocation }) {
+function SingleLocation({ loc, primaryColor }: { loc: LandingLocation; primaryColor?: string }) {
   const mapsUrl = buildMapsUrl(loc)
   const coverPhoto = loc.photos?.[0] ?? loc.photo_url ?? null
 
@@ -106,7 +107,7 @@ function SingleLocation({ loc }: { loc: LandingLocation }) {
           >
             Quella che noi<br />chiamiamo Casa
           </h2>
-          {mapsUrl && <CTAPill url={mapsUrl} />}
+          {mapsUrl && <CTAPill url={mapsUrl} primaryColor={primaryColor} />}
         </div>
       </section>
     </AnimatedSection>
@@ -257,7 +258,7 @@ function DesktopStackContent({
         className="relative"
         style={{ height: `${(locations.length + 1) * 100}vh` }}
       >
-        <div className="sticky top-0 h-screen overflow-hidden bg-[#111]">
+        <div className="sticky top-0 h-screen overflow-hidden bg-[#F5F5F5]">
           {locations.map((loc, i) => (
             <LocationStackCard
               key={loc.id}
@@ -340,13 +341,13 @@ function MobileStackContent({
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export default function LandingLocations({ locations, isMultiple, locationsDescription }: Props) {
+export default function LandingLocations({ locations, isMultiple, locationsDescription, primaryColor }: Props) {
   const prefersReducedMotion = useReducedMotion()
 
   if (locations.length === 0) return null
 
   if (!isMultiple) {
-    return <SingleLocation loc={locations[0]!} />
+    return <SingleLocation loc={locations[0]!} primaryColor={primaryColor} />
   }
 
   // Reduced-motion: always use the simple stack

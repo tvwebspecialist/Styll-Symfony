@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import ProductCard from '@/components/landing/ProductCard'
-import type { LandingProduct } from '@/types/landing'
+import type { LandingProduct, LandingTenant } from '@/types/landing'
 
 interface Props {
+  tenant: LandingTenant
   products: LandingProduct[]
 }
 
-export default function LandingProducts({ products }: Props) {
+export default function LandingProducts({ tenant, products }: Props) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(products.length > 1)
@@ -118,7 +119,7 @@ export default function LandingProducts({ products }: Props) {
               role="listitem"
               className="shrink-0 basis-[83.333%] snap-start sm:basis-[38%] lg:basis-[26%]"
             >
-              <ProductCard product={product} />
+              <ProductCard product={product} primaryColor={tenant.primary_color} />
             </div>
           ))}
         </div>

@@ -44,8 +44,8 @@ export default function LandingAbout({ tenant }: Props) {
             </p>
             <Link
               href="#sedi"
-              className="inline-flex items-center gap-2 font-semibold text-sm no-underline text-white rounded-full transition-colors hover:opacity-90"
-              style={{ background: '#111', padding: '13px 26px' }}
+              className="inline-flex items-center gap-2 font-semibold text-sm no-underline text-white rounded-full transition-opacity hover:opacity-90"
+              style={{ background: tenant.primary_color, padding: '13px 26px' }}
             >
               Contattaci
             </Link>
