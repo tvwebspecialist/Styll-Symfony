@@ -26,7 +26,7 @@ export default function LandingGallery({ websitePhotos }: Props) {
       data-reveal
       style={
         {
-          background: '#F4F4F4',
+          background: 'white',
           padding: 'clamp(5rem, 10vw, 8rem) 0',
         } as CSSProperties
       }

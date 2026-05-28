@@ -223,6 +223,13 @@ export default async function LandingPage({ params }: Props) {
         {/* Services — internal AnimatedSection + AnimatedList */}
         <LandingServices tenant={tenant} services={services} />
 
+        {/* Products — slides up */}
+        {sections.showProducts && (
+          <AnimatedSection direction="up">
+            <LandingProducts tenant={tenant} products={products} />
+          </AnimatedSection>
+        )}
+
         {/* Portfolio — visible only when photos exist */}
         {sections.showPortfolio && (
           <AnimatedSection direction="up">
@@ -231,13 +238,6 @@ export default async function LandingPage({ params }: Props) {
               url: p.photo_url,
               sort_order: p.display_order,
             }))} />
-          </AnimatedSection>
-        )}
-
-        {/* Products — slides up */}
-        {sections.showProducts && (
-          <AnimatedSection direction="up">
-            <LandingProducts tenant={tenant} products={products} />
           </AnimatedSection>
         )}
 
