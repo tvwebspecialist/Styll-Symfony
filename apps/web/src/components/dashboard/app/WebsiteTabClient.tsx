@@ -1128,7 +1128,7 @@ export function WebsiteTabClient({
           </SectionCard>
 
           {/* 8. PHOTOS */}
-          <SectionCard title="Foto del sito" icon={ImageIcon} tipTitle={TIPS.photos.title} tip={TIPS.photos.tip} badge={`${photos.length}/10`}>
+          <SectionCard title="Portfolio / Galleria" icon={ImageIcon} tipTitle="Le foto della tua galleria" tip="Queste foto appaiono nella sezione Portfolio del tuo sito pubblico. La prima foto è usata come immagine hero. Usa foto orizzontali di almeno 1200px." badge={`${photos.length}/10`}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <button
                 type="button"

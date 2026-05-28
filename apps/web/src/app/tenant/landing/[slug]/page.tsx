@@ -7,7 +7,6 @@ import {
   getPublicWebsitePhotos,
   getPublicTeam,
   getPublicProducts,
-  getPublicPortfolioPhotos,
 } from '@/lib/actions/public-booking'
 import type {
   LandingTenant,
@@ -68,13 +67,12 @@ export default async function LandingPage({ params }: Props) {
     notFound()
   }
 
-  const [rawServices, rawLocations, websitePhotos, rawTeam, rawProducts, portfolioPhotos] = await Promise.all([
+  const [rawServices, rawLocations, websitePhotos, rawTeam, rawProducts] = await Promise.all([
     getPublicServices(tenantRow.tenant_id),
     getPublicLocations(tenantRow.tenant_id),
     getPublicWebsitePhotos(tenantRow.tenant_id),
     getPublicTeam(tenantRow.tenant_id),
     getPublicProducts(tenantRow.tenant_id),
-    getPublicPortfolioPhotos(tenantRow.tenant_id),
   ])
 
   // ── Settings parsing ──────────────────────────────────────────────────────
@@ -166,7 +164,7 @@ export default async function LandingPage({ params }: Props) {
     showAbout: Boolean(tenant.about_text?.trim()),
     showTeam: staff.length > 1,
     showProducts: products.length > 0,
-    showPortfolio: portfolioPhotos.length > 0,
+    showPortfolio: websitePhotos.length > 0,
     multipleLocations: locations.length > 1,
   }
 
@@ -233,11 +231,7 @@ export default async function LandingPage({ params }: Props) {
         {/* Portfolio — visible only when photos exist */}
         {sections.showPortfolio && (
           <AnimatedSection direction="up">
-            <LandingGallery websitePhotos={portfolioPhotos.map((p) => ({
-              id: p.id,
-              url: p.photo_url,
-              sort_order: p.display_order,
-            }))} />
+            <LandingGallery websitePhotos={websitePhotos} />
           </AnimatedSection>
         )}
 

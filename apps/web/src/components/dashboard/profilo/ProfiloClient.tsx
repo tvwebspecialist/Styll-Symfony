@@ -4,7 +4,6 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
   User,
-  Image as ImageIcon,
   CreditCard,
   Bell,
   Shield,
@@ -17,12 +16,11 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import type { ProfileData, SubscriptionInfo } from '@/lib/actions/profilo'
 import { DatiPersonali } from './sections/DatiPersonali'
-import { Portfolio } from './sections/Portfolio'
 import { Abbonamento } from './sections/Abbonamento'
 import { Notifiche } from './sections/Notifiche'
 import { PrivacySicurezza } from './sections/PrivacySicurezza'
 
-type SectionKey = 'profilo' | 'portfolio' | 'abbonamento' | 'notifiche' | 'privacy'
+type SectionKey = 'profilo' | 'abbonamento' | 'notifiche' | 'privacy'
 
 const SECTIONS: {
   key: SectionKey
@@ -37,13 +35,6 @@ const SECTIONS: {
     icon: User,
     title: 'Dati personali',
     subtitle: 'Aggiorna le informazioni del tuo account.',
-  },
-  {
-    key: 'portfolio',
-    label: 'Portfolio',
-    icon: ImageIcon,
-    title: 'Portfolio',
-    subtitle: 'Mostra il tuo lavoro ai clienti del salone.',
   },
   {
     key: 'abbonamento',
@@ -113,7 +104,6 @@ export function ProfiloClient({
         />
       )
     }
-    if (key === 'portfolio') return <Portfolio subscription={subscription} />
     if (key === 'abbonamento') return <Abbonamento subscription={subscription} />
     if (key === 'notifiche') return <Notifiche initial={profile.notificationPreferences} />
     return <PrivacySicurezza email={profile.email ?? ''} />
