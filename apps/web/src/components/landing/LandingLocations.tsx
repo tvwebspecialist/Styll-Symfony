@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { useScroll, useTransform, motion, useReducedMotion } from 'framer-motion'
-import { ArrowRight } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowRight, MapPin } from 'lucide-react'
 import AnimatedSection from './AnimatedSection'
+import AnimatedList from './AnimatedList'
 import type { LandingLocation } from '@/types/landing'
 
 interface Props {
@@ -25,7 +25,7 @@ function buildMapsUrl(loc: LandingLocation): string | null {
   return null
 }
 
-// ── CTA pill button ───────────────────────────────────────────────────────────
+// ── CTA pill button (single-location hero) ────────────────────────────────────
 
 function CTAPill({ url, primaryColor = '#0A0A0A' }: { url: string; primaryColor?: string }) {
   const [hovered, setHovered] = useState(false)
@@ -68,7 +68,7 @@ function CTAPill({ url, primaryColor = '#0A0A0A' }: { url: string; primaryColor?
   )
 }
 
-// ── Single location ───────────────────────────────────────────────────────────
+// ── Single location (full-bleed hero) ─────────────────────────────────────────
 
 function SingleLocation({ loc, primaryColor }: { loc: LandingLocation; primaryColor?: string }) {
   const mapsUrl = buildMapsUrl(loc)
@@ -114,262 +114,212 @@ function SingleLocation({ loc, primaryColor }: { loc: LandingLocation; primaryCo
   )
 }
 
-// ── Stack card (desktop) ───────────────────────────────────────────────────────
+// ── Location card (multi-sede grid) ──────────────────────────────────────────
 
-interface StackCardProps {
+function LocationCard({
+  location,
+  primaryColor,
+}: {
   location: LandingLocation
-  index: number
-  total: number
-  scrollYProgress: ReturnType<typeof useScroll>['scrollYProgress']
-}
-
-function LocationStackCard({ location, index, total, scrollYProgress }: StackCardProps) {
-  const cardStep = 1 / total
-  const cardStart = index * cardStep
-  const cardEnd = (index + 1) * cardStep
-  const enterEnd = cardStart + cardStep * 0.4
-
-  // Slide up from below, then freeze
-  const y = useTransform(
-    scrollYProgress,
-    [cardStart, enterEnd, cardEnd],
-    ['100vh', '0vh', '0vh']
-  )
-
-  // Last card never scales down (nothing covers it)
-  const scaleFrom = Math.max(cardStart, cardEnd - cardStep * 0.15)
-  const scale = useTransform(
-    scrollYProgress,
-    [scaleFrom, cardEnd],
-    index < total - 1 ? [1, 0.94] : [1, 1]
-  )
-
+  primaryColor?: string
+}) {
+  const [hovered, setHovered] = useState(false)
   const coverPhoto = location.photos?.[0] ?? location.photo_url ?? null
+  const mapsUrl = buildMapsUrl(location)
 
   return (
-    <motion.div
-      style={{ y, scale, zIndex: index + 1, willChange: 'transform' }}
-      className="absolute inset-0 flex items-center justify-center px-4 py-4"
+    <article
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        borderRadius: 20,
+        overflow: 'hidden',
+        aspectRatio: '4 / 3',
+        background: '#1A1A1A',
+        boxShadow: hovered
+          ? '0 16px 48px rgba(0,0,0,0.18)'
+          : '0 4px 20px rgba(0,0,0,0.08)',
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+        willChange: 'transform',
+      }}
     >
-      <div
-        className="relative w-full overflow-hidden rounded-[20px]"
-        style={{ maxWidth: '90vw', height: '72vh', margin: '0 auto' }}
-      >
-        {coverPhoto ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverPhoto}
-            alt={location.name}
-            className="absolute inset-0 w-full h-full object-cover"
-            loading={index < 2 ? 'eager' : 'lazy'}
-            aria-hidden="true"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[#1A1A1A]" />
-        )}
-
-        {/* Overlay */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'rgba(0,0,0,0.38)' }}
+      {/* Photo with hover zoom */}
+      {coverPhoto && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={coverPhoto}
+          alt={location.name}
+          loading="lazy"
           aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            transform: hovered ? 'scale(1.06)' : 'scale(1)',
+            transition: 'transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
         />
+      )}
 
-        {/* Name — centered */}
-        <div className="absolute inset-0 flex items-center justify-center px-8">
-          <h3
-            className="font-black text-white text-center"
+      {/* Gradient overlay */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(to bottom, rgba(0,0,0,0) 35%, rgba(0,0,0,0.72) 100%)',
+        }}
+      />
+
+      {/* Content */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '20px 20px 22px',
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: 'clamp(17px, 2.2vw, 22px)',
+            fontWeight: 700,
+            color: '#fff',
+            lineHeight: 1.2,
+            letterSpacing: '-0.3px',
+          }}
+        >
+          {location.name}
+        </h3>
+
+        {(location.address ?? location.city) && (
+          <p
             style={{
-              fontSize: 'clamp(40px, 6vw, 80px)',
-              letterSpacing: '-1px',
-              textShadow: '0 2px 20px rgba(0,0,0,0.3)',
+              margin: '5px 0 0',
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.65)',
+              lineHeight: 1.4,
             }}
           >
-            {location.name}
-          </h3>
-        </div>
-
-        {/* Info — bottom left */}
-        {(location.address ?? location.city ?? location.phone) && (
-          <div className="absolute bottom-8 left-8">
-            {(location.address ?? location.city) && (
-              <p className="text-white m-0" style={{ fontSize: 15, opacity: 0.8 }}>
-                {[location.address, location.city].filter(Boolean).join(', ')}
-              </p>
-            )}
-            {location.phone && (
-              <p className="text-white m-0 mt-0.5" style={{ fontSize: 15, opacity: 0.8 }}>
-                {location.phone}
-              </p>
-            )}
-          </div>
+            {[location.address, location.city].filter(Boolean).join(', ')}
+          </p>
         )}
 
-        {/* Counter — bottom right */}
-        <div
-          className="absolute bottom-8 right-8 text-white"
-          style={{ fontSize: 13, fontWeight: 500, opacity: 0.45, letterSpacing: '0.06em' }}
-        >
-          {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}
-        </div>
+        {location.phone && (
+          <p style={{ margin: '3px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+            {location.phone}
+          </p>
+        )}
+
+        {mapsUrl && (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              marginTop: 11,
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#fff',
+              textDecoration: 'none',
+              background: primaryColor ?? 'rgba(255,255,255,0.18)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              padding: '5px 11px',
+              borderRadius: 99,
+              letterSpacing: '0.01em',
+            }}
+          >
+            <MapPin size={11} strokeWidth={2.5} aria-hidden="true" />
+            Indicazioni
+          </a>
+        )}
       </div>
-    </motion.div>
+    </article>
   )
 }
 
-// ── Desktop sticky stack content ──────────────────────────────────────────────
+// ── Multi-location grid ───────────────────────────────────────────────────────
 
-function DesktopStackContent({
+function MultiLocationContent({
   locations,
   locationsDescription,
+  primaryColor,
 }: {
   locations: LandingLocation[]
   locationsDescription?: string | null
+  primaryColor?: string
 }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ['start start', 'end end'],
-  })
+  const gridClass =
+    locations.length === 2
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
 
   return (
-    <>
-      {/* Section header — scrolls normally before sticky kicks in */}
-      <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-5 text-center">
+    <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-12">
+      {/* Header */}
+      <div className="text-center mb-6">
         <h2
           className="font-black text-[#0A0A0A]"
-          style={{ fontSize: 'clamp(32px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
+          style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
         >
           Le nostre sedi
         </h2>
         {locationsDescription && (
           <p
-            className="mt-2 mx-auto max-w-lg"
-            style={{ fontSize: 16, color: 'rgba(0,0,0,0.5)', margin: '8px auto 0' }}
+            className="mx-auto max-w-lg"
+            style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8, marginBottom: 0 }}
           >
             {locationsDescription}
           </p>
         )}
       </div>
 
-      {/* Sticky scroll container — one 100vh step per location */}
-      <div
-        ref={containerRef}
-        className="relative"
-        style={{ height: `${(locations.length + 1) * 100}vh` }}
-      >
-        <div className="sticky top-0 h-screen overflow-hidden bg-white">
-          {locations.map((loc, i) => (
-            <LocationStackCard
-              key={loc.id}
-              location={loc}
-              index={i}
-              total={locations.length}
-              scrollYProgress={scrollYProgress}
-            />
-          ))}
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ── Mobile simple stack content ────────────────────────────────────────────────
-
-function MobileStackContent({
-  locations,
-  locationsDescription,
-}: {
-  locations: LandingLocation[]
-  locationsDescription?: string | null
-}) {
-  return (
-    <>
-      <div className="w-full max-w-[1120px] mx-auto px-5 pt-8 pb-4 text-center">
-        <h2
-          className="font-black text-[#0A0A0A]"
-          style={{ fontSize: 'clamp(28px, 6vw, 40px)', letterSpacing: '-0.02em' }}
-        >
-          Le nostre sedi
-        </h2>
-        {locationsDescription && (
-          <p className="mt-2" style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)' }}>
-            {locationsDescription}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3 px-5 pb-8 max-w-[1120px] mx-auto w-full">
-        {locations.map((loc) => {
-          const coverPhoto = loc.photos?.[0] ?? loc.photo_url ?? null
-          return (
-            <div
-              key={loc.id}
-              className="relative overflow-hidden rounded-2xl bg-[#1A1A1A]"
-              style={{ aspectRatio: '2/1' }}
-            >
-              {coverPhoto && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={coverPhoto}
-                  alt={loc.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                  aria-hidden="true"
-                />
-              )}
-              <div
-                className="absolute inset-0"
-                style={{ background: 'rgba(0,0,0,0.42)' }}
-                aria-hidden="true"
-              />
-              <div className="absolute inset-0 flex items-center justify-center px-4">
-                <h3
-                  className="font-black text-white text-center"
-                  style={{ fontSize: 'clamp(24px, 6vw, 40px)', letterSpacing: '-0.5px' }}
-                >
-                  {loc.name}
-                </h3>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </>
+      {/* Grid */}
+      <AnimatedList staggerDelay={0.07} className={`grid gap-4 ${gridClass}`}>
+        {locations.map((loc) => (
+          <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
+        ))}
+      </AnimatedList>
+    </div>
   )
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export default function LandingLocations({ locations, isMultiple, locationsDescription, primaryColor }: Props) {
-  const prefersReducedMotion = useReducedMotion()
-
+export default function LandingLocations({
+  locations,
+  isMultiple,
+  locationsDescription,
+  primaryColor,
+}: Props) {
   if (locations.length === 0) return null
 
   if (!isMultiple) {
     return <SingleLocation loc={locations[0]!} primaryColor={primaryColor} />
   }
 
-  // Reduced-motion: always use the simple stack
-  if (prefersReducedMotion) {
-    return (
-      <section id="sedi" aria-label="Le nostre sedi" className="w-full bg-white">
-        <MobileStackContent locations={locations} locationsDescription={locationsDescription} />
-      </section>
-    )
-  }
-
   return (
     <section id="sedi" aria-label="Le nostre sedi" className="w-full bg-white">
-      {/* Desktop sticky scroll — hidden on mobile via CSS (SSR-safe) */}
-      <div className="hidden md:block">
-        <DesktopStackContent locations={locations} locationsDescription={locationsDescription} />
-      </div>
-
-      {/* Mobile simple stack — visible only on mobile */}
-      <div className="md:hidden">
-        <MobileStackContent locations={locations} locationsDescription={locationsDescription} />
-      </div>
+      <AnimatedSection direction="up">
+        <MultiLocationContent
+          locations={locations}
+          locationsDescription={locationsDescription}
+          primaryColor={primaryColor}
+        />
+      </AnimatedSection>
     </section>
   )
 }
+
