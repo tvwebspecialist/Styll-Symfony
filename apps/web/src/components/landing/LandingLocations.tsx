@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useScroll, useTransform, motion, useReducedMotion } from 'framer-motion'
+import type { MotionValue } from 'framer-motion'
 import { ArrowRight, MapPin } from 'lucide-react'
 import AnimatedSection from './AnimatedSection'
 import AnimatedList from './AnimatedList'
@@ -251,9 +252,37 @@ function LocationCard({
   )
 }
 
-// ── Desktop sticky-scroll ─────────────────────────────────────────────────────
-// Title lives INSIDE the sticky canvas so there's no empty-canvas flash.
-// Cards animate up from y=85vh → 0 as the user scrolls through the section.
+// ── Per-card animation wrapper ────────────────────────────────────────────────
+// Each card receives its own [start, end] scroll range so they rise sequentially.
+
+function AnimatedCard({
+  location,
+  primaryColor,
+  scrollYProgress,
+  range,
+}: {
+  location: LandingLocation
+  primaryColor?: string
+  scrollYProgress: MotionValue<number>
+  range: [number, number]
+}) {
+  const prefersReduced = useReducedMotion()
+  const y = useTransform(
+    scrollYProgress,
+    range,
+    prefersReduced ? ['0vh', '0vh'] : ['100vh', '0vh'],
+  )
+  return (
+    <motion.div style={{ y, willChange: 'transform' }}>
+      <LocationCard location={location} primaryColor={primaryColor} />
+    </motion.div>
+  )
+}
+
+// ── Desktop sticky-scroll: sequential card animation ──────────────────────────
+// Section height = (N+1)×100vh.
+// Each card gets a dedicated, non-overlapping scroll range (+ tiny overlap for smoothness).
+// Title is anchored at the bottom of the sticky canvas, just above the cards.
 
 function DesktopScrollContent({
   locations,
@@ -265,28 +294,27 @@ function DesktopScrollContent({
   primaryColor?: string
 }) {
   const sectionRef = useRef<HTMLDivElement>(null)
-  const prefersReduced = useReducedMotion()
+  const n = locations.length
 
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start start', 'end end'],
   })
 
-  // Cards rise from below into view as the user scrolls
-  const cardsY = useTransform(
-    scrollYProgress,
-    [0, 0.7],
-    prefersReduced ? ['0vh', '0vh'] : ['85vh', '0vh'],
-  )
+  // 75% of total scroll for animations; last 25% is the settled view before exit.
+  // step = slot per card; windowSize adds a tiny overlap for smooth handoff.
+  const step = 0.75 / n
+  const windowSize = step + 0.04
+  const cardRanges = locations.map((_, i): [number, number] => [i * step, i * step + windowSize])
 
-  const gridCols = locations.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+  const gridCols = n === 2 ? 'grid-cols-2' : 'grid-cols-3'
 
   return (
-    // 200vh gives ~140vh of scroll travel for the animation + 60vh to hold before exit
-    <div ref={sectionRef} style={{ height: '200vh' }}>
-      <div className="sticky top-0 h-screen overflow-hidden bg-white">
-        {/* Title — always visible at the top of the sticky canvas */}
-        <div className="w-full max-w-[1120px] mx-auto px-5 pt-12 pb-4 text-center">
+    <div ref={sectionRef} style={{ height: `${(n + 1) * 100}vh` }}>
+      {/* sticky canvas — overflow hidden clips cards while they're below the fold */}
+      <div className="sticky top-0 h-screen overflow-hidden bg-white flex flex-col justify-end">
+        {/* Title — bottom-anchored, immediately above the cards */}
+        <div className="w-full max-w-[1120px] mx-auto px-5 pb-4">
           <h2
             className="font-black text-[#0A0A0A]"
             style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
@@ -294,20 +322,24 @@ function DesktopScrollContent({
             Le nostre sedi
           </h2>
           {locationsDescription && (
-            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 6 }}>
               {locationsDescription}
             </p>
           )}
         </div>
 
-        {/* Card grid — rises from below the fold */}
-        <motion.div className="w-full max-w-[1120px] mx-auto px-5" style={{ y: cardsY }}>
-          <div className={`grid gap-4 ${gridCols}`}>
-            {locations.map((loc) => (
-              <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
-            ))}
-          </div>
-        </motion.div>
+        {/* Cards — each rises from y:100vh → 0 in its own scroll range */}
+        <div className={`w-full max-w-[1120px] mx-auto px-5 pb-10 grid gap-4 ${gridCols}`}>
+          {locations.map((loc, i) => (
+            <AnimatedCard
+              key={loc.id}
+              location={loc}
+              primaryColor={primaryColor}
+              scrollYProgress={scrollYProgress}
+              range={cardRanges[i]!}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
