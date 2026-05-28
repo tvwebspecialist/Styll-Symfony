@@ -58,7 +58,7 @@ export default function LandingProducts({ tenant, products }: Props) {
       aria-label="I nostri prodotti"
       className="w-full overflow-hidden py-20 sm:py-24"
     >
-      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-5">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-8 px-5" style={{ background: 'transparent' }}>
         <div className="flex items-start justify-between gap-6">
           <div>
             <h2
@@ -105,6 +105,7 @@ export default function LandingProducts({ tenant, products }: Props) {
           ref={trackRef}
           className="flex items-start snap-x snap-mandatory gap-4 overflow-x-auto lg:gap-5"
           style={{
+            background: 'transparent',
             scrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch',
             scrollbarWidth: 'none',
@@ -118,6 +119,7 @@ export default function LandingProducts({ tenant, products }: Props) {
               key={product.id}
               role="listitem"
               className="shrink-0 basis-[90%] snap-start sm:basis-[46%] lg:basis-[32%]"
+              style={{ background: 'transparent' }}
             >
               <ProductCard product={product} primaryColor={tenant.primary_color} />
             </div>

@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getTenantBySlug } from '@/lib/tenant'
 import {
@@ -32,31 +31,6 @@ import LandingInstallBanner from '@/components/landing/LandingInstallBanner'
 
 interface Props {
   params: Promise<{ slug: string }>
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
-  const tenantRow = await getTenantBySlug(slug)
-  if (!tenantRow || tenantRow.status !== 'active') return {}
-
-  const [websitePhotos, locations] = await Promise.all([
-    getPublicWebsitePhotos(tenantRow.tenant_id),
-    getPublicLocations(tenantRow.tenant_id),
-  ])
-
-  const heroImage = websitePhotos[0]?.url ?? locations[0]?.photo_url ?? null
-
-  return {
-    openGraph: {
-      title: tenantRow.business_name,
-      description: `Prenota online da ${tenantRow.business_name}`,
-      images: heroImage ? [{ url: heroImage, width: 1200, height: 630 }] : [],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      images: heroImage ? [heroImage] : [],
-    },
-  }
 }
 
 export default async function LandingPage({ params }: Props) {
