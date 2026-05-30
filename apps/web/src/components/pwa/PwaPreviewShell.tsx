@@ -5,6 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { PwaShell } from '@/components/pwa/PwaShell'
 import { PwaSplash } from '@/components/pwa/PwaSplash'
+import PwaInstallBanner from '@/components/pwa/PwaInstallBanner'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 
 const FONT_MAP: Record<string, string> = {
@@ -127,6 +128,17 @@ export function PwaPreviewShell({
       >
         {children}
       </PwaShell>
+
+      {/* Install banner — shown only when ?install=true is in the URL */}
+      {!preview.enabled && (
+        <React.Suspense fallback={null}>
+          <PwaInstallBanner
+            businessName={activeBusinessName}
+            logoUrl={activeLogoUrl}
+            primaryColor={activePrimaryColor}
+          />
+        </React.Suspense>
+      )}
     </div>
   )
 }
