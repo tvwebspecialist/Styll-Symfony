@@ -87,7 +87,9 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   } = await supabase.auth.getUser()
 
   if (!user && !isPreview) {
-    redirect(tp('/accesso?mode=login'))
+    // Preserve ?install=true so PwaInstallBanner shows on the login page
+    const installSuffix = resolvedSearchParams.install === 'true' ? '&install=true' : ''
+    redirect(tp(`/accesso?mode=login${installSuffix}`))
   }
 
   const homeData = await getHomePageData(tenant.tenant_id)
