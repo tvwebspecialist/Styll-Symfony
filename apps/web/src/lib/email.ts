@@ -137,7 +137,7 @@ Questo link scade tra 7 giorni.
       }
     }
 
-    console.log(`[sendInvitationEmail] Email sent successfully to ${recipientEmail}`)
+    console.log('[email] Sending transactional email')
     return { success: true }
   } catch (error) {
     console.error('[sendInvitationEmail] Exception:', error)
