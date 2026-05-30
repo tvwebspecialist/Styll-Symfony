@@ -123,6 +123,19 @@ export default async function AppLayout({ params, children }: Props) {
 
   return (
     <>
+      {/* Cattura beforeinstallprompt prima di React — salva su window per PwaInstallBanner */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.__pwaPrompt = null;
+            window.addEventListener('beforeinstallprompt', function(e) {
+              e.preventDefault();
+              window.__pwaPrompt = e;
+            }, { once: true });
+          `,
+        }}
+      />
+
       {/* Apple Touch Startup Images — splash screen nativo iOS */}
       {IOS_SPLASH_SIZES.map(({ w, h, media }) => (
         <link
