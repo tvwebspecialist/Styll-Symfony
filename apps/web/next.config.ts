@@ -1,27 +1,10 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '4mb',
-      allowedOrigins: [
-        'localhost:3000',
-        '127.0.0.1:3000',
-        '192.168.1.101:3000',
-        '192.168.1.100:3000',
-        '192.168.0.101:3000',
-        '192.168.0.100:3000',
-      ],
-    },
-  },
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '*.supabase.co', pathname: '/storage/v1/object/public/**' },
-      { protocol: 'http', hostname: '127.0.0.1', port: '54321', pathname: '/storage/v1/object/public/**' },
-      { protocol: 'http', hostname: 'localhost', port: '54321', pathname: '/storage/v1/object/public/**' },
-      // OAuth provider avatars (Google, GitHub, etc.)
-      { protocol: 'https', hostname: '*.googleusercontent.com' },
-      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+      { protocol: 'https', hostname: 'v7djgxewvqehlgrhzksj.supabase.co' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
   async headers() {
@@ -30,13 +13,39 @@ const nextConfig: NextConfig = {
         source: '/(.*)',
         headers: [
           {
-            key: 'ngrok-skip-browser-warning',
-            value: '1',
+            // Prevent browsers from MIME-sniffing the content type
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            // Prevent clickjacking — only allow framing from same origin
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            // Force HTTPS for 1 year, include subdomains
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains',
+          },
+          {
+            // Limit referrer info sent to external sites
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            // Disable browser features not needed by the app
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+          {
+            // Basic XSS protection for older browsers
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
           },
         ],
       },
     ]
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig

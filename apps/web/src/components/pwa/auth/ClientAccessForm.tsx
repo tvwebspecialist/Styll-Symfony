@@ -112,7 +112,8 @@ export function ClientAccessForm({
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(({ error }) => {
         if (!error) {
-          window.location.href = '/'
+          router.push(tenantPath(''))
+          router.refresh()
         } else {
           setIsProcessingHash(false)
         }
@@ -154,7 +155,8 @@ export function ClientAccessForm({
           .eq('id', authUser.id)
           .single()
         if (profile?.user_type === 'client') {
-          window.location.href = '/'
+          router.push(safeRedirect(tenantPath, returnTo))
+          router.refresh()
           return
         }
       }
