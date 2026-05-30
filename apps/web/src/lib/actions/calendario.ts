@@ -338,7 +338,19 @@ export async function createAppointment(input: {
       }))
     )
 
-    if (asErr) return { success: false, error: `Errore salvataggio servizi: ${asErr.message}` }
+    if (asErr) {
+      // Compensating delete: remove the orphan appointment
+      await db
+        .from('appointments')
+        .delete()
+        .eq('id', appt.id)
+        .eq('tenant_id', input.tenantId)
+
+      return {
+        success: false,
+        error: `Errore salvataggio servizi, appuntamento annullato: ${asErr.message}`,
+      }
+    }
   }
 
   return { success: true, appointmentId: appt.id }
