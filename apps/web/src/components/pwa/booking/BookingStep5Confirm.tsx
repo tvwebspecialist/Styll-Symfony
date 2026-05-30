@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { type FormEvent, useMemo, useState, useTransition } from 'react'
 import BookingStepIndicator from './BookingStepIndicator'
 import { BottomCTA } from '../ui/BottomCTA'
+import { BookingAuthStep } from './BookingAuthStep'
 import { createGuestBooking, type CreateGuestBookingResult } from '@/lib/actions/create-booking'
 import type {
   PublicLocation,
@@ -325,12 +326,11 @@ export default function BookingStep5Confirm({
         </div>
       </div>
 
-      <div style={{ margin: 16 }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#111' }}>I tuoi dati</h2>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            {isLoggedIn ? (
+      {isLoggedIn ? (
+        <>
+          <div style={{ margin: 16 }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#111' }}>I tuoi dati</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div
                 style={{
                   padding: '14px 16px',
@@ -351,32 +351,6 @@ export default function BookingStep5Confirm({
                   modifica profilo
                 </Link>
               </div>
-            ) : (
-              <>
-                <input
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  onFocus={() => setFocusedField('fullName')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Nome e cognome"
-                  style={{
-                    ...inputStyle(brandColor, Boolean(fieldErrors.fullName)),
-                    borderColor: fieldErrors.fullName
-                      ? '#DC2626'
-                      : focusedField === 'fullName'
-                        ? brandColor
-                        : '#E0E0E0',
-                  }}
-                />
-                {fieldErrors.fullName ? (
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{fieldErrors.fullName}</p>
-                ) : null}
-              </>
-            )}
-          </div>
-
-          <div>
-            {isLoggedIn ? (
               <div
                 style={{
                   padding: '14px 16px',
@@ -397,29 +371,6 @@ export default function BookingStep5Confirm({
                   modifica profilo
                 </Link>
               </div>
-            ) : (
-              <>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Telefono"
-                  style={{
-                    ...inputStyle(brandColor, Boolean(fieldErrors.phone)),
-                    borderColor: fieldErrors.phone ? '#DC2626' : focusedField === 'phone' ? brandColor : '#E0E0E0',
-                  }}
-                />
-                {fieldErrors.phone ? (
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{fieldErrors.phone}</p>
-                ) : null}
-              </>
-            )}
-          </div>
-
-          <div>
-            {isLoggedIn ? (
               <div
                 style={{
                   padding: '14px 16px',
@@ -440,55 +391,48 @@ export default function BookingStep5Confirm({
                   modifica profilo
                 </Link>
               </div>
-            ) : (
-              <>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Email (opzionale)"
-                  style={{
-                    ...inputStyle(brandColor, Boolean(fieldErrors.email)),
-                    borderColor: fieldErrors.email ? '#DC2626' : focusedField === 'email' ? brandColor : '#E0E0E0',
-                  }}
-                />
-                {fieldErrors.email ? (
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{fieldErrors.email}</p>
-                ) : null}
-              </>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
-
-      <BottomCTA
-        primary={{
-          label: isPending ? 'Conferma in corso...' : 'Conferma prenotazione',
-          onClick: handleConfirm,
-          loading: isPending,
-          disabled: isPending,
-        }}
-        tenantPrimary={brandColor}
-      />
-      {submitError ? (
-        <p
-          style={{
-            position: 'fixed',
-            bottom: 'calc(80px + max(12px, env(safe-area-inset-bottom, 0px)))',
-            left: 16,
-            right: 16,
-            margin: 0,
-            fontSize: 12,
-            color: '#DC2626',
-            textAlign: 'center',
-            zIndex: 51,
-          }}
-        >
-          {submitError}
-        </p>
-      ) : null}
+          <BottomCTA
+            primary={{
+              label: isPending ? 'Conferma in corso...' : 'Conferma prenotazione',
+              onClick: handleConfirm,
+              loading: isPending,
+              disabled: isPending,
+            }}
+            tenantPrimary={brandColor}
+          />
+          {submitError ? (
+            <p
+              style={{
+                position: 'fixed',
+                bottom: 'calc(80px + max(12px, env(safe-area-inset-bottom, 0px)))',
+                left: 16,
+                right: 16,
+                margin: 0,
+                fontSize: 12,
+                color: '#DC2626',
+                textAlign: 'center',
+                zIndex: 51,
+              }}
+            >
+              {submitError}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <BookingAuthStep
+          slug={slug}
+          tenantId={tenantId}
+          locationId={locationId}
+          staffId={staffId}
+          serviceIds={services.map((s) => s.id)}
+          date={date}
+          time={time}
+          primaryColor={primaryColor}
+          onSuccess={onSuccess}
+        />
+      )}
     </form>
   )
 }
