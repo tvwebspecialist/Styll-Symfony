@@ -13,6 +13,8 @@ import {
   requestPasswordReset,
   resendVerificationEmail,
 } from '@/lib/actions/client-auth'
+import { createGuestBooking } from '@/lib/actions/create-booking'
+import { getPendingBooking, clearPendingBooking } from '@/lib/pwa-pending-booking'
 
 type Mode = 'login' | 'register'
 
@@ -124,6 +126,32 @@ export function ClientAccessForm({
           // Also persist in localStorage for iOS PWA cold-launch persistence
           const pwa = createPwaClient()
           await pwa.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+
+          // Complete pending booking if user verified email during booking flow
+          const pending = getPendingBooking()
+          if (pending?.pendingAuth) {
+            clearPendingBooking()
+            const result = await createGuestBooking({
+              slug: pending.slug,
+              tenantId: pending.tenantId,
+              locationId: pending.locationId,
+              staffId: pending.staffId,
+              serviceIds: pending.serviceIds,
+              date: pending.date,
+              time: pending.time,
+              fullName: pending.fullName,
+              phone: pending.phone,
+              email: pending.email,
+              notes: '',
+              marketingConsent: false,
+            })
+            if (result.success && result.appointmentId) {
+              router.push(tenantPath(`/prenota/successo?appointment=${result.appointmentId}`))
+              router.refresh()
+              return
+            }
+          }
+
           router.push(tenantPath(''))
           router.refresh()
         } else {
