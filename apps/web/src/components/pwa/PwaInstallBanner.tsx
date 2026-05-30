@@ -170,13 +170,25 @@ export default function PwaInstallBanner({ businessName, logoUrl, primaryColor }
     // Already installed as PWA — skip
     if (window.matchMedia('(display-mode: standalone)').matches) return
 
-    // Only show when install=true is in the URL
-    if (searchParams.get('install') !== 'true') return
+    const STORAGE_KEY = 'pwa_install_trigger'
 
-    // Clean the param from the URL without page reload
-    const url = new URL(window.location.href)
-    url.searchParams.delete('install')
-    window.history.replaceState({}, '', url.toString())
+    // Detect trigger: URL param (first landing) OR sessionStorage (after auth redirect)
+    const hasUrlParam = searchParams.get('install') === 'true'
+    const hasStorageFlag = sessionStorage.getItem(STORAGE_KEY) === 'true'
+
+    if (!hasUrlParam && !hasStorageFlag) return
+
+    if (hasUrlParam) {
+      // Persist so the banner survives any subsequent auth redirect
+      sessionStorage.setItem(STORAGE_KEY, 'true')
+      // Clean the param from the URL
+      const url = new URL(window.location.href)
+      url.searchParams.delete('install')
+      window.history.replaceState({}, '', url.toString())
+    }
+
+    // Consume the storage flag — one-shot trigger
+    sessionStorage.removeItem(STORAGE_KEY)
 
     // Detect iOS
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent))
@@ -194,8 +206,8 @@ export default function PwaInstallBanner({ businessName, logoUrl, primaryColor }
     }
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
-    // Show banner after 1s
-    const timer = setTimeout(() => setVisible(true), 1000)
+    // Show banner after 800ms
+    const timer = setTimeout(() => setVisible(true), 800)
 
     return () => {
       clearTimeout(timer)

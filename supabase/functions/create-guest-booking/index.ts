@@ -29,10 +29,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 //   { success: false, error: string }
 // ──────────────────────────────────────────────────────────────
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+const ROOT_DOMAIN = Deno.env.get('ROOT_DOMAIN') ?? 'styll.it'
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === ROOT_DOMAIN || hostname.endsWith(`.${ROOT_DOMAIN}`)
+  } catch {
+    return false
+  }
+}
+
+function getCorsHeaders(requestOrigin: string | null) {
+  const allowed = isAllowedOrigin(requestOrigin)
+  return {
+    'Access-Control-Allow-Origin': allowed ? requestOrigin! : `https://${ROOT_DOMAIN}`,
+    'Access-Control-Allow-Headers':
+      'authorization, x-client-info, apikey, content-type',
+  }
 }
 
 interface PriceSnapshot {
@@ -58,11 +73,11 @@ interface RequestBody {
 serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   if (req.method !== 'POST') {
-    return json({ success: false, error: 'Method not allowed' }, 405)
+    return json({ success: false, error: 'Method not allowed' }, 405, req.headers.get('origin'))
   }
 
   try {
@@ -84,7 +99,6 @@ serve(async (req) => {
       clientEmail,
       notes,
       marketingConsent = false,
-      pricesSnapshot = [],
     } = body
 
     // ── Validation ──────────────────────────────────────────────
@@ -93,34 +107,33 @@ serve(async (req) => {
       !serviceIds?.length || !startTime || !endTime ||
       !clientName?.trim() || !clientPhone?.trim()
     ) {
-      return json({ success: false, error: 'Parametri obbligatori mancanti.' }, 400)
+      return json({ success: false, error: 'Parametri obbligatori mancanti.' }, 400, req.headers.get('origin'))
     }
 
     // Basic ISO-8601 check
     if (isNaN(Date.parse(startTime)) || isNaN(Date.parse(endTime))) {
-      return json({ success: false, error: 'startTime o endTime non validi.' }, 400)
+      return json({ success: false, error: 'startTime o endTime non validi.' }, 400, req.headers.get('origin'))
     }
 
-    // ── 1. Fetch service prices if no snapshot provided ──────────
-    let prices: PriceSnapshot[] = pricesSnapshot
+    // ── 1. Always fetch prices server-side — never trust client snapshot ──
+    const { data: serviceRows, error: svcErr } = await supabase
+      .from('services')
+      .select('id, price')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .in('id', serviceIds)
 
-    if (prices.length === 0) {
-      const { data: serviceRows, error: svcErr } = await supabase
-        .from('services')
-        .select('id, price')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .in('id', serviceIds)
-
-      if (svcErr || !serviceRows?.length) {
-        return json({ success: false, error: 'Servizi non trovati.' }, 400)
-      }
-
-      prices = serviceRows.map((s) => ({
-        serviceId: s.id as string,
-        price: Number(s.price ?? 0),
-      }))
+    if (svcErr || !serviceRows || serviceRows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Servizi non trovati o non disponibili.' }),
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
+      )
     }
+
+    const prices: PriceSnapshot[] = serviceRows.map((s) => ({
+      serviceId: s.id as string,
+      price: s.price as number,
+    }))
 
     // ── 2. Upsert client ────────────────────────────────────────
     const phone = clientPhone.replace(/\s+/g, ' ').trim()
@@ -161,7 +174,7 @@ serve(async (req) => {
 
       if (clientErr || !newClient) {
         console.error('client insert error:', clientErr)
-        return json({ success: false, error: 'Errore creazione cliente.' }, 500)
+        return json({ success: false, error: 'Errore creazione cliente.' }, 500, req.headers.get('origin'))
       }
 
       clientId = (newClient as { id: string }).id
@@ -189,12 +202,12 @@ serve(async (req) => {
       if (apptErr?.code === '23P01') {
         return new Response(
           JSON.stringify({ error: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.' }),
-          { status: 409, headers: { 'Content-Type': 'application/json' } }
+          { status: 409, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
         )
       }
 
       console.error('appointment insert error:', apptErr)
-      return json({ success: false, error: 'Errore creazione appuntamento.' }, 500)
+      return json({ success: false, error: 'Errore creazione appuntamento.' }, 500, req.headers.get('origin'))
     }
 
     const appointmentId = (appointment as { id: string }).id
@@ -216,19 +229,19 @@ serve(async (req) => {
       // Roll back appointment on partial failure
       await supabase.from('appointments').delete().eq('id', appointmentId)
       console.error('appointment_services insert error:', svcLinkErr)
-      return json({ success: false, error: 'Errore salvataggio servizi.' }, 500)
+      return json({ success: false, error: 'Errore salvataggio servizi.' }, 500, req.headers.get('origin'))
     }
 
-    return json({ success: true, appointmentId })
+    return json({ success: true, appointmentId }, 200, req.headers.get('origin'))
   } catch (err) {
     console.error('Unexpected error:', err)
-    return json({ success: false, error: 'Errore interno del server.' }, 500)
+    return json({ success: false, error: 'Errore interno del server.' }, 500, req.headers.get('origin'))
   }
 })
 
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, status: number, requestOrigin: string | null): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...getCorsHeaders(requestOrigin), 'Content-Type': 'application/json' },
   })
 }
