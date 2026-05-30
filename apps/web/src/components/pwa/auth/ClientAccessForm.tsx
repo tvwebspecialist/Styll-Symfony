@@ -6,8 +6,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { createClient } from '@/lib/supabase/client'
+import { createPwaClient } from '@/lib/supabase/pwa-client'
 import {
-  loginClient,
+  mergeClientProfile,
   registerClient,
   requestPasswordReset,
   resendVerificationEmail,
@@ -37,6 +38,14 @@ function getInitials(value: string): string {
       .join('')
       .toUpperCase() || 'ST'
   )
+}
+
+function mapLoginError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('invalid') || m.includes('credentials')) return 'Email o password non corretti.'
+  if (m.includes('email not confirmed')) return "Controlla la tua email per verificare l'account."
+  if (m.includes('too many') || m.includes('rate')) return 'Troppe richieste. Riprova tra qualche minuto.'
+  return 'Qualcosa è andato storto. Riprova.'
 }
 
 function safeRedirect(tenantPath: (relativePath: string) => string, returnTo?: string): string {
@@ -110,8 +119,11 @@ export function ClientAccessForm({
 
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ error }) => {
+      .then(async ({ error }) => {
         if (!error) {
+          // Also persist in localStorage for iOS PWA cold-launch persistence
+          const pwa = createPwaClient()
+          await pwa.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
           router.push(tenantPath(''))
           router.refresh()
         } else {
@@ -133,31 +145,58 @@ export function ClientAccessForm({
   function handleLogin() {
     setMessage(null)
     startTransition(async () => {
-      const result = await loginClient({
-        email: loginEmail,
+      // Auth via localStorage-based client so iOS PWA session survives cold launch
+      const pwa = createPwaClient()
+      const { data, error } = await pwa.auth.signInWithPassword({
+        email: loginEmail.trim().toLowerCase(),
         password: loginPassword,
-        tenantId,
       })
 
-      if (!result.success) {
-        setMessage({ tone: 'error', text: result.error })
+      if (error) {
+        setMessage({ tone: 'error', text: mapLoginError(error.message) })
         return
       }
 
-      // PWA clients (user_type = 'client') must stay on the custom domain.
-      // Do a hard redirect to '/' so they land on the PWA home, not the barber dashboard.
-      const supabase = createClient()
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (authUser) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_type')
-          .eq('id', authUser.id)
-          .single()
-        if (profile?.user_type === 'client') {
-          router.push(safeRedirect(tenantPath, returnTo))
-          router.refresh()
-          return
+      if (!data.user || !data.session) {
+        setMessage({ tone: 'error', text: 'Qualcosa è andato storto. Riprova.' })
+        return
+      }
+
+      // Also write session to cookies so server components can read it immediately
+      const cookieClient = createClient()
+      await cookieClient.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+
+      // Guard: PWA is for clients only — staff have their own dashboard
+      const { data: profile } = await cookieClient
+        .from('profiles')
+        .select('user_type')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profile?.user_type !== 'client') {
+        setMessage({ tone: 'error', text: 'Questo portale è riservato ai clienti.' })
+        await pwa.auth.signOut({ scope: 'local' })
+        await cookieClient.auth.signOut({ scope: 'local' })
+        return
+      }
+
+      // CRM: link auth user to the tenant's client record
+      if (tenantId) {
+        const meta = data.user.user_metadata ?? {}
+        try {
+          await mergeClientProfile({
+            tenantId,
+            profileId: data.user.id,
+            email: data.user.email ?? loginEmail,
+            phone: typeof meta.phone === 'string' ? meta.phone : '',
+            fullName: typeof meta.full_name === 'string' ? meta.full_name : '',
+            marketingConsent: Boolean(meta.marketing_consent),
+          })
+        } catch {
+          // Non-blocking — CRM failure should not prevent login
         }
       }
 

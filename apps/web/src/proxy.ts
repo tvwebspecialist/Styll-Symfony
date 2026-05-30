@@ -84,47 +84,48 @@ export async function proxy(request: NextRequest) {
   // Auth is enforced by the tenant layout itself.
   const isSubdomainRequest = tenantRewriteUrl !== null
 
-  const response = NextResponse.next({ request })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(
-          cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
-        ) {
-          const cookieDomain =
-            process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, {
-              ...options,
-              ...(cookieDomain ? { domain: cookieDomain } : {}),
-            })
-          )
-        },
-      },
-    }
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
-  // PWA client routes manage their own auth — middleware must not interfere.
-  // /auth/callback on subdomains is also a PWA route (handled by the tenant page).
+  // PWA client routes manage their own auth client-side.
+  // Server-side redirects from middleware exit iOS standalone mode, so we skip
+  // ALL auth logic for PWA routes — including getUser() (avoids latency + 302s).
   const isPwaRoute = pathname.startsWith('/tenant/app/')
-    || (isSubdomainRequest && pathname === '/auth/callback')
+    || tenantRewriteUrl?.pathname.startsWith('/tenant/app/') === true
+
+  const response = NextResponse.next({ request })
 
   if (!isPwaRoute) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(
+            cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
+          ) {
+            const cookieDomain =
+              process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            )
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, {
+                ...options,
+                ...(cookieDomain ? { domain: cookieDomain } : {}),
+              })
+            )
+          },
+        },
+      }
+    )
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
     const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
     const isAdmin = pathname.startsWith('/admin')
     const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)

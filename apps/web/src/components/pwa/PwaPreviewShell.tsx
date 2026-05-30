@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { PwaShell } from '@/components/pwa/PwaShell'
 import { PwaSplash } from '@/components/pwa/PwaSplash'
 import PwaInstallBanner from '@/components/pwa/PwaInstallBanner'
+import { PwaSessionRestorer } from '@/components/pwa/PwaSessionRestorer'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 
 const FONT_MAP: Record<string, string> = {
@@ -137,6 +138,13 @@ export function PwaPreviewShell({
             logoUrl={activeLogoUrl}
             primaryColor={activePrimaryColor}
           />
+        </React.Suspense>
+      )}
+
+      {/* Session restorer — syncs localStorage ↔ cookies on every cold launch */}
+      {!preview.enabled && (
+        <React.Suspense fallback={null}>
+          <PwaSessionRestorer />
         </React.Suspense>
       )}
     </div>

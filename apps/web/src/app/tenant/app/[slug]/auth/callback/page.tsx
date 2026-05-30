@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createPwaClient } from '@/lib/supabase/pwa-client'
 
 export default function AuthCallbackPage() {
   const params = useParams<{ slug: string }>()
@@ -27,10 +28,13 @@ export default function AuthCallbackPage() {
 
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ error }) => {
+      .then(async ({ error }) => {
         if (error) {
           router.replace(`${authBase}?error=Sessione+non+valida.+Riprova.`)
         } else {
+          // Also persist in localStorage so the session survives iOS cold launch
+          const pwa = createPwaClient()
+          await pwa.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
           router.push('/')
           router.refresh()
         }

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { logoutClient } from '@/lib/actions/client-auth'
+import { createPwaClient } from '@/lib/supabase/pwa-client'
 
 export function LogoutButton({ basePath }: { basePath: string }) {
   const router = useRouter()
@@ -9,7 +10,11 @@ export function LogoutButton({ basePath }: { basePath: string }) {
   return (
     <button
       onClick={async () => {
-        await logoutClient()
+        const pwa = createPwaClient()
+        await Promise.all([
+          logoutClient(),
+          pwa.auth.signOut({ scope: 'local' }),
+        ])
         router.push(basePath)
         router.refresh()
       }}

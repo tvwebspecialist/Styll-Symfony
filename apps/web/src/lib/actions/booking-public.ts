@@ -109,7 +109,7 @@ export async function getPublicBookingLocations(tenantId: string): Promise<Publi
   )()
 }
 
-export async function getPublicStaffByLocation(
+async function getPublicStaffByLocationImpl(
   tenantId: string,
   locationId: string
 ): Promise<PublicBookingStaffMember[]> {
@@ -219,3 +219,12 @@ export async function getPublicStaffByLocation(
 
   return [firstAvailableEntry(), ...staff]
 }
+
+export const getPublicStaffByLocation = unstable_cache(
+  getPublicStaffByLocationImpl,
+  ['public-staff-by-location'],
+  {
+    revalidate: 60,
+    tags: ['public-staff', 'staff-locations'],
+  }
+)
