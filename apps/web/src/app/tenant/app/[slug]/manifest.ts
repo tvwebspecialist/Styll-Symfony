@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { headers } from 'next/headers'
 import { getTenantBySlug } from '@/lib/tenant'
 
 // Web Manifest supports space-separated purpose tokens; Next's type is stricter.
@@ -9,7 +10,15 @@ export default async function manifest(
 ): Promise<MetadataRoute.Manifest> {
   const { slug } = await params
   const tenant = await getTenantBySlug(slug)
-  const startUrl = `/tenant/app/${slug}`
+
+  // On subdomain routing (e.g. tommy-app.styll.it) the browser URL root is '/'.
+  // The manifest scope must match — otherwise iOS exits standalone when navigating.
+  const headersList = await headers()
+  const host = headersList.get('host') ?? ''
+  const isSubdomain = host.startsWith(`${slug}-app.`)
+  const startUrl = isSubdomain ? '/' : `/tenant/app/${slug}`
+  const scope = isSubdomain ? '/' : `/tenant/app/${slug}`
+
   const baseUrl = (
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://styll.it')
@@ -26,7 +35,7 @@ export default async function manifest(
       background_color: '#1a1a1a',
       display: 'standalone',
       start_url: startUrl,
-      scope: startUrl,
+      scope,
       icons: [
         {
           src: `${defaultIconBase}&size=192`,
@@ -61,7 +70,7 @@ export default async function manifest(
     orientation: 'portrait',
     lang: 'it',
     start_url: startUrl,
-    scope: startUrl,
+    scope,
     icons: [
       {
         src: `${versionedIconBase}&size=192`,
