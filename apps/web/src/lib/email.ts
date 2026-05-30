@@ -13,7 +13,6 @@ export async function sendInvitationEmail({
   tenantName,
   inviterName,
   role,
-  invitationToken,
   invitationLink,
 }: {
   recipientEmail: string
@@ -21,7 +20,6 @@ export async function sendInvitationEmail({
   tenantName: string
   inviterName: string
   role: string
-  invitationToken: string
   invitationLink: string
 }): Promise<{ success: boolean; error?: string }> {
   if (!resend) {

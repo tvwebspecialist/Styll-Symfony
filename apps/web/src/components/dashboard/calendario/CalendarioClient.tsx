@@ -125,39 +125,11 @@ function getInitials(name: string): string {
   return name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
 }
 
-function getNavLabel(view: CalendarView, weekStart: string, activeDayStr: string): string {
-  if (view === 'Giorno') {
-    const d = new Date(activeDayStr + 'T12:00:00')
-    return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`
-  }
-  if (view === 'Settimana') {
-    const s = new Date(weekStart + 'T12:00:00')
-    const e = new Date(weekStart + 'T12:00:00')
-    e.setDate(e.getDate() + 5)
-    const sDay = s.getDate()
-    const eDay = e.getDate()
-    const eMon = MONTHS_SHORT[e.getMonth()]
-    return s.getMonth() === e.getMonth()
-      ? `${sDay}–${eDay} ${eMon}`
-      : `${sDay} ${MONTHS_SHORT[s.getMonth()]}–${eDay} ${eMon}`
-  }
-  const d = new Date(weekStart + 'T12:00:00')
-  const m = MONTHS_IT[d.getMonth()]!
-  return `${m.charAt(0).toUpperCase() + m.slice(1)} ${d.getFullYear()}`
-}
-
 function getMonthYearLabel(weekStart: string): string {
   const end = new Date(weekStart + 'T12:00:00')
   end.setDate(end.getDate() + 5)
   const m = MONTHS_IT[end.getMonth()]!
   return m.charAt(0).toUpperCase() + m.slice(1) + ', ' + end.getFullYear()
-}
-
-function getDayLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  const dow = DAYS_FULL[d.getDay() === 0 ? 6 : d.getDay() - 1] ?? DAYS_ABBR[d.getDay()]
-  const m = MONTHS_IT[d.getMonth()]!
-  return `${dow}, ${d.getDate()} ${m.charAt(0).toUpperCase() + m.slice(1)} ${d.getFullYear()}`
 }
 
 function isHourWorking(
@@ -976,7 +948,6 @@ export function CalendarioClient({
   //   2. Navigation: when the user changes week/day/staff, Next.js re-renders
   //      this component with new `data` props — the effect below reconciles.
   const [liveAppts, setLiveAppts] = React.useState<CalendarioAppointment[]>(data.appointments)
-  const [isSyncing, setIsSyncing] = React.useState(false)
   const [syncError, setSyncError] = React.useState<Error | null>(null)
 
   // Sync with fresh SSR data on navigation (week change, staff filter, etc.).
@@ -999,7 +970,6 @@ export function CalendarioClient({
    * Called by the realtime subscription on any INSERT / UPDATE / DELETE.
    */
   const refetchAppointments = React.useCallback(async () => {
-    setIsSyncing(true)
     setSyncError(null)
     try {
       const fresh = await getCalendarioData(tenantId, weekStart, selectedStaffId)
@@ -1010,8 +980,6 @@ export function CalendarioClient({
           ? caught
           : new Error('Errore durante la sincronizzazione degli appuntamenti.')
       )
-    } finally {
-      setIsSyncing(false)
     }
   }, [tenantId, weekStart, selectedStaffId])
 
@@ -1019,7 +987,6 @@ export function CalendarioClient({
   // NOT maintain its own state — it just calls refetchAppointments whenever a
   // change arrives on the appointments table for this tenant/week.
   const {
-    isConnected,
     loading: realtimeLoading,
     error: realtimeError,
   } = useRealtimeAppointments({
