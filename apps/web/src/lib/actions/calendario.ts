@@ -94,6 +94,11 @@ export async function getCalendarioData(
   weekStart: string,
   staffId?: string | null
 ): Promise<CalendarioData> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   const db = createAdminClient()
   const weekEnd = addDays(weekStart, 7)
 

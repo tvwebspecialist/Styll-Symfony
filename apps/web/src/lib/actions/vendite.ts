@@ -47,6 +47,11 @@ export interface RiepilogoData {
 }
 
 export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   const db = createAdminClient()
   const now = new Date()
   const todayStart = startOfDay(now).toISOString()
@@ -189,6 +194,11 @@ export async function getAppuntamentiVendite(
   tenantId: string,
   filters: AppuntamentiFilters = {},
 ): Promise<AppuntamentoVendita[]> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   const db = createAdminClient()
   let q = db
     .from('appointments')
