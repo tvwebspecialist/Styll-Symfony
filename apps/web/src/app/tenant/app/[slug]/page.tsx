@@ -1,9 +1,8 @@
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getHomePageData } from '@/lib/actions/pwa-home'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 
@@ -81,20 +80,10 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   const displayLogoUrl = preview.logoUrl ?? tenant.logo_url
 
   const tp = await createTenantPaths(slug)
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  if (!user && !isPreview) {
-    // Preserve install/booking intent params so PwaInstallBanner works on the login page
-    const extra =
-      resolvedSearchParams.install === 'true' ? '&install=true' :
-      resolvedSearchParams.source === 'booking' ? '&source=booking' :
-      ''
-    redirect(tp(`/accesso?mode=login${extra}`))
-  }
-
+  // Auth is managed client-side (PwaSessionRestorer) to avoid server-side 302s
+  // that cause iOS to exit standalone mode. Page renders guest state initially;
+  // PwaSessionRestorer syncs localStorage → cookie and triggers router.refresh().
   const homeData = await getHomePageData(tenant.tenant_id)
   const rewards = homeData.activeRewards ?? []
   const availablePoints = homeData.loyalty?.availablePoints ?? 0

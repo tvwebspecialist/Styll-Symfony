@@ -1,5 +1,6 @@
 'use server'
 
+import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Tables } from '@/types'
@@ -48,6 +49,26 @@ function readRelation<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null
 }
 
+const getCachedStaffMembers = unstable_cache(
+  async (tenantId: string) => {
+    const db = createAdminClient()
+    const { data: rawStaffMembers, count } = await db
+      .from('staff_members')
+      .select('id, photo_url, profiles(full_name, avatar_url)', { count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(10)
+    return { rawStaffMembers: rawStaffMembers ?? [], count: count ?? 0 }
+  },
+  ['pwa-home-staff'],
+  {
+    revalidate: 60,
+    tags: ['staff-members'],
+  }
+)
+
 function extractServiceNames(appointmentServices: any[]): string[] {
   return (appointmentServices ?? [])
     .map((as: any) => {
@@ -64,14 +85,7 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
   } = await supabase.auth.getUser()
 
   const db = createAdminClient()
-  const { data: rawStaffMembers, count } = await db
-    .from('staff_members')
-    .select('id, photo_url, profiles(full_name, avatar_url)', { count: 'exact' })
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-    .limit(10)
+  const { rawStaffMembers, count } = await getCachedStaffMembers(tenantId)
 
   const staffMembers: HomeStaffMember[] = ((rawStaffMembers as StaffWithProfile[] | null) ?? []).map((member) => {
     const profile = readRelation(member.profiles as any)
