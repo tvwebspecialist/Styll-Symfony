@@ -186,6 +186,13 @@ serve(async (req) => {
       .single()
 
     if (apptErr || !appointment) {
+      if (apptErr?.code === '23P01') {
+        return new Response(
+          JSON.stringify({ error: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.' }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+
       console.error('appointment insert error:', apptErr)
       return json({ success: false, error: 'Errore creazione appuntamento.' }, 500)
     }

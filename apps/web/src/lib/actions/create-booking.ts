@@ -172,6 +172,13 @@ export async function createGuestBooking(
     .single()
 
   if (appointmentError || !appointmentRow) {
+    if (appointmentError?.code === '23P01') {
+      return {
+        success: false,
+        error: 'Lo slot selezionato non è più disponibile. Scegli un altro orario.',
+      }
+    }
+
     return {
       success: false,
       error: appointmentError?.message ?? 'Errore durante la creazione della prenotazione.',

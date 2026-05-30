@@ -9,5 +9,11 @@
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint",
     "type-check": "pnpm --filter web type-check"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": "3.1.2",
+      "js-cookie": "3.0.8"
+    }
   }
 }

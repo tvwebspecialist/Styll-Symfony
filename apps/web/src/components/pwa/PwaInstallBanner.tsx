@@ -181,7 +181,13 @@ export default function PwaInstallBanner({ businessName, logoUrl, primaryColor }
     // Detect iOS
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent))
 
-    // Capture Android native prompt
+    // Pick up prompt captured by the inline script (fires before React hydration)
+    const earlyPrompt = (window as unknown as Record<string, unknown>).__pwaPrompt as BeforeInstallPromptEvent | null
+    if (earlyPrompt) {
+      setDeferredPrompt(earlyPrompt)
+    }
+
+    // Also listen in case it fires after hydration
     function handleBeforeInstall(e: Event) {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
