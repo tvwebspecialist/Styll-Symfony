@@ -35,8 +35,9 @@ export function usePWAInstall(): UsePWAInstallResult {
   async function install() {
     if (!deferredPrompt) return
     await deferredPrompt.prompt()
-    await deferredPrompt.userChoice
+    const { outcome } = await deferredPrompt.userChoice
     setDeferredPrompt(null)
+    if (outcome === 'accepted') setIsInstalled(true)
   }
 
   return {

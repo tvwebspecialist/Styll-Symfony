@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
 import type { LandingTenant } from '@/types/landing'
 
@@ -8,13 +9,8 @@ interface Props {
   tenant: LandingTenant
 }
 
-function detectPlatform(): 'ios' | 'android' | 'generic' {
-  if (typeof navigator === 'undefined') return 'generic'
-  const ua = navigator.userAgent
-  if (/iPad|iPhone|iPod/.test(ua)) return 'ios'
-  if (/Android/.test(ua)) return 'android'
-  return 'generic'
-}
+type Platform = 'android' | 'ios' | 'desktop'
+type Modal = 'ios' | 'qr' | null
 
 function hexToRgb(hex: string): string {
   const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
@@ -22,17 +18,252 @@ function hexToRgb(hex: string): string {
   return `${parseInt(r[1], 16)}, ${parseInt(r[2], 16)}, ${parseInt(r[3], 16)}`
 }
 
-// ── Store buttons ─────────────────────────────────────────────────────────────
+// ── iOS guide modal ───────────────────────────────────────────────────────────
 
-function StoreButton({
-  type,
+function IOSModal({ onClose, primary }: { onClose: () => void; primary: string }) {
+  const steps = [
+    {
+      icon: (
+        // Safari Share button (box + arrow up)
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <rect x="2" y="10" width="24" height="16" rx="3" stroke="white" strokeWidth="2" />
+          <path d="M14 2v14M9 7l5-5 5 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      label: 'Tocca il tasto Condividi',
+      sub: 'Icona ↑ in basso nella barra di Safari',
+    },
+    {
+      icon: (
+        // Square with plus
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <rect x="4" y="4" width="20" height="20" rx="4" stroke="white" strokeWidth="2" />
+          <path d="M14 9v10M9 14h10" stroke="white" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      ),
+      label: 'Aggiungi alla schermata Home',
+      sub: 'Scorri in basso nel menu e tocca questa voce',
+    },
+    {
+      icon: (
+        // Checkmark
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <circle cx="14" cy="14" r="11" stroke="white" strokeWidth="2" />
+          <path d="M8.5 14l4 4 7-8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ),
+      label: 'Tocca "Aggiungi" in alto a destra',
+      sub: "L'app apparirà sulla tua schermata Home",
+    },
+  ]
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Come installare l'app su iPhone"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        padding: 16,
+        background: 'rgba(0,0,0,0.75)',
+        backdropFilter: 'blur(8px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 420,
+          background: '#1a1a1a',
+          borderRadius: 28,
+          padding: '28px 28px 36px',
+          boxShadow: '0 -4px 60px rgba(0,0,0,0.6)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+          <p style={{ fontWeight: 800, fontSize: 18, color: '#fff', margin: 0 }}>
+            Installa su iPhone
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Chiudi"
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '50%',
+              width: 32,
+              height: 32,
+              color: '#fff',
+              fontSize: 18,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {steps.map((step, i) => (
+            <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              {/* Circle number */}
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {step.icon}
+              </div>
+              <div style={{ paddingTop: 2 }}>
+                <p style={{ margin: '0 0 3px', fontWeight: 700, fontSize: 15, color: '#fff' }}>
+                  {step.label}
+                </p>
+                <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                  {step.sub}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Safari warning */}
+        <div
+          style={{
+            marginTop: 28,
+            padding: '12px 16px',
+            background: 'rgba(255,255,255,0.05)',
+            borderRadius: 12,
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+            ⚠️ Assicurati di usare <strong style={{ color: 'rgba(255,255,255,0.75)' }}>Safari</strong>,
+            non Chrome o altri browser, altrimenti il tasto Condividi non apparirà.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── QR code modal ─────────────────────────────────────────────────────────────
+
+function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="QR code per installare l'app"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: 'rgba(0,0,0,0.75)',
+        backdropFilter: 'blur(8px)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#1a1a1a',
+          borderRadius: 28,
+          padding: '36px 40px',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          textAlign: 'center',
+          maxWidth: 340,
+          width: '100%',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Chiudi"
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '50%',
+            width: 32,
+            height: 32,
+            color: '#fff',
+            fontSize: 18,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ×
+        </button>
+
+        <p style={{ fontWeight: 800, fontSize: 18, color: '#fff', margin: '0 0 6px' }}>
+          Scarica sul telefono
+        </p>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: '0 0 28px', lineHeight: 1.5 }}>
+          Scansiona con la fotocamera del telefono
+        </p>
+
+        {/* QR code */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 16,
+            padding: 16,
+            display: 'inline-block',
+            marginBottom: 20,
+          }}
+        >
+          <QRCodeSVG value={url} size={180} level="M" />
+        </div>
+
+        <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.5 }}>
+          Apri Safari sul telefono → visita la pagina → installa
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Install button ────────────────────────────────────────────────────────────
+
+function InstallButton({
+  label,
   onClick,
+  primary,
+  variant = 'primary',
 }: {
-  type: 'appstore' | 'googleplay'
+  label: string
   onClick: () => void
+  primary: string
+  variant?: 'primary' | 'outline'
 }) {
-  const isApple = type === 'appstore'
-
   return (
     <button
       type="button"
@@ -40,15 +271,17 @@ function StoreButton({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '13px 22px',
-        background: isApple ? '#ffffff' : 'transparent',
-        color: isApple ? '#000000' : '#ffffff',
-        border: isApple ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
+        gap: 8,
+        padding: '14px 28px',
+        background: variant === 'primary' ? primary : 'transparent',
+        color: '#ffffff',
+        border: variant === 'primary' ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
         borderRadius: 14,
+        fontSize: 15,
+        fontWeight: 700,
         cursor: 'pointer',
         transition: 'opacity 0.18s ease, transform 0.18s ease',
-        flexShrink: 0,
+        letterSpacing: '-0.01em',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.opacity = '0.82'
@@ -59,26 +292,10 @@ function StoreButton({
         e.currentTarget.style.transform = 'translateY(0)'
       }}
     >
-      {isApple ? (
-        <svg width="18" height="22" viewBox="0 0 18 22" fill="currentColor" aria-hidden="true">
-          <path d="M14.94 11.44c-.02-2.38 1.95-3.52 2.04-3.58-1.11-1.63-2.84-1.85-3.46-1.88-1.47-.15-2.88.87-3.63.87-.75 0-1.9-.85-3.12-.83C5.1 6.04 3.5 6.97 2.6 8.45c-1.83 3.17-.47 7.85 1.3 10.42.87 1.25 1.9 2.66 3.25 2.61 1.31-.05 1.8-.84 3.38-.84 1.58 0 2.03.84 3.4.81 1.41-.02 2.3-1.27 3.15-2.53.99-1.45 1.4-2.86 1.43-2.93-.03-.01-2.74-1.05-2.77-4.15zm-2.6-7.62c.72-.88 1.21-2.1 1.07-3.32-1.04.04-2.29.69-3.03 1.56-.66.77-1.25 2.01-1.09 3.19 1.16.09 2.34-.59 3.05-1.43z" />
-        </svg>
-      ) : (
-        <svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true">
-          <path d="M.5 19.5c.26.14.57.17.87.1L10.56 10 7.96 7.4.5 19.5z" fill="#4285F4" />
-          <path d="M17 8.77l-2.29-1.34-2.69 2.69 2.69 2.69 2.3-1.34c.66-.38.66-1.32-.01-1.7z" fill="#FBBC04" />
-          <path d="M.5.5l.06.07L10.56 10l-2.6 2.6L.5.5z" fill="#EA4335" />
-          <path d="M.5.5L7.96 12.6 10.56 10 1.37.6A.97.97 0 00.5.5z" fill="#34A853" />
-        </svg>
-      )}
-      <div style={{ textAlign: 'left' }}>
-        <p style={{ margin: 0, fontSize: 9, opacity: 0.65, lineHeight: 1, fontWeight: 400 }}>
-          {isApple ? 'Download on the' : 'Get it on'}
-        </p>
-        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>
-          {isApple ? 'App Store' : 'Google Play'}
-        </p>
-      </div>
+      {label}
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M3 7h8M7.5 3.5 11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </button>
   )
 }
@@ -87,19 +304,27 @@ function StoreButton({
 
 export default function LandingPWACta({ tenant }: Props) {
   const { canInstall, isInstalled, install } = usePWAInstall()
-  const [showModal, setShowModal] = useState(false)
-  const [modalPlatform, setModalPlatform] = useState<'ios' | 'android' | 'generic'>('generic')
+  const [platform, setPlatform] = useState<Platform | null>(null)
+  const [modal, setModal] = useState<Modal>(null)
+  const [pwaUrl, setPwaUrl] = useState('')
 
+  useEffect(() => {
+    const ua = navigator.userAgent
+    if (/iPad|iPhone|iPod/.test(ua)) {
+      setPlatform('ios')
+    } else if (/Android/.test(ua)) {
+      setPlatform('android')
+    } else {
+      setPlatform('desktop')
+    }
+    setPwaUrl(window.location.href)
+  }, [])
+
+  // Already running as standalone PWA → hide the CTA
   if (isInstalled) return null
 
-  async function handleInstall() {
-    if (canInstall) {
-      await install()
-    } else {
-      setModalPlatform(detectPlatform())
-      setShowModal(true)
-    }
-  }
+  // Wait for client-side platform detection
+  if (platform === null) return null
 
   const primary = tenant.primary_color || '#1a1a1a'
   const rgb = hexToRgb(primary)
@@ -110,6 +335,14 @@ export default function LandingPWACta({ tenant }: Props) {
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('')
 
+  async function handleAndroidInstall() {
+    if (canInstall) {
+      await install()
+    } else {
+      // Already installed or browser doesn't support it — nothing to do
+    }
+  }
+
   return (
     <>
       {/* ── CTA Section ── */}
@@ -117,7 +350,6 @@ export default function LandingPWACta({ tenant }: Props) {
         aria-label="Installa l'app"
         style={{ padding: '0 24px 80px', background: 'transparent' }}
       >
-        {/* Card rettangolare */}
         <div
           className="flex-col-reverse md:flex-row"
           style={{
@@ -150,7 +382,7 @@ export default function LandingPWACta({ tenant }: Props) {
             }}
           />
 
-          {/* ── Colonna sinistra: testo + bottoni ── */}
+          {/* ── Colonna sinistra: testo + bottone ── */}
           <div className="w-full md:w-auto" style={{ flex: '0 1 60%', position: 'relative', zIndex: 1 }}>
             <h2
               style={{
@@ -180,9 +412,31 @@ export default function LandingPWACta({ tenant }: Props) {
               Prenota, accumula punti fedeltà e ricevi offerte esclusive — tutto dal tuo telefono.
             </p>
 
+            {/* Bottone smart per piattaforma */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <StoreButton type="appstore" onClick={handleInstall} />
-              <StoreButton type="googleplay" onClick={handleInstall} />
+              {platform === 'android' && (
+                <InstallButton
+                  label="Aggiungi alla Home"
+                  onClick={handleAndroidInstall}
+                  primary={primary}
+                />
+              )}
+
+              {platform === 'ios' && (
+                <InstallButton
+                  label="Installa su iPhone"
+                  onClick={() => setModal('ios')}
+                  primary={primary}
+                />
+              )}
+
+              {platform === 'desktop' && (
+                <InstallButton
+                  label="Scarica sul telefono"
+                  onClick={() => setModal('qr')}
+                  primary={primary}
+                />
+              )}
             </div>
           </div>
 
@@ -243,102 +497,12 @@ export default function LandingPWACta({ tenant }: Props) {
         </div>
       </section>
 
-      {/* ── Install modal ── */}
-      {showModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Come installare l'app"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            padding: 16,
-            background: 'rgba(0,0,0,0.62)',
-            backdropFilter: 'blur(6px)',
-          }}
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 400,
-              background: '#FFFFFF',
-              borderRadius: 24,
-              padding: 28,
-              boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p style={{ fontWeight: 800, fontSize: 18, color: '#111', margin: '0 0 24px' }}>
-              Installa l&apos;app
-            </p>
-
-            {(modalPlatform === 'ios' || modalPlatform === 'generic') && (
-              <div style={{ marginBottom: 20 }}>
-                <p
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 11,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: primary,
-                    margin: '0 0 8px',
-                  }}
-                >
-                  Su iPhone
-                </p>
-                <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, margin: 0 }}>
-                  Apri con <strong>Safari</strong> → tocca <strong>Condividi ↑</strong> →{' '}
-                  <strong>&ldquo;Aggiungi alla schermata Home&rdquo;</strong>
-                </p>
-              </div>
-            )}
-
-            {(modalPlatform === 'android' || modalPlatform === 'generic') && (
-              <div style={{ marginBottom: 28 }}>
-                <p
-                  style={{
-                    fontWeight: 700,
-                    fontSize: 11,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: primary,
-                    margin: '0 0 8px',
-                  }}
-                >
-                  Su Android
-                </p>
-                <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, margin: 0 }}>
-                  In Chrome, tocca <strong>⋮</strong> →{' '}
-                  <strong>&ldquo;Installa app&rdquo;</strong> o{' '}
-                  <strong>&ldquo;Aggiungi a schermata Home&rdquo;</strong>
-                </p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowModal(false)}
-              style={{
-                width: '100%',
-                fontWeight: 700,
-                fontSize: 15,
-                color: '#FFFFFF',
-                background: primary,
-                border: 'none',
-                borderRadius: 99,
-                padding: '14px 0',
-                cursor: 'pointer',
-              }}
-            >
-              Capito
-            </button>
-          </div>
-        </div>
+      {/* ── Modals ── */}
+      {modal === 'ios' && (
+        <IOSModal onClose={() => setModal(null)} primary={primary} />
+      )}
+      {modal === 'qr' && pwaUrl && (
+        <QRModal url={pwaUrl} onClose={() => setModal(null)} />
       )}
     </>
   )
