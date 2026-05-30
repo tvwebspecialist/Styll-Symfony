@@ -188,7 +188,8 @@ export async function inviteTeamMember(
       .single()
     profiles = result.data
   } catch (e) {
-    // Profile not found, that's ok
+    // Profile not found during team member removal — non-critical
+    console.warn('[team] Profile lookup failed during removal:', e)
   }
 
   if (profiles) {

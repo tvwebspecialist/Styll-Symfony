@@ -278,14 +278,19 @@ export function UsersClient({
     setTenantsUser(p)
     setTenantsLoading(true)
     setUserTenants([])
-    getUserTenants(p.id).then((res) => {
-      setTenantsLoading(false)
-      if (!res.success) {
-        toast.error(res.error ?? 'Errore')
-        return
-      }
-      setUserTenants(res.data ?? [])
-    })
+    getUserTenants(p.id)
+      .then((res) => {
+        setTenantsLoading(false)
+        if (!res.success) {
+          toast.error(res.error ?? 'Errore')
+          return
+        }
+        setUserTenants(res.data ?? [])
+      })
+      .catch((err) => {
+        console.error('[users-client] error:', err)
+        setTenantsLoading(false)
+      })
   }
 
   async function copyToClipboard(text: string, idx: number) {

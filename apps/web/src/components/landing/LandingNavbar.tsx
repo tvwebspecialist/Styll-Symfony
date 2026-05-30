@@ -35,10 +35,10 @@ function buildBookingUrl(slug: string, runtimeLocation: ReturnType<typeof readRu
     || runtimeLocation.hostname.endsWith('.localhost')
   )) {
     const portSuffix = runtimeLocation.port ? `:${runtimeLocation.port}` : ''
-    return `${runtimeLocation.protocol}//localhost${portSuffix}/prenota?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app`
+    return `${runtimeLocation.protocol}//localhost${portSuffix}/prenota?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app&source=booking`
   }
 
-  return `https://${slug}-app.${rootDomain}/prenota`
+  return `https://${slug}-app.${rootDomain}/prenota?source=booking`
 }
 
 function getScrollOffset() {

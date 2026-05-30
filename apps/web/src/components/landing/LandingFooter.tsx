@@ -102,7 +102,7 @@ export default function LandingFooter({ tenant, locations }: Props) {
         ? `https://maps.google.com/?q=${encodeURIComponent([firstLocation.address, firstLocation.city].filter(Boolean).join(', '))}`
         : null
 
-  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
+  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota?source=booking`
   const { instagram, facebook, tiktok, whatsapp } = tenant.social_links
   const hasSocial = instagram || facebook || tiktok || whatsapp
   const contactPhone = tenant.contact_phone || firstLocation?.phone || null

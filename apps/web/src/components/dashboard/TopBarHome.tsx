@@ -61,7 +61,9 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
 
   React.useEffect(() => {
     if (open && !query) {
-      getRecentClients().then(setRecents)
+      getRecentClients()
+        .then(setRecents)
+        .catch((err) => console.error('[TopBarHome] error:', err))
     }
   }, [open, query])
 
@@ -70,10 +72,15 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
     if (!query.trim()) return
     debounceRef.current = setTimeout(() => {
       setLoading(true)
-      dashboardSearch(query).then((r) => {
-        setResults(r)
-        setLoading(false)
-      })
+      dashboardSearch(query)
+        .then((r) => {
+          setResults(r)
+          setLoading(false)
+        })
+        .catch((err) => {
+          console.error('[TopBarHome] error:', err)
+          setLoading(false)
+        })
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [query])

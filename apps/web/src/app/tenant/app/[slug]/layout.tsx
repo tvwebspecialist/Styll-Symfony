@@ -119,7 +119,10 @@ export default async function AppLayout({ params, children }: Props) {
     notFound()
   }
 
-  const clientProfile = await getClientProfile(tenant.tenant_id).catch(() => null)
+  const clientProfile = await getClientProfile(tenant.tenant_id).catch((err) => {
+    console.error('[app layout] Failed to load client profile:', err)
+    return null
+  })
 
   return (
     <>

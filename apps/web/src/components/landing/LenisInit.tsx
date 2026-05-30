@@ -8,18 +8,20 @@ export default function LenisInit() {
     let lenisDestroy: (() => void) | null = null
     let cancelled = false
 
-    import('lenis').then(({ default: Lenis }) => {
-      if (cancelled) return
+    import('lenis')
+      .then(({ default: Lenis }) => {
+        if (cancelled) return
 
-      const lenis = new Lenis({ lerp: 0.1 })
-      lenisDestroy = () => lenis.destroy()
+        const lenis = new Lenis({ lerp: 0.1 })
+        lenisDestroy = () => lenis.destroy()
 
-      function raf(time: number) {
-        lenis.raf(time)
+        function raf(time: number) {
+          lenis.raf(time)
+          rafId = requestAnimationFrame(raf)
+        }
         rafId = requestAnimationFrame(raf)
-      }
-      rafId = requestAnimationFrame(raf)
-    })
+      })
+      .catch((err) => console.error('[LenisInit] Failed to load lenis:', err))
 
     return () => {
       cancelled = true

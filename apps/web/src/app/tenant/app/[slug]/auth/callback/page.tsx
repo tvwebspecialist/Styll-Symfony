@@ -34,6 +34,9 @@ export default function AuthCallbackPage() {
           window.location.href = window.location.origin + '/'
         }
       })
+      .catch((err) => {
+        console.error('[auth/callback] setSession error:', err)
+      })
   }, [params.slug, router])
 
   return (
