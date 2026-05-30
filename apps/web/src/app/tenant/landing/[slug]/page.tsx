@@ -27,7 +27,6 @@ import LandingProducts from '@/components/landing/LandingProducts'
 import LandingGallery from '@/components/landing/LandingGallery'
 import LandingPWACta from '@/components/landing/LandingPWACta'
 import LandingFooter from '@/components/landing/LandingFooter'
-import LandingInstallBanner from '@/components/landing/LandingInstallBanner'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -221,11 +220,6 @@ export default async function LandingPage({ params }: Props) {
 
       </LandingLayout>
 
-      <LandingInstallBanner
-        tenantName={tenant.business_name}
-        logoUrl={tenant.logo_url}
-        primaryColor={tenant.primary_color}
-      />
     </>
   )
 }
