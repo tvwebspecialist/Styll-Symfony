@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   // TODO: remove after confirming OAuth callback is reached
-  console.log('[auth/callback] request.url:', request.url)
+  console.log('[auth/callback] OAuth callback received')
 
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
