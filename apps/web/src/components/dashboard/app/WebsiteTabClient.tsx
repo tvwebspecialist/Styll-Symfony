@@ -513,17 +513,8 @@ export function WebsiteTabClient({
   const valuesRef = React.useRef(values)
   const savedValuesRef = React.useRef(savedValues)
 
-  const isDirty = JSON.stringify(values) !== JSON.stringify(savedValues)
-
   function setValue<K extends keyof typeof values>(key: K, value: string) {
     setValues((v) => ({ ...v, [key]: value }))
-  }
-
-  function handleDiscard() {
-    setValues(savedValues)
-    setSaveStatus('idle')
-    setSaveError(null)
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
   }
 
   function buildPayload(v: typeof values) {

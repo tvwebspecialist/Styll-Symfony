@@ -140,7 +140,6 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
     return map
   }, [results])
 
-  const displayItems = query.trim() ? results : recents
   const showEmpty = query.trim() && !loading && results.length === 0
 
   return (

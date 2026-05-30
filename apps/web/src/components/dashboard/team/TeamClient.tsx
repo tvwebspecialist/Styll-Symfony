@@ -32,40 +32,6 @@ function getInitials(fullName: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function Avatar({ fullName, avatarUrl, size = 44 }: { fullName: string | null; avatarUrl: string | null; size?: number }) {
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={fullName ?? ''}
-        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      />
-    )
-  }
-  const initials = getInitials(fullName)
-  const bg = getAvatarColor(fullName ?? '?')
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        background: bg,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#FFFFFF',
-        fontSize: size * 0.36,
-        fontWeight: 700,
-        flexShrink: 0,
-        letterSpacing: '0.02em',
-      }}
-    >
-      {initials}
-    </div>
-  )
-}
-
 // ─── Role badge ───────────────────────────────────────────────────────────────
 
 const ROLE_STYLES: Record<string, { background: string; color: string; label: string }> = {
@@ -73,25 +39,6 @@ const ROLE_STYLES: Record<string, { background: string; color: string; label: st
   manager: { background: '#374151', color: '#FFFFFF', label: 'Manager' },
   staff: { background: '#F3F4F6', color: '#374151', label: 'Staff' },
   receptionist: { background: '#EFF6FF', color: '#1D4ED8', label: 'Receptionist' },
-}
-
-function RoleBadge({ role }: { role: string }) {
-  const style = ROLE_STYLES[role] ?? { background: '#F3F4F6', color: '#374151', label: role }
-  return (
-    <span
-      style={{
-        ...style,
-        fontSize: 11,
-        fontWeight: 600,
-        padding: '3px 8px',
-        borderRadius: 999,
-        whiteSpace: 'nowrap',
-        flexShrink: 0,
-      }}
-    >
-      {style.label}
-    </span>
-  )
 }
 
 // ─── Invite Modal ─────────────────────────────────────────────────────────────

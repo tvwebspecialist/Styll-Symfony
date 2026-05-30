@@ -254,7 +254,6 @@ export async function inviteTeamMember(
     tenantName,
     inviterName,
     role,
-    invitationToken: token,
     invitationLink,
   })
 
