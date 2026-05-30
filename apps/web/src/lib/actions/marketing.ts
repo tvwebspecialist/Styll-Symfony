@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getActiveTenantId } from '@/lib/tenant-context'
 
 export interface RetentionClient {
   id:             string
@@ -19,6 +20,11 @@ export interface RetentionData {
 const EMPTY: RetentionData = { rischio: [], winback: [], persi: [] }
 
 export async function getRetentionData(tenantId: string): Promise<RetentionData> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   try {
     const db = createAdminClient()
 
