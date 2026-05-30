@@ -11,7 +11,7 @@ export default function LandingHero({ tenant }: Props) {
   const tagline = tenant.tagline?.trim() || null
   const description = tenant.description?.trim() || null
 
-  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota`
+  const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota?source=booking`
 
   return (
     <section

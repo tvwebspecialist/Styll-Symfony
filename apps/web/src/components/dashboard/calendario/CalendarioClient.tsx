@@ -555,10 +555,15 @@ function ApptDetailModal({
                 onChange={(v) => {
                   setViewStatus(v)
                   setQuickSaving(true)
-                  void updateAppointmentStatus(appt.id, v, appt.notes).then((res) => {
-                    setQuickSaving(false)
-                    if (res.success) onUpdated()
-                  })
+                  void updateAppointmentStatus(appt.id, v, appt.notes)
+                    .then((res) => {
+                      setQuickSaving(false)
+                      if (res.success) onUpdated()
+                    })
+                    .catch((err) => {
+                      console.error('[CalendarioClient] error:', err)
+                      setQuickSaving(false)
+                    })
                 }}
                 options={Object.entries(STATUS_LABELS).map(([val, lbl]) => ({ value: val, label: lbl }))}
               />
@@ -682,16 +687,18 @@ function NewApptModal({
   // Reload locations whenever selected staff changes
   React.useEffect(() => {
     if (!staffId) return
-    getStaffLocations(staffId, tenantId).then((locs) => {
-      setLocations(locs)
-      if (locs.length === 1) {
-        setLocationId(locs[0].id)
-      } else if (locs.length > 1) {
-        setLocationId((prev) => (locs.find((l) => l.id === prev) ? prev : locs[0].id))
-      } else {
-        setLocationId('')
-      }
-    })
+    getStaffLocations(staffId, tenantId)
+      .then((locs) => {
+        setLocations(locs)
+        if (locs.length === 1) {
+          setLocationId(locs[0].id)
+        } else if (locs.length > 1) {
+          setLocationId((prev) => (locs.find((l) => l.id === prev) ? prev : locs[0].id))
+        } else {
+          setLocationId('')
+        }
+      })
+      .catch((err) => console.error('[CalendarioClient] error:', err))
   }, [staffId, tenantId])
 
   async function handleSubmit(e: React.FormEvent) {

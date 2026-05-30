@@ -37,28 +37,34 @@ export function useLenis() {
     if (prefersReducedMotion) return
 
     let rafId: number
+    let cancelled = false
 
     // Dynamic import keeps Lenis out of the server bundle
-    import('lenis').then(({ default: LenisClass }) => {
-      const lenis = new LenisClass({
-        lerp: 0.1,
-        duration: 1.2,
-        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        orientation: 'vertical',
-        smoothWheel: true,
-      })
+    import('lenis')
+      .then(({ default: LenisClass }) => {
+        if (cancelled) return
 
-      lenisRef.current = lenis
-      _lenis = lenis
+        const lenis = new LenisClass({
+          lerp: 0.1,
+          duration: 1.2,
+          easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+          orientation: 'vertical',
+          smoothWheel: true,
+        })
 
-      function raf(time: number) {
-        lenis.raf(time)
+        lenisRef.current = lenis
+        _lenis = lenis
+
+        function raf(time: number) {
+          lenis.raf(time)
+          rafId = requestAnimationFrame(raf)
+        }
         rafId = requestAnimationFrame(raf)
-      }
-      rafId = requestAnimationFrame(raf)
-    })
+      })
+      .catch((err) => console.error('[useLenis] Failed to load lenis:', err))
 
     return () => {
+      cancelled = true
       cancelAnimationFrame(rafId)
       lenisRef.current?.destroy()
       lenisRef.current = null

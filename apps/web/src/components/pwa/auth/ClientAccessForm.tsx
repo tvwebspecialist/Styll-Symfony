@@ -117,6 +117,10 @@ export function ClientAccessForm({
           setIsProcessingHash(false)
         }
       })
+      .catch((err) => {
+        console.error('[ClientAccessForm] setSession error:', err)
+        setIsProcessingHash(false)
+      })
   }, [])
 
   function bannerClasses(tone: 'success' | 'error' | 'warning') {

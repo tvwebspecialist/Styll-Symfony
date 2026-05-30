@@ -145,7 +145,9 @@ export function Messaggi({ tenantId }: MessaggiProps) {
   }
 
   React.useEffect(() => {
-    getSegmentCounts(tenantId).then(setSegmentCounts)
+    getSegmentCounts(tenantId)
+      .then(setSegmentCounts)
+      .catch((err) => console.error('[Messaggi] error:', err))
   }, [tenantId])
 
   /* Default-card toggles (local-only — no DB table exists) */
@@ -171,17 +173,19 @@ export function Messaggi({ tenantId }: MessaggiProps) {
             a.id === automation.id ? { ...a, isActive: newActive } : a) }
         : prev
     )
-    toggleAutomation(automation.id, newActive).then((res) => {
-      if (!res.success) {
-        // Rollback on failure
-        setData((prev) =>
-          prev
-            ? { ...prev, automations: prev.automations.map((a) =>
-                a.id === automation.id ? { ...a, isActive: !newActive } : a) }
-            : prev
-        )
-      }
-    })
+    toggleAutomation(automation.id, newActive)
+      .then((res) => {
+        if (!res.success) {
+          // Rollback on failure
+          setData((prev) =>
+            prev
+              ? { ...prev, automations: prev.automations.map((a) =>
+                  a.id === automation.id ? { ...a, isActive: !newActive } : a) }
+              : prev
+          )
+        }
+      })
+      .catch((err) => console.error('[Messaggi] error:', err))
   }
 
   const hasRealAutomations = (data?.automations.length ?? 0) > 0

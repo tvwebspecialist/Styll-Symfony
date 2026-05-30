@@ -44,13 +44,18 @@ export function StaffAvailabilityEditor({ member, onClose }: Props) {
 
   React.useEffect(() => {
     let cancelled = false
-    getStaffAvailability(member.id).then((data) => {
-      if (!cancelled) {
-        setDays(data.days)
-        setLocations(data.locations)
-        setLoading(false)
-      }
-    })
+    getStaffAvailability(member.id)
+      .then((data) => {
+        if (!cancelled) {
+          setDays(data.days)
+          setLocations(data.locations)
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error('[StaffAvailabilityEditor] error:', err)
+        if (!cancelled) setLoading(false)
+      })
     return () => { cancelled = true }
   }, [member.id])
 

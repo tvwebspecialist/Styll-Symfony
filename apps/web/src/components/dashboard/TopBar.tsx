@@ -70,7 +70,9 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
   // Load recent clients when dropdown opens with no query
   React.useEffect(() => {
     if (open && !query) {
-      getRecentClients().then(setRecents)
+      getRecentClients()
+        .then(setRecents)
+        .catch((err) => console.error('[TopBar] error:', err))
     }
   }, [open, query])
 
@@ -83,10 +85,15 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
     }
     setLoading(true)
     debounceRef.current = setTimeout(() => {
-      dashboardSearch(query).then((r) => {
-        setResults(r)
-        setLoading(false)
-      })
+      dashboardSearch(query)
+        .then((r) => {
+          setResults(r)
+          setLoading(false)
+        })
+        .catch((err) => {
+          console.error('[TopBar] error:', err)
+          setLoading(false)
+        })
     }, 300)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [query])
