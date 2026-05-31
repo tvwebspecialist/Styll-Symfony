@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { MARKETING } from '@/lib/constants'
 
 export interface RetentionClient {
   id:             string
@@ -58,7 +59,7 @@ export async function getRetentionData(tenantId: string): Promise<RetentionData>
       } else {
         // red — winback if still within 3× personal frequency, otherwise persi
         const avg = row.avg_frequency_days
-        segment = avg != null && days <= avg * 3 ? 'winback' : 'persi'
+        segment = avg != null && days <= avg * MARKETING.WINBACK_MULTIPLIER ? 'winback' : 'persi'
       }
 
       grouped[segment].push({ clientId: row.client_id, days })

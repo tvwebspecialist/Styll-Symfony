@@ -1,6 +1,7 @@
 import { cookies, headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { MANAGER_ROLES } from '@/lib/constants'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 const DASHBOARD_SUFFIX = '-dashboard'
@@ -157,7 +158,7 @@ export async function getStaffImpersonationState(): Promise<StaffImpersonationSt
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!callerStaff || !(['owner', 'manager'] as string[]).includes(callerStaff.role)) return none
+  if (!callerStaff || !MANAGER_ROLES.includes(callerStaff.role as typeof MANAGER_ROLES[number])) return none
 
   const profile = targetStaff.profiles as { full_name?: string | null } | null
   return {

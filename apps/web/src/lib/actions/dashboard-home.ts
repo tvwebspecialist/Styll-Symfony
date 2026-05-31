@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { getLocalMinutes } from '@/lib/utils/timezone'
+import { DASHBOARD_HOURS, DEFAULT_TIMEZONE } from '@/lib/constants'
 
 export interface TodayAppointment {
   id: string
@@ -163,13 +164,13 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const bookedSet = new Set<string>()
   for (const appt of weekRes.data ?? []) {
     const d = (appt as any).start_time?.slice(0, 10)
-    const h = Math.floor(getLocalMinutes((appt as any).start_time, 'Europe/Rome') / 60)
-    if (d && h >= 8 && h <= 19) bookedSet.add(`${d}:${h}`)
+    const h = Math.floor(getLocalMinutes((appt as any).start_time, DEFAULT_TIMEZONE) / 60)
+    if (d && h >= DASHBOARD_HOURS.SLOT_START && h <= DASHBOARD_HOURS.SLOT_END) bookedSet.add(`${d}:${h}`)
   }
   for (let d = 0; d < 6; d++) {
     const date = new Date(weekMonday.getTime() + d * 86400000)
     const dateStr = date.toISOString().slice(0, 10)
-    for (let h = 9; h <= 18; h++) {
+    for (let h = DASHBOARD_HOURS.RANGE_START; h <= DASHBOARD_HOURS.RANGE_END; h++) {
       weekSlots.push({ date: dateStr, hour: h, is_booked: bookedSet.has(`${dateStr}:${h}`) })
     }
   }

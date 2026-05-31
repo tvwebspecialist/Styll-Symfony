@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { APPOINTMENT_STATUS } from '@/lib/constants'
 
 export interface SlotItem {
   time: string
@@ -172,8 +173,8 @@ export async function getAvailableSlots({
     .is('deleted_at', null)
     .gte('start_time', `${date}T00:00:00`)
     .lt('start_time', `${nextDate}T00:00:00`)
-    .neq('status', 'cancelled')
-    .neq('status', 'no_show')
+    .neq('status', APPOINTMENT_STATUS.CANCELLED)
+    .neq('status', APPOINTMENT_STATUS.NO_SHOW)
 
   // Convert appointments to local-time minute ranges
   const busyWindows = ((appointmentRows ?? []) as AppointmentWindow[]).map((appt) => {

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { IMPERSONATE_STAFF_COOKIE } from '@/lib/tenant-context'
+import { MANAGER_ROLES } from '@/lib/constants'
 
 export interface ActionResult {
   success: boolean
@@ -38,7 +39,7 @@ export async function startStaffImpersonation(staffMemberId: string): Promise<Ac
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!callerStaff || !(['owner', 'manager'] as string[]).includes(callerStaff.role)) {
+  if (!callerStaff || !MANAGER_ROLES.includes(callerStaff.role as typeof MANAGER_ROLES[number])) {
     return { success: false, error: 'Permessi insufficienti.' }
   }
 

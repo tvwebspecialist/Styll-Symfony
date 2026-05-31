@@ -54,8 +54,8 @@ importers:
         specifier: ^1.3.23
         version: 1.3.23(react@19.2.6)
       lucide-react:
-        specifier: ^0.456.0
-        version: 0.456.0(react@19.2.6)
+        specifier: ^1.17.0
+        version: 1.17.0(react@19.2.6)
       next:
         specifier: 16.2.6
         version: 16.2.6(@babel/core@7.29.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -78,8 +78,8 @@ importers:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@19.2.15)(react-dom@19.2.6(react@19.2.6))(react-is@16.13.1)(react@19.2.6)(redux@5.0.1)
       resend:
-        specifier: ^3.0.0
-        version: 3.5.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: ^6.12.4
+        version: 6.12.4(@react-email/render@0.0.16(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       shadcn:
         specifier: ^4.4.0
         version: 4.5.0(@types/node@20.19.39)(typescript@5.9.3)
@@ -1354,8 +1354,8 @@ packages:
   brace-expansion@1.1.14:
     resolution: {integrity: sha512-MWPGfDxnyzKU7rNOW9SP/c50vi3xrmrua/+6hfPbCS2ABNWfx24vPidzvC7krjU/RTo235sV776ymlsMtGKj8g==}
 
-  brace-expansion@2.1.0:
-    resolution: {integrity: sha512-TN1kCZAgdgweJhWWpgKYrQaMNHcDULHkWwQIspdtjV4Y5aurRdZpjAqn6yX3FPqTA9ngHCc4hJxMAMgGfve85w==}
+  brace-expansion@2.1.1:
+    resolution: {integrity: sha512-WR1cURNjuvBLMZBMbqM0UoE+WAfdUcEV1ccD8PVBVOI+Z3ND4+SZbN8RsfT2bMuG1qwz5RFvPukSZm5fF2D5eA==}
 
   brace-expansion@5.0.5:
     resolution: {integrity: sha512-VZznLgtwhn+Mact9tfiwx64fA9erHH/MCXEUfB/0bX/6Fz6ny5EGTXYltMocqg4xFAQZtnO3DHWWXi8RiuN7cQ==}
@@ -2630,10 +2630,10 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@0.456.0:
-    resolution: {integrity: sha512-DIIGJqTT5X05sbAsQ+OhA8OtJYyD4NsEMCA/HQW/Y6ToPQ7gwbtujIoeAaup4HpHzV35SQOarKAWH8LYglB6eA==}
+  lucide-react@1.17.0:
+    resolution: {integrity: sha512-9FA9evdox/JQL5PT57fdA1x/yg8T7knJ98+zjTL3UfKza6pflQUUh3XtaQIHKvnsJw1lmsEyHVlt5jchYxOQ5w==}
     peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -2949,6 +2949,9 @@ packages:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
 
+  postal-mime@2.7.4:
+    resolution: {integrity: sha512-0WdnFQYUrPGGTFu1uOqD2s7omwua8xaeYGdO6rb88oD5yJ/4pPHDA4sdWqfD8wQVfCny563n/HQS7zTFft+f/g==}
+
   postcss-selector-parser@7.1.1:
     resolution: {integrity: sha512-orRsuYpJVw8LdAwqqLykBj9ecS5/cRHlI5+nvTo8LcCKmzDmqVORXtOIYEEQuL9D4BxtA1lm5isAqzQZCoQ6Eg==}
     engines: {node: '>=4'}
@@ -3080,9 +3083,14 @@ packages:
   reselect@5.2.0:
     resolution: {integrity: sha512-AgZ3UOZm3YndfrJ4OYjgrT7bmCm/1iqkjvEfH/oYjzh6PD2qw4QuT3jjnXIrpdt4MTpMXclMT3lXbmRY+XRakw==}
 
-  resend@3.5.0:
-    resolution: {integrity: sha512-bKu4LhXSecP6krvhfDzyDESApYdNfjirD5kykkT1xO0Cj9TKSiGh5Void4pGTs3Am+inSnp4dg0B5XzdwHBJOQ==}
-    engines: {node: '>=18'}
+  resend@6.12.4:
+    resolution: {integrity: sha512-lRpJ2Hxd+ht+JPDm97juRcUp9HOMuZyxaRFRFmc9Tx8iNWiei94Dx9v6SWufgKk2667C/uCeKKspMotOHSpCSg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@react-email/render': '*'
+    peerDependenciesMeta:
+      '@react-email/render':
+        optional: true
 
   resolve-from@4.0.0:
     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
@@ -3141,11 +3149,6 @@ packages:
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
-    hasBin: true
-
-  semver@7.7.4:
-    resolution: {integrity: sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA==}
-    engines: {node: '>=10'}
     hasBin: true
 
   semver@7.8.1:
@@ -4207,6 +4210,7 @@ snapshots:
       strip-ansi-cjs: strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
+    optional: true
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4317,7 +4321,8 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@one-ini/wasm@0.1.1': {}
+  '@one-ini/wasm@0.1.1':
+    optional: true
 
   '@open-draft/deferred-promise@2.2.0': {}
 
@@ -4340,6 +4345,7 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
       react-promise-suspense: 0.3.4
+    optional: true
 
   '@reduxjs/toolkit@2.11.2(react-redux@9.2.0(@types/react@19.2.15)(react@19.2.6)(redux@5.0.1))(react@19.2.6)':
     dependencies:
@@ -4361,6 +4367,7 @@ snapshots:
     dependencies:
       domhandler: 5.0.3
       selderee: 0.11.0
+    optional: true
 
   '@sindresorhus/merge-streams@4.0.0': {}
 
@@ -4715,7 +4722,8 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  abbrev@2.0.0: {}
+  abbrev@2.0.0:
+    optional: true
 
   accepts@2.0.0:
     dependencies:
@@ -4756,7 +4764,8 @@ snapshots:
     dependencies:
       color-convert: 2.0.1
 
-  ansi-styles@6.2.3: {}
+  ansi-styles@6.2.3:
+    optional: true
 
   argparse@2.0.1: {}
 
@@ -4872,9 +4881,10 @@ snapshots:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
-  brace-expansion@2.1.0:
+  brace-expansion@2.1.1:
     dependencies:
       balanced-match: 1.0.2
+    optional: true
 
   brace-expansion@5.0.5:
     dependencies:
@@ -4962,7 +4972,8 @@ snapshots:
 
   color-name@1.1.4: {}
 
-  commander@10.0.1: {}
+  commander@10.0.1:
+    optional: true
 
   commander@11.1.0: {}
 
@@ -4974,6 +4985,7 @@ snapshots:
     dependencies:
       ini: 1.3.8
       proto-list: 1.2.4
+    optional: true
 
   content-disposition@1.1.0: {}
 
@@ -5123,18 +5135,22 @@ snapshots:
       domelementtype: 2.3.0
       domhandler: 5.0.3
       entities: 4.5.0
+    optional: true
 
-  domelementtype@2.3.0: {}
+  domelementtype@2.3.0:
+    optional: true
 
   domhandler@5.0.3:
     dependencies:
       domelementtype: 2.3.0
+    optional: true
 
   domutils@3.2.2:
     dependencies:
       dom-serializer: 2.0.0
       domelementtype: 2.3.0
       domhandler: 5.0.3
+    optional: true
 
   dotenv@17.4.2: {}
 
@@ -5144,7 +5160,8 @@ snapshots:
       es-errors: 1.3.0
       gopd: 1.2.0
 
-  eastasianwidth@0.2.0: {}
+  eastasianwidth@0.2.0:
+    optional: true
 
   eciesjs@0.4.18:
     dependencies:
@@ -5158,7 +5175,8 @@ snapshots:
       '@one-ini/wasm': 0.1.1
       commander: 10.0.1
       minimatch: 9.0.9
-      semver: 7.7.4
+      semver: 7.8.1
+    optional: true
 
   ee-first@1.1.1: {}
 
@@ -5177,7 +5195,8 @@ snapshots:
       graceful-fs: 4.2.11
       tapable: 2.3.3
 
-  entities@4.5.0: {}
+  entities@4.5.0:
+    optional: true
 
   env-paths@2.2.1: {}
 
@@ -5580,7 +5599,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  fast-deep-equal@2.0.1: {}
+  fast-deep-equal@2.0.1:
+    optional: true
 
   fast-deep-equal@3.1.3: {}
 
@@ -5674,6 +5694,7 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
+    optional: true
 
   formdata-polyfill@4.0.10:
     dependencies:
@@ -5774,6 +5795,7 @@ snapshots:
       minipass: 7.1.3
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
+    optional: true
 
   globals@14.0.0: {}
 
@@ -5836,6 +5858,7 @@ snapshots:
       dom-serializer: 2.0.0
       htmlparser2: 8.0.2
       selderee: 0.11.0
+    optional: true
 
   htmlparser2@8.0.2:
     dependencies:
@@ -5843,6 +5866,7 @@ snapshots:
       domhandler: 5.0.3
       domutils: 3.2.2
       entities: 4.5.0
+    optional: true
 
   http-errors@2.0.1:
     dependencies:
@@ -5886,7 +5910,8 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ini@1.3.8: {}
+  ini@1.3.8:
+    optional: true
 
   internal-slot@1.1.0:
     dependencies:
@@ -6068,6 +6093,7 @@ snapshots:
       '@isaacs/cliui': 8.0.2
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
+    optional: true
 
   jiti@2.6.1: {}
 
@@ -6080,8 +6106,10 @@ snapshots:
       glob: 10.5.0
       js-cookie: 3.0.8
       nopt: 7.2.1
+    optional: true
 
-  js-cookie@3.0.8: {}
+  js-cookie@3.0.8:
+    optional: true
 
   js-tokens@4.0.0: {}
 
@@ -6141,7 +6169,8 @@ snapshots:
     dependencies:
       language-subtag-registry: 0.3.23
 
-  leac@0.6.0: {}
+  leac@0.6.0:
+    optional: true
 
   lenis@1.3.23(react@19.2.6):
     optionalDependencies:
@@ -6218,13 +6247,14 @@ snapshots:
     dependencies:
       js-tokens: 4.0.0
 
-  lru-cache@10.4.3: {}
+  lru-cache@10.4.3:
+    optional: true
 
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.456.0(react@19.2.6):
+  lucide-react@1.17.0(react@19.2.6):
     dependencies:
       react: 19.2.6
 
@@ -6267,11 +6297,13 @@ snapshots:
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.0
+      brace-expansion: 2.1.1
+    optional: true
 
   minimist@1.2.8: {}
 
-  minipass@7.1.3: {}
+  minipass@7.1.3:
+    optional: true
 
   motion-dom@12.40.0:
     dependencies:
@@ -6367,6 +6399,7 @@ snapshots:
   nopt@7.2.1:
     dependencies:
       abbrev: 2.0.0
+    optional: true
 
   npm-run-path@4.0.1:
     dependencies:
@@ -6483,7 +6516,8 @@ snapshots:
     dependencies:
       p-limit: 3.1.0
 
-  package-json-from-dist@1.0.1: {}
+  package-json-from-dist@1.0.1:
+    optional: true
 
   papaparse@5.5.3: {}
 
@@ -6504,6 +6538,7 @@ snapshots:
     dependencies:
       leac: 0.6.0
       peberminta: 0.9.0
+    optional: true
 
   parseurl@1.3.3: {}
 
@@ -6521,12 +6556,14 @@ snapshots:
     dependencies:
       lru-cache: 10.4.3
       minipass: 7.1.3
+    optional: true
 
   path-to-regexp@6.3.0: {}
 
   path-to-regexp@8.4.2: {}
 
-  peberminta@0.9.0: {}
+  peberminta@0.9.0:
+    optional: true
 
   picocolors@1.1.1: {}
 
@@ -6537,6 +6574,8 @@ snapshots:
   pkce-challenge@5.0.1: {}
 
   possible-typed-array-names@1.1.0: {}
+
+  postal-mime@2.7.4: {}
 
   postcss-selector-parser@7.1.1:
     dependencies:
@@ -6574,7 +6613,8 @@ snapshots:
       object-assign: 4.1.1
       react-is: 16.13.1
 
-  proto-list@1.2.4: {}
+  proto-list@1.2.4:
+    optional: true
 
   proxy-addr@2.0.7:
     dependencies:
@@ -6612,6 +6652,7 @@ snapshots:
   react-promise-suspense@0.3.4:
     dependencies:
       fast-deep-equal: 2.0.1
+    optional: true
 
   react-redux@9.2.0(@types/react@19.2.15)(react@19.2.6)(redux@5.0.1):
     dependencies:
@@ -6686,12 +6727,12 @@ snapshots:
 
   reselect@5.2.0: {}
 
-  resend@3.5.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+  resend@6.12.4(@react-email/render@0.0.16(react-dom@19.2.6(react@19.2.6))(react@19.2.6)):
     dependencies:
+      postal-mime: 2.7.4
+      standardwebhooks: 1.0.0
+    optionalDependencies:
       '@react-email/render': 0.0.16(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-    transitivePeerDependencies:
-      - react
-      - react-dom
 
   resolve-from@4.0.0: {}
 
@@ -6757,10 +6798,9 @@ snapshots:
   selderee@0.11.0:
     dependencies:
       parseley: 0.12.1
+    optional: true
 
   semver@6.3.1: {}
-
-  semver@7.7.4: {}
 
   semver@7.8.1: {}
 
@@ -6968,6 +7008,7 @@ snapshots:
       eastasianwidth: 0.2.0
       emoji-regex: 9.2.2
       strip-ansi: 7.2.0
+    optional: true
 
   string-width@7.2.0:
     dependencies:
@@ -7328,6 +7369,7 @@ snapshots:
       ansi-styles: 6.2.3
       string-width: 5.1.2
       strip-ansi: 7.2.0
+    optional: true
 
   wrappy@1.0.2: {}
 

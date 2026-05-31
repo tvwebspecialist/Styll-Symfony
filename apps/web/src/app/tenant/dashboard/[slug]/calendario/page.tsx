@@ -6,6 +6,7 @@ import { getCalendarioData } from '@/lib/actions/calendario'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { getWeekMonday } from '@/lib/utils/week'
 import { CalendarioClient } from '@/components/dashboard/calendario/CalendarioClient'
+import { MANAGER_ROLES } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,7 @@ export default async function CalendarioPage({
     .is('deleted_at', null)
     .maybeSingle()
 
-  const isManagerOrOwner = ['owner', 'manager'].includes(myStaff?.role ?? '')
+  const isManagerOrOwner = MANAGER_ROLES.includes((myStaff?.role ?? '') as typeof MANAGER_ROLES[number])
   // When in day view, use the day itself as the week start so we load that week's data
   const weekStart = getWeekMonday(dayParam ?? weekParam)
 
