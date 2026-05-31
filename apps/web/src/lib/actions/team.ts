@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { MANAGER_ROLES } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export async function inviteTeamMember(
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (staffError || !staffData || !['owner', 'manager'].includes(staffData.role)) {
+  if (staffError || !staffData || !MANAGER_ROLES.includes(staffData.role as typeof MANAGER_ROLES[number])) {
     return { success: false, error: 'Non hai i permessi per invitare membri' }
   }
 
@@ -296,7 +297,7 @@ export async function updateStaffRole(
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!currentStaff || !(['owner', 'manager'] as string[]).includes(currentStaff.role)) {
+  if (!currentStaff || !MANAGER_ROLES.includes(currentStaff.role as typeof MANAGER_ROLES[number])) {
     return { success: false, error: 'Non hai i permessi per modificare i membri' }
   }
 
