@@ -21,8 +21,8 @@ import {
   Mail,
   MessageCircle,
   Music2,
-  Facebook,
-  Instagram,
+  AtSign,
+  Globe,
   Plus,
   X,
   Wand2,
@@ -1065,8 +1065,8 @@ export function WebsiteTabClient({
               { key: 'contactPhone' as const, label: 'Telefono principale', placeholder: '+39 000 000 0000', icon: Phone },
               { key: 'contactEmail' as const, label: 'Email', placeholder: 'info@tuosalone.it', icon: Mail },
               { key: 'contactWhatsapp' as const, label: 'WhatsApp', placeholder: '+39 000 000 0000', icon: MessageCircle },
-              { key: 'socialInstagram' as const, label: 'Instagram', placeholder: '@tuosalone', icon: Instagram },
-              { key: 'socialFacebook' as const, label: 'Facebook', placeholder: 'facebook.com/tuosalone', icon: Facebook },
+              { key: 'socialInstagram' as const, label: 'Instagram', placeholder: '@tuosalone', icon: AtSign },
+              { key: 'socialFacebook' as const, label: 'Facebook', placeholder: 'facebook.com/tuosalone', icon: Globe },
               { key: 'socialTiktok' as const, label: 'TikTok', placeholder: '@tuosalone', icon: Music2 },
             ].map(({ key, label, placeholder, icon: FieldIcon }) => (
               <div key={key}>
