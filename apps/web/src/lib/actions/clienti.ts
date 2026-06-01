@@ -446,13 +446,18 @@ export async function getClienteDettaglio(
     svcsByAppt.set(s.appointment_id, arr)
   }
 
+  // O(1) lookup map — built once, replaces appts.find() in both reduces
+  const apptStatusMap = new Map(
+    appts.map((a) => [a.id, a.status])
+  )
+
   const svcSpend = svcRows.reduce((sum, s) => {
-    const a = appts.find((x) => x.id === s.appointment_id)
-    return a?.status === 'completed' ? sum + Number(s.price_at_booking) : sum
+    const status = apptStatusMap.get(s.appointment_id)
+    return status === 'completed' ? sum + Number(s.price_at_booking) : sum
   }, 0)
   const prodSpend = prodRows.reduce((sum, p) => {
-    const a = appts.find((x) => x.id === p.appointment_id)
-    return a?.status === 'completed' ? sum + Number(p.price_at_sale) * Number(p.quantity) : sum
+    const status = apptStatusMap.get(p.appointment_id)
+    return status === 'completed' ? sum + Number(p.price_at_sale) * Number(p.quantity) : sum
   }, 0)
   const totalSpent = svcSpend + prodSpend
   const avgSpend = completed.length ? Math.round(totalSpent / completed.length) : 0
