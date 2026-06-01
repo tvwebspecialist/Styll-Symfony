@@ -271,7 +271,7 @@ export default function LandingNavbar({ tenant, sections }: Props) {
               </svg>
             </button>
 
-            {/* CTA button */}
+            {/* CTA button — hidden on mobile */}
             <Link
               href={bookingUrl}
               aria-label={`Prenota da ${tenant.business_name}`}
@@ -286,7 +286,6 @@ export default function LandingNavbar({ tenant, sections }: Props) {
                 textDecoration: 'none',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.2s ease',
-                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
               }}
