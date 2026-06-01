@@ -237,9 +237,10 @@ function LocationCard({
               background: primaryColor ?? 'rgba(255,255,255,0.18)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              padding: '5px 11px',
+              padding: '10px 14px',
               borderRadius: 99,
               letterSpacing: '0.01em',
+              minHeight: 44,
             }}
           >
             <MapPin size={11} strokeWidth={2.5} aria-hidden="true" />
@@ -303,6 +304,41 @@ function StackedCard({
   )
 }
 
+// ── Mobile vertical list ──────────────────────────────────────────────────────
+
+function MobileLocationsList({
+  locations,
+  locationsDescription,
+  primaryColor,
+}: {
+  locations: LandingLocation[]
+  locationsDescription?: string | null
+  primaryColor?: string
+}) {
+  return (
+    <div style={{ padding: '60px 0 48px' }}>
+      <div style={{ textAlign: 'center', padding: '0 20px', marginBottom: 32 }}>
+        <h2
+          className="font-black text-[#0A0A0A]"
+          style={{ fontSize: 'clamp(28px, 8vw, 40px)', letterSpacing: '-0.025em', margin: 0 }}
+        >
+          Le nostre sedi
+        </h2>
+        {locationsDescription && (
+          <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+            {locationsDescription}
+          </p>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 16px' }}>
+        {locations.map((loc) => (
+          <LocationCard key={loc.id} location={loc} primaryColor={primaryColor} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Stacked cards sticky-scroll container ─────────────────────────────────────
 
 function MultiLocationContent({
@@ -322,54 +358,65 @@ function MultiLocationContent({
   })
 
   return (
-    // (N+1) × 100vh: N slots for sequential entries + 1 slot with all cards settled
-    <div ref={sectionRef} style={{ height: `${(locations.length + 1) * 100}vh` }}>
-      <div
-        style={{
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          overflow: 'hidden',
-          background: 'white',
-        }}
-      >
-        {/* Title — centered at top of sticky canvas, always visible */}
+    <>
+      {/* Mobile: simple vertical list */}
+      <div className="block md:hidden">
+        <MobileLocationsList
+          locations={locations}
+          locationsDescription={locationsDescription}
+          primaryColor={primaryColor}
+        />
+      </div>
+
+      {/* Desktop: stacked scroll animation — (N+1) × 100vh */}
+      <div ref={sectionRef} className="hidden md:block" style={{ height: `${(locations.length + 1) * 100}vh` }}>
         <div
           style={{
-            position: 'absolute',
-            top: '10%',
-            left: 0,
-            right: 0,
-            textAlign: 'center',
-            padding: '0 20px',
+            position: 'sticky',
+            top: 0,
+            height: '100vh',
+            overflow: 'hidden',
+            background: 'white',
           }}
         >
-          <h2
-            className="font-black text-[#0A0A0A]"
-            style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
+          {/* Title — centered at top of sticky canvas, always visible */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '10%',
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              padding: '0 20px',
+            }}
           >
-            Le nostre sedi
-          </h2>
-          {locationsDescription && (
-            <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
-              {locationsDescription}
-            </p>
-          )}
-        </div>
+            <h2
+              className="font-black text-[#0A0A0A]"
+              style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', letterSpacing: '-0.025em' }}
+            >
+              Le nostre sedi
+            </h2>
+            {locationsDescription && (
+              <p style={{ fontSize: 15, color: 'rgba(0,0,0,0.5)', marginTop: 8 }}>
+                {locationsDescription}
+              </p>
+            )}
+          </div>
 
-        {/* Cards — all positioned at the same spot, rise sequentially */}
-        {locations.map((loc, i) => (
-          <StackedCard
-            key={loc.id}
-            location={loc}
-            primaryColor={primaryColor}
-            scrollYProgress={scrollYProgress}
-            index={i}
-            total={locations.length}
-          />
-        ))}
+          {/* Cards — all positioned at the same spot, rise sequentially */}
+          {locations.map((loc, i) => (
+            <StackedCard
+              key={loc.id}
+              location={loc}
+              primaryColor={primaryColor}
+              scrollYProgress={scrollYProgress}
+              index={i}
+              total={locations.length}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
