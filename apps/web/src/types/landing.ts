@@ -85,6 +85,11 @@ export interface LandingService {
   color: string | null
 }
 
+export interface LandingProductInventoryItem {
+  locationName: string
+  quantity: number
+}
+
 export interface LandingProduct {
   id: string
   name: string
@@ -94,6 +99,8 @@ export interface LandingProduct {
   photo_url: string | null
   description: string | null
   display_order: number
+  /** Per-location stock. Empty array means no inventory data available. */
+  inventory: LandingProductInventoryItem[]
 }
 
 export interface LandingSections {

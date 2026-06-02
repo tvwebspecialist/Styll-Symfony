@@ -6,26 +6,98 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { pauseLenis, resumeLenis } from '@/hooks/useLenis'
 import type { LandingProduct } from '@/types/landing'
 
-interface Props {
-  product: LandingProduct | null
-  onClose: () => void
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatPrice(price: number): string {
   return price.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
 }
 
+// ── Availability section ──────────────────────────────────────────────────────
+
+function AvailabilitySection({ inventory }: { inventory: LandingProduct['inventory'] }) {
+  if (inventory.length === 0) return null
+
+  const inStock = inventory.filter((i) => i.quantity > 0)
+
+  return (
+    <div>
+      <div style={{ height: 1, background: '#F0F0F0', margin: '20px 0 16px' }} />
+      <p
+        style={{
+          margin: '0 0 10px 0',
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#AAAAAA',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+        }}
+      >
+        Disponibilità
+      </p>
+
+      {inStock.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {inStock.map((item) => (
+            <div
+              key={item.locationName}
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#22C55E',
+                  flexShrink: 0,
+                  display: 'inline-block',
+                }}
+              />
+              <span style={{ fontSize: 13, color: '#333333', flex: 1 }}>
+                {item.locationName}
+              </span>
+              <span style={{ fontSize: 13, color: '#888888', flexShrink: 0 }}>
+                {item.quantity} {item.quantity === 1 ? 'pezzo' : 'pezzi'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: '#D1D5DB',
+              flexShrink: 0,
+              display: 'inline-block',
+            }}
+          />
+          <span style={{ fontSize: 13, color: '#888888' }}>
+            Disponibilità da verificare in negozio
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+interface Props {
+  product: LandingProduct | null
+  onClose: () => void
+}
+
 export default function ProductModal({ product, onClose }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Pause Lenis and lock body scroll while open
+  // Pause Lenis + lock body scroll
   useEffect(() => {
     if (!product) return
-
     pauseLenis()
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-
     return () => {
       resumeLenis()
       document.body.style.overflow = prev
@@ -42,10 +114,9 @@ export default function ProductModal({ product, onClose }: Props) {
     return () => document.removeEventListener('keydown', handler)
   }, [product, onClose])
 
-  // Move focus to close button when modal opens
+  // Focus close button on open
   useEffect(() => {
     if (product) {
-      // small delay so AnimatePresence finishes mounting
       const id = setTimeout(() => closeButtonRef.current?.focus(), 50)
       return () => clearTimeout(id)
     }
@@ -56,218 +127,235 @@ export default function ProductModal({ product, onClose }: Props) {
   return (
     <AnimatePresence>
       {product && (
-        // Overlay
-        <motion.div
-          key="overlay"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          onClick={onClose}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999,
-            background: 'rgba(0,0,0,0.70)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-          }}
-        >
-          {/* Modal card — stop propagation so clicks inside don't close */}
+        <>
+          {/* ── Overlay ── */}
           <motion.div
-            key="modal"
+            key="product-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            onClick={onClose}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998,
+              background: 'rgba(0,0,0,0.60)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+            }}
+          />
+
+          {/* ── Modal card ── */}
+          <motion.div
+            key="product-modal-card"
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: '#fff',
-              borderRadius: 16,
-              width: '100%',
-              maxWidth: 680,
-              maxHeight: 'calc(100dvh - 32px)',
-              overflowY: 'auto',
-              position: 'relative',
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              x: '-50%',
+              y: '-50%',
+              zIndex: 9999,
+              width: 'calc(100% - 32px)',
+              maxWidth: 720,
+              maxHeight: '90vh',
+              background: '#FFFFFF',
+              borderRadius: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
-            {/* Close button */}
-            <button
-              ref={closeButtonRef}
-              type="button"
-              onClick={onClose}
-              aria-label="Chiudi"
+            {/* ── Non-scrolling close button row ── */}
+            <div
               style={{
-                position: 'absolute',
-                top: 14,
-                right: 14,
-                zIndex: 10,
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                border: 'none',
-                background: 'rgba(0,0,0,0.07)',
-                color: '#111',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                padding: '14px 14px 0',
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Content layout: side-by-side on sm+, stacked on mobile */}
-            <div className="flex flex-col sm:flex-row">
-              {/* Photo column */}
-              <div
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={onClose}
+                aria-label="Chiudi"
                 style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: '#F0F0F0',
+                  color: '#333',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   flexShrink: 0,
-                  padding: '24px 24px 0 24px',
                 }}
-                className="sm:py-6 sm:pr-0 sm:pl-6"
               >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* ── Scrollable content ── */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <div className="flex flex-col sm:flex-row">
+
+                {/* ── Photo column ── */}
+                <div
+                  style={{ flexShrink: 0 }}
+                  className="w-full sm:w-[260px] px-5 pt-4 pb-0 sm:py-6 sm:px-6 sm:pr-0"
+                >
+                  <div
+                    className="relative w-full aspect-[4/3] sm:aspect-square overflow-hidden rounded-xl"
+                    style={{ background: '#1A1A1A' }}
+                  >
+                    {product.photo_url ? (
+                      <Image
+                        src={product.photo_url}
+                        alt={product.name}
+                        fill
+                        style={{ objectFit: 'cover', objectPosition: 'center' }}
+                        sizes="(max-width: 639px) calc(100vw - 80px), 260px"
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 40,
+                          fontWeight: 800,
+                          color: 'rgba(255,255,255,0.5)',
+                          userSelect: 'none',
+                        }}
+                        aria-hidden="true"
+                      >
+                        {product.name.trim().charAt(0).toUpperCase() || '?'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Info column ── */}
                 <div
                   style={{
-                    width: '100%',
-                    maxWidth: 260,
-                    aspectRatio: '1 / 1',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    background: '#f0f0f0',
-                    position: 'relative',
-                    margin: '0 auto',
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
+                  className="px-5 pt-5 pb-7 sm:px-7 sm:pt-6 sm:pb-8 sm:pl-6"
                 >
-                  {product.photo_url ? (
-                    <Image
-                      src={product.photo_url}
-                      alt={product.name}
-                      fill
-                      style={{ objectFit: 'cover', objectPosition: 'center' }}
-                      sizes="260px"
-                    />
-                  ) : (
-                    <div
+                  {/* Category pill */}
+                  {product.category?.trim() && (
+                    <span
                       style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 64,
-                        fontWeight: 800,
-                        color: 'rgba(0,0,0,0.15)',
-                        userSelect: 'none',
+                        display: 'inline-block',
+                        alignSelf: 'flex-start',
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        background: '#F0F0F0',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: '#666',
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                        marginBottom: 12,
                       }}
-                      aria-hidden="true"
                     >
-                      {product.name.trim().charAt(0).toUpperCase() || '?'}
-                    </div>
+                      {product.category.trim()}
+                    </span>
                   )}
+
+                  {/* Name */}
+                  <h2
+                    id={titleId}
+                    style={{
+                      margin: 0,
+                      fontSize: 28,
+                      fontWeight: 800,
+                      color: '#0A0A0A',
+                      lineHeight: 1.15,
+                      letterSpacing: '-0.5px',
+                    }}
+                  >
+                    {product.name}
+                  </h2>
+
+                  {/* Brand */}
+                  {product.brand?.trim() && (
+                    <p
+                      style={{
+                        margin: '5px 0 0 0',
+                        fontSize: 14,
+                        color: '#888888',
+                        fontWeight: 400,
+                      }}
+                    >
+                      {product.brand.trim()}
+                    </p>
+                  )}
+
+                  {/* Description */}
+                  {product.description?.trim() && (
+                    <>
+                      <div style={{ height: 1, background: '#F0F0F0', margin: '16px 0' }} />
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 15,
+                          color: '#444444',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {product.description.trim()}
+                      </p>
+                    </>
+                  )}
+
+                  {/* Availability */}
+                  <AvailabilitySection inventory={product.inventory} />
+
+                  {/* Price */}
+                  <p
+                    style={{
+                      margin: '20px 0 0 0',
+                      fontSize: 32,
+                      fontWeight: 800,
+                      color: '#0A0A0A',
+                      letterSpacing: '-0.8px',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {formatPrice(product.price_sell)}
+                  </p>
                 </div>
-              </div>
-
-              {/* Info column */}
-              <div
-                style={{
-                  flex: 1,
-                  padding: '20px 24px 28px 24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 0,
-                  minWidth: 0,
-                }}
-                className="sm:pt-8 sm:pr-8 sm:pb-8 sm:pl-6"
-              >
-                {/* Category pill */}
-                {product.category && (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      alignSelf: 'flex-start',
-                      padding: '3px 10px',
-                      borderRadius: 99,
-                      background: 'rgba(0,0,0,0.06)',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#555',
-                      letterSpacing: '0.04em',
-                      textTransform: 'uppercase',
-                      marginBottom: 10,
-                    }}
-                  >
-                    {product.category}
-                  </span>
-                )}
-
-                {/* Name */}
-                <h2
-                  id={titleId}
-                  style={{
-                    margin: 0,
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: '#111',
-                    lineHeight: 1.2,
-                    letterSpacing: '-0.3px',
-                  }}
-                >
-                  {product.name}
-                </h2>
-
-                {/* Brand */}
-                {product.brand?.trim() && (
-                  <p
-                    style={{
-                      margin: '6px 0 0 0',
-                      fontSize: 14,
-                      color: '#888',
-                      fontWeight: 400,
-                    }}
-                  >
-                    {product.brand.trim()}
-                  </p>
-                )}
-
-                {/* Description */}
-                {product.description?.trim() && (
-                  <p
-                    style={{
-                      margin: '16px 0 0 0',
-                      fontSize: 14,
-                      color: '#444',
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    {product.description.trim()}
-                  </p>
-                )}
-
-                {/* Price */}
-                <p
-                  style={{
-                    margin: '20px 0 0 0',
-                    fontSize: 26,
-                    fontWeight: 800,
-                    color: '#111',
-                    letterSpacing: '-0.5px',
-                  }}
-                >
-                  {formatPrice(product.price_sell)}
-                </p>
               </div>
             </div>
           </motion.div>
-        </motion.div>
+        </>
       )}
     </AnimatePresence>
   )
