@@ -69,7 +69,7 @@ export default function TeamCard({ member, googleRating }: Props) {
         </div>
       )}
 
-      {/* Gradient overlay — bottom 50%, no backdrop-filter */}
+      {/* Layer 1 — gradient scuro dal basso, copre 65% */}
       <div
         aria-hidden="true"
         style={{
@@ -77,9 +77,25 @@ export default function TeamCard({ member, googleRating }: Props) {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '50%',
+          height: '65%',
           background:
-            'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.75) 100%)',
+            'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.60) 30%, rgba(0,0,0,0.20) 60%, rgba(0,0,0,0) 100%)',
+        }}
+      />
+
+      {/* Layer 2 — blur solo sul 45% inferiore, sfuma verso l'alto con mask */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '45%',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          maskImage: 'linear-gradient(to top, black 60%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 60%, transparent 100%)',
         }}
       />
 
