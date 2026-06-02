@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import ProductCard from '@/components/landing/ProductCard'
+import ProductModal from '@/components/landing/ProductModal'
 import type { LandingProduct, LandingTenant } from '@/types/landing'
 
 interface Props {
@@ -14,6 +15,7 @@ export default function LandingProducts({ tenant, products }: Props) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(products.length > 1)
+  const [selectedProduct, setSelectedProduct] = useState<LandingProduct | null>(null)
 
   const updateScrollState = useCallback(() => {
     const track = trackRef.current
@@ -53,6 +55,7 @@ export default function LandingProducts({ tenant, products }: Props) {
   if (!products.length) return null
 
   return (
+    <>
     <section
       id="prodotti"
       aria-label="I nostri prodotti"
@@ -121,11 +124,21 @@ export default function LandingProducts({ tenant, products }: Props) {
               className="shrink-0 basis-[90%] snap-start sm:basis-[46%] lg:basis-[32%]"
               style={{ background: 'transparent' }}
             >
-              <ProductCard product={product} primaryColor={tenant.primary_color} />
+              <ProductCard
+                product={product}
+                primaryColor={tenant.primary_color}
+                onOpen={setSelectedProduct}
+              />
             </div>
           ))}
         </div>
       </div>
     </section>
+
+    <ProductModal
+      product={selectedProduct}
+      onClose={() => setSelectedProduct(null)}
+    />
+    </>
   )
 }

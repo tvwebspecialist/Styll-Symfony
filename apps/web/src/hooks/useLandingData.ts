@@ -183,7 +183,7 @@ export function useLandingData(slug: string): UseLandingDataResult {
           supabase
             .from('products')
             .select(
-              'id, name, brand, price_sell, photo_url, description, display_order',
+              'id, name, brand, price_sell, photo_url, category, description, display_order',
             )
             .eq('tenant_id', tenantId)
             .eq('is_active', true)
@@ -252,6 +252,7 @@ export function useLandingData(slug: string): UseLandingDataResult {
           id: p.id,
           name: p.name,
           brand: p.brand,
+          category: (p as Record<string, unknown>).category as string | null ?? null,
           price_sell: Number(p.price_sell ?? 0),
           photo_url: p.photo_url,
           description: (p as Record<string, unknown>).description as string | null ?? null,
