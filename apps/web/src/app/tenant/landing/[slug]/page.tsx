@@ -131,6 +131,7 @@ export default async function LandingPage({ params }: Props) {
     photo_url: p.photo_url ?? null,
     description: p.description ?? null,
     display_order: Number(p.display_order ?? 0),
+    inventory: p.inventory ?? [],
   }))
 
   // ── Section flags ─────────────────────────────────────────────────────────

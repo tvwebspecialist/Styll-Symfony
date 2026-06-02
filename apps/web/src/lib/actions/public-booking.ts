@@ -7,10 +7,17 @@ export type PublicLocation = Pick<
   'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'photos' | 'email' | 'latitude' | 'longitude'
 >
 
-export type PublicProduct = Pick<
-  Tables<'products'>,
-  'id' | 'name' | 'brand' | 'price_sell' | 'photo_url' | 'category' | 'description' | 'display_order'
->
+export interface PublicProduct {
+  id: string
+  name: string
+  brand: string | null
+  price_sell: number
+  photo_url: string | null
+  category: string | null
+  description: string | null
+  display_order: number
+  inventory: Array<{ locationName: string; quantity: number }>
+}
 
 export interface PublicPortfolioPhoto {
   id: string
@@ -887,23 +894,41 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
       const db = createAdminClient()
       const { data } = await db
         .from('products')
-        .select('id, name, brand, price_sell, photo_url, category, description, display_order')
+        .select(
+          'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity, locations(name))',
+        )
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_site', true)
         .order('display_order', { ascending: true })
         .order('name', { ascending: true })
 
-      return ((data ?? []) as unknown as PublicProduct[]).map((p) => ({
-        id: p.id,
-        name: p.name,
-        brand: p.brand ?? null,
-        price_sell: Number(p.price_sell ?? 0),
-        photo_url: p.photo_url ?? null,
-        category: p.category ?? null,
-        description: p.description ?? null,
-        display_order: Number(p.display_order ?? 0),
-      }))
+      return ((data ?? []) as unknown[]).map((row) => {
+        const p = row as Record<string, unknown>
+        const invRaw = p.product_inventory
+        const inventory: Array<{ locationName: string; quantity: number }> = Array.isArray(invRaw)
+          ? invRaw.map((invRow: unknown) => {
+              const inv = invRow as Record<string, unknown>
+              const loc = inv.locations as Record<string, unknown> | null
+              return {
+                locationName: typeof loc?.name === 'string' ? loc.name : 'Sede',
+                quantity: Number(inv.quantity ?? 0),
+              }
+            })
+          : []
+
+        return {
+          id: p.id as string,
+          name: p.name as string,
+          brand: (p.brand as string | null) ?? null,
+          price_sell: Number(p.price_sell ?? 0),
+          photo_url: (p.photo_url as string | null) ?? null,
+          category: (p.category as string | null) ?? null,
+          description: (p.description as string | null) ?? null,
+          display_order: Number(p.display_order ?? 0),
+          inventory,
+        }
+      })
     },
     [`public-products-${tenantId}`],
     {
