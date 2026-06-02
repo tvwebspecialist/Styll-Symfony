@@ -17,7 +17,12 @@ export default function LandingHero({ tenant }: Props) {
     <section
       id="hero"
       aria-label="Presentazione"
-      className="relative flex min-h-screen flex-col overflow-hidden bg-[#111]"
+      className="relative flex min-h-screen flex-col overflow-hidden"
+      style={{
+        background: tenant.hero_image_url
+          ? '#111111'
+          : 'linear-gradient(135deg, var(--brand-primary) 0%, #0A0A0A 50%, var(--brand-secondary) 100%)',
+      }}
     >
       {/* Background image */}
       {tenant.hero_image_url && (
@@ -31,21 +36,25 @@ export default function LandingHero({ tenant }: Props) {
         />
       )}
 
-      {/* Gradient overlays */}
-      <div
-        className="absolute inset-0 z-[1]"
-        style={{
-          background:
-            'linear-gradient(to right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.15) 100%)',
-        }}
-      />
-      <div
-        className="absolute inset-0 z-[1]"
-        style={{
-          background:
-            'linear-gradient(to top, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0) 55%)',
-        }}
-      />
+      {/* Gradient overlays — only when a real image is present */}
+      {tenant.hero_image_url && (
+        <>
+          <div
+            className="absolute inset-0 z-[1]"
+            style={{
+              background:
+                'linear-gradient(to right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.15) 100%)',
+            }}
+          />
+          <div
+            className="absolute inset-0 z-[1]"
+            style={{
+              background:
+                'linear-gradient(to top, rgba(0,0,0,0.60) 0%, rgba(0,0,0,0) 55%)',
+            }}
+          />
+        </>
+      )}
 
       {/* Content */}
       <div
