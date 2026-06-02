@@ -126,6 +126,7 @@ export default async function LandingPage({ params }: Props) {
     id: p.id,
     name: p.name,
     brand: p.brand ?? null,
+    category: p.category ?? null,
     price_sell: Number(p.price_sell ?? 0),
     photo_url: p.photo_url ?? null,
     description: p.description ?? null,

@@ -8,13 +8,14 @@ import type { LandingProduct } from '@/types/landing'
 interface Props {
   product: LandingProduct
   primaryColor: string
+  onOpen?: (product: LandingProduct) => void
 }
 
 function formatPrice(price: number): string {
   return `€${price.toFixed(2)}`
 }
 
-export default function ProductCard({ product, primaryColor }: Props) {
+export default function ProductCard({ product, primaryColor, onOpen }: Props) {
   return (
     <article
       style={{
@@ -153,7 +154,9 @@ export default function ProductCard({ product, primaryColor }: Props) {
           </div>
 
           {/* CTA */}
-          <div
+          <button
+            type="button"
+            onClick={() => onOpen?.(product)}
             style={{
               flex: 1,
               padding: '12px 18px',
@@ -165,10 +168,12 @@ export default function ProductCard({ product, primaryColor }: Props) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              border: 'none',
+              cursor: 'pointer',
             }}
           >
             Scopri
-          </div>
+          </button>
         </div>
       </div>
     </article>

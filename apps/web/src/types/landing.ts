@@ -89,6 +89,7 @@ export interface LandingProduct {
   id: string
   name: string
   brand: string | null
+  category: string | null
   price_sell: number
   photo_url: string | null
   description: string | null
