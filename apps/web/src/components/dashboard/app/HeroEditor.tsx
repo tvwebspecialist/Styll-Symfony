@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import { toast } from 'sonner'
-import { ImagePlus, Loader2, ExternalLink } from 'lucide-react'
-import { uploadHeroImage, updateHeroContent } from '@/lib/actions/app-settings'
+import { ImagePlus, Loader2, ExternalLink, Trash2 } from 'lucide-react'
+import { uploadHeroImage, updateHeroContent, clearHeroImage } from '@/lib/actions/app-settings'
 
 interface Props {
   initialImageUrl: string | null
@@ -17,6 +17,7 @@ export function HeroEditor({ initialImageUrl, initialTagline, initialDescription
   const [tagline, setTagline] = React.useState(initialTagline ?? '')
   const [description, setDescription] = React.useState(initialDescription ?? '')
   const [uploadingImage, setUploadingImage] = React.useState(false)
+  const [removingImage, setRemovingImage] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
 
   // Track last-saved values for dirty detection
@@ -49,6 +50,19 @@ export function HeroEditor({ initialImageUrl, initialTagline, initialDescription
       toast.success('Foto aggiornata ✓')
     } else {
       toast.error(result.error ?? 'Errore upload')
+    }
+  }
+
+  async function handleRemoveImage() {
+    setRemovingImage(true)
+    const result = await clearHeroImage()
+    setRemovingImage(false)
+
+    if (result.ok) {
+      setImageUrl('')
+      toast.success('Foto rimossa ✓')
+    } else {
+      toast.error(result.error ?? 'Errore durante la rimozione')
     }
   }
 
@@ -150,30 +164,57 @@ export function HeroEditor({ initialImageUrl, initialTagline, initialDescription
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploadingImage}
-          style={{
-            marginTop: 10,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: '#F3F4F6',
-            color: '#374151',
-            border: '1px solid #E5E7EB',
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: uploadingImage ? 'default' : 'pointer',
-          }}
-        >
-          {uploadingImage
-            ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-            : <ImagePlus size={14} />}
-          {uploadingImage ? 'Caricamento…' : imageUrl ? 'Cambia foto' : 'Carica foto'}
-        </button>
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploadingImage || removingImage}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: '#F3F4F6',
+              color: '#374151',
+              border: '1px solid #E5E7EB',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: uploadingImage || removingImage ? 'default' : 'pointer',
+            }}
+          >
+            {uploadingImage
+              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <ImagePlus size={14} />}
+            {uploadingImage ? 'Caricamento…' : imageUrl ? 'Cambia foto' : 'Carica foto'}
+          </button>
+
+          {imageUrl && (
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              disabled={uploadingImage || removingImage}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                background: '#FEF2F2',
+                color: '#DC2626',
+                border: '1px solid #FECACA',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: uploadingImage || removingImage ? 'default' : 'pointer',
+              }}
+            >
+              {removingImage
+                ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                : <Trash2 size={14} />}
+              {removingImage ? 'Rimozione…' : 'Rimuovi foto'}
+            </button>
+          )}
+        </div>
         <p style={{ fontSize: 11, color: '#9CA3AF', margin: '6px 0 0' }}>
           PNG, JPG, WebP — max 5MB
         </p>

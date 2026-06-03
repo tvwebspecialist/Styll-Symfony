@@ -1,8 +1,9 @@
+// GLASS OVERLAY STANDARD v2: gradient inset morbido + blur 5px con mask graduale
+// Pattern approvato — replicare su tutte le card immagine+testo del progetto
 'use client'
 
 import { useEffect, useRef } from 'react'
 import type { PublicBookingLocation } from './types'
-import BookingStepIndicator from './BookingStepIndicator'
 
 interface Props {
   locations: PublicBookingLocation[]
@@ -46,23 +47,18 @@ export default function BookingStep1Locations({
   }
 
   return (
-    <div style={{ background: '#F5F5F0', minHeight: '100vh' }}>
-      <BookingStepIndicator
-        currentStep="location"
-        completedSteps={[]}
-        tenantPrimary={primaryColor ?? '#1a1a1a'}
-        stickyTopOverride={76}
-      />
-
+    <div style={{ background: '#ffffff', minHeight: '100vh' }}>
       <p
         style={{
           margin: 0,
-          padding: '16px 20px 4px',
-          fontSize: 13,
-          color: 'rgba(0,0,0,0.45)',
+          padding: '24px 20px 8px',
+          fontSize: 24,
+          fontWeight: 700,
+          color: 'var(--color-fg)',
+          lineHeight: 1.2,
         }}
       >
-        Dove vuoi andare?
+        Scegli una sede
       </p>
 
       <div
@@ -139,62 +135,50 @@ export default function BookingStep1Locations({
                 </div>
               )}
 
+              {/* Layer 1 — gradient lungo e morbido */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0) 75%)',
+                  borderRadius: 'inherit',
+                }}
+              />
+
+              {/* Layer 2 — blur leggero con dissolvenza graduale */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: '50%',
+                  backdropFilter: 'blur(5px)',
+                  WebkitBackdropFilter: 'blur(5px)',
+                  maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
+                  borderRadius: 'inherit',
+                }}
+              />
+
+              {/* Testo sopra entrambi i layer */}
               <div
                 style={{
                   position: 'absolute',
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  height: '60%',
-                  background: 'linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.65) 100%)',
-                  pointerEvents: 'none',
-                }}
-              />
-
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  right: 14,
-                  background: 'white',
-                  borderRadius: 9999,
-                  padding: '4px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#0a0a0a',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: '#16a34a',
-                    display: 'inline-block',
-                    animation: 'pulseDot 1.8s ease-in-out infinite',
-                  }}
-                />
-                Disponibile
-              </div>
-
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
+                  padding: '20px 20px 24px 20px',
                 }}
               >
                 <p
                   style={{
                     margin: 0,
                     fontSize: 18,
-                    fontWeight: 600,
-                    color: 'white',
+                    fontWeight: 700,
+                    color: '#fff',
                     lineHeight: 1.2,
                   }}
                 >
@@ -205,7 +189,7 @@ export default function BookingStep1Locations({
                     style={{
                       margin: '4px 0 0',
                       fontSize: 13,
-                      color: 'rgba(255, 255, 255, 0.8)',
+                      color: 'rgba(255, 255, 255, 0.75)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
@@ -232,13 +216,6 @@ export default function BookingStep1Locations({
           )
         })}
       </div>
-
-      <style>{`
-        @keyframes pulseDot {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(0.85); }
-        }
-      `}</style>
     </div>
   )
 }

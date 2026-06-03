@@ -1,3 +1,4 @@
+// CHANGES: rimosso div sticky "Prenota" | glass overlay card → gradiente from-bottom
 'use client'
 
 import { useRouter } from 'next/navigation'
