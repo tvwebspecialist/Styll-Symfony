@@ -622,6 +622,37 @@ export async function uploadHeroImage(
   return { ok: true, url: publicUrl }
 }
 
+// ─── clearHeroImage ───────────────────────────────────────────────────────────
+
+export async function clearHeroImage(): Promise<{ ok: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+
+  const db = createAdminClient()
+
+  const { data: current, error: fetchError } = await db
+    .from('tenants')
+    .select('settings')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchError) return { ok: false, error: fetchError.message }
+
+  const currentSettings = (current?.settings as Record<string, unknown> | null) ?? {}
+  const merged = { ...currentSettings, hero_image_url: null }
+
+  const { error: updateError } = await db
+    .from('tenants')
+    .update({ settings: merged, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+
+  if (updateError) return { ok: false, error: updateError.message }
+
+  await revalidateTenantApp(db, tenantId)
+
+  return { ok: true }
+}
+
 // ─── updateHeroContent ────────────────────────────────────────────────────────
 
 export async function updateHeroContent(

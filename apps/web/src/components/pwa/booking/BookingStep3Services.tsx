@@ -1,7 +1,9 @@
+// HERO: foto barbiere sticky 300px full-width, overlay gradient 8-stop, nome+ruolo sovrapposti
+// PwaTopBar restituisce null per questo step — la hero sostituisce la topbar
+// lista servizi: card con ombra + selezione brand-primary + padding separazione hero
 'use client'
 
 import { useMemo, useState } from 'react'
-import BookingStepIndicator from './BookingStepIndicator'
 import { BottomCTA } from '../ui/BottomCTA'
 import type { PublicStaffMember, ServiceForStaff } from '@/lib/actions/public-booking'
 
@@ -38,6 +40,12 @@ function getInitials(name: string | null): string {
     .join('')
 }
 
+function getRoleLabel(role: string | null | undefined): string {
+  if (role === 'owner') return 'Titolare'
+  if (role === 'manager') return 'Manager'
+  return 'Barbiere'
+}
+
 export default function BookingStep3Services({
   staff,
   staffId,
@@ -61,13 +69,6 @@ export default function BookingStep3Services({
     0
   )
   const totalPrice = selectedServices.reduce((total, service) => total + Number(service.price ?? 0), 0)
-  const title = staffId === 'any' ? 'Primo disponibile' : staff?.full_name ?? 'Barbiere'
-  const subtitle =
-    staffId === 'any'
-      ? 'Ti assegneremo il primo professionista disponibile'
-      : staff?.bio?.trim() || 'Seleziona uno o più servizi per continuare'
-  const heroHasPhoto = Boolean(staff?.photo_url) && staffId !== 'any'
-
   function toggleService(serviceId: string) {
     setSelectedIds((current) =>
       current.includes(serviceId)
@@ -76,67 +77,43 @@ export default function BookingStep3Services({
     )
   }
 
+  const heroPhoto = staffId !== 'any' ? (staff?.photo_url ?? null) : null
+  const heroName = staffId === 'any' ? 'Primo disponibile' : (staff?.full_name ?? 'Barbiere')
+  const heroRole = staffId === 'any' ? 'Ti assegneremo il primo professionista disponibile' : getRoleLabel((staff as { role?: string } | null)?.role)
+  const heroInitials = getInitials(heroName)
+
   return (
-    <div style={{ minHeight: '100vh', background: '#F5F5F0' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+      {/* HERO — foto barbiere sticky (sostituisce PwaTopBar per questo step) */}
       <div
         style={{
-          position: 'relative',
-          height: 220,
+          position: 'sticky',
+          top: 0,
+          zIndex: 61,
+          width: '100%',
+          height: '300px',
           overflow: 'hidden',
-          background: heroHasPhoto
-            ? '#d9d9d9'
-            : `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+          borderRadius: '0 0 36px 36px',
+          flexShrink: 0,
+          transform: 'translateZ(0)',
         }}
       >
-        {heroHasPhoto ? (
-          <img
-            src={staff?.photo_url ?? ''}
-            alt={title}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
-        ) : null}
-
-        {!heroHasPhoto ? (
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `radial-gradient(circle at top right, ${brandColor}66 0%, transparent 48%)`,
-            }}
-          />
-        ) : null}
-
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent 75%)',
-          }}
-        />
-
+        {/* Floating back button */}
         <button
           type="button"
           onClick={onBack}
           aria-label="Torna indietro"
           style={{
             position: 'absolute',
-            top: 16,
+            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
             left: 16,
-            width: 36,
-            height: 36,
+            zIndex: 10,
+            width: 44,
+            height: 44,
             borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.10), 0 0px 1px rgba(0,0,0,0.06)',
             border: 'none',
-            background: 'rgba(255,255,255,0.85)',
-            backdropFilter: 'blur(10px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -145,12 +122,12 @@ export default function BookingStep3Services({
           }}
         >
           <svg
-            width="18"
-            height="18"
+            width="20"
+            height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#111"
-            strokeWidth="2"
+            stroke="#111111"
+            strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
@@ -158,62 +135,143 @@ export default function BookingStep3Services({
           </svg>
         </button>
 
-        <div
-          style={{
-            position: 'absolute',
-            left: 16,
-            right: 16,
-            bottom: 16,
-            color: 'white',
-          }}
-        >
-          <p style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{title}</p>
-          <p
+        {heroPhoto ? (
+          <img
+            src={heroPhoto}
+            alt={heroName}
             style={{
-              margin: '4px 0 0',
-              fontSize: 13,
-              color: 'rgba(255,255,255,0.8)',
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center center',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: brandColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 56,
+              fontWeight: 700,
+              color: 'rgba(255,255,255,0.85)',
+              userSelect: 'none',
             }}
           >
-            {subtitle}
-          </p>
-        </div>
+            {heroInitials}
+          </div>
+        )}
+
+              {/* OVERLAY v3 — gradient 8-stop puro, no backdrop-filter */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: `
+                    linear-gradient(
+                      to top,
+                      rgba(0,0,0,0.85) 0%,
+                      rgba(0,0,0,0.75) 10%,
+                      rgba(0,0,0,0.60) 20%,
+                      rgba(0,0,0,0.40) 35%,
+                      rgba(0,0,0,0.20) 50%,
+                      rgba(0,0,0,0.08) 65%,
+                      rgba(0,0,0,0.02) 78%,
+                      rgba(0,0,0,0) 88%
+                    )
+                  `,
+                  borderRadius: 'inherit',
+                }}
+              />
+
       </div>
 
-      <BookingStepIndicator
-        currentStep="service"
-        completedSteps={skipLocationStep ? ['staff'] : ['location', 'staff']}
-        tenantPrimary={brandColor}
-        skipLocationStep={skipLocationStep}
-        stickyTopOverride={76}
+      {/* Layer blur — sticky sibling, solidale con la hero durante lo scroll */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'sticky',
+          top: 0,
+          width: '100%',
+          height: '300px',
+          marginTop: '-300px',
+          flexShrink: 0,
+          backdropFilter: 'blur(5px)',
+          WebkitBackdropFilter: 'blur(5px)',
+          maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
+          zIndex: 62,
+          pointerEvents: 'none',
+          borderRadius: '0 0 36px 36px',
+        }}
       />
 
-      <p style={{ margin: 0, padding: '16px 20px', fontSize: 16, color: '#111' }}>
-        Seleziona uno o più servizi
-      </p>
+      {/* Testo hero — sticky sibling al di sopra del blur (zIndex 63 > 62) */}
+      <div
+        aria-hidden="false"
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '300px',
+          marginTop: '-300px',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          padding: '20px 20px 28px',
+          zIndex: 63,
+          pointerEvents: 'none',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: '24px',
+            fontWeight: 700,
+            color: '#ffffff',
+            lineHeight: 1.2,
+            letterSpacing: '-0.4px',
+          }}
+        >
+          {heroName}
+        </p>
+        <p
+          style={{
+            margin: '5px 0 0',
+            fontSize: '14px',
+            fontWeight: 400,
+            color: 'rgba(255,255,255,0.75)',
+          }}
+        >
+          {heroRole}
+        </p>
+      </div>
 
-      <div style={{ paddingBottom: 120 }}>
+      <div style={{ paddingTop: 24, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
         {groups.map((group) => (
-          <section key={group.category} style={{ marginBottom: 18 }}>
+          <section key={group.category} style={{ marginBottom: 28 }}>
+            {/* Label categoria — sobria, grigio chiaro */}
             <p
               style={{
                 margin: 0,
-                padding: '0 16px 8px',
+                padding: '0 20px 10px',
                 fontSize: 12,
-                fontWeight: 700,
-                color: brandColor,
+                fontWeight: 600,
+                color: 'rgba(0,0,0,0.38)',
                 textTransform: 'uppercase',
-                letterSpacing: '0.06em',
+                letterSpacing: '0.07em',
               }}
             >
               {group.category}
             </p>
 
-            <div style={{ padding: '0 16px' }}>
+            <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {group.services.map((service) => {
                 const isSelected = selectedIds.includes(service.id)
                 const isPressed = pressedId === service.id
@@ -231,33 +289,34 @@ export default function BookingStep3Services({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 14,
-                      padding: '16px 14px',
-                      marginBottom: 10,
-                      background: 'white',
-                      borderRadius: 16,
+                      padding: '16px 16px',
+                      background: isSelected ? `${brandColor}10` : '#ffffff',
+                      borderRadius: 20,
                       border: `2px solid ${isSelected ? brandColor : 'transparent'}`,
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)',
                       cursor: 'pointer',
                       transform: isPressed ? 'scale(0.98)' : 'scale(1)',
-                      transition: 'transform 150ms ease, border-color 150ms ease',
+                      transition: 'transform 150ms ease, border-color 150ms ease, background 150ms ease',
                       textAlign: 'left',
                       WebkitTapHighlightColor: 'transparent',
                     }}
                   >
+                    {/* Checkbox */}
                     <span
                       style={{
-                        width: 22,
-                        height: 22,
+                        width: 24,
+                        height: 24,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        border: `1.5px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.14)'}`,
+                        border: `2px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.18)'}`,
                         background: isSelected ? brandColor : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        transition: 'background 150ms ease, border-color 150ms ease',
                       }}
                     >
-                      {isSelected ? (
+                      {isSelected && (
                         <svg
                           width="12"
                           height="12"
@@ -270,30 +329,43 @@ export default function BookingStep3Services({
                         >
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
-                      ) : null}
+                      )}
                     </span>
 
+                    {/* Nome + durata */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111' }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 16,
+                          fontWeight: 600,
+                          color: '#111111',
+                          lineHeight: 1.3,
+                        }}
+                      >
                         {service.name}
                       </p>
                       <p
                         style={{
-                          margin: '4px 0 0',
+                          margin: '3px 0 0',
                           fontSize: 13,
-                          color: 'rgba(0,0,0,0.52)',
+                          fontWeight: 400,
+                          color: 'var(--color-fg-muted, rgba(0,0,0,0.45))',
                         }}
                       >
                         {service.duration_minutes} min
                       </p>
                     </div>
 
+                    {/* Prezzo */}
                     <span
                       style={{
                         flexShrink: 0,
-                        fontSize: 15,
+                        fontSize: 17,
                         fontWeight: 700,
-                        color: isSelected ? brandColor : '#111',
+                        color: isSelected ? brandColor : '#111111',
+                        letterSpacing: '-0.3px',
+                        transition: 'color 150ms ease',
                       }}
                     >
                       {formatCurrency(service.price)}

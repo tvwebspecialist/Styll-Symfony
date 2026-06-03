@@ -1,3 +1,5 @@
+// REDESIGN: altezza 75px, glass blur apple-style, border-radius bottom 20px,
+// shadow leggera, titolo 17px/600 — applicato globalmente su tutta la PWA
 'use client'
 
 import { Suspense } from 'react'
@@ -24,6 +26,34 @@ export interface PwaTopBarProps {
   slug: string
 }
 
+const glassShell = {
+  position: 'sticky' as const,
+  top: 0,
+  zIndex: 60,
+  minHeight: 75,
+  background: 'rgba(255, 255, 255, 0.82)',
+  backdropFilter: 'blur(28px) saturate(200%)',
+  WebkitBackdropFilter: 'blur(28px) saturate(200%)',
+  borderBottomLeftRadius: '40px',
+  borderBottomRightRadius: '40px',
+  boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(0, 0, 0, 0.04)',
+}
+
+// action buttons: background white + shadow leggera
+const backBtnStyle = {
+  width: 44,
+  height: 44,
+  borderRadius: '50%',
+  background: '#ffffff',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.10), 0 0px 1px rgba(0, 0, 0, 0.06)',
+  border: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  flexShrink: 0,
+} as const
+
 function TopBarInner({
   businessName: _businessName,
   logoUrl: _logoUrl,
@@ -44,51 +74,82 @@ function TopBarInner({
   const isInSuccesso = pathname.startsWith(tenantPath('/prenota/successo'))
   const isInPrenota = pathname.startsWith(tenantPath('/prenota')) && !isInSuccesso
 
-  if (isHome) {    return (
-      <PwaPageHeader
-        variant="home"
-        clientName={clientName}
-        clientAvatarUrl={clientAvatarUrl}
-        hasUnreadNotifications={false}
-        onNotificationsPress={() => {}}
-        fontFamily={fontFamily}
-      />
+  const titleStyle = {
+    position: 'absolute' as const,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    fontSize: 24,
+    fontWeight: 600,
+    color: '#111111',
+    fontFamily: fontFamily ?? 'inherit',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    maxWidth: 'calc(100% - 140px)',
+  }
+
+  // ── Home ──────────────────────────────────────────────────────────────────
+  if (isHome) {
+    return (
+      <div style={{ ...glassShell, display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1 }}>
+          <PwaPageHeader
+            variant="home"
+            clientName={clientName}
+            clientAvatarUrl={clientAvatarUrl}
+            hasUnreadNotifications={false}
+            onNotificationsPress={() => {}}
+            fontFamily={fontFamily}
+          />
+        </div>
+      </div>
     )
   }
 
+  // ── Successo ──────────────────────────────────────────────────────────────
   if (isInSuccesso) {
-    return <PwaPageHeader variant="page" title="Prenotazione confermata" fontFamily={fontFamily} />
+    return (
+      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+          Prenotazione confermata
+        </span>
+      </div>
+    )
   }
 
+  // ── Prenota steps ─────────────────────────────────────────────────────────
   if (isInPrenota) {
     const prenotaBase = tenantPath('/prenota')
     const isPrenotaRoot = pathname === prenotaBase || pathname === `${prenotaBase}/`
     const segment = isPrenotaRoot ? '' : (pathname.slice(prenotaBase.length + 1).split('/')[0] ?? '')
 
+    if (segment === 'servizi') return null
+
     const STEP_TITLES: Record<string, string> = {
       '': 'Sede',
       barbiere: 'Barbiere',
-      servizi: 'Servizi',
       data: 'Quando',
       conferma: 'Conferma',
     }
     const title = STEP_TITLES[segment] ?? 'Prenota'
 
-    // First visible step: show title with no back arrow (nothing before this in the funnel)
     const isFirstStep =
       isPrenotaRoot ||
       (segment === 'barbiere' && skipItems.includes('sede')) ||
       (segment === 'servizi' && skipItems.includes('sede') && skipItems.includes('barbiere'))
 
+    // First visible step — no back button
     if (isFirstStep) {
       return (
-        <div style={{ position: 'sticky', top: 0, zIndex: 60, background: '#F7F7F7' }}>
-          <PwaPageHeader variant="page-with-actions" title={title} fontFamily={fontFamily} />
+        <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+            {title}
+          </span>
         </div>
       )
     }
 
-    // Subsequent steps: explicit back navigation — never uses router.back()
+    // Subsequent steps — explicit back navigation
     const location = searchParams?.get('location') ?? ''
     const staff = searchParams?.get('staff') ?? ''
     const services = searchParams?.get('services') ?? ''
@@ -111,34 +172,40 @@ function TopBarInner({
     }
 
     return (
-      <div style={{ position: 'sticky', top: 0, zIndex: 60, background: '#F7F7F7' }}>
-        <PwaPageHeader
-          variant="page-with-actions"
-          title={title}
-          leftAction={{
-            icon: <ArrowLeft size={20} color="#111111" strokeWidth={2} />,
-            onPress: () => router.push(backUrl),
-            ariaLabel: 'Torna indietro',
-          }}
-          fontFamily={fontFamily}
-        />
+      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', padding: '0 20px' }}>
+        <button
+          type="button"
+          style={backBtnStyle}
+          onClick={() => router.push(backUrl)}
+          aria-label="Torna indietro"
+        >
+          <ArrowLeft size={20} color="#111111" strokeWidth={2} />
+        </button>
+        <span style={titleStyle}>{title}</span>
+        <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
       </div>
     )
   }
 
-  // All other routes: simple page bar with title derived from path
+  // ── All other routes ──────────────────────────────────────────────────────
   const base = homePath === '/' ? 0 : homePath.length
   const relative = pathname.slice(base).replace(/^\//, '')
   const segment = relative.split('/')[0] ?? ''
   const title = PAGE_TITLES[segment] ?? ''
-  return <PwaPageHeader variant="page" title={title} fontFamily={fontFamily} />
+
+  return (
+    <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+        {title}
+      </span>
+    </div>
+  )
 }
 
 export function PwaTopBar(props: PwaTopBarProps) {
   return (
-    <Suspense fallback={<div style={{ height: 56 }} />}>
+    <Suspense fallback={<div style={{ height: 75 }} />}>
       <TopBarInner {...props} />
     </Suspense>
   )
 }
-

@@ -1,3 +1,4 @@
+// GLASS OVERLAY STANDARD v2 applicato — stessa implementazione di BookingStep1Locations
 'use client'
 
 import * as React from 'react'
@@ -58,21 +59,18 @@ export default function ProductCard({ product, primaryColor, onOpen }: Props) {
         </div>
       )}
 
-      {/* Layer 1 — gradient scuro dal basso, copre 65% */}
+      {/* Layer 1 — gradient lungo e morbido */}
       <div
         aria-hidden="true"
         style={{
           position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: '65%',
-          background:
-            'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.60) 30%, rgba(0,0,0,0.20) 60%, rgba(0,0,0,0) 100%)',
+          inset: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0) 75%)',
+          borderRadius: 'inherit',
         }}
       />
 
-      {/* Layer 2 — blur solo sul 45% inferiore, sfuma verso l'alto con mask */}
+      {/* Layer 2 — blur leggero con dissolvenza graduale */}
       <div
         aria-hidden="true"
         style={{
@@ -80,11 +78,12 @@ export default function ProductCard({ product, primaryColor, onOpen }: Props) {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '45%',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          maskImage: 'linear-gradient(to top, black 60%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to top, black 60%, transparent 100%)',
+          height: '50%',
+          backdropFilter: 'blur(5px)',
+          WebkitBackdropFilter: 'blur(5px)',
+          maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
+          borderRadius: 'inherit',
         }}
       />
 
