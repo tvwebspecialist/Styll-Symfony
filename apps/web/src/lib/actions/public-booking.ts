@@ -888,6 +888,102 @@ export async function getServicesForStaff(
   return { services }
 }
 
+export interface UpsellProduct {
+  id: string
+  name: string
+  brand: string | null
+  price_sell: number
+  photo_url: string | null
+  category: string | null
+  description: string | null
+  is_new: boolean
+  is_favourite: boolean
+  available: boolean
+}
+
+export async function getUpsellProducts(params: {
+  tenantId: string
+  locationId: string
+  serviceCategories: string[]
+  clientId?: string
+  limit?: number
+}): Promise<UpsellProduct[]> {
+  const { tenantId, locationId, serviceCategories, clientId, limit = 6 } = params
+  const db = createAdminClient()
+
+  // Single query with priority ordering via raw SQL executed through rpc or
+  // via JS-side merge of two small queries — no N+1.
+  // We run two parallel lookups (wishlist + inventory) and merge in JS.
+  const [productRes, inventoryRes, wishlistRes] = await Promise.all([
+    db
+      .from('products')
+      .select('id, name, brand, price_sell, photo_url, category, description, display_order, is_new')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .eq('show_on_site', true)
+      .order('display_order', { ascending: true })
+      .limit(30),
+    db
+      .from('product_inventory')
+      .select('product_id, quantity')
+      .eq('tenant_id', tenantId)
+      .eq('location_id', locationId),
+    clientId
+      ? db
+          .from('client_product_wishlist')
+          .select('product_id')
+          .eq('tenant_id', tenantId)
+          .eq('client_id', clientId)
+      : Promise.resolve({ data: [] as Array<{ product_id: string }> }),
+  ])
+
+  if (!productRes.data?.length) return []
+
+  const inventoryMap = new Map<string, number>()
+  for (const row of (inventoryRes.data ?? []) as Array<{ product_id: string; quantity: number }>) {
+    inventoryMap.set(row.product_id, (inventoryMap.get(row.product_id) ?? 0) + row.quantity)
+  }
+
+  const wishlistSet = new Set(
+    ((wishlistRes as { data: Array<{ product_id: string }> | null }).data ?? []).map(
+      (r) => r.product_id,
+    ),
+  )
+
+  const categorySet = new Set(serviceCategories)
+
+  type RawProduct = {
+    id: string
+    name: string
+    brand: string | null
+    price_sell: number
+    photo_url: string | null
+    category: string | null
+    description: string | null
+    display_order: number
+    is_new: boolean
+  }
+
+  const products = (productRes.data as unknown as RawProduct[]).map((p) => ({
+    ...p,
+    is_favourite: wishlistSet.has(p.id),
+    available: (inventoryMap.get(p.id) ?? 0) > 0,
+    price_sell: Number(p.price_sell ?? 0),
+  }))
+
+  // Priority: wishlist=1, category match=2, fallback=3
+  function priority(p: (typeof products)[0]): number {
+    if (p.is_favourite) return 1
+    if (p.category && categorySet.has(p.category)) return 2
+    return 3
+  }
+
+  return products
+    .sort((a, b) => priority(a) - priority(b) || a.display_order - b.display_order)
+    .slice(0, limit)
+    .map(({ display_order: _d, ...rest }) => rest)
+}
+
 export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
   return unstable_cache(
     async () => {

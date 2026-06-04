@@ -18,7 +18,6 @@ function readParam(value: string | string[] | undefined): string | null {
   if (Array.isArray(value)) {
     return value[0] ?? null
   }
-
   return value ?? null
 }
 
@@ -32,31 +31,17 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
   const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
   const tp = await createTenantPaths(slug)
 
-  if (!locationId) {
-    redirect(tp('/prenota'))
-  }
-
-  if (!staffId) {
-    redirect(tp('/prenota'))
-  }
-
+  if (!locationId) redirect(tp('/prenota'))
+  if (!staffId) redirect(tp('/prenota'))
   if (serviceIds.length === 0) {
-    redirect(
-      tp(`/prenota/servizi?location=${locationId}&staff=${staffId}`)
-    )
+    redirect(tp(`/prenota/servizi?location=${locationId}&staff=${staffId}`))
   }
-
   if (!date || !time) {
-    redirect(
-      tp(`/prenota/data?location=${locationId}&services=${serviceIds.join(',')}&staff=${staffId}`)
-    )
+    redirect(tp(`/prenota/data?location=${locationId}&services=${serviceIds.join(',')}&staff=${staffId}`))
   }
 
   const tenant = await getTenantBySlug(slug)
-
-  if (!tenant || tenant.status !== 'active') {
-    notFound()
-  }
+  if (!tenant || tenant.status !== 'active') notFound()
 
   const [services, location, staffMember, clientRecord] = await Promise.all([
     getPublicServicesByIds(tenant.tenant_id, serviceIds),
@@ -65,9 +50,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
     getMyClientRecord(tenant.tenant_id),
   ])
 
-  if (!location || !staffMember || services.length === 0) {
-    notFound()
-  }
+  if (!location || !staffMember || services.length === 0) notFound()
 
   return (
     <ConfermaForm
@@ -86,6 +69,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
       initialPhone={clientRecord?.phone ?? ''}
       initialEmail={clientRecord?.email ?? ''}
       isLoggedIn={clientRecord !== null}
+      clientId={clientRecord?.id ?? undefined}
     />
   )
 }
