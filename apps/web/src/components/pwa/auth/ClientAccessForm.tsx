@@ -144,6 +144,7 @@ export function ClientAccessForm({
               email: pending.email,
               notes: '',
               marketingConsent: false,
+              productIds: [],
             })
             if (result.success && result.appointmentId) {
               router.push(tenantPath(`/prenota/successo?appointment=${result.appointmentId}`))

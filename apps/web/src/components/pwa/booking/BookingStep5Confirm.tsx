@@ -1,17 +1,13 @@
 'use client'
 
-import Link from 'next/link'
-import { type FormEvent, useMemo, useState, useTransition } from 'react'
-import BookingStepIndicator from './BookingStepIndicator'
-import { BottomCTA } from '../ui/BottomCTA'
-import { BookingAuthStep } from './BookingAuthStep'
-import { createGuestBooking, type CreateGuestBookingResult } from '@/lib/actions/create-booking'
-import type {
-  PublicLocation,
-  PublicService,
-  PublicStaffMember,
-} from '@/lib/actions/public-booking'
-import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import Image from 'next/image'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowRight, Calendar, Clock, Loader2, MapPin, Scissors } from 'lucide-react'
+import { BookingUpsellDrawer } from './BookingUpsellDrawer'
+import BookingAuthModal from './BookingAuthModal'
+import { createGuestBooking } from '@/lib/actions/create-booking'
+import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
+import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
 
 interface Props {
   slug: string
@@ -31,14 +27,7 @@ interface Props {
   initialPhone?: string
   initialEmail?: string
   isLoggedIn?: boolean
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('it-IT', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(value)
+  clientId?: string
 }
 
 function getInitials(name: string | null): string {
@@ -60,21 +49,6 @@ function formatBookingDate(date: string): string {
   }).format(new Date(`${date}T12:00:00Z`))
 }
 
-function inputStyle(brandColor: string, hasError: boolean) {
-  return {
-    width: '100%',
-    padding: '14px 16px',
-    borderRadius: 12,
-    border: `1.5px solid ${hasError ? '#DC2626' : '#E0E0E0'}`,
-    background: 'white',
-    fontSize: 15,
-    color: '#111',
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-    boxShadow: hasError ? 'none' : `0 0 0 0 ${brandColor}`,
-  }
-}
-
 export default function BookingStep5Confirm({
   slug,
   tenantId,
@@ -85,354 +59,277 @@ export default function BookingStep5Confirm({
   services,
   date,
   time,
-  onBack,
+  onBack: _onBack,
   onSuccess,
   primaryColor,
-  skipLocationStep = false,
   initialFullName = '',
   initialPhone = '',
   initialEmail = '',
   isLoggedIn = false,
+  clientId,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
-  const tenantPath = useTenantPath(slug)
-  const [isPending, startTransition] = useTransition()
-  const [fullName, setFullName] = useState(initialFullName)
-  const [phone, setPhone] = useState(initialPhone)
-  const [email, setEmail] = useState(initialEmail)
-  const [focusedField, setFocusedField] = useState<'fullName' | 'phone' | 'email' | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<{ fullName?: string; phone?: string; email?: string }>({})
+
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+
+  const [upsellProducts, setUpsellProducts] = useState<UpsellProduct[]>([])
+  const [loadingUpsell, setLoadingUpsell] = useState(true)
+  const [upsellDone, setUpsellDone] = useState(false)
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+
+  useEffect(() => {
+    const categories = services.map((s) => s.category).filter((c): c is string => Boolean(c))
+    getUpsellProductsAction({
+      tenantId,
+      locationId,
+      serviceCategories: categories,
+      clientId: clientId ?? undefined,
+      limit: 6,
+    })
+      .then((products) => {
+        setUpsellProducts(products)
+        if (products.length === 0) setUpsellDone(true)
+      })
+      .catch(() => setUpsellDone(true))
+      .finally(() => setLoadingUpsell(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const totalPrice = useMemo(
     () => services.reduce((total, service) => total + Number(service.price ?? 0), 0),
-    [services]
+    [services],
   )
   const totalDuration = useMemo(
     () => services.reduce((total, service) => total + Number(service.duration_minutes ?? 0), 0),
-    [services]
+    [services],
   )
   const formattedDate = formatBookingDate(date)
+  const formattedTime = time.slice(0, 5)
 
-  function validate() {
-    const nextErrors: { fullName?: string; phone?: string; email?: string } = {}
-
-    if (!fullName.trim() || fullName.trim().length < 2) {
-      nextErrors.fullName = 'Inserisci il tuo nome e cognome.'
-    }
-
-    if (!phone.trim() || phone.trim().length < 6) {
-      nextErrors.phone = 'Inserisci un numero di telefono valido.'
-    }
-
-    if (email.trim().length > 0) {
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailPattern.test(email.trim())) {
-        nextErrors.email = 'Inserisci un indirizzo email valido.'
-      }
-    }
-
-    setFieldErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-  }
-
-  function handleConfirm() {
+  async function submitBooking(contactData: { fullName: string; phone: string; email: string }) {
+    setIsSubmitting(true)
     setSubmitError('')
-    if (!validate()) return
-    startTransition(async () => {
-      const result: CreateGuestBookingResult = await createGuestBooking({
-        slug,
-        tenantId,
-        locationId,
-        staffId,
-        serviceIds: services.map((service) => service.id),
-        date,
-        time,
-        fullName,
-        phone,
-        email,
-        notes: '',
-        marketingConsent: false,
-      })
+    const result = await createGuestBooking({
+      slug,
+      tenantId,
+      locationId,
+      staffId,
+      serviceIds: services.map((s) => s.id),
+      date,
+      time,
+      fullName: contactData.fullName,
+      phone: contactData.phone,
+      email: contactData.email,
+      notes: '',
+      marketingConsent: false,
+      productIds: selectedProductIds,
+    })
+    if (!result.success || !result.appointmentId) {
+      setSubmitError(result.error ?? 'Non siamo riusciti a confermare la prenotazione.')
+      setIsSubmitting(false)
+      return
+    }
+    onSuccess(result.appointmentId)
+  }
 
-      if (!result.success || !result.appointmentId) {
-        setSubmitError(result.error ?? 'Non siamo riusciti a confermare la prenotazione.')
-        return
-      }
-
-      onSuccess(result.appointmentId)
+  async function handleConferma() {
+    if (!isLoggedIn) {
+      setShowAuthModal(true)
+      return
+    }
+    await submitBooking({
+      fullName: initialFullName,
+      phone: initialPhone ?? '',
+      email: initialEmail ?? '',
     })
   }
 
-  const profileLink = tenantPath('/profilo')
-
   return (
-    <form onSubmit={handleSubmit} style={{ minHeight: '100vh', background: '#F5F5F0', paddingBottom: 0 }}>
-      <BookingStepIndicator
-        currentStep="confirm"
-        completedSteps={skipLocationStep ? ['staff', 'service', 'datetime'] : ['location', 'staff', 'service', 'datetime']}
-        tenantPrimary={brandColor}
-        skipLocationStep={skipLocationStep}
-        stickyTopOverride={76}
-      />
+    <div className="min-h-screen bg-gray-50">
 
-      <div
-        style={{
-          margin: '12px 16px',
-          borderRadius: 20,
-          background: 'white',
-          overflow: 'hidden',
-          boxShadow: '0 1px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div style={{ padding: 16, display: 'flex', gap: 14, alignItems: 'center' }}>
-          {staff.photo_url ? (
-            <img
-              src={staff.photo_url}
-              alt={staff.full_name ?? 'Barbiere'}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 14,
-                objectFit: 'cover',
-                display: 'block',
-                flexShrink: 0,
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 14,
-                background: `${brandColor}22`,
-                color: brandColor,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 18,
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              {getInitials(staff.full_name)}
-            </div>
-          )}
+      {/* Scrollable content — pb-28 keeps it clear of the fixed CTA */}
+      <div className="pb-28 px-4 py-5 flex flex-col gap-4">
 
-          <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111' }}>
-              {staff.full_name ?? 'Barbiere'}
-            </p>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(0,0,0,0.45)' }}>
-              Presso {location.name}
-            </p>
-          </div>
-        </div>
+        {/* CARD RIEPILOGO */}
+        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
 
-        <div style={{ height: 1, background: '#F0F0F0', margin: '0 16px' }} />
-
-        <div style={{ padding: '12px 16px' }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'rgba(0,0,0,0.45)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
+          {/* Staff — sfondo tinto con brand color */}
+          <div
+            className="flex items-center gap-4 px-5 py-5"
+            style={{ background: `${brandColor}08` }}
           >
-            Servizi
-          </p>
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {services.map((service) => (
+            {staff.photo_url ? (
+              <Image
+                src={staff.photo_url}
+                alt={staff.full_name ?? 'Barbiere'}
+                width={48}
+                height={48}
+                className="rounded-full object-cover w-12 h-12 shrink-0"
+              />
+            ) : (
               <div
-                key={service.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold shrink-0"
+                style={{ backgroundColor: brandColor }}
               >
-                <span style={{ fontSize: 14, fontWeight: 500, color: '#111' }}>{service.name}</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
-                  {formatCurrency(Number(service.price ?? 0))}
-                </span>
+                {getInitials(staff.full_name)}
               </div>
-            ))}
+            )}
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[20px] font-bold text-gray-900 leading-tight truncate"
+                style={{ fontFamily: 'var(--font-tenant, inherit)' }}
+              >
+                {staff.full_name ?? 'Barbiere'}
+              </p>
+              <p className="text-[13px] text-gray-400 mt-0.5 truncate flex items-center gap-1">
+                <MapPin className="w-3 h-3 shrink-0" />
+                {location.name}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div style={{ height: 1, background: '#F0F0F0', margin: '0 16px' }} />
+          <div className="h-px bg-gray-100 mx-5" />
 
-        <div style={{ padding: '12px 16px' }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'rgba(0,0,0,0.45)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
+          {/* Servizi */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Scissors className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Servizi
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {services.map((service) => (
+                <div key={service.id} className="flex items-center justify-between">
+                  <p className="text-[15px] font-medium text-gray-900">{service.name}</p>
+                  <p className="text-[15px] font-semibold text-gray-900">
+                    {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })} €
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Data e ora */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Data e ora
+              </p>
+            </div>
+            <p className="text-[15px] font-medium text-gray-900 capitalize">
+              {formattedDate} · {formattedTime}
+            </p>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Durata */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Durata stimata
+              </p>
+            </div>
+            <p className="text-[15px] font-medium text-gray-900">{totalDuration} minuti</p>
+          </div>
+
+          {/* Totale — border-top tinted con brand color */}
+          <div
+            className="flex items-center justify-between px-5 py-4"
+            style={{ borderTop: `1.5px solid ${brandColor}20` }}
           >
-            Data e ora
-          </p>
-          <p style={{ margin: '8px 0 0', fontSize: 14, fontWeight: 500, color: '#111' }}>
-            {formattedDate} · {time}
-          </p>
+            <p className="text-[16px] font-bold text-gray-900">Totale</p>
+            <p className="text-[22px] font-bold" style={{ color: brandColor }}>
+              {totalPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })} €
+            </p>
+          </div>
+
         </div>
 
-        <div style={{ height: 1, background: '#F0F0F0', margin: '0 16px' }} />
+        {/* Nota pagamento */}
+        <p className="text-center text-[12px] text-gray-400 px-4">
+          Il pagamento avviene in sede al termine della visita.
+        </p>
 
-        <div style={{ padding: '12px 16px' }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'rgba(0,0,0,0.45)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
-          >
-            Durata stimata
-          </p>
-          <p style={{ margin: '8px 0 0', fontSize: 14, fontWeight: 500, color: '#111' }}>
-            {totalDuration} minuti
-          </p>
-        </div>
-
-        <div style={{ height: 1, background: '#F0F0F0', margin: '0 16px' }} />
-
-        <div
-          style={{
-            padding: '14px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>Totale</span>
-          <span style={{ fontSize: 16, fontWeight: 700, color: brandColor }}>
-            {formatCurrency(totalPrice)}
-          </span>
-        </div>
       </div>
 
-      {isLoggedIn ? (
-        <>
-          <div style={{ margin: 16 }}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600, color: '#111' }}>I tuoi dati</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: 'white',
-                  border: '1.5px solid #E0E0E0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>Nome e cognome</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 15, color: '#111' }}>{fullName || '—'}</p>
-                </div>
-                <Link href={profileLink} style={{ fontSize: 13, color: brandColor, fontWeight: 600 }}>
-                  modifica profilo
-                </Link>
-              </div>
-              <div
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: 'white',
-                  border: '1.5px solid #E0E0E0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>Telefono</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 15, color: '#111' }}>{phone || '—'}</p>
-                </div>
-                <Link href={profileLink} style={{ fontSize: 13, color: brandColor, fontWeight: 600 }}>
-                  modifica profilo
-                </Link>
-              </div>
-              <div
-                style={{
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: 'white',
-                  border: '1.5px solid #E0E0E0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <p style={{ margin: 0, fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>Email</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 15, color: '#111' }}>{email || '—'}</p>
-                </div>
-                <Link href={profileLink} style={{ fontSize: 13, color: brandColor, fontWeight: 600 }}>
-                  modifica profilo
-                </Link>
-              </div>
-            </div>
-          </div>
-          <BottomCTA
-            primary={{
-              label: isPending ? 'Conferma in corso...' : 'Conferma prenotazione',
-              onClick: handleConfirm,
-              loading: isPending,
-              disabled: isPending,
-            }}
-            tenantPrimary={brandColor}
-          />
-          {submitError ? (
-            <p
-              style={{
-                position: 'fixed',
-                bottom: 'calc(80px + max(12px, env(safe-area-inset-bottom, 0px)))',
-                left: 16,
-                right: 16,
-                margin: 0,
-                fontSize: 12,
-                color: '#DC2626',
-                textAlign: 'center',
-                zIndex: 51,
-              }}
-            >
-              {submitError}
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <BookingAuthStep
-          slug={slug}
+      {/* CTA FIXED IN BASSO */}
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(32px,env(safe-area-inset-bottom,0px))] pt-3 bg-white border-t border-gray-100 z-20">
+        {submitError && (
+          <p className="text-center text-[12px] text-red-500 mb-2">{submitError}</p>
+        )}
+        <button
+          onClick={handleConferma}
+          disabled={isSubmitting}
+          className="w-full py-4 rounded-2xl text-[16px] font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
+          style={{ backgroundColor: brandColor }}
+        >
+          {isSubmitting ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <span>Conferma prenotazione</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Auth modal */}
+      {showAuthModal && (
+        <BookingAuthModal
+          primaryColor={brandColor}
           tenantId={tenantId}
-          locationId={locationId}
-          staffId={staffId}
-          serviceIds={services.map((s) => s.id)}
-          date={date}
-          time={time}
-          primaryColor={primaryColor}
-          onSuccess={onSuccess}
+          tenantSlug={slug}
+          pendingBookingData={{
+            slug,
+            locationId,
+            staffId,
+            serviceIds: services.map((s) => s.id),
+            date,
+            time,
+          }}
+          onSuccess={async (contactData) => {
+            setShowAuthModal(false)
+            await submitBooking(contactData)
+          }}
+          onGuestContinue={async (guestData) => {
+            setShowAuthModal(false)
+            await submitBooking(guestData)
+          }}
+          onDismiss={() => setShowAuthModal(false)}
         />
       )}
-    </form>
+
+      {/* Upsell drawer */}
+      {!loadingUpsell && !upsellDone && upsellProducts.length > 0 && (
+        <BookingUpsellDrawer
+          products={upsellProducts}
+          primaryColor={brandColor}
+          staffName={staff.full_name}
+          isLoggedIn={isLoggedIn}
+          clientId={clientId}
+          tenantId={tenantId}
+          onContinue={(ids) => {
+            setSelectedProductIds(ids)
+            setUpsellDone(true)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }}
+          onSkip={() => {
+            setSelectedProductIds([])
+            setUpsellDone(true)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+          }}
+        />
+      )}
+
+    </div>
   )
 }

@@ -28,6 +28,7 @@ const createGuestBookingSchema = z.object({
     }),
   notes: z.string().trim().max(500).optional().transform((value) => value ?? ''),
   marketingConsent: z.boolean().default(false),
+  productIds: z.array(z.string().min(1)).optional().default([]),
 })
 
 export interface CreateGuestBookingResult {
@@ -203,6 +204,29 @@ export async function createGuestBooking(
     return {
       success: false,
       error: appointmentServicesError.message,
+    }
+  }
+
+  if (data.productIds.length > 0) {
+    const { data: productRows } = await db
+      .from('products')
+      .select('id, price_sell')
+      .eq('tenant_id', data.tenantId)
+      .eq('is_active', true)
+      .in('id', data.productIds)
+
+    const productPayload = ((productRows ?? []) as Array<{ id: string; price_sell: number }>).map(
+      (p) => ({
+        tenant_id: data.tenantId,
+        appointment_id: appointmentId,
+        product_id: p.id,
+        quantity: 1,
+        price_at_sale: Number(p.price_sell ?? 0),
+      }),
+    )
+
+    if (productPayload.length > 0) {
+      await db.from('appointment_products').insert(productPayload)
     }
   }
 

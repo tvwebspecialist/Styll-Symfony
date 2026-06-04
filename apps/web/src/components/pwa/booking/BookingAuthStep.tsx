@@ -169,7 +169,7 @@ export function BookingAuthStep({
         slug, tenantId, locationId, staffId, serviceIds, date, time,
         fullName: fullName || em, phone,
         email: data.user.email ?? em,
-        notes: '', marketingConsent: false,
+        notes: '', marketingConsent: false, productIds: [],
       })
 
       if (!result.success || !result.appointmentId) {

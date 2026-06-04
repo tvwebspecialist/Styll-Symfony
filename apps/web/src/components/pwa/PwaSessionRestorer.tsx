@@ -48,6 +48,7 @@ export function PwaSessionRestorer() {
               email: pending.email,
               notes: '',
               marketingConsent: false,
+              productIds: [],
             })
             if (result.success && result.appointmentId) {
               router.push(`/tenant/app/${pending.slug}/prenota/successo?appointment=${result.appointmentId}`)

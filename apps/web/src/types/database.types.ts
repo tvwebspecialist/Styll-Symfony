@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_audit_log: {
@@ -340,6 +315,59 @@ export type Database = {
           },
         ]
       }
+      client_import_jobs: {
+        Row: {
+          created_at: string
+          error_count: number
+          errors: Json | null
+          filename: string | null
+          id: string
+          imported_count: number
+          initiated_by: string | null
+          skipped_count: number
+          source: string | null
+          status: string
+          tenant_id: string
+          total_rows: number
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number
+          errors?: Json | null
+          filename?: string | null
+          id?: string
+          imported_count?: number
+          initiated_by?: string | null
+          skipped_count?: number
+          source?: string | null
+          status?: string
+          tenant_id: string
+          total_rows?: number
+        }
+        Update: {
+          created_at?: string
+          error_count?: number
+          errors?: Json | null
+          filename?: string | null
+          id?: string
+          imported_count?: number
+          initiated_by?: string | null
+          skipped_count?: number
+          source?: string | null
+          status?: string
+          tenant_id?: string
+          total_rows?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_import_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_loyalty: {
         Row: {
           available_points: number
@@ -436,6 +464,52 @@ export type Database = {
           },
           {
             foreignKeyName: "client_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_product_wishlist: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          product_id: string
+          tenant_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          tenant_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_product_wishlist_client_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_product_wishlist_product_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_product_wishlist_tenant_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -554,10 +628,9 @@ export type Database = {
           longitude: number | null
           name: string
           phone: string | null
-          /** @deprecated Use photos[0] for the primary image */
           photo_url: string | null
-          photos: string[]
-          show_on_website: boolean
+          photos: string[] | null
+          show_on_website: boolean | null
           tenant_id: string
           updated_at: string
           zip_code: string | null
@@ -573,10 +646,9 @@ export type Database = {
           longitude?: number | null
           name: string
           phone?: string | null
-          /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
-          photos?: string[]
-          show_on_website?: boolean
+          photos?: string[] | null
+          show_on_website?: boolean | null
           tenant_id: string
           updated_at?: string
           zip_code?: string | null
@@ -592,10 +664,9 @@ export type Database = {
           longitude?: number | null
           name?: string
           phone?: string | null
-          /** @deprecated Use photos for multi-photo support */
           photo_url?: string | null
-          photos?: string[]
-          show_on_website?: boolean
+          photos?: string[] | null
+          show_on_website?: boolean | null
           tenant_id?: string
           updated_at?: string
           zip_code?: string | null
@@ -898,6 +969,7 @@ export type Database = {
           display_order: number
           id: string
           is_active: boolean
+          is_new: boolean
           name: string
           photo_url: string | null
           price_cost: number | null
@@ -915,6 +987,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          is_new?: boolean
           name: string
           photo_url?: string | null
           price_cost?: number | null
@@ -932,6 +1005,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          is_new?: boolean
           name?: string
           photo_url?: string | null
           price_cost?: number | null
@@ -1004,6 +1078,75 @@ export type Database = {
           work_mode?: string | null
         }
         Relationships: []
+      }
+      promotions: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_type: string | null
+          discount_value: number | null
+          display_order: number
+          id: string
+          is_active: boolean
+          service_id: string | null
+          show_in_app: boolean
+          show_on_landing: boolean
+          tenant_id: string
+          title: string
+          updated_at: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          service_id?: string | null
+          show_in_app?: boolean
+          show_on_landing?: boolean
+          tenant_id: string
+          title: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          service_id?: string | null
+          show_in_app?: boolean
+          show_on_landing?: boolean
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotions_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reward_redemptions: {
         Row: {
@@ -1126,7 +1269,7 @@ export type Database = {
           is_active: boolean
           name: string
           price: number
-          show_on_website: boolean
+          show_on_website: boolean | null
           tenant_id: string
           updated_at: string
         }
@@ -1141,7 +1284,7 @@ export type Database = {
           is_active?: boolean
           name: string
           price: number
-          show_on_website?: boolean
+          show_on_website?: boolean | null
           tenant_id: string
           updated_at?: string
         }
@@ -1156,7 +1299,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           price?: number
-          show_on_website?: boolean
+          show_on_website?: boolean | null
           tenant_id?: string
           updated_at?: string
         }
@@ -1170,52 +1313,23 @@ export type Database = {
           },
         ]
       }
-      website_photos: {
+      staff_locations: {
         Row: {
           created_at: string
           id: string
-          sort_order: number
-          tenant_id: string
-          url: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          sort_order?: number
-          tenant_id: string
-          url: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          sort_order?: number
-          tenant_id?: string
-          url?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "website_photos_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      staff_locations: {
-        Row: {
-          id: string
           location_id: string
           staff_id: string
           tenant_id: string
         }
         Insert: {
+          created_at?: string
           id?: string
           location_id: string
           staff_id: string
           tenant_id: string
         }
         Update: {
+          created_at?: string
           id?: string
           location_id?: string
           staff_id?: string
@@ -1250,12 +1364,14 @@ export type Database = {
           bio: string | null
           created_at: string
           deleted_at: string | null
+          display_order: number | null
           id: string
           is_active: boolean
           photo_url: string | null
           profile_id: string
           role: string
-          show_on_website: boolean
+          show_on_website: boolean | null
+          specialization: string | null
           tenant_id: string
           updated_at: string
         }
@@ -1263,12 +1379,14 @@ export type Database = {
           bio?: string | null
           created_at?: string
           deleted_at?: string | null
+          display_order?: number | null
           id?: string
           is_active?: boolean
           photo_url?: string | null
           profile_id: string
           role?: string
-          show_on_website?: boolean
+          show_on_website?: boolean | null
+          specialization?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -1276,12 +1394,14 @@ export type Database = {
           bio?: string | null
           created_at?: string
           deleted_at?: string | null
+          display_order?: number | null
           id?: string
           is_active?: boolean
           photo_url?: string | null
           profile_id?: string
           role?: string
-          show_on_website?: boolean
+          show_on_website?: boolean | null
+          specialization?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -1488,48 +1608,101 @@ export type Database = {
       }
       tenants: {
         Row: {
+          about_image_url: string | null
           business_name: string
           created_at: string
+          description: string | null
           font_family: string | null
+          google_rating: number | null
+          google_reviews_count: number | null
+          hero_image_url: string | null
           id: string
           logo_url: string | null
           primary_color: string | null
           secondary_color: string | null
           settings: Json
           slug: string
+          social_links: Json | null
           status: string
+          tagline: string | null
           timezone: string
           updated_at: string
         }
         Insert: {
+          about_image_url?: string | null
           business_name: string
           created_at?: string
+          description?: string | null
           font_family?: string | null
+          google_rating?: number | null
+          google_reviews_count?: number | null
+          hero_image_url?: string | null
           id?: string
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           settings?: Json
           slug: string
+          social_links?: Json | null
           status?: string
+          tagline?: string | null
           timezone?: string
           updated_at?: string
         }
         Update: {
+          about_image_url?: string | null
           business_name?: string
           created_at?: string
+          description?: string | null
           font_family?: string | null
+          google_rating?: number | null
+          google_reviews_count?: number | null
+          hero_image_url?: string | null
           id?: string
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
           settings?: Json
           slug?: string
+          social_links?: Json | null
           status?: string
+          tagline?: string | null
           timezone?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      website_photos: {
+        Row: {
+          created_at: string
+          id: string
+          sort_order: number | null
+          tenant_id: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          tenant_id: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sort_order?: number | null
+          tenant_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_photos_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       working_hour_overrides: {
         Row: {
@@ -1614,6 +1787,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "working_hours_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "working_hours_staff_id_fkey"
             columns: ["staff_id"]
@@ -1785,9 +1965,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

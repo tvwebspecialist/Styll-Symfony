@@ -21,9 +21,15 @@ interface Props {
   initialPhone?: string
   initialEmail?: string
   isLoggedIn?: boolean
+  clientId?: string
 }
 
-export function ConfermaForm({ slug, tenantId, locationId, staffId, serviceIds, date, time, location, staff, services, primaryColor, initialFullName = '', initialPhone = '', initialEmail = '', isLoggedIn = false }: Props) {
+export function ConfermaForm({
+  slug, tenantId, locationId, staffId, serviceIds, date, time,
+  location, staff, services, primaryColor,
+  initialFullName = '', initialPhone = '', initialEmail = '',
+  isLoggedIn = false, clientId,
+}: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
 
@@ -58,6 +64,7 @@ export function ConfermaForm({ slug, tenantId, locationId, staffId, serviceIds, 
       initialPhone={initialPhone}
       initialEmail={initialEmail}
       isLoggedIn={isLoggedIn}
+      clientId={clientId}
     />
   )
 }
