@@ -26,11 +26,13 @@ export interface PwaTopBarProps {
   slug: string
 }
 
+// safe-area-inset-top applicato — fix header sotto status bar iOS/Android
 const glassShell = {
   position: 'sticky' as const,
   top: 0,
   zIndex: 60,
-  minHeight: 75,
+  minHeight: 'calc(75px + env(safe-area-inset-top, 0px))',
+  paddingTop: 'env(safe-area-inset-top, 0px)',
   background: 'rgba(255, 255, 255, 0.82)',
   backdropFilter: 'blur(28px) saturate(200%)',
   WebkitBackdropFilter: 'blur(28px) saturate(200%)',
@@ -172,7 +174,7 @@ function TopBarInner({
     }
 
     return (
-      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', padding: '0 20px' }}>
+      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', paddingLeft: '20px', paddingRight: '20px' }}>
         <button
           type="button"
           style={backBtnStyle}
@@ -204,7 +206,7 @@ function TopBarInner({
 
 export function PwaTopBar(props: PwaTopBarProps) {
   return (
-    <Suspense fallback={<div style={{ height: 75 }} />}>
+    <Suspense fallback={<div style={{ height: 'calc(75px + env(safe-area-inset-top, 0px))' }} />}>
       <TopBarInner {...props} />
     </Suspense>
   )
