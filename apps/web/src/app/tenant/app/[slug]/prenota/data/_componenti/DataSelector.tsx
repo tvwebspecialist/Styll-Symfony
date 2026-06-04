@@ -15,10 +15,11 @@ interface Props {
   slotsByDate: Record<string, GetAvailableSlotsResult>
   staff: PublicStaffMember | null
   selectedServiceNames: string[]
+  totalDurationMinutes?: number
   primaryColor?: string
 }
 
-export function DataSelector({ slug, locationId, staffId, serviceIds, skip, slotsByDate, staff, selectedServiceNames, primaryColor }: Props) {
+export function DataSelector({ slug, locationId, staffId, serviceIds, skip, slotsByDate, staff, selectedServiceNames, totalDurationMinutes, primaryColor }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
 
@@ -48,11 +49,11 @@ export function DataSelector({ slug, locationId, staffId, serviceIds, skip, slot
       staff={staff}
       staffId={staffId}
       selectedServiceNames={selectedServiceNames}
+      totalDurationMinutes={totalDurationMinutes}
       slotsByDate={slotsByDate}
       onBack={handleBack}
       onSelect={handleSelect}
       primaryColor={primaryColor}
-      skipLocationStep={skip.includes('sede')}
     />
   )
 }

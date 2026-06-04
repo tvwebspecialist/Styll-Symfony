@@ -4,7 +4,7 @@
 
 import { Suspense } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { PwaPageHeader } from './PwaPageHeader'
 
@@ -137,6 +137,7 @@ function TopBarInner({
     const segment = isPrenotaRoot ? '' : (pathname.slice(prenotaBase.length + 1).split('/')[0] ?? '')
 
     if (segment === 'servizi') return null
+    if (segment === 'data') return null
 
     const STEP_TITLES: Record<string, string> = {
       '': 'Sede',
@@ -195,7 +196,7 @@ function TopBarInner({
             onClick={() => router.push(backUrl)}
             aria-label="Torna indietro"
           >
-            <ArrowLeft size={20} color="#111111" strokeWidth={2} />
+            <ChevronLeft size={20} color="#111111" strokeWidth={2.5} />
           </button>
           <span style={titleStyle}>{title}</span>
           <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
