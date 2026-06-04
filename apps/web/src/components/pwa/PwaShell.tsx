@@ -65,44 +65,31 @@ export function PwaShell({
     return <>{children}</>
   }
 
+  // safe area: la gestiscono direttamente la PwaTopBar (glassShell paddingTop)
+  // e la hero full-bleed dello step servizi — qui niente strip grigia né padding
+  // top, altrimenti il glass non risale sotto la status bar (doppio conteggio).
   return (
     <>
-      {/* Safe area top — same background as page, covers the OS status bar */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 'env(safe-area-inset-top)',
-          backgroundColor: '#F7F7F7',
-          zIndex: 100,
-        }}
+      <PwaTopBar
+        businessName={businessName}
+        logoUrl={logoUrl}
+        primaryColor={primaryColor}
+        fontFamily={fontFamily}
+        clientName={clientName}
+        clientAvatarUrl={clientAvatarUrl}
+        slug={slug}
       />
-
-      {/* Main content offset below the status bar */}
-      <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-        <PwaTopBar
-          businessName={businessName}
-          logoUrl={logoUrl}
-          primaryColor={primaryColor}
-          fontFamily={fontFamily}
-          clientName={clientName}
-          clientAvatarUrl={clientAvatarUrl}
-          slug={slug}
-        />
-        <div style={{ paddingBottom: isPrenotaSubroute ? 0 : 96 }}>
-          {children}
-        </div>
-        {!isPrenotaSubroute && (
-          <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
-        )}
-        {isPrenotaSubroute && (
-          <Suspense fallback={null}>
-            <PrenotaFirstStepNavInner slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
-          </Suspense>
-        )}
+      <div style={{ paddingBottom: isPrenotaSubroute ? 0 : 96 }}>
+        {children}
       </div>
+      {!isPrenotaSubroute && (
+        <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+      )}
+      {isPrenotaSubroute && (
+        <Suspense fallback={null}>
+          <PrenotaFirstStepNavInner slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
+        </Suspense>
+      )}
     </>
   )
 }
