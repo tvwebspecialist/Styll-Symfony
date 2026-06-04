@@ -26,12 +26,12 @@ export interface PwaTopBarProps {
   slug: string
 }
 
-// safe-area-inset-top applicato — fix header sotto status bar iOS/Android
+// safe area: background esteso, contenuto centrato nei 75px sotto status bar
+// glassShell = solo background + paddingTop safe area (non gestisce flex/altezza)
 const glassShell = {
   position: 'sticky' as const,
   top: 0,
   zIndex: 60,
-  minHeight: 'calc(75px + env(safe-area-inset-top, 0px))',
   paddingTop: 'env(safe-area-inset-top, 0px)',
   background: 'rgba(255, 255, 255, 0.82)',
   backdropFilter: 'blur(28px) saturate(200%)',
@@ -40,6 +40,13 @@ const glassShell = {
   borderBottomRightRadius: '40px',
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(0, 0, 0, 0.04)',
 }
+
+// contentBar = inner 75px dove vive il contenuto (flex centrato)
+const contentBar = {
+  height: 75,
+  display: 'flex',
+  alignItems: 'center',
+} as const
 
 // action buttons: background white + shadow leggera
 const backBtnStyle = {
@@ -93,16 +100,18 @@ function TopBarInner({
   // ── Home ──────────────────────────────────────────────────────────────────
   if (isHome) {
     return (
-      <div style={{ ...glassShell, display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
-          <PwaPageHeader
-            variant="home"
-            clientName={clientName}
-            clientAvatarUrl={clientAvatarUrl}
-            hasUnreadNotifications={false}
-            onNotificationsPress={() => {}}
-            fontFamily={fontFamily}
-          />
+      <div style={glassShell}>
+        <div style={contentBar}>
+          <div style={{ flex: 1 }}>
+            <PwaPageHeader
+              variant="home"
+              clientName={clientName}
+              clientAvatarUrl={clientAvatarUrl}
+              hasUnreadNotifications={false}
+              onNotificationsPress={() => {}}
+              fontFamily={fontFamily}
+            />
+          </div>
         </div>
       </div>
     )
@@ -111,10 +120,12 @@ function TopBarInner({
   // ── Successo ──────────────────────────────────────────────────────────────
   if (isInSuccesso) {
     return (
-      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
-          Prenotazione confermata
-        </span>
+      <div style={glassShell}>
+        <div style={{ ...contentBar, justifyContent: 'center' }}>
+          <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+            Prenotazione confermata
+          </span>
+        </div>
       </div>
     )
   }
@@ -143,10 +154,12 @@ function TopBarInner({
     // First visible step — no back button
     if (isFirstStep) {
       return (
-        <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
-            {title}
-          </span>
+        <div style={glassShell}>
+          <div style={{ ...contentBar, justifyContent: 'center' }}>
+            <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+              {title}
+            </span>
+          </div>
         </div>
       )
     }
@@ -174,17 +187,19 @@ function TopBarInner({
     }
 
     return (
-      <div style={{ ...glassShell, display: 'flex', alignItems: 'center', paddingLeft: '20px', paddingRight: '20px' }}>
-        <button
-          type="button"
-          style={backBtnStyle}
-          onClick={() => router.push(backUrl)}
-          aria-label="Torna indietro"
-        >
-          <ArrowLeft size={20} color="#111111" strokeWidth={2} />
-        </button>
-        <span style={titleStyle}>{title}</span>
-        <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+      <div style={glassShell}>
+        <div style={{ ...contentBar, paddingLeft: '20px', paddingRight: '20px' }}>
+          <button
+            type="button"
+            style={backBtnStyle}
+            onClick={() => router.push(backUrl)}
+            aria-label="Torna indietro"
+          >
+            <ArrowLeft size={20} color="#111111" strokeWidth={2} />
+          </button>
+          <span style={titleStyle}>{title}</span>
+          <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+        </div>
       </div>
     )
   }
@@ -196,10 +211,12 @@ function TopBarInner({
   const title = PAGE_TITLES[segment] ?? ''
 
   return (
-    <div style={{ ...glassShell, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
-        {title}
-      </span>
+    <div style={glassShell}>
+      <div style={{ ...contentBar, justifyContent: 'center' }}>
+        <span style={{ fontSize: 24, fontWeight: 600, color: '#111111', fontFamily: fontFamily ?? 'inherit' }}>
+          {title}
+        </span>
+      </div>
     </div>
   )
 }
