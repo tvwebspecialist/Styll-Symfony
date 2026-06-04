@@ -96,6 +96,8 @@ export default async function DataPage({ params, searchParams }: Props) {
     dates.map((date, index) => [date, slots[index]])
   )
 
+  const totalDurationMinutes = selectedServices.reduce((sum, s) => sum + s.duration_minutes, 0)
+
   return (
     <DataSelector
       slug={slug}
@@ -106,6 +108,7 @@ export default async function DataPage({ params, searchParams }: Props) {
       slotsByDate={slotsByDate}
       staff={staffMember}
       selectedServiceNames={selectedServices.map((service) => service.name)}
+      totalDurationMinutes={totalDurationMinutes}
       primaryColor={tenant.primary_color}
     />
   )
