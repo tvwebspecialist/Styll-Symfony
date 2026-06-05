@@ -65,6 +65,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
       staff={staffMember}
       services={services}
       primaryColor={tenant.primary_color}
+      businessName={tenant.business_name}
       initialFullName={clientRecord?.fullName ?? ''}
       initialPhone={clientRecord?.phone ?? ''}
       initialEmail={clientRecord?.email ?? ''}
