@@ -227,27 +227,23 @@ export default function BookingAuthModal({
     <>
       {/* Overlay */}
       <motion.div
-        className="fixed inset-0 bg-black/40 z-50"
+        className="fixed inset-0 bg-black/45 z-50"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         onClick={onDismiss}
         aria-hidden="true"
       />
 
-      {/* Drawer */}
+      {/* Floating panel — staccato dai bordi, rounded su tutti i lati */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white"
-        style={{ borderRadius: '40px 40px 0 0' }}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
+        className="fixed bottom-6 left-4 right-4 z-50 bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         role="dialog"
         aria-label="Accedi per completare la prenotazione"
       >
-        {/* Handle */}
-        <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mt-3 mb-4" aria-hidden="true" />
-
-        <div className="px-5 pb-[max(32px,env(safe-area-inset-bottom,0px))]">
+        <div className="px-5 pt-6 pb-8">
 
           {/* ── VERIFY EMAIL VIEW ─────────────────────────────────────────── */}
           {view === 'verify-email' && (
@@ -353,12 +349,12 @@ export default function BookingAuthModal({
           {view === 'auth' && (
             <>
               {/* Heading */}
-              <div className="mb-5">
+              <div className="mb-5 text-center">
                 <p
                   className="text-[22px] font-bold text-gray-900 leading-snug"
                   style={{ fontFamily: 'var(--font-tenant, inherit)' }}
                 >
-                  Quasi fatto
+                  Quasi fatto.
                 </p>
                 <p className="text-[13px] text-gray-400 mt-1">
                   Accedi per salvare la tua prenotazione e guadagnare punti fedeltà.
