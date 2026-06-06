@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 function redirect(url: string) {
   const res = NextResponse.redirect(url)
@@ -42,6 +43,17 @@ export async function GET(request: NextRequest) {
 
   if (!user) {
     return redirect(`${origin}/login`)
+  }
+
+  // OAuth users (Google, etc.) skip email OTP — mark them as verified
+  const provider = user.app_metadata?.provider as string | undefined
+  if (provider && provider !== 'email') {
+    const adminDb = createAdminClient()
+    await adminDb
+      .from('profiles')
+      .update({ email_verified: true })
+      .eq('id', user.id)
+      .eq('email_verified', false)
   }
 
   const { data: profile } = await supabase

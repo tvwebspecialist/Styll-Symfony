@@ -7,6 +7,7 @@ import { Camera, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
+import { sendEmailVerificationOTP } from '@/lib/actions/email-verification'
 import { cn } from '@/lib/utils'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
@@ -130,13 +131,15 @@ export function RegisterForm() {
       }
 
       if (!hasSession) {
+        // Supabase email confirmation disabled — shouldn't happen, but handle it
         toast.success('Account creato! Controlla la tua email per confermare.')
         router.push('/login')
         return
       }
 
-      toast.success('Benvenuto su Styll! 👋')
-      router.push('/onboarding/step-1')
+      // Send OTP and redirect to email verification
+      await sendEmailVerificationOTP(cleanEmail)
+      router.push(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`)
       router.refresh()
     })
   }
