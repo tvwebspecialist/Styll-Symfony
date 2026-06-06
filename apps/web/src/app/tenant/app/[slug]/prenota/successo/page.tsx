@@ -1,6 +1,7 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Calendar, CalendarPlus, MapPin, Scissors, ShoppingBag, User } from 'lucide-react'
 import { getAppointmentSummary, getLoyaltyConfig } from '@/lib/actions/public-booking'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
@@ -12,10 +13,7 @@ interface Props {
 }
 
 function readParam(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null
-  }
-
+  if (Array.isArray(value)) return value[0] ?? null
   return value ?? null
 }
 
@@ -40,14 +38,12 @@ function formatDateTime(value: string): string {
 function buildGCalLink(title: string, startISO: string, endISO: string, location: string) {
   const formatForGoogle = (value: string) =>
     value.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
-
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: title,
     dates: `${formatForGoogle(startISO)}/${formatForGoogle(endISO)}`,
     location,
   })
-
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
@@ -56,14 +52,12 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
   const appointmentId = readParam(resolvedSearchParams.appointment)
   const tp = await createTenantPaths(slug)
 
-  if (!appointmentId) {
-    redirect(tp(''))
-  }
+  if (!appointmentId) redirect(tp(''))
 
   const tenantPromise = getTenantBySlug(slug)
   const appointmentPromise = getAppointmentSummary(appointmentId)
   const loyaltyPromise = tenantPromise.then((tenant) =>
-    tenant ? getLoyaltyConfig(tenant.tenant_id) : Promise.resolve(null)
+    tenant ? getLoyaltyConfig(tenant.tenant_id) : Promise.resolve(null),
   )
 
   const [tenant, appointment, loyaltyConfig] = await Promise.all([
@@ -76,128 +70,268 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!tenant || tenant.status !== 'active' || !appointment) {
-    notFound()
-  }
+  if (!tenant || tenant.status !== 'active' || !appointment) notFound()
 
-  const totalPrice = appointment.services.reduce(
-    (sum, service) => sum + service.price_at_booking,
-    0
-  )
+  const brandColor = tenant.primary_color ?? '#1a1a1a'
+  // Pulse ring colour: hex + 20 = ~12% opacity — same technique as BookingSuccessModal
+  const pulseColor = `${brandColor}20`
+
+  const totalPrice =
+    appointment.services.reduce((sum, s) => sum + s.price_at_booking, 0) +
+    appointment.products.reduce((sum, p) => sum + p.price_at_sale * p.quantity, 0)
   const calendarLink = buildGCalLink(
     `Prenotazione da ${tenant.business_name}`,
     appointment.start_time,
     appointment.end_time,
     [appointment.location_name, appointment.location_address, appointment.location_city]
       .filter(Boolean)
-      .join(', ')
+      .join(', '),
   )
 
-  return (
-    <main className="mx-auto max-w-2xl px-4 py-2">
-      <div className="space-y-6 pb-6">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex size-20 items-center justify-center rounded-full bg-[var(--brand-primary)] text-3xl font-semibold text-white">
-          ✓
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Prenotazione confermata!</h1>
-          <p className="text-sm text-muted-foreground">
-            Ti aspettiamo da {tenant.business_name}. Ecco il riepilogo del tuo appuntamento.
-          </p>
-        </div>
-      </div>
+  const loyaltyPoints = loyaltyConfig?.points_per_visit ?? 0
+  const loyaltyPerEuro = loyaltyConfig?.points_per_euro ?? 0
 
-      <Card className="rounded-3xl">
-        <CardHeader>
-          <CardTitle>Riepilogo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-muted/50 px-4 py-4">
-              <p className="text-sm text-muted-foreground">Quando</p>
-              <p className="font-semibold">{formatDateTime(appointment.start_time)}</p>
-            </div>
-            <div className="rounded-2xl bg-muted/50 px-4 py-4">
-              <p className="text-sm text-muted-foreground">Barbiere</p>
-              <p className="font-semibold">{appointment.staff_name ?? 'Staff Styll'}</p>
-            </div>
-            <div className="rounded-2xl bg-muted/50 px-4 py-4 sm:col-span-2">
-              <p className="text-sm text-muted-foreground">Sede</p>
-              <p className="font-semibold">{appointment.location_name ?? tenant.business_name}</p>
-              <p className="text-sm text-muted-foreground">
-                {[appointment.location_address, appointment.location_city].filter(Boolean).join(', ')}
+  return (
+    <main className="mx-auto max-w-md px-4 py-8">
+      {/* fadeSlideUp is defined in globals.css — no JS needed */}
+      <div
+        className="flex flex-col gap-5 pb-10"
+        style={{ animation: 'fadeSlideUp 0.45s ease both' }}
+      >
+
+        {/* ── HERO ────────────────────────────────────────────────────── */}
+        <div className="flex flex-col items-center gap-4 text-center pt-2">
+          {/* Pulse rings behind icon — dedicated child elements, no will-change on
+              fixed context, automatically suppressed by prefers-reduced-motion */}
+          <div className="relative flex items-center justify-center w-[120px] h-[120px]">
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out infinite' }}
+              aria-hidden="true"
+            />
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out 0.8s infinite' }}
+              aria-hidden="true"
+            />
+            <Image
+              src="/img/ceck.png"
+              alt="Prenotazione confermata"
+              width={110}
+              height={110}
+              className="relative z-10 object-contain"
+              priority
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <h1
+              className="text-[26px] font-bold tracking-tight text-gray-900"
+              style={{ fontFamily: 'var(--font-tenant, inherit)' }}
+            >
+              Prenotazione confermata!
+            </h1>
+            <p className="text-[14px] text-gray-500">
+              Ti aspettiamo da{' '}
+              <span className="font-medium text-gray-700">{tenant.business_name}</span>.
+            </p>
+          </div>
+        </div>
+
+        {/* ── LOYALTY TEASER ──────────────────────────────────────────── */}
+        {loyaltyConfig && loyaltyPoints > 0 && (
+          <div
+            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+            style={{
+              background: `${brandColor}10`,
+              border: `1.5px solid ${brandColor}25`,
+            }}
+          >
+            <span className="text-xl shrink-0" aria-hidden="true">🎉</span>
+            <p className="text-[13px] text-gray-700 leading-snug">
+              Con questa visita guadagni{' '}
+              <span className="font-bold text-gray-900">{loyaltyPoints} punti fedeltà</span>
+              {loyaltyPerEuro > 0 && (
+                <> + <span className="font-semibold">{loyaltyPerEuro} punti</span> per ogni euro speso</>
+              )}
+              .
+            </p>
+          </div>
+        )}
+
+        {/* ── RIEPILOGO ───────────────────────────────────────────────── */}
+        <div
+          className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
+        >
+          {/* Brand accent strip */}
+          <div className="h-1 w-full" style={{ backgroundColor: brandColor }} />
+
+          {/* Quando */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Quando
               </p>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            {appointment.services.map((service) => (
-              <div key={service.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
-                <span className="font-medium">{service.name}</span>
-                <span className="text-sm font-semibold">{formatCurrency(service.price_at_booking)}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl bg-[var(--brand-primary)]/5 px-4 py-4">
-            <span className="font-medium">Totale</span>
-            <span className="text-lg font-semibold">{formatCurrency(totalPrice)}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {loyaltyConfig ? (
-        <Card className="rounded-3xl border-[var(--brand-primary)]/20 bg-[var(--brand-primary)]/5">
-          <CardHeader>
-            <CardTitle>Un passo più vicino ai premi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Con questa visita potrai accumulare {loyaltyConfig.points_per_visit ?? 0} punti e continuare a guadagnare {loyaltyConfig.points_per_euro ?? 0} punti per ogni euro speso.
+            <p className="text-[15px] font-semibold text-gray-900 capitalize">
+              {formatDateTime(appointment.start_time)}
             </p>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
 
-      {!user ? (
-        <Card className="rounded-3xl border-[var(--brand-primary)]/20 bg-[var(--brand-primary)]/5">
-          <CardContent className="flex flex-col gap-4 py-6">
-            <div className="flex gap-3">
-              <span className="text-3xl leading-none">💎</span>
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Barbiere */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <User className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Barbiere
+              </p>
+            </div>
+            <p className="text-[15px] font-medium text-gray-900">
+              {appointment.staff_name ?? 'Staff'}
+            </p>
+          </div>
+
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Sede */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Sede
+              </p>
+            </div>
+            <p className="text-[15px] font-medium text-gray-900">
+              {appointment.location_name ?? tenant.business_name}
+            </p>
+            {(appointment.location_address || appointment.location_city) && (
+              <p className="text-[13px] text-gray-400 mt-0.5">
+                {[appointment.location_address, appointment.location_city]
+                  .filter(Boolean)
+                  .join(', ')}
+              </p>
+            )}
+          </div>
+
+          <div className="h-px bg-gray-100 mx-5" />
+
+          {/* Servizi */}
+          <div className="px-5 py-4">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Scissors className="w-3 h-3 text-gray-400 shrink-0" />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                Servizi
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {appointment.services.map((service) => (
+                <div key={service.id} className="flex items-center justify-between">
+                  <p className="text-[15px] font-medium text-gray-900">{service.name}</p>
+                  <p className="text-[15px] font-semibold text-gray-900">
+                    {formatCurrency(service.price_at_booking)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Prodotti — solo se presenti */}
+          {appointment.products.length > 0 && (
+            <>
+              <div className="h-px bg-gray-100 mx-5" />
+              <div className="px-5 py-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <ShoppingBag className="w-3 h-3 text-gray-400 shrink-0" />
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                    Prodotti
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {appointment.products.map((product) => (
+                    <div key={product.id} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[15px] font-medium text-gray-900 leading-snug">
+                          {product.quantity > 1 ? `${product.quantity}× ` : ''}{product.name}
+                        </p>
+                        {product.brand && (
+                          <p className="text-[12px] text-gray-400 mt-0.5">{product.brand}</p>
+                        )}
+                      </div>
+                      <p className="text-[15px] font-semibold text-gray-900 shrink-0">
+                        {formatCurrency(product.price_at_sale * product.quantity)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Totale */}
+          <div
+            className="flex items-center justify-between px-5 py-5"
+            style={{ borderTop: `2px solid ${brandColor}20` }}
+          >
+            <p className="text-[16px] font-bold text-gray-900">Totale</p>
+            <p className="text-[28px] font-black" style={{ color: brandColor }}>
+              {formatCurrency(totalPrice)}
+            </p>
+          </div>
+        </div>
+
+        {/* ── CREA ACCOUNT (guest only) ────────────────────────────────── */}
+        {!user && (
+          <div
+            className="rounded-2xl px-5 py-5 flex flex-col gap-4"
+            style={{
+              background: `${brandColor}08`,
+              border: `1.5px solid ${brandColor}20`,
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none shrink-0" aria-hidden="true">💎</span>
               <div>
-                <h2 className="text-lg font-extrabold text-neutral-950">Crea il tuo account gratis</h2>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                <h2 className="text-[16px] font-extrabold text-gray-900">
+                  Crea il tuo account gratis
+                </h2>
+                <p className="mt-1 text-[13px] leading-relaxed text-gray-500">
                   Inizia ad accumulare punti fedeltà con ogni visita.
                 </p>
               </div>
             </div>
             <Link
               href={tp(`/accesso?mode=register&return_to=/prenota/successo?appointment=${appointmentId}`)}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              className="inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
+              style={{ backgroundColor: brandColor }}
             >
               Crea account gratis
             </Link>
-          </CardContent>
-        </Card>
-      ) : null}
+          </div>
+        )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          href={tp('')}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted"
-        >
-          Torna alla home
-        </Link>
-        <a
-          href={calendarLink}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          Aggiungi al calendario
-        </a>
-      </div>
+        {/* ── CTA ─────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3">
+          <a
+            href={calendarLink}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
+            style={{ backgroundColor: brandColor }}
+          >
+            <CalendarPlus className="w-4 h-4" />
+            Aggiungi al calendario
+          </a>
+          <Link
+            href={tp('')}
+            className="inline-flex min-h-[52px] items-center justify-center rounded-2xl border border-gray-200 px-4 py-3 text-[15px] font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+          >
+            Torna alla home
+          </Link>
+        </div>
+
       </div>
     </main>
   )
