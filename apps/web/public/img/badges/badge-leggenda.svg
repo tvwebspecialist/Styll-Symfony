@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
+  <circle cx="40" cy="40" r="36" fill="#c084fc" opacity="0.15"/>
+  <circle cx="40" cy="40" r="28" fill="url(#diamond)"/>
+  <defs><linearGradient id="diamond" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a8d8ea"/><stop offset="50%" stop-color="#aa96da"/><stop offset="100%" stop-color="#fcbad3"/></linearGradient></defs>
+  <text x="40" y="50" font-size="26" text-anchor="middle" fill="white">💎</text>
+</svg>
