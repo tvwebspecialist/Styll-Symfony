@@ -7,7 +7,7 @@ export interface PendingBooking {
   locationId: string
   staffId: string
   serviceIds: string[]
-  productIds: string[]
+  productIds?: string[]
   date: string
   time: string
   fullName: string
