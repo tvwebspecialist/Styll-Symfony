@@ -105,6 +105,14 @@ export interface PublicAppointmentSummary {
     name: string
     price_at_booking: number
   }>
+  products: Array<{
+    id: string
+    name: string
+    brand: string | null
+    photo_url: string | null
+    price_at_sale: number
+    quantity: number
+  }>
 }
 
 type RawProfileRelation = { full_name: string | null } | Array<{ full_name: string | null }> | null
@@ -182,6 +190,14 @@ type RawAppointmentSummary = {
     | Array<{
         price_at_booking: number
         services: { id: string; name: string } | null
+      }>
+    | null
+  appointment_products:
+    | Array<{
+        id: string
+        price_at_sale: number
+        quantity: number
+        products: { name: string; brand: string | null; photo_url: string | null } | null
       }>
     | null
 }
@@ -693,7 +709,7 @@ export async function getAppointmentSummary(
   const { data } = await db
     .from('appointments')
     .select(
-      'id, tenant_id, staff_id, location_id, start_time, end_time, status, notes, client:clients(full_name, phone, email), location:locations(name, address, city, phone), staff:staff_members(photo_url, profile:profiles(full_name)), appointment_services(price_at_booking, services(id, name))'
+      'id, tenant_id, staff_id, location_id, start_time, end_time, status, notes, client:clients(full_name, phone, email), location:locations(name, address, city, phone), staff:staff_members(photo_url, profile:profiles(full_name)), appointment_services(price_at_booking, services(id, name)), appointment_products(id, price_at_sale, quantity, products(name, brand, photo_url))'
     )
     .eq('id', appointmentId)
     .is('deleted_at', null)
@@ -728,6 +744,16 @@ export async function getAppointmentSummary(
         id: item.services!.id,
         name: item.services!.name,
         price_at_booking: Number(item.price_at_booking ?? 0),
+      })),
+    products: (appointment.appointment_products ?? [])
+      .filter((item) => item.products !== null)
+      .map((item) => ({
+        id: item.id,
+        name: item.products!.name,
+        brand: item.products!.brand ?? null,
+        photo_url: item.products!.photo_url ?? null,
+        price_at_sale: Number(item.price_at_sale ?? 0),
+        quantity: Number(item.quantity ?? 1),
       })),
   }
 }

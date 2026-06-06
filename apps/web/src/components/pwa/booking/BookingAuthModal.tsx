@@ -20,6 +20,7 @@ interface PendingBookingData {
   locationId: string
   staffId: string
   serviceIds: string[]
+  productIds?: string[]
   date: string
   time: string
 }
@@ -165,6 +166,7 @@ export default function BookingAuthModal({
         locationId: pendingBookingData.locationId,
         staffId: pendingBookingData.staffId,
         serviceIds: pendingBookingData.serviceIds,
+        productIds: pendingBookingData.productIds ?? [],
         date: pendingBookingData.date,
         time: pendingBookingData.time,
         fullName: regData.fullName.trim(),

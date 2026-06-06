@@ -67,7 +67,7 @@ export function BookingUpsellDrawer({
     <AnimatePresence>
       <motion.div
         key="upsell-overlay"
-        className="fixed inset-0 z-40 bg-black/30"
+        className="fixed inset-0 z-[200] bg-black/50"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -77,8 +77,8 @@ export function BookingUpsellDrawer({
 
       <motion.div
         key="upsell-drawer"
-        className="fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden bg-white"
-        style={{ height: '85vh', borderRadius: '40px 40px 0 0' }}
+        className="fixed bottom-4 left-4 right-4 z-[201] flex flex-col overflow-hidden bg-white"
+        style={{ maxHeight: '85vh', borderRadius: '24px' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -174,12 +174,17 @@ export function BookingUpsellDrawer({
                           ? `Rimuovi ${product.name} dalla visita`
                           : `Aggiungi ${product.name} alla visita`
                       }
-                      className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-gray-900 flex items-center justify-center shrink-0 transition-transform duration-200 active:scale-90"
+                      className="absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ring-2 ring-white/70 shadow-md transition-transform duration-200 active:scale-90"
+                      style={{
+                        backgroundColor: selectedIds.includes(product.id)
+                          ? '#22c55e'
+                          : primaryColor,
+                      }}
                     >
                       {selectedIds.includes(product.id) ? (
-                        <Check className="text-white w-3.5 h-3.5" strokeWidth={2.5} />
+                        <Check className="text-white w-4 h-4" strokeWidth={2.5} />
                       ) : (
-                        <Plus className="text-white w-3.5 h-3.5" />
+                        <Plus className="text-white w-4 h-4" />
                       )}
                     </button>
                   )}

@@ -2,9 +2,10 @@
 
 import Image from 'next/image'
 import { useState, useMemo, useEffect } from 'react'
-import { ArrowRight, Calendar, Clock, Loader2, MapPin, Scissors } from 'lucide-react'
+import { ArrowRight, Calendar, Clock, Loader2, MapPin, Scissors, ShoppingBag } from 'lucide-react'
 import { BookingUpsellDrawer } from './BookingUpsellDrawer'
 import BookingAuthModal from './BookingAuthModal'
+import BookingSuccessModal from './BookingSuccessModal'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
 import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
@@ -155,6 +156,9 @@ export default function BookingStep5Confirm({
         {/* CARD RIEPILOGO */}
         <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
 
+          {/* Brand accent strip */}
+          <div className="h-1 w-full" style={{ backgroundColor: brandColor }} />
+
           {/* Staff — sfondo tinto con brand color */}
           <div
             className="flex items-center gap-4 px-5 py-5"
@@ -164,13 +168,13 @@ export default function BookingStep5Confirm({
               <Image
                 src={staff.photo_url}
                 alt={staff.full_name ?? 'Barbiere'}
-                width={48}
-                height={48}
-                className="rounded-full object-cover w-12 h-12 shrink-0"
+                width={72}
+                height={72}
+                className="rounded-full object-cover w-[72px] h-[72px] shrink-0"
               />
             ) : (
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold shrink-0"
+                className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-white text-[18px] font-bold shrink-0"
                 style={{ backgroundColor: brandColor }}
               >
                 {getInitials(staff.full_name)}
@@ -178,7 +182,7 @@ export default function BookingStep5Confirm({
             )}
             <div className="flex-1 min-w-0">
               <p
-                className="text-[20px] font-bold text-gray-900 leading-tight truncate"
+                className="text-[22px] font-bold text-gray-900 leading-tight truncate"
                 style={{ fontFamily: 'var(--font-tenant, inherit)' }}
               >
                 {staff.full_name ?? 'Barbiere'}
@@ -242,11 +246,11 @@ export default function BookingStep5Confirm({
 
           {/* Totale — border-top tinted con brand color */}
           <div
-            className="flex items-center justify-between px-5 py-4"
-            style={{ borderTop: `1.5px solid ${brandColor}20` }}
+            className="flex items-center justify-between px-5 py-5"
+            style={{ borderTop: `2px solid ${brandColor}20` }}
           >
             <p className="text-[16px] font-bold text-gray-900">Totale</p>
-            <p className="text-[22px] font-bold" style={{ color: brandColor }}>
+            <p className="text-[28px] font-black" style={{ color: brandColor }}>
               {totalPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })} €
             </p>
           </div>
@@ -261,10 +265,7 @@ export default function BookingStep5Confirm({
       </div>
 
       {/* CTA FIXED IN BASSO */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(32px,env(safe-area-inset-bottom,0px))] pt-3 bg-white border-t border-gray-100 z-20">
-        {submitError && (
-          <p className="text-center text-[12px] text-red-500 mb-2">{submitError}</p>
-        )}
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-3 bg-white border-t border-gray-100 z-20">
         <button
           onClick={handleConferma}
           disabled={isSubmitting}
@@ -280,7 +281,20 @@ export default function BookingStep5Confirm({
             </>
           )}
         </button>
+        <p className="mt-2 text-center text-[11px] text-gray-400">
+          Nessun pagamento richiesto ora — paghi in sede al termine della visita
+        </p>
       </div>
+
+      {/* Error modal */}
+      {submitError && (
+        <BookingSuccessModal
+          type="error"
+          primaryColor={brandColor}
+          errorMessage={submitError}
+          onRetry={() => setSubmitError('')}
+        />
+      )}
 
       {/* Auth modal */}
       {showAuthModal && (
@@ -293,6 +307,7 @@ export default function BookingStep5Confirm({
             locationId,
             staffId,
             serviceIds: services.map((s) => s.id),
+            productIds: selectedProductIds,
             date,
             time,
           }}
