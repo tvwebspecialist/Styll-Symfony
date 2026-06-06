@@ -211,8 +211,14 @@ export async function uploadAvatar(
     if (!ctx) return { ok: false, error: 'Non autenticato' }
     const file = formData.get('file')
     if (!(file instanceof File)) return { ok: false, error: 'File mancante' }
+
+    const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+    if (!ALLOWED_TYPES.includes(file.type)) return { ok: false, error: 'Formato non supportato (usa PNG, JPG, WebP o GIF)' }
+    if (file.size > 2 * 1024 * 1024) return { ok: false, error: 'File troppo grande (max 2MB)' }
+
     const db = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
+    const extByType: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
+    const ext = extByType[file.type] ?? 'jpg'
     const path = `${ctx.profileId}/avatar-${Date.now()}.${ext}`
     const buf = Buffer.from(await file.arrayBuffer())
     const { error: upErr } = await db.storage
@@ -283,8 +289,13 @@ export async function addPortfolioPhoto(
     const visible = (formData.get('visible') as string | null) === 'true'
     if (!(file instanceof File)) return { ok: false, error: 'File mancante' }
 
+    const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+    if (!ALLOWED_TYPES.includes(file.type)) return { ok: false, error: 'Formato non supportato (usa PNG, JPG o WebP)' }
+    if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'File troppo grande (max 5MB)' }
+
     const db = createAdminClient()
-    const ext = file.name.split('.').pop() || 'jpg'
+    const extByType: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
+    const ext = extByType[file.type] ?? 'jpg'
     const path = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const buf = Buffer.from(await file.arrayBuffer())
     const { error: upErr } = await db.storage

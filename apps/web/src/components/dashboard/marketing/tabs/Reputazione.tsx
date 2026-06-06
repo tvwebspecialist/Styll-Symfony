@@ -143,8 +143,7 @@ function ReviewRow({ review, isLast }: { review: Review; isLast: boolean }) {
         className="styll-btn-secondary"
         style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
         onClick={() => {
-          // TODO: inline reply form
-          console.log('TODO: reply modal', review.id)
+          // TODO: inline reply form — not yet implemented
         }}
       >
         {review.replyBody ? 'Modifica risposta' : 'Rispondi'}

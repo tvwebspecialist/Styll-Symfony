@@ -22,7 +22,6 @@ export function LoginForm() {
   const initialError = searchParams.get('error')
 
   function handleSubmit() {
-    console.log('[login] Login attempt started')
     const emailValue = emailRef.current?.value || email
     const passwordValue = passwordRef.current?.value || password
     if (!emailValue || !passwordValue) {
@@ -35,7 +34,6 @@ export function LoginForm() {
         email: emailValue.trim().toLowerCase(),
         password: passwordValue,
       })
-      console.log('[login] Login attempt started')
       if (error) {
         toast.error(
           error.message.toLowerCase().includes('invalid')
@@ -45,7 +43,6 @@ export function LoginForm() {
         return
       }
       const redirectTo = searchParams.get('redirectTo') || '/dashboard'
-      console.log('LOGIN SUCCESS — REDIRECT TO:', redirectTo)
       router.push(redirectTo)
       router.refresh()
     })

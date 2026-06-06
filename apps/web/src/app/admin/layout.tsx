@@ -15,10 +15,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect('/login')
 
   const db = createAdminClient()
-  const [tenantsCount, usersCount] = await Promise.all([
+  const [profileRes, tenantsCount, usersCount] = await Promise.all([
+    db.from('profiles').select('is_superadmin').eq('id', user.id).maybeSingle(),
     db.from('tenants').select('*', { count: 'exact', head: true }),
     db.from('profiles').select('*', { count: 'exact', head: true }),
   ])
+
+  if (!profileRes.data?.is_superadmin) redirect('/dashboard')
 
   return (
     <AdminShell

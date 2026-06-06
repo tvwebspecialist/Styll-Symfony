@@ -135,7 +135,6 @@ export async function getAvailableSlots({
   const override = ((overrideRows ?? []) as OverrideRow[])[0]
 
   if (override?.is_closed) {
-    console.log('[getAvailableSlots]', { staffId, date, dayOfWeek, closed: true, reason: override.reason })
     return { slots: [], isWorkingDay: false, reason: override.reason ?? 'Chiuso' }
   }
 
@@ -160,7 +159,6 @@ export async function getAvailableSlots({
   }
 
   if (workingWindows.length === 0) {
-    console.log('[getAvailableSlots]', { staffId, date, dayOfWeek, noWorkingHours: true })
     return { slots: [], isWorkingDay: false, reason: 'Giorno di riposo' }
   }
 
@@ -205,17 +203,6 @@ export async function getAvailableSlots({
       allSlots.push({ time: minutesToTime(slotStart), available: !hasConflict })
     }
   }
-
-  console.log('[getAvailableSlots]', {
-    staffId,
-    date,
-    dayOfWeek,
-    workingWindowsCount: workingWindows.length,
-    overrideFound: !!override,
-    existingAppointments: busyWindows.length,
-    slotsGenerated: allSlots.length,
-    availableSlots: allSlots.filter((s) => s.available).length,
-  })
 
   return { slots: allSlots, isWorkingDay: true }
 }
