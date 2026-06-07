@@ -123,8 +123,6 @@ export function useRealtimeAppointments(
 ): UseRealtimeAppointmentsResult {
   const { tenantId, locationId, staffId, startDate, endDate } = options
 
-  console.log('🔍 useRealtimeAppointments called with:', { tenantId, locationId, staffId, startDate, endDate })
-
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -227,7 +225,6 @@ export function useRealtimeAppointments(
         reportError(new Error('tenantId mancante'))
         return
       }
-      console.log('✅ tenantId ok:', tenantId)
 
       const realtimeFilter = buildRealtimeFilter(tenantId, locationId, staffId)
 
@@ -244,7 +241,6 @@ export function useRealtimeAppointments(
             },
             (payload) => {
               if (!isActive) return
-              console.log('📡 Realtime event ricevuto:', payload)
               if (payload.eventType === 'INSERT') {
                 const newAppointment = payload.new as Appointment
                 if (!matchesFilters(newAppointment, tenantId, locationId, staffId, startDate, endDate)) return
@@ -307,7 +303,6 @@ export function useRealtimeAppointments(
             if (!isActive) return
 
             if (status === 'SUBSCRIBED') {
-              console.log('✅ Realtime SUBSCRIBED')
               setIsConnected(true)
               setError(null)
               return

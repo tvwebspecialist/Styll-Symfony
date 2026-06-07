@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
 
 export interface CalendarioAppointment {
   id: string
@@ -209,6 +210,14 @@ export async function updateAppointmentStatus(
     .eq('id', appointmentId)
 
   if (error) return { success: false, error: error.message }
+
+  // Fire-and-forget: assign loyalty points when appointment is completed
+  if (status === 'completed') {
+    assignPointsOnCompletion(appointmentId, tenantId).catch((err) => {
+      console.error('[loyalty] assignPointsOnCompletion error:', err)
+    })
+  }
+
   return { success: true }
 }
 

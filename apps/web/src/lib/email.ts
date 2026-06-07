@@ -3,6 +3,70 @@ import { Resend } from 'resend'
 // Initialize Resend client (requires RESEND_API_KEY env var)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
+export async function sendVerificationCodeEmail({
+  email,
+  code,
+}: {
+  email: string
+  code: string
+}): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    console.error('[sendVerificationCodeEmail] Resend not configured')
+    return { success: false, error: 'Email service not configured' }
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#333;margin:0;padding:0}
+  .wrap{max-width:520px;margin:0 auto;padding:32px 20px;background:#f9fafb}
+  .card{background:#fff;border-radius:12px;padding:36px 32px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .logo{font-size:22px;font-weight:700;color:#111;margin-bottom:28px}
+  .title{font-size:20px;font-weight:700;color:#111;margin-bottom:8px}
+  .sub{font-size:14px;color:#555;line-height:1.6;margin-bottom:28px}
+  .code-box{background:#f3f4f6;border-radius:10px;padding:22px;text-align:center;margin-bottom:24px}
+  .code{font-size:42px;font-weight:800;letter-spacing:10px;color:#111;font-variant-numeric:tabular-nums}
+  .expiry{font-size:13px;color:#888;margin-top:8px}
+  .note{font-size:12px;color:#aaa;margin-top:28px;padding-top:20px;border-top:1px solid #eee}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <div class="logo">Styll</div>
+  <div class="title">Conferma la tua email</div>
+  <p class="sub">Inserisci questo codice nella pagina di verifica per completare la registrazione.</p>
+  <div class="code-box">
+    <div class="code">${code}</div>
+    <div class="expiry">Valido per 15 minuti</div>
+  </div>
+  <p class="note">Non hai richiesto la registrazione su Styll? Ignora questa email.</p>
+</div></div>
+</body>
+</html>`
+
+  const text = `Il tuo codice di verifica Styll è: ${code}\n\nValido per 15 minuti.\n\nSe non hai richiesto la registrazione, ignora questa email.`
+
+  try {
+    const result = await resend.emails.send({
+      from: 'Styll <noreply@mail.styll.it>',
+      to: email,
+      subject: `${code} — il tuo codice di verifica Styll`,
+      html,
+      text,
+    })
+    if (result.error) {
+      console.error('[sendVerificationCodeEmail] Resend error:', result.error)
+      return { success: false, error: result.error.message }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('[sendVerificationCodeEmail] Exception:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 /**
  * Send a team invitation email to a new member.
  * The invitation link includes a token that the user can click to join.
@@ -135,7 +199,6 @@ Questo link scade tra 7 giorni.
       }
     }
 
-    console.log('[email] Sending transactional email')
     return { success: true }
   } catch (error) {
     console.error('[sendInvitationEmail] Exception:', error)

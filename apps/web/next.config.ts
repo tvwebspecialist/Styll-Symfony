@@ -4,7 +4,12 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: '4mb',
-      allowedOrigins: ['localhost:3000', '127.0.0.1:3000'],
+      allowedOrigins: [
+        'localhost:3000',
+        '127.0.0.1:3000',
+        '*.styll.it',
+        process.env.NEXT_PUBLIC_ROOT_DOMAIN ? `*.${process.env.NEXT_PUBLIC_ROOT_DOMAIN}` : 'styll.it',
+      ].filter(Boolean) as string[],
     },
   },
   images: {
