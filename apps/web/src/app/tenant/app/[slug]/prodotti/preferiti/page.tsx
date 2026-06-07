@@ -54,26 +54,28 @@ export default async function PreferitiPage({ params }: Props) {
         const [prodRes, invRes] = await Promise.all([
           db
             .from('products')
-            .select('id, name, brand, category, photo_url, price_sell')
+            .select('id, name, brand, category, description, photo_url, price_sell')
             .eq('tenant_id', tenant.tenant_id)
             .eq('is_active', true)
             .in('id', wishlistIds),
           db
             .from('product_inventory')
-            .select('product_id, quantity')
+            .select('product_id, quantity, low_stock_threshold')
             .eq('tenant_id', tenant.tenant_id)
             .in('product_id', wishlistIds),
         ])
 
-        const inventoryMap = new Map<string, number>()
+        const inventoryMap = new Map<string, { qty: number; threshold: number }>()
         for (const row of (invRes.data ?? []) as Array<{
           product_id: string
           quantity: number
+          low_stock_threshold: number | null
         }>) {
-          inventoryMap.set(
-            row.product_id,
-            (inventoryMap.get(row.product_id) ?? 0) + row.quantity,
-          )
+          const existing = inventoryMap.get(row.product_id)
+          inventoryMap.set(row.product_id, {
+            qty: (existing?.qty ?? 0) + row.quantity,
+            threshold: Math.max(existing?.threshold ?? 0, row.low_stock_threshold ?? 0),
+          })
         }
 
         products = ((prodRes.data ?? []) as Array<{
@@ -81,17 +83,23 @@ export default async function PreferitiPage({ params }: Props) {
           name: string
           brand: string | null
           category: string | null
+          description: string | null
           photo_url: string | null
           price_sell: number
-        }>).map((p) => ({
-          id: p.id,
-          name: p.name,
-          brand: p.brand,
-          category: p.category,
-          photo_url: p.photo_url,
-          price_sell: Number(p.price_sell ?? 0),
-          available: (inventoryMap.get(p.id) ?? 0) > 0,
-        }))
+        }>).map((p) => {
+          const inv = inventoryMap.get(p.id) ?? { qty: 0, threshold: 0 }
+          return {
+            id: p.id,
+            name: p.name,
+            brand: p.brand,
+            category: p.category,
+            description: p.description,
+            photo_url: p.photo_url,
+            price_sell: Number(p.price_sell ?? 0),
+            available: inv.qty > 0,
+            lowStock: inv.qty > 0 && inv.threshold > 0 && inv.qty <= inv.threshold,
+          }
+        })
       }
     }
   }

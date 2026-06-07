@@ -1,10 +1,8 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Heart, ShoppingBag } from 'lucide-react'
+import { ShoppingBag } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
-import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getWishlistProductIds } from '@/lib/actions/wishlist'
 import { ProdottiClient } from './_components/ProdottiClient'
 import type { ProductListItem } from './_components/ProdottiClient'
@@ -23,7 +21,6 @@ export default async function ProdottiPage({ params }: Props) {
     notFound()
   }
 
-  const tp = await createTenantPaths(slug)
   const supabase = await createServerClient()
   const {
     data: { user },
@@ -34,7 +31,7 @@ export default async function ProdottiPage({ params }: Props) {
   const [productsRes, inventoryRes] = await Promise.all([
     db
       .from('products')
-      .select('id, name, brand, category, photo_url, price_sell, display_order')
+      .select('id, name, brand, category, description, photo_url, price_sell, display_order')
       .eq('tenant_id', tenant.tenant_id)
       .eq('is_active', true)
       .eq('show_on_site', true)
@@ -42,7 +39,7 @@ export default async function ProdottiPage({ params }: Props) {
       .order('name', { ascending: true }),
     db
       .from('product_inventory')
-      .select('product_id, quantity')
+      .select('product_id, quantity, low_stock_threshold')
       .eq('tenant_id', tenant.tenant_id),
   ])
 
@@ -51,18 +48,24 @@ export default async function ProdottiPage({ params }: Props) {
     name: string
     brand: string | null
     category: string | null
+    description: string | null
     photo_url: string | null
     price_sell: number
     display_order: number
   }>
 
-  // Build availability map: product_id → total quantity across all locations
-  const inventoryMap = new Map<string, number>()
+  // Aggregate per product: total quantity + max threshold across locations
+  const inventoryMap = new Map<string, { qty: number; threshold: number }>()
   for (const row of (inventoryRes.data ?? []) as Array<{
     product_id: string
     quantity: number
+    low_stock_threshold: number | null
   }>) {
-    inventoryMap.set(row.product_id, (inventoryMap.get(row.product_id) ?? 0) + row.quantity)
+    const existing = inventoryMap.get(row.product_id)
+    inventoryMap.set(row.product_id, {
+      qty: (existing?.qty ?? 0) + row.quantity,
+      threshold: Math.max(existing?.threshold ?? 0, row.low_stock_threshold ?? 0),
+    })
   }
 
   // Get wishlist for logged-in clients
@@ -79,23 +82,28 @@ export default async function ProdottiPage({ params }: Props) {
       .maybeSingle()
 
     if (client) {
-      clientId = client.id
+      clientId = (client as { id: string }).id
       wishlistIds = await getWishlistProductIds({
         tenantId: tenant.tenant_id,
-        clientId: client.id,
+        clientId,
       })
     }
   }
 
-  const products: ProductListItem[] = rawProducts.map((p) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand,
-    category: p.category,
-    photo_url: p.photo_url,
-    price_sell: Number(p.price_sell ?? 0),
-    available: (inventoryMap.get(p.id) ?? 0) > 0,
-  }))
+  const products: ProductListItem[] = rawProducts.map((p) => {
+    const inv = inventoryMap.get(p.id) ?? { qty: 0, threshold: 0 }
+    return {
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      description: p.description,
+      photo_url: p.photo_url,
+      price_sell: Number(p.price_sell ?? 0),
+      available: inv.qty > 0,
+      lowStock: inv.qty > 0 && inv.threshold > 0 && inv.qty <= inv.threshold,
+    }
+  })
 
   const categories = Array.from(
     new Set(rawProducts.map((p) => p.category ?? 'Altro').filter(Boolean)),
@@ -103,41 +111,6 @@ export default async function ProdottiPage({ params }: Props) {
 
   return (
     <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 20,
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#222', marginBottom: 2 }}>
-            Prodotti
-          </h1>
-          <p style={{ fontSize: 13, color: '#B0B0B0' }}>I prodotti disponibili nel salone</p>
-        </div>
-        <Link
-          href={tp('/prodotti/preferiti')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            borderRadius: 100,
-            background: '#F5F5F5',
-            textDecoration: 'none',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#555',
-          }}
-        >
-          <Heart size={14} color="var(--brand-primary, #222)" />
-          Preferiti
-        </Link>
-      </div>
-
       {products.length === 0 ? (
         <div
           style={{

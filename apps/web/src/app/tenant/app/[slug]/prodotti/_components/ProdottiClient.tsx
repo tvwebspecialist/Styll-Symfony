@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { Heart, ShoppingBag } from 'lucide-react'
+import { ArrowRight, Heart, ShoppingBag } from 'lucide-react'
 import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
@@ -12,9 +12,11 @@ export interface ProductListItem {
   name: string
   brand: string | null
   category: string | null
+  description: string | null
   photo_url: string | null
   price_sell: number
   available: boolean
+  lowStock: boolean
 }
 
 interface Props {
@@ -28,7 +30,12 @@ interface Props {
 }
 
 function formatPrice(price: number): string {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(price)
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(price)
 }
 
 export function ProdottiClient({
@@ -65,7 +72,7 @@ export function ProdottiClient({
             gap: 8,
             overflowX: 'auto',
             paddingBottom: 4,
-            marginBottom: 20,
+            marginBottom: 16,
             scrollbarWidth: 'none',
             WebkitOverflowScrolling: 'touch',
           }}
@@ -114,46 +121,46 @@ export function ProdottiClient({
         </div>
       )}
 
-      {/* Product list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* 2-column product grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 12,
+        }}
+      >
         {filtered.map((product) => (
           <div
             key={product.id}
             style={{
               position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
-              padding: 14,
               background: '#FFFFFF',
-              borderRadius: 18,
+              borderRadius: 20,
               border: '1px solid #F0F0F0',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              overflow: 'hidden',
+              opacity: product.available ? 1 : 0.55,
             }}
           >
-            {/* Clickable area → detail */}
+            {/* Full-card link — behind everything */}
             <Link
               href={tenantPath(`/prodotti/${product.id}`)}
               style={{
                 position: 'absolute',
                 inset: 0,
-                borderRadius: 18,
                 zIndex: 0,
               }}
               aria-label={`Vedi dettagli ${product.name}`}
             />
 
-            {/* Product image */}
+            {/* Square image */}
             <div
               style={{
-                width: 64,
-                height: 64,
-                borderRadius: 12,
-                overflow: 'hidden',
-                flexShrink: 0,
-                background: '#F5F5F5',
                 position: 'relative',
-                zIndex: 1,
+                width: '100%',
+                aspectRatio: '1 / 1',
+                background: '#F5F5F5',
+                overflow: 'hidden',
               }}
             >
               {product.photo_url ? (
@@ -162,7 +169,7 @@ export function ProdottiClient({
                   alt={product.name}
                   fill
                   className="object-cover"
-                  sizes="64px"
+                  sizes="(max-width: 640px) 47vw, 300px"
                 />
               ) : (
                 <div
@@ -174,97 +181,158 @@ export function ProdottiClient({
                     justifyContent: 'center',
                   }}
                 >
-                  <ShoppingBag size={22} color="#D0D0D0" />
+                  <ShoppingBag size={28} color="#D0D0D0" />
                 </div>
               )}
-            </div>
 
-            {/* Product info */}
-            <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
-              <p
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: '#222',
-                  marginBottom: 2,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {product.name}
-              </p>
-              {product.brand && (
-                <p style={{ fontSize: 12, color: '#B0B0B0', marginBottom: 4 }}>{product.brand}</p>
-              )}
-              {/* Availability dot */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              {/* STOCK BASSO badge */}
+              {product.lowStock && (
                 <div
                   style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    backgroundColor: product.available ? '#22C55E' : '#D1D5DB',
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ fontSize: 11, color: product.available ? '#16A34A' : '#9CA3AF' }}>
-                  {product.available ? 'Disponibile' : 'Non disponibile'}
-                </span>
-              </div>
-            </div>
-
-            {/* Price + favorite */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: 8,
-                flexShrink: 0,
-                zIndex: 1,
-              }}
-            >
-              {product.price_sell > 0 && (
-                <p
-                  style={{
-                    fontSize: 15,
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    zIndex: 1,
+                    padding: '3px 8px',
+                    borderRadius: 100,
+                    background: '#EF4444',
+                    color: '#FFFFFF',
+                    fontSize: 10,
                     fontWeight: 700,
-                    color: 'var(--brand-primary, #222)',
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
                   }}
                 >
-                  {formatPrice(product.price_sell)}
-                </p>
+                  Stock basso
+                </div>
               )}
+
+              {/* Heart favorites button */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.preventDefault()
                   void toggle(product.id)
                 }}
-                aria-label={isFavorite(product.id) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                aria-label={
+                  isFavorite(product.id) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'
+                }
                 style={{
-                  width: 34,
-                  height: 34,
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  zIndex: 2,
+                  width: 32,
+                  height: 32,
                   borderRadius: '50%',
                   border: 'none',
                   background: isFavorite(product.id)
-                    ? 'var(--brand-primary, #222)'
-                    : '#F5F5F5',
+                    ? 'var(--brand-primary, #111)'
+                    : 'rgba(255,255,255,0.88)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
+                  boxShadow: '0 1px 6px rgba(0,0,0,0.15)',
                   transition: 'background 150ms',
                 }}
               >
                 <Heart
-                  size={16}
-                  color={isFavorite(product.id) ? '#FFFFFF' : '#9CA3AF'}
+                  size={14}
+                  color={isFavorite(product.id) ? '#FFFFFF' : 'var(--brand-primary, #111)'}
                   fill={isFavorite(product.id) ? '#FFFFFF' : 'none'}
                   strokeWidth={2}
                 />
               </button>
+            </div>
+
+            {/* Card body */}
+            <div style={{ padding: '10px 12px 12px', position: 'relative', zIndex: 1 }}>
+              {/* Name */}
+              <p
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#111',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  marginBottom: 2,
+                  lineHeight: 1.3,
+                }}
+              >
+                {product.name}
+              </p>
+
+              {/* Brand */}
+              {product.brand && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: '#9CA3AF',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    marginBottom: product.description ? 4 : 8,
+                  }}
+                >
+                  {product.brand}
+                </p>
+              )}
+
+              {/* Description */}
+              {product.description && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: '#B0B0B0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {product.description}
+                </p>
+              )}
+
+              {/* Price + arrow */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: !product.brand && !product.description ? 4 : 0,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: product.price_sell > 0 ? '#111' : 'transparent',
+                  }}
+                >
+                  {product.price_sell > 0 ? formatPrice(product.price_sell) : '—'}
+                </p>
+
+                {/* Arrow button — visual only, navigation handled by the card Link */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: 'var(--brand-primary, #111)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+                </div>
+              </div>
             </div>
           </div>
         ))}
