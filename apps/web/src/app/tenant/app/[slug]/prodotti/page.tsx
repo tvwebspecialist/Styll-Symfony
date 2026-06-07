@@ -1,35 +1,19 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ShoppingBag } from 'lucide-react'
+import { Heart, ShoppingBag } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
+import { createTenantPaths } from '@/lib/pwa-redirect'
+import { getWishlistProductIds } from '@/lib/actions/wishlist'
+import { ProdottiClient } from './_components/ProdottiClient'
+import type { ProductListItem } from './_components/ProdottiClient'
 
 interface Props {
   params: Promise<{ slug: string }>
 }
 
-interface Product {
-  id: string
-  name: string
-  brand: string | null
-  category: string | null
-  description: string | null
-  photo_url: string | null
-  price_sell: number
-}
-
-function groupByCategory(products: Product[]): Map<string, Product[]> {
-  const map = new Map<string, Product[]>()
-  for (const p of products) {
-    const cat = p.category ?? 'Altro'
-    if (!map.has(cat)) map.set(cat, [])
-    map.get(cat)!.push(p)
-  }
-  return map
-}
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(price)
-}
+export const revalidate = 300
 
 export default async function ProdottiPage({ params }: Props) {
   const { slug } = await params
@@ -39,29 +23,122 @@ export default async function ProdottiPage({ params }: Props) {
     notFound()
   }
 
-  const db = createAdminClient()
-  const { data: products } = await db
-    .from('products')
-    .select('id, name, brand, category, description, photo_url, price_sell')
-    .eq('tenant_id', tenant.tenant_id)
-    .eq('is_active', true)
-    .order('category', { ascending: true })
-    .order('name', { ascending: true })
+  const tp = await createTenantPaths(slug)
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  const grouped = groupByCategory((products ?? []) as Product[])
+  const db = createAdminClient()
+
+  const [productsRes, inventoryRes] = await Promise.all([
+    db
+      .from('products')
+      .select('id, name, brand, category, photo_url, price_sell, display_order')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('is_active', true)
+      .eq('show_on_site', true)
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true }),
+    db
+      .from('product_inventory')
+      .select('product_id, quantity')
+      .eq('tenant_id', tenant.tenant_id),
+  ])
+
+  const rawProducts = (productsRes.data ?? []) as Array<{
+    id: string
+    name: string
+    brand: string | null
+    category: string | null
+    photo_url: string | null
+    price_sell: number
+    display_order: number
+  }>
+
+  // Build availability map: product_id → total quantity across all locations
+  const inventoryMap = new Map<string, number>()
+  for (const row of (inventoryRes.data ?? []) as Array<{
+    product_id: string
+    quantity: number
+  }>) {
+    inventoryMap.set(row.product_id, (inventoryMap.get(row.product_id) ?? 0) + row.quantity)
+  }
+
+  // Get wishlist for logged-in clients
+  let clientId: string | null = null
+  let wishlistIds: string[] = []
+
+  if (user) {
+    const { data: client } = await db
+      .from('clients')
+      .select('id')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('profile_id', user.id)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (client) {
+      clientId = client.id
+      wishlistIds = await getWishlistProductIds({
+        tenantId: tenant.tenant_id,
+        clientId: client.id,
+      })
+    }
+  }
+
+  const products: ProductListItem[] = rawProducts.map((p) => ({
+    id: p.id,
+    name: p.name,
+    brand: p.brand,
+    category: p.category,
+    photo_url: p.photo_url,
+    price_sell: Number(p.price_sell ?? 0),
+    available: (inventoryMap.get(p.id) ?? 0) > 0,
+  }))
+
+  const categories = Array.from(
+    new Set(rawProducts.map((p) => p.category ?? 'Altro').filter(Boolean)),
+  )
 
   return (
     <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, color: '#222222', marginBottom: 4 }}>
-          Prodotti
-        </h1>
-        <p style={{ fontSize: 13, color: '#B0B0B0' }}>
-          I prodotti disponibili nel salone
-        </p>
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: '#222', marginBottom: 2 }}>
+            Prodotti
+          </h1>
+          <p style={{ fontSize: 13, color: '#B0B0B0' }}>I prodotti disponibili nel salone</p>
+        </div>
+        <Link
+          href={tp('/prodotti/preferiti')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            borderRadius: 100,
+            background: '#F5F5F5',
+            textDecoration: 'none',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#555',
+          }}
+        >
+          <Heart size={14} color="var(--brand-primary, #222)" />
+          Preferiti
+        </Link>
       </div>
 
-      {grouped.size === 0 ? (
+      {products.length === 0 ? (
         <div
           style={{
             display: 'flex',
@@ -80,107 +157,15 @@ export default async function ProdottiPage({ params }: Props) {
           <p style={{ fontSize: 13, color: '#C8C8C8' }}>Torna presto per scoprire le novità</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          {Array.from(grouped.entries()).map(([category, items]) => (
-            <section key={category}>
-              {/* Category header */}
-              <p
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#B0B0B0',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  marginBottom: 10,
-                }}
-              >
-                {category}
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {items.map((product) => (
-                  <div
-                    key={product.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 14,
-                      padding: 14,
-                      background: '#FFFFFF',
-                      borderRadius: 16,
-                      border: '1px solid #F0F0F0',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                    }}
-                  >
-                    {/* Product image */}
-                    {product.photo_url ? (
-                      <img
-                        src={product.photo_url}
-                        alt={product.name}
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 12,
-                          objectFit: 'cover',
-                          flexShrink: 0,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 12,
-                          background: '#F5F5F5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <ShoppingBag size={24} color="#D0D0D0" />
-                      </div>
-                    )}
-
-                    {/* Product info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: '#222222',
-                          marginBottom: 2,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {product.name}
-                      </p>
-                      {product.brand && (
-                        <p style={{ fontSize: 12, color: '#B0B0B0' }}>{product.brand}</p>
-                      )}
-                    </div>
-
-                    {/* Price */}
-                    {product.price_sell > 0 && (
-                      <p
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: 'var(--brand-primary, #222222)',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {formatPrice(product.price_sell)}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <ProdottiClient
+          products={products}
+          categories={categories}
+          tenantId={tenant.tenant_id}
+          slug={slug}
+          isLoggedIn={!!user}
+          clientId={clientId}
+          initialWishlistIds={wishlistIds}
+        />
       )}
     </main>
   )
