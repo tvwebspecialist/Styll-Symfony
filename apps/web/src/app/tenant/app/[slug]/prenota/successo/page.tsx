@@ -4,8 +4,11 @@ import { notFound, redirect } from 'next/navigation'
 import { Calendar, CalendarPlus, MapPin, Scissors, ShoppingBag, User } from 'lucide-react'
 import { getAppointmentSummary, getLoyaltyConfig } from '@/lib/actions/public-booking'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { PostBookingProducts } from './_components/PostBookingProducts'
+import type { SuggestedProduct } from './_components/PostBookingProducts'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -71,6 +74,53 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
   } = await supabase.auth.getUser()
 
   if (!tenant || tenant.status !== 'active' || !appointment) notFound()
+
+  // Fetch post-booking product suggestions (products not yet in this appointment)
+  let suggestedProducts: SuggestedProduct[] = []
+  if (user) {
+    const db = createAdminClient()
+    const existingProductIds = appointment.products.map((p) => p.id)
+    const { data: rawProducts } = await db
+      .from('products')
+      .select('id, name, brand, photo_url, price_sell, display_order')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('is_active', true)
+      .eq('show_on_site', true)
+      .not('id', 'in', existingProductIds.length > 0 ? `(${existingProductIds.join(',')})` : '(00000000-0000-0000-0000-000000000000)')
+      .order('display_order', { ascending: true })
+      .limit(3)
+
+    if (rawProducts && rawProducts.length > 0) {
+      const productIds = rawProducts.map((p: { id: string }) => p.id)
+      const { data: inventory } = await db
+        .from('product_inventory')
+        .select('product_id, quantity')
+        .eq('tenant_id', tenant.tenant_id)
+        .in('product_id', productIds)
+      const invMap = new Map<string, number>()
+      for (const row of (inventory ?? []) as Array<{ product_id: string; quantity: number }>) {
+        invMap.set(row.product_id, (invMap.get(row.product_id) ?? 0) + row.quantity)
+      }
+      suggestedProducts = (
+        rawProducts as Array<{
+          id: string
+          name: string
+          brand: string | null
+          photo_url: string | null
+          price_sell: number
+        }>
+      )
+        .filter((p) => (invMap.get(p.id) ?? 0) > 0)
+        .slice(0, 3)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          brand: p.brand,
+          photo_url: p.photo_url,
+          price_sell: Number(p.price_sell ?? 0),
+        }))
+    }
+  }
 
   const brandColor = tenant.primary_color ?? '#1a1a1a'
   // Pulse ring colour: hex + 20 = ~12% opacity — same technique as BookingSuccessModal
@@ -281,6 +331,17 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
             </p>
           </div>
         </div>
+
+        {/* ── PRODOTTI SUGGERITI (solo utenti loggati, prodotti disponibili) ── */}
+        {suggestedProducts.length > 0 && (
+          <PostBookingProducts
+            appointmentId={appointmentId}
+            tenantId={tenant.tenant_id}
+            products={suggestedProducts}
+            brandColor={brandColor}
+            isLoggedIn={!!user}
+          />
+        )}
 
         {/* ── CREA ACCOUNT (guest only) ────────────────────────────────── */}
         {!user && (
