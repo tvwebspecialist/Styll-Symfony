@@ -29,6 +29,8 @@ import {
 import Link from 'next/link'
 import type { ClienteDettaglioData, LoyaltyInfo } from '@/lib/actions/clienti'
 import { addClienteNota } from '@/lib/actions/clienti'
+import { addManualPoints, barberRedeemForClient } from '@/lib/actions/loyalty'
+import { Loader2 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +158,14 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
   const [noteText, setNoteText] = React.useState('')
   const [noteError, setNoteError] = React.useState<string | null>(null)
   const [isPending, startTransition] = React.useTransition()
+  // Loyalty modals
+  const [addPtsOpen, setAddPtsOpen] = React.useState(false)
+  const [addPtsValue, setAddPtsValue] = React.useState(100)
+  const [addPtsNote, setAddPtsNote] = React.useState('')
+  const [addPtsPending, startAddPtsTransition] = React.useTransition()
+  const [redeemOpen, setRedeemOpen] = React.useState(false)
+  const [selectedRewardId, setSelectedRewardId] = React.useState<string | null>(null)
+  const [redeemPending, startRedeemTransition] = React.useTransition()
   const [isMobile, setIsMobile] = React.useState(false)
 
   React.useEffect(() => {
@@ -182,6 +192,34 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
       } else {
         setNoteText('')
         router.refresh()
+      }
+    })
+  }
+
+  function handleAddPoints() {
+    startAddPtsTransition(async () => {
+      const res = await addManualPoints({ clientId: cliente.id, points: addPtsValue, note: addPtsNote })
+      if (res.success) {
+        setAddPtsOpen(false)
+        setAddPtsNote('')
+        setAddPtsValue(100)
+        router.refresh()
+      } else {
+        alert(res.error ?? 'Errore')
+      }
+    })
+  }
+
+  function handleConfirmRedeem() {
+    if (!selectedRewardId) return
+    startRedeemTransition(async () => {
+      const res = await barberRedeemForClient({ clientId: cliente.id, rewardId: selectedRewardId })
+      if (res.success) {
+        setRedeemOpen(false)
+        setSelectedRewardId(null)
+        router.refresh()
+      } else {
+        alert(res.error ?? 'Errore')
       }
     })
   }
@@ -717,6 +755,25 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
 
         {/* ── LOYALTY ─────────────────────────────────────────────────────────── */}
         {activeTab === 'loyalty' && (
+          <>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setAddPtsOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', borderRadius: 12, border: 'none', background: '#0e0e0e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              <Plus size={14} /> Aggiungi punti
+            </button>
+            {loyalty.rewards.length > 0 && (
+              <button
+                onClick={() => setRedeemOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', borderRadius: 12, border: '1.5px solid #e5e2d9', background: '#fff', color: '#0e0e0e', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <Gift size={14} /> Riscatta reward
+              </button>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
             {/* Left: summary + transactions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -844,6 +901,92 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
               </div>
             </div>
           </div>
+
+          {/* Add points modal */}
+          {addPtsOpen && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: '20px 20px 0 0', padding: '28px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1c' }}>Aggiungi punti manualmente</span>
+                  <button onClick={() => setAddPtsOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a968b', fontSize: 20 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#222' }}>Punti da aggiungere</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={addPtsValue}
+                      onChange={(e) => setAddPtsValue(Number(e.target.value))}
+                      className="styll-input"
+                      style={{ padding: '12px 16px', fontSize: 15, borderRadius: 12, border: '1px solid #e5e2d9', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#222' }}>Nota (obbligatoria)</span>
+                    <input
+                      type="text"
+                      placeholder="es. Compleanno, promozione speciale..."
+                      value={addPtsNote}
+                      onChange={(e) => setAddPtsNote(e.target.value)}
+                      className="styll-input"
+                      style={{ padding: '12px 16px', fontSize: 14, borderRadius: 12, border: '1px solid #e5e2d9', outline: 'none', fontFamily: 'inherit' }}
+                    />
+                  </label>
+                </div>
+                <button
+                  disabled={addPtsPending || !addPtsNote.trim() || addPtsValue <= 0}
+                  onClick={handleAddPoints}
+                  style={{ marginTop: 20, width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: addPtsPending || !addPtsNote.trim() ? '#e5e2d9' : '#0e0e0e', color: addPtsPending || !addPtsNote.trim() ? '#9a968b' : '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {addPtsPending ? <><Loader2 className="inline h-4 w-4 animate-spin" /> Salvataggio…</> : `Aggiungi ${addPtsValue} punti`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Redeem reward modal */}
+          {redeemOpen && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: '20px 20px 0 0', padding: '28px 24px', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1c' }}>Riscatta un reward</span>
+                  <button onClick={() => setRedeemOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a968b', fontSize: 20 }}>×</button>
+                </div>
+                <p style={{ fontSize: 12, color: '#9a968b', marginBottom: 16 }}>
+                  Punti disponibili: <strong style={{ color: '#1c1c1c' }}>{loyalty.availablePoints.toLocaleString()}</strong>
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                  {loyalty.rewards.map((r) => {
+                    const canRedeem = loyalty.availablePoints >= r.pointsCost
+                    const selected = selectedRewardId === r.id
+                    return (
+                      <button
+                        key={r.id}
+                        disabled={!canRedeem}
+                        onClick={() => canRedeem && setSelectedRewardId(selected ? null : r.id)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, border: selected ? '2px solid #0e0e0e' : '1.5px solid #e5e2d9', background: selected ? '#f9f9f9' : '#fff', cursor: canRedeem ? 'pointer' : 'not-allowed', opacity: canRedeem ? 1 : 0.5, textAlign: 'left', fontFamily: 'inherit' }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1c' }}>{r.name}</div>
+                          <div style={{ fontSize: 12, color: '#9a968b' }}>{r.pointsCost.toLocaleString()} punti</div>
+                        </div>
+                        {canRedeem && <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, background: '#22c55e22', color: '#16a34a', fontWeight: 600 }}>Disponibile</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  disabled={!selectedRewardId || redeemPending}
+                  onClick={handleConfirmRedeem}
+                  style={{ marginTop: 16, width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: !selectedRewardId ? '#e5e2d9' : '#0e0e0e', color: !selectedRewardId ? '#9a968b' : '#fff', fontSize: 14, fontWeight: 700, cursor: selectedRewardId ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {redeemPending ? <><Loader2 className="inline h-4 w-4 animate-spin" /> Conferma…</> : 'Conferma riscatto'}
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* ── NOTE ────────────────────────────────────────────────────────────── */}

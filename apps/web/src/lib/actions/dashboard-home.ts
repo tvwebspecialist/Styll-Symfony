@@ -38,6 +38,14 @@ export interface AtRiskClient {
   churn_status: 'red' | 'yellow'
 }
 
+export interface TopLoyaltyClient {
+  clientId: string
+  fullName: string
+  totalPoints: number
+  currentStreak: number
+  currentTier: string
+}
+
 export interface DashboardHomeData {
   staffName: string | null
   todayAppointments: TodayAppointment[]
@@ -45,6 +53,7 @@ export interface DashboardHomeData {
   weekSlots: WeekSlot[]
   weekStats: WeekStats
   atRiskClients: AtRiskClient[]
+  topLoyaltyClients: TopLoyaltyClient[]
 }
 
 export async function getDashboardHomeData(): Promise<DashboardHomeData> {
@@ -56,6 +65,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     weekSlots: [],
     weekStats: { revenue: 0, revenue_prev: 0, client_count: 0, client_count_prev: 0 },
     atRiskClients: [],
+    topLoyaltyClients: [],
   }
   if (!tenantId) return empty
 
@@ -225,5 +235,22 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     churn_status: row.churn_status as 'red' | 'yellow',
   }))
 
-  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, atRiskClients }
+  // Top loyalty clients (max 10)
+  const { data: topLoyaltyRaw } = await db
+    .from('client_loyalty')
+    .select('client_id, total_points, current_streak, current_tier, clients(full_name)')
+    .eq('tenant_id', tenantId)
+    .order('total_points', { ascending: false })
+    .limit(10)
+
+  type TopRow = { client_id: string; total_points: number; current_streak: number; current_tier: string; clients: { full_name: string } | null }
+  const topLoyaltyClients: TopLoyaltyClient[] = ((topLoyaltyRaw ?? []) as unknown as TopRow[]).map((r) => ({
+    clientId: r.client_id,
+    fullName: r.clients?.full_name ?? '—',
+    totalPoints: r.total_points ?? 0,
+    currentStreak: r.current_streak ?? 0,
+    currentTier: r.current_tier ?? 'bronze',
+  }))
+
+  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, atRiskClients, topLoyaltyClients }
 }

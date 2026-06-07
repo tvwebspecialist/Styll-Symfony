@@ -10,6 +10,7 @@ import { SlotVuotiCard } from './SlotVuotiCard'
 import { ProssimoAppCard } from './ProssimoAppCard'
 import { BentoGrid } from './BentoGrid'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
+import { TopLoyaltyClientsWidget } from './TopLoyaltyClientsWidget'
 
 interface Props {
   data: DashboardHomeData
@@ -43,7 +44,7 @@ function findNextAppointment(
 }
 
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekAppointments, weekStats, atRiskClients } = data
+  const { staffName, todayAppointments, weekAppointments, weekStats, atRiskClients, topLoyaltyClients } = data
   const firstName = staffName?.split(' ')[0] ?? null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
   const nextAppt = findNextAppointment(todayAppointments)
@@ -75,6 +76,9 @@ export function DashboardHomeClient({ data, basePath }: Props) {
 
           {/* Card 4 — Prossimo Appuntamento */}
           <ProssimoAppCard appointment={nextAppt} basePath={basePath} />
+
+          {/* Card 5 — Top Clienti Fedeltà */}
+          <TopLoyaltyClientsWidget clients={topLoyaltyClients} basePath={basePath} />
         </BentoGrid>
       </div>
 
