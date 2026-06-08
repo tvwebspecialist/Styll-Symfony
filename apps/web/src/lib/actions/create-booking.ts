@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
+import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import type { TablesInsert } from '@/types'
 
 const createGuestBookingSchema = z.object({
@@ -302,8 +303,84 @@ export async function createGuestBooking(
   revalidatePath(`/tenant/app/${data.slug}/prenota`)
   revalidatePath(`/tenant/app/${data.slug}/prenota/successo`)
 
+  // ── Fire-and-forget: notifica push di conferma prenotazione ──────────────
+  // Troviamo il profile_id del cliente (se ha account + subscription)
+  sendBookingConfirmedPush({
+    tenantId: data.tenantId,
+    slug: data.slug,
+    appointmentId,
+    clientId,
+    startTime: startDate.toISOString(),
+  }).catch((err) => {
+    console.error('[push] booking_confirmed error:', err)
+  })
+
   return {
     success: true,
     appointmentId,
   }
+}
+
+/**
+ * Invia la push di conferma prenotazione al cliente (fire-and-forget).
+ * Non blocca la risposta della Server Action.
+ */
+async function sendBookingConfirmedPush(params: {
+  tenantId: string
+  slug: string
+  appointmentId: string
+  clientId: string
+  startTime: string
+}): Promise<void> {
+  const db = createAdminClient()
+
+  // Ricava il profile_id del cliente
+  const { data: clientRow } = await db
+    .from('clients')
+    .select('profile_id')
+    .eq('id', params.clientId)
+    .maybeSingle()
+
+  const profileId = clientRow?.profile_id
+  if (!profileId) return
+
+  const subs = await getSubscriptionsForProfile(params.tenantId, profileId)
+  if (!subs.length) return
+
+  const time = new Date(params.startTime).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Rome',
+  })
+  const date = new Date(params.startTime).toLocaleDateString('it-IT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'Europe/Rome',
+  })
+
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('business_name')
+    .eq('id', params.tenantId)
+    .maybeSingle()
+
+  const businessName = tenant?.business_name ?? 'il tuo salone'
+
+  await sendPushToSubscriptions(subs, {
+    title: '✅ Prenotazione confermata!',
+    body:  `${date} alle ${time} da ${businessName}`,
+    url:   `/tenant/app/${params.slug}/prenota/successo?appointment=${params.appointmentId}`,
+    tag:   `booking-confirmed-${params.appointmentId}`,
+  })
+
+  await db.from('notification_log').upsert(
+    {
+      tenant_id:      params.tenantId,
+      profile_id:     profileId,
+      appointment_id: params.appointmentId,
+      type:           'booking_confirmed',
+    },
+    { onConflict: 'appointment_id,type' }
+  )
 }
