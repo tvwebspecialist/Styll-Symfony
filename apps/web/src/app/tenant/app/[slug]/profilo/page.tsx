@@ -14,6 +14,7 @@ import { BadgeGrid } from '../_components/BadgeGrid'
 import { RewardsList } from '../_components/RewardsList'
 import { VisitHistory } from '../_components/VisitHistory'
 import { PushNotificationToggle } from './_components/PushNotificationToggle'
+import { ProfiloAuthGuard } from './_components/ProfiloAuthGuard'
 import type { RewardItem } from '../_components/RewardsList'
 import type { VisitItem } from '../_components/VisitHistory'
 
@@ -81,8 +82,19 @@ export default async function ProfiloPage({ params }: Props) {
   } = await supabase.auth.getUser()
 
   // ── Guest state — full-screen login gate ────────────────────────────────────
+  // Usa ProfiloAuthGuard per gestire il caso "sessione in localStorage ma non
+  // ancora nei cookie" (cold launch iOS PWA + PwaSessionRestorer non ancora eseguito)
   if (!user) {
-    return <ProfileLoginGate slug={slug} tenantId={tenant.tenant_id} />
+    return (
+      <ProfiloAuthGuard
+        slug={slug}
+        tenantId={tenant.tenant_id}
+        loginGate={<ProfileLoginGate slug={slug} tenantId={tenant.tenant_id} />}
+      >
+        {/* children non raggiungibili senza user — il guard decide */}
+        <ProfileLoginGate slug={slug} tenantId={tenant.tenant_id} />
+      </ProfiloAuthGuard>
+    )
   }
 
   // ── Authenticated: fetch client record ──────────────────────────────────────
