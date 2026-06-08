@@ -77,30 +77,41 @@ function buildPayload(type: ReminderType, businessName: string, startTime: strin
 
 /**
  * Restituisce un range [from, to] in UTC per il tipo di reminder.
- * Usiamo finestre di 30 minuti per matchare con un cron ogni 15min (overlap sicuro).
+ * Il cron gira una volta al giorno alle 7:00 (piano Hobby Vercel),
+ * quindi coprimo l'intera giornata target per non perdere nessun appuntamento.
  */
 function getTimeRange(type: ReminderType): { from: string; to: string } {
-  const now = Date.now()
+  const now = new Date()
   const DAY = 24 * 60 * 60 * 1000
-  const WINDOW = 30 * 60 * 1000 // 30 minuti
 
-  let targetMs: number
+  let targetDate: Date
   switch (type) {
     case 'reminder_3d':
-      targetMs = now + 3 * DAY
+      targetDate = new Date(now.getTime() + 3 * DAY)
       break
     case 'reminder_1d':
-      targetMs = now + 1 * DAY
+      targetDate = new Date(now.getTime() + 1 * DAY)
       break
     case 'reminder_day':
-      targetMs = now + 2 * 60 * 60 * 1000 // 2 ore nel futuro (stesso giorno, mattina presto)
+      targetDate = new Date(now.getTime())
       break
   }
 
-  return {
-    from: new Date(targetMs).toISOString(),
-    to:   new Date(targetMs + WINDOW).toISOString(),
-  }
+  // Inizio e fine del giorno target (UTC)
+  const from = new Date(Date.UTC(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth(),
+    targetDate.getUTCDate(),
+    0, 0, 0, 0
+  ))
+  const to = new Date(Date.UTC(
+    targetDate.getUTCFullYear(),
+    targetDate.getUTCMonth(),
+    targetDate.getUTCDate(),
+    23, 59, 59, 999
+  ))
+
+  return { from: from.toISOString(), to: to.toISOString() }
 }
 
 async function processReminders(type: ReminderType): Promise<{ processed: number; sent: number }> {
