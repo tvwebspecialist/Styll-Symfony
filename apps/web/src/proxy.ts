@@ -136,7 +136,8 @@ export async function proxy(request: NextRequest) {
     // Rotte protette: richiedono auth
     if (isProtected && !user) {
       const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN!
-      const loginUrl = new URL(`http://${rootDomain}/login`)
+      const proto = rootDomain.includes('localhost') ? 'http' : 'https'
+      const loginUrl = new URL(`${proto}://${rootDomain}/login`)
       loginUrl.searchParams.set('redirectTo', pathname)
       return NextResponse.redirect(loginUrl)
     }

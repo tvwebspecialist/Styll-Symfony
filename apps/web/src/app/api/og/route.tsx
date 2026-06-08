@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { safeImageUrl } from '@/lib/safe-image-url'
 
 export const runtime = 'edge'
 
@@ -24,13 +25,14 @@ export async function GET(req: NextRequest) {
 
   // Try to load logo with 2s timeout
   let logoSrc: string | null = null
-  if (tenant?.logo_url) {
+  const safeLogo = safeImageUrl(tenant?.logo_url)
+  if (safeLogo) {
     try {
-      const logoFetch = fetch(tenant.logo_url).then(async (r) => {
+      const logoFetch = fetch(safeLogo).then(async (r) => {
         if (!r.ok) throw new Error('failed')
         const buf = await r.arrayBuffer()
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
-        const ext = tenant.logo_url!.split('.').pop()?.toLowerCase()
+        const ext = safeLogo.split('.').pop()?.toLowerCase()
         const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg'
         return `data:${mime};base64,${base64}`
       })

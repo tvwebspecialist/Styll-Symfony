@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 type MagicField = 'tagline' | 'description' | 'about_title' | 'about_text' | 'team_description'
 
@@ -34,6 +35,14 @@ export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
+
+  const rl = checkRateLimit(`magic-wand:${user.id}`, 15, 60_000)
+  if (!rl.allowed) {
+    return Response.json(
+      { error: 'Troppe richieste. Riprova tra poco.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
 
   const body = await req.json() as MagicWandRequest
   const { field, context } = body

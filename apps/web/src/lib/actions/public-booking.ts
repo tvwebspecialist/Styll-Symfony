@@ -16,7 +16,9 @@ export interface PublicProduct {
   category: string | null
   description: string | null
   display_order: number
-  inventory: Array<{ locationName: string; quantity: number }>
+  /** Whether the product is in stock anywhere. No exact counts or per-location
+   *  breakdown are exposed publicly (avoids leaking internal inventory data). */
+  available: boolean
 }
 
 export interface PublicPortfolioPhoto {
@@ -703,7 +705,8 @@ export function getTenantTimezone(tenantId: string): Promise<string> {
 }
 
 export async function getAppointmentSummary(
-  appointmentId: string
+  appointmentId: string,
+  tenantId: string
 ): Promise<PublicAppointmentSummary | null> {
   const db = createAdminClient()
   const { data } = await db
@@ -712,6 +715,7 @@ export async function getAppointmentSummary(
       'id, tenant_id, staff_id, location_id, start_time, end_time, status, notes, client:clients(full_name, phone, email), location:locations(name, address, city, phone), staff:staff_members(photo_url, profile:profiles(full_name)), appointment_services(price_at_booking, services(id, name)), appointment_products(id, price_at_sale, quantity, products(name, brand, photo_url))'
     )
     .eq('id', appointmentId)
+    .eq('tenant_id', tenantId)
     .is('deleted_at', null)
     .maybeSingle()
 
@@ -1017,7 +1021,7 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
       const { data } = await db
         .from('products')
         .select(
-          'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity, locations(name))',
+          'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity)',
         )
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
@@ -1028,16 +1032,12 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
       return ((data ?? []) as unknown[]).map((row) => {
         const p = row as Record<string, unknown>
         const invRaw = p.product_inventory
-        const inventory: Array<{ locationName: string; quantity: number }> = Array.isArray(invRaw)
-          ? invRaw.map((invRow: unknown) => {
+        const available = Array.isArray(invRaw)
+          ? invRaw.some((invRow: unknown) => {
               const inv = invRow as Record<string, unknown>
-              const loc = inv.locations as Record<string, unknown> | null
-              return {
-                locationName: typeof loc?.name === 'string' ? loc.name : 'Sede',
-                quantity: Number(inv.quantity ?? 0),
-              }
+              return Number(inv.quantity ?? 0) > 0
             })
-          : []
+          : false
 
         return {
           id: p.id as string,
@@ -1048,7 +1048,7 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
           category: (p.category as string | null) ?? null,
           description: (p.description as string | null) ?? null,
           display_order: Number(p.display_order ?? 0),
-          inventory,
+          available,
         }
       })
     },

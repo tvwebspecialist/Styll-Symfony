@@ -1,8 +1,10 @@
+import { redirect } from 'next/navigation'
+
 interface Props {
   params: Promise<{ slug: string }>
 }
 
 export default async function LoyaltyPage({ params }: Props) {
   const { slug } = await params
-  return <p>Loyalty for {slug}</p>
+  redirect(`/tenant/app/${slug}/punti`)
 }

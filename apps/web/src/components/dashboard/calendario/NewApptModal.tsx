@@ -77,7 +77,7 @@ export function NewApptModal({
     getCalendarioFormOptions(tenantId)
       .then(async (opts) => {
         const allIds  = opts.staff.map((s) => s.id)
-        const withLocs = await getStaffIdsWithLocations(allIds)
+        const withLocs = await getStaffIdsWithLocations(allIds, tenantId)
         const locSet  = new Set(withLocs)
         setOptions(opts)
         setStaffWithLocIds(locSet)

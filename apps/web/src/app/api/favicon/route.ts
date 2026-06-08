@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { safeImageUrl } from '@/lib/safe-image-url'
 
 export const runtime = 'edge'
 
@@ -18,8 +19,9 @@ export async function GET(req: NextRequest) {
     .eq('status', 'active')
     .maybeSingle()
 
-  if (tenant?.logo_url) {
-    return NextResponse.redirect(tenant.logo_url, {
+  const safeLogo = safeImageUrl(tenant?.logo_url)
+  if (safeLogo) {
+    return NextResponse.redirect(safeLogo, {
       status: 302,
       headers: { 'Cache-Control': 'public, max-age=86400' },
     })

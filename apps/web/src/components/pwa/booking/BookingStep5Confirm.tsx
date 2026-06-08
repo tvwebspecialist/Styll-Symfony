@@ -106,6 +106,16 @@ export default function BookingStep5Confirm({
     () => services.reduce((total, service) => total + Number(service.duration_minutes ?? 0), 0),
     [services],
   )
+
+  const selectedProducts = useMemo(
+    () => upsellProducts.filter((p) => selectedProductIds.includes(p.id)),
+    [upsellProducts, selectedProductIds],
+  )
+  const totalProductsPrice = useMemo(
+    () => selectedProducts.reduce((sum, p) => sum + Number(p.price_sell ?? 0), 0),
+    [selectedProducts],
+  )
+  const grandTotal = totalPrice + totalProductsPrice
   const formattedDate = formatBookingDate(date)
   const formattedTime = time.slice(0, 5)
 
@@ -148,129 +158,202 @@ export default function BookingStep5Confirm({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: '#F2F2F7' }}>
 
-      {/* Scrollable content — pb-28 keeps it clear of the fixed CTA */}
-      <div className="pb-28 px-4 py-5 flex flex-col gap-4">
+      {/* Scrollable content */}
+      <div className="pb-36 px-4 pt-6 flex flex-col gap-3">
 
-        {/* CARD RIEPILOGO */}
-        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
+        {/* ── HERO — Staff + Sede ─────────────────────────────────── */}
+        <div
+          className="rounded-3xl overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${brandColor}18 0%, ${brandColor}08 100%)`,
+            border: `1.5px solid ${brandColor}22`,
+            boxShadow: `0 8px 32px ${brandColor}18`,
+          }}
+        >
+          <div className="px-5 py-5 flex items-center gap-4">
+            {/* Avatar with gradient ring */}
+            <div
+              className="shrink-0 rounded-full p-[3px]"
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}55)` }}
+            >
+              {staff.photo_url ? (
+                <Image
+                  src={staff.photo_url}
+                  alt={staff.full_name ?? 'Barbiere'}
+                  width={76}
+                  height={76}
+                  className="rounded-full object-cover w-[76px] h-[76px] block bg-white"
+                />
+              ) : (
+                <div
+                  className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-[20px] font-black"
+                  style={{ backgroundColor: brandColor }}
+                >
+                  {getInitials(staff.full_name)}
+                </div>
+              )}
+            </div>
 
-          {/* Brand accent strip */}
-          <div className="h-1 w-full" style={{ backgroundColor: brandColor }} />
-
-          {/* Staff — sfondo tinto con brand color */}
-          <div
-            className="flex items-center gap-4 px-5 py-5"
-            style={{ background: `${brandColor}08` }}
-          >
-            {staff.photo_url ? (
-              <Image
-                src={staff.photo_url}
-                alt={staff.full_name ?? 'Barbiere'}
-                width={72}
-                height={72}
-                className="rounded-full object-cover w-[72px] h-[72px] shrink-0"
-              />
-            ) : (
-              <div
-                className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-white text-[18px] font-bold shrink-0"
-                style={{ backgroundColor: brandColor }}
-              >
-                {getInitials(staff.full_name)}
-              </div>
-            )}
             <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400 mb-0.5">
+                Il tuo barbiere
+              </p>
               <p
-                className="text-[22px] font-bold text-gray-900 leading-tight truncate"
+                className="text-[22px] font-black text-gray-900 leading-tight truncate"
                 style={{ fontFamily: 'var(--font-tenant, inherit)' }}
               >
                 {staff.full_name ?? 'Barbiere'}
               </p>
-              <p className="text-[13px] text-gray-400 mt-0.5 truncate flex items-center gap-1">
-                <MapPin className="w-3 h-3 shrink-0" />
-                {location.name}
-              </p>
+              <div className="flex items-center gap-1 mt-1">
+                <MapPin className="w-3 h-3 shrink-0" style={{ color: brandColor }} />
+                <p className="text-[13px] font-medium text-gray-500 truncate">{location.name}</p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="h-px bg-gray-100 mx-5" />
-
-          {/* Servizi */}
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-1.5 mb-3">
-              <Scissors className="w-3 h-3 text-gray-400 shrink-0" />
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
-                Servizi
-              </p>
+        {/* ── DATA + ORA — Due chip affiancati ────────────────────── */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Data */}
+          <div className="bg-white rounded-2xl px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Calendar className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Data</p>
             </div>
-            <div className="flex flex-col gap-2">
-              {services.map((service) => (
-                <div key={service.id} className="flex items-center justify-between">
-                  <p className="text-[15px] font-medium text-gray-900">{service.name}</p>
-                  <p className="text-[15px] font-semibold text-gray-900">
-                    {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })} €
+            <p className="text-[15px] font-black text-gray-900 capitalize leading-snug">
+              {formattedDate}
+            </p>
+          </div>
+
+          {/* Ora + durata */}
+          <div className="bg-white rounded-2xl px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
+              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Orario</p>
+            </div>
+            <p className="text-[28px] font-black text-gray-900 leading-none">{formattedTime}</p>
+            <p className="text-[12px] text-gray-400 mt-1 font-medium">{totalDuration} min</p>
+          </div>
+        </div>
+
+        {/* ── SERVIZI ─────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+          <div className="flex items-center gap-2 px-5 pt-4 pb-3">
+            <Scissors className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
+            <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Servizi</p>
+          </div>
+          <div className="px-5 pb-4 flex flex-col">
+            {services.map((service, i) => (
+              <div
+                key={service.id}
+                className="flex items-center justify-between py-2.5"
+                style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: brandColor }}
+                  />
+                  <p className="text-[15px] font-medium text-gray-900 truncate">{service.name}</p>
+                </div>
+                <p className="text-[15px] font-bold text-gray-900 ml-3 shrink-0">
+                  € {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── PRODOTTI AGGIUNTI (condizionale) ────────────────────── */}
+        {selectedProducts.length > 0 && (
+          <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center justify-between px-5 pt-4 pb-3">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
+                <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
+                  Prodotti aggiunti
+                </p>
+              </div>
+              <span
+                className="text-[11px] font-bold text-white rounded-full px-2 py-0.5 leading-tight"
+                style={{ backgroundColor: brandColor }}
+              >
+                {selectedProducts.length}
+              </span>
+            </div>
+            <div className="px-5 pb-4 flex flex-col">
+              {selectedProducts.map((product, i) => (
+                <div
+                  key={product.id}
+                  className="flex items-center gap-3 py-2.5"
+                  style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
+                >
+                  {/* Thumbnail o placeholder */}
+                  {product.photo_url ? (
+                    <Image
+                      src={product.photo_url}
+                      alt={product.name}
+                      width={44}
+                      height={44}
+                      className="w-11 h-11 rounded-xl object-cover shrink-0 bg-gray-100"
+                    />
+                  ) : (
+                    <div
+                      className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center"
+                      style={{ background: `${brandColor}12` }}
+                    >
+                      <ShoppingBag className="w-5 h-5" style={{ color: brandColor }} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-semibold text-gray-900 truncate">{product.name}</p>
+                    {product.brand && (
+                      <p className="text-[12px] text-gray-400 truncate">{product.brand}</p>
+                    )}
+                  </div>
+                  <p className="text-[15px] font-bold text-gray-900 shrink-0">
+                    € {Number(product.price_sell ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
                   </p>
                 </div>
               ))}
             </div>
           </div>
+        )}
 
-          <div className="h-px bg-gray-100 mx-5" />
-
-          {/* Data e ora */}
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
-                Data e ora
-              </p>
-            </div>
-            <p className="text-[15px] font-medium text-gray-900 capitalize">
-              {formattedDate} · {formattedTime}
+        {/* ── TOTALE — Sfondo brand ────────────────────────────────── */}
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+            boxShadow: `0 8px 24px ${brandColor}44`,
+          }}
+        >
+          <div className="flex items-center justify-between px-5 pt-5 pb-2">
+            <p className="text-[14px] font-semibold text-white/75">Totale da pagare</p>
+            <p className="text-[34px] font-black text-white leading-none tracking-tight">
+              € {grandTotal.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
             </p>
           </div>
-
-          <div className="h-px bg-gray-100 mx-5" />
-
-          {/* Durata */}
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Clock className="w-3 h-3 text-gray-400 shrink-0" />
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
-                Durata stimata
-              </p>
-            </div>
-            <p className="text-[15px] font-medium text-gray-900">{totalDuration} minuti</p>
-          </div>
-
-          {/* Totale — border-top tinted con brand color */}
-          <div
-            className="flex items-center justify-between px-5 py-5"
-            style={{ borderTop: `2px solid ${brandColor}20` }}
-          >
-            <p className="text-[16px] font-bold text-gray-900">Totale</p>
-            <p className="text-[28px] font-black" style={{ color: brandColor }}>
-              {totalPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })} €
-            </p>
-          </div>
-
+          <p className="text-center text-[11px] text-white/55 pb-4 px-4">
+            Pagamento in sede al termine della visita
+          </p>
         </div>
-
-        {/* Nota pagamento */}
-        <p className="text-center text-[12px] text-gray-400 px-4">
-          Il pagamento avviene in sede al termine della visita.
-        </p>
 
       </div>
 
-      {/* CTA FIXED IN BASSO */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-3 bg-white border-t border-gray-100 z-20">
+      {/* ── CTA FIXED IN BASSO ──────────────────────────────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-3 z-20"
+           style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
         <button
           onClick={handleConferma}
           disabled={isSubmitting}
-          className="w-full py-4 rounded-2xl text-[16px] font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-          style={{ backgroundColor: brandColor }}
+          className="w-full py-4 rounded-2xl text-[16px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
+          style={{
+            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+            boxShadow: `0 4px 20px ${brandColor}44`,
+          }}
         >
           {isSubmitting ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -281,9 +364,6 @@ export default function BookingStep5Confirm({
             </>
           )}
         </button>
-        <p className="mt-2 text-center text-[11px] text-gray-400">
-          Nessun pagamento richiesto ora — paghi in sede al termine della visita
-        </p>
       </div>
 
       {/* Error modal */}

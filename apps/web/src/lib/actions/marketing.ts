@@ -173,6 +173,11 @@ export interface SegmentCounts {
 }
 
 export async function getSegmentCounts(tenantId: string): Promise<SegmentCounts> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   try {
     const db = createAdminClient()
 

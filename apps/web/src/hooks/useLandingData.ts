@@ -6,7 +6,6 @@ import type {
   LandingData,
   LandingLocation,
   LandingProduct,
-  LandingProductInventoryItem,
   LandingService,
   LandingStaffMember,
   LandingTenant,
@@ -184,7 +183,7 @@ export function useLandingData(slug: string): UseLandingDataResult {
           supabase
             .from('products')
             .select(
-              'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity, locations(name))',
+              'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity)',
             )
             .eq('tenant_id', tenantId)
             .eq('is_active', true)
@@ -252,16 +251,12 @@ export function useLandingData(slug: string): UseLandingDataResult {
         const products: LandingProduct[] = (productRes.data ?? []).map((row) => {
           const p = row as Record<string, unknown>
           const invRaw = p.product_inventory
-          const inventory: LandingProductInventoryItem[] = Array.isArray(invRaw)
-            ? invRaw.map((invRow: unknown) => {
+          const available = Array.isArray(invRaw)
+            ? invRaw.some((invRow: unknown) => {
                 const inv = invRow as Record<string, unknown>
-                const loc = inv.locations as Record<string, unknown> | null
-                return {
-                  locationName: typeof loc?.name === 'string' ? loc.name : 'Sede',
-                  quantity: Number(inv.quantity ?? 0),
-                }
+                return Number(inv.quantity ?? 0) > 0
               })
-            : []
+            : false
 
           return {
             id: p.id as string,
@@ -272,7 +267,7 @@ export function useLandingData(slug: string): UseLandingDataResult {
             photo_url: (p.photo_url as string | null) ?? null,
             description: (p.description as string | null) ?? null,
             display_order: Number(p.display_order ?? 0),
-            inventory,
+            available,
           }
         })
 

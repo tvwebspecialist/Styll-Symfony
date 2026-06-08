@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { safeImageUrl } from '@/lib/safe-image-url'
 import type { NextRequest } from 'next/server'
 
 export const runtime = 'edge'
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
   const bgColor = safeColor(data?.primary_color)
   const name = (data?.business_name ?? 'S').trim()
   const initial = name.charAt(0).toUpperCase()
-  const logoUrl = data?.logo_url ?? null
+  const logoUrl = safeImageUrl(data?.logo_url)
   const logoBase64 = logoUrl ? await fetchLogoBase64(logoUrl) : null
 
   const textColor = isLightColorHex(bgColor) ? '#111111' : '#FFFFFF'

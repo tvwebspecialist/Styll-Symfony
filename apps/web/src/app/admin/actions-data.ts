@@ -167,7 +167,12 @@ export async function deleteTenantClient(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const { error } = await db.from('clients').delete().eq('id', clientId).eq('tenant_id', tenantId)
+  // Soft delete — clients use deleted_at (never hard delete, see CLAUDE.md)
+  const { error } = await db
+    .from('clients')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', clientId)
+    .eq('tenant_id', tenantId)
   if (error) return { success: false, error: error.message }
   await logAdminAction(auth.id, 'client.deleted', 'client', clientId, tenantId)
   revalidatePath(`/admin/tenants/${tenantId}/clients`)
@@ -306,6 +311,7 @@ export async function listTenantClientsDetailed(
     .from('clients')
     .select('id, full_name, phone, email, tags, marketing_consent, profile_id, created_at, profile:profiles(avatar_url)')
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }
@@ -367,6 +373,7 @@ export async function listTenantAppointmentsDetailed(
       'id, start_time, end_time, status, client_id, location_id, staff_id, client:clients(full_name), staff:staff_members(profile:profiles(full_name)), appointment_services(price_at_booking, services(name))'
     )
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('start_time', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }

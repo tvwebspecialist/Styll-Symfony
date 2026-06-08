@@ -84,7 +84,13 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   // Auth is managed client-side (PwaSessionRestorer) to avoid server-side 302s
   // that cause iOS to exit standalone mode. Page renders guest state initially;
   // PwaSessionRestorer syncs localStorage → cookie and triggers router.refresh().
-  const homeData = await getHomePageData(tenant.tenant_id)
+  let homeData: Awaited<ReturnType<typeof getHomePageData>>
+  try {
+    homeData = await getHomePageData(tenant.tenant_id)
+  } catch {
+    // Graceful degradation: render guest/empty state rather than crashing
+    homeData = { isLoggedIn: false, staffMembers: [], staffCount: 0 }
+  }
   const rewards = homeData.activeRewards ?? []
   const availablePoints = homeData.loyalty?.availablePoints ?? 0
   const nextReward = rewards.find((reward) => reward.pointsCost > availablePoints)

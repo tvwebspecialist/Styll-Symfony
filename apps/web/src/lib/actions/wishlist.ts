@@ -9,8 +9,27 @@ export async function toggleWishlist(params: {
   productId: string
   currentState: boolean
 }): Promise<{ success: boolean; newState: boolean }> {
-  const { tenantId, clientId, productId, currentState } = params
+  const { tenantId, productId, currentState } = params
+
+  // Resolve the client from the authenticated session — never trust the
+  // clientId passed from the browser (it could target another client).
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, newState: currentState }
+
   const db = createAdminClient()
+
+  const { data: client } = await db
+    .from('clients')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!client) return { success: false, newState: currentState }
 
   try {
     if (currentState) {
@@ -18,12 +37,12 @@ export async function toggleWishlist(params: {
         .from('client_product_wishlist')
         .delete()
         .eq('tenant_id', tenantId)
-        .eq('client_id', clientId)
+        .eq('client_id', client.id)
         .eq('product_id', productId)
     } else {
       await db.from('client_product_wishlist').insert({
         tenant_id: tenantId,
-        client_id: clientId,
+        client_id: client.id,
         product_id: productId,
       })
     }
@@ -37,13 +56,32 @@ export async function getWishlistProductIds(params: {
   tenantId: string
   clientId: string
 }): Promise<string[]> {
-  const { tenantId, clientId } = params
+  const { tenantId } = params
+
+  // Resolve the client from the authenticated session — ignore the passed clientId.
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
   const db = createAdminClient()
+
+  const { data: client } = await db
+    .from('clients')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!client) return []
+
   const { data } = await db
     .from('client_product_wishlist')
     .select('product_id')
     .eq('tenant_id', tenantId)
-    .eq('client_id', clientId)
+    .eq('client_id', client.id)
   return (data ?? []).map((r) => r.product_id)
 }
 

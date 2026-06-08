@@ -53,6 +53,19 @@ export async function verifyOtp(
   token: string,
   tenantId: string,
 ): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
+  // Verify tenantId is a real active tenant before creating/linking any client record
+  const db = createAdminClient()
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('id')
+    .eq('id', tenantId)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (!tenant) {
+    return { success: false, isNewClient: false, error: 'Salone non valido.' }
+  }
+
   const supabase = await createClient()
   const normalizedPhone = normalizePhoneValue(phone)
   const { data, error } = await supabase.auth.verifyOtp({
@@ -70,7 +83,6 @@ export async function verifyOtp(
   }
 
   const userId = data.user.id
-  const db = createAdminClient()
   const now = new Date().toISOString()
 
   const { error: profileUpdateError } = await db

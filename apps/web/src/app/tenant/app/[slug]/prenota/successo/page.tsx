@@ -58,7 +58,9 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
   if (!appointmentId) redirect(tp(''))
 
   const tenantPromise = getTenantBySlug(slug)
-  const appointmentPromise = getAppointmentSummary(appointmentId)
+  const appointmentPromise = tenantPromise.then((tenant) =>
+    tenant ? getAppointmentSummary(appointmentId, tenant.tenant_id) : Promise.resolve(null),
+  )
   const loyaltyPromise = tenantPromise.then((tenant) =>
     tenant ? getLoyaltyConfig(tenant.tenant_id) : Promise.resolve(null),
   )

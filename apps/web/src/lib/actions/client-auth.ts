@@ -303,6 +303,19 @@ export async function loginClient(params: {
   }
 
   if (params.tenantId && data.user) {
+    // Verify tenantId is a real active tenant before linking the profile
+    const db = createAdminClient()
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('id')
+      .eq('id', params.tenantId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!tenant) {
+      return { success: false, error: 'Salone non valido.', type: 'generic' }
+    }
+
     const metadata = data.user.user_metadata ?? {}
     try {
       await mergeClientProfile({
