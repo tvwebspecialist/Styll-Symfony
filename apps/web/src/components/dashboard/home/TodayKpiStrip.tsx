@@ -30,35 +30,39 @@ function fmt(t: string) {
   return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
-function TrendBadge({ current, prev }: { current: number; prev: number }) {
-  if (prev === 0) return null
-  const pct = Math.round(((current - prev) / prev) * 100)
-  const positive = pct >= 0
-  return (
-    <span
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        padding: '2px 6px',
-        borderRadius: 99,
-        background: positive ? '#dcfce7' : '#fee2e2',
-        color: positive ? '#15803d' : '#dc2626',
-        flexShrink: 0,
-        marginLeft: 6,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {pct >= 0 ? '↑' : '↓'}&nbsp;{Math.abs(pct)}%
-    </span>
-  )
-}
-
 interface Props {
   appointments: TodayAppointment[]
   yesterdayStats: YesterdayStats
 }
 
-export function TodayKpiStrip({ appointments, yesterdayStats }: Props) {
+const CARDS = [
+  {
+    key: 'appt',
+    bg: '#F0F4FF',
+    accent: '#3B6FE8',
+    icon: Calendar,
+    label: 'Appuntamenti oggi',
+    imgSrc: '/img/Appuntamenti.png',
+  },
+  {
+    key: 'revenue',
+    bg: '#F0FFF4',
+    accent: '#16A34A',
+    icon: TrendingUp,
+    label: 'Incassi di oggi',
+    imgSrc: '/img/guadagni.png',
+  },
+  {
+    key: 'slots',
+    bg: '#FFF7ED',
+    accent: '#EA580C',
+    icon: Clock,
+    label: 'Ore libere oggi',
+    imgSrc: '/img/megafono_icon.png',
+  },
+] as const
+
+export function TodayKpiStrip({ appointments }: Props) {
   const active = appointments.filter((a) => a.status !== 'cancelled')
   const todayCount = active.length
   const todayRevenue = active.reduce((s, a) => s + a.total_price, 0)
@@ -70,102 +74,111 @@ export function TodayKpiStrip({ appointments, yesterdayStats }: Props) {
       .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
       .find((a) => new Date(a.end_time) > now && a.status !== 'completed') ?? null
 
-  const cardStyle: React.CSSProperties = {
-    background: '#F9FAFB',
-    borderRadius: 14,
-    padding: '14px 16px',
-    paddingRight: 80,
-    minWidth: 148,
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  }
-
-  const labelStyle: React.CSSProperties = {
-    margin: 0,
-    fontSize: 10,
-    fontWeight: 600,
-    color: '#9CA3AF',
-    fontFamily: 'Outfit, sans-serif',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    lineHeight: 1,
-  }
-
-  const valueStyle: React.CSSProperties = {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 800,
-    color: '#111111',
-    fontFamily: 'Outfit, sans-serif',
-    letterSpacing: '-0.5px',
-    lineHeight: 1,
-  }
-
-  const subStyle: React.CSSProperties = {
-    margin: 0,
-    fontSize: 11,
-    color: '#9CA3AF',
-    fontFamily: 'Outfit, sans-serif',
-    lineHeight: 1.3,
+  const values: Record<string, { main: React.ReactNode; sub: string }> = {
+    appt: {
+      main: todayCount,
+      sub: nextAppt
+        ? `Prossimo alle ${fmt(nextAppt.start_time)}`
+        : todayCount === 0
+          ? 'Nessuno oggi'
+          : 'Tutti completati',
+    },
+    revenue: {
+      main: `€${todayRevenue}`,
+      sub: 'Stimati dai confermati',
+    },
+    slots: {
+      main: freeSlots,
+      sub: freeSlots === 0 ? 'Agenda piena!' : `Disponibili (≥${MIN_FREE_SLOT}min)`,
+    },
   }
 
   return (
-    <div className="home-kpi-scroll">
-      <div style={{ display: 'flex', gap: 10, minWidth: 'max-content', width: '100%' }}>
+    <div className="home-kpi-row">
+      {CARDS.map(({ key, bg, accent, icon: Icon, label, imgSrc }) => {
+        const { main, sub } = values[key]!
+        return (
+          <div
+            key={key}
+            style={{
+              position: 'relative',
+              overflow: 'hidden',
+              borderRadius: 'var(--card-radius)',
+              padding: '20px 20px 16px 20px',
+              flex: '1 1 0',
+              minWidth: 0,
+              minHeight: 140,
+              background: bg,
+              border: 'none',
+            }}
+          >
+            {/* Label */}
+            <div style={{
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              color: accent,
+              opacity: 0.75,
+              marginBottom: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontFamily: 'Outfit, sans-serif',
+            }}>
+              <Icon size={12} strokeWidth={2} />
+              {label}
+            </div>
 
-        {/* Appuntamenti oggi */}
-        <div className="kpi-card-3d" style={cardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Calendar size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Appuntamenti oggi</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <p style={valueStyle}>{todayCount}</p>
-            <TrendBadge current={todayCount} prev={yesterdayStats.appointment_count} />
-          </div>
-          <p style={subStyle}>
-            {nextAppt
-              ? `Prossimo alle ${fmt(nextAppt.start_time)}`
-              : todayCount === 0
-                ? 'Nessuno oggi'
-                : 'Tutti completati'}
-          </p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="kpi-card-3d-icon" src="/Appuntamenti.png" alt="" aria-hidden="true" />
-        </div>
+            {/* Main value */}
+            <div className="kpi-card-value" style={{
+              fontSize: 40,
+              fontWeight: 800,
+              lineHeight: 1,
+              color: '#111827',
+              letterSpacing: '-0.02em',
+              paddingRight: 130,
+              marginBottom: 6,
+              fontFamily: 'Outfit, sans-serif',
+            }}>
+              {main}
+            </div>
 
-        {/* Incassi di oggi */}
-        <div className="kpi-card-3d" style={cardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <TrendingUp size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Incassi di oggi</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <p style={valueStyle}>€{todayRevenue}</p>
-            <TrendBadge current={todayRevenue} prev={yesterdayStats.revenue} />
-          </div>
-          <p style={subStyle}>Stimata da confermati</p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="kpi-card-3d-icon" src="/guadagni.png" alt="" aria-hidden="true" />
-        </div>
+            {/* Subtitle */}
+            <div style={{
+              fontSize: 12,
+              color: '#6B7280',
+              fontWeight: 500,
+              fontFamily: 'Outfit, sans-serif',
+            }}>
+              {sub}
+            </div>
 
-        {/* Ore libere oggi */}
-        <div className="kpi-card-3d" style={cardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Clock size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Ore libere oggi</p>
+            {/* 3D icon */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imgSrc}
+              alt=""
+              aria-hidden="true"
+              className="kpi-card-3d-icon"
+              style={{
+                position: 'absolute',
+                bottom: -28,
+                right: -22,
+                width: 160,
+                height: 160,
+                objectFit: 'contain',
+                opacity: 1,
+                pointerEvents: 'none',
+                userSelect: 'none',
+                transform: 'rotate(-12deg) scale(1.05)',
+                filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.18))',
+              }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
           </div>
-          <p style={valueStyle}>{freeSlots}</p>
-          <p style={subStyle}>
-            {freeSlots === 0 ? 'Agenda piena!' : `Disponibili oggi (≥${MIN_FREE_SLOT}min)`}
-          </p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="kpi-card-3d-icon" src="/megafono_icon.png" alt="" aria-hidden="true" />
-        </div>
-
-      </div>
+        )
+      })}
     </div>
   )
 }

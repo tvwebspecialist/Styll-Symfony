@@ -1,13 +1,15 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import type { TodayAppointment } from '@/lib/actions/dashboard-home'
+import type { TodayAppointment, WorkingHour } from '@/lib/actions/dashboard-home'
+import { CustomSelect } from '@/components/ui/custom-select'
 
 interface Props {
   todayAppointments: TodayAppointment[]
   weekAppointments: TodayAppointment[]
+  workingHours: WorkingHour[]
   basePath: string
 }
 
@@ -16,10 +18,6 @@ const MONTHS = [
   'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre',
 ]
 const SHORT_DAYS = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab']
-
-function fmtTime(t: string) {
-  return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-}
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() &&
@@ -39,46 +37,53 @@ function getWeekDays(ref: Date): Date[] {
   })
 }
 
-function apptStatus(appt: TodayAppointment, today: boolean): 'past' | 'current' | 'upcoming' {
-  if (!today) return 'upcoming'
-  const now = Date.now()
-  const s = new Date(appt.start_time).getTime()
-  const e = new Date(appt.end_time).getTime()
-  if (now >= s && now < e) return 'current'
-  if (e <= now) return 'past'
-  return 'upcoming'
-}
-
 function getInitials(name: string) {
   const p = name.trim().split(/\s+/)
   if (p.length === 1) return p[0][0]?.toUpperCase() ?? '?'
   return ((p[0][0] ?? '') + (p[p.length - 1][0] ?? '')).toUpperCase()
 }
 
-function hourLabels(appts: TodayAppointment[]): number[] {
-  if (!appts.length) return []
-  let min = 23, max = 0
-  for (const a of appts) {
-    const h = new Date(a.start_time).getHours()
-    if (h < min) min = h
-    if (h > max) max = h
-  }
-  const start = Math.max(8, min - 1)
-  const end = Math.min(20, max + 1)
-  const out: number[] = []
-  for (let h = start; h <= end; h++) out.push(h)
-  return out
+function parseTimeStr(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
 }
 
-export function CalendarPanel({ todayAppointments, weekAppointments, basePath }: Props) {
+function apptMinutes(iso: string): number {
+  const d = new Date(iso)
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+type TimelineSlot = {
+  ora: string
+  tipo: 'appuntamento' | 'libero'
+  nomeCliente?: string
+  iniziali?: string
+  servizio?: string
+  appointmentId?: string
+}
+
+type FiltroStato = 'tutti' | 'confirmed' | 'pending' | 'completed'
+
+export function CalendarPanel({ todayAppointments, weekAppointments, workingHours, basePath }: Props) {
   const router = useRouter()
   const now = React.useMemo(() => new Date(), [])
 
   const [selectedDate, setSelectedDate] = React.useState<Date>(now)
   const [weekOffset, setWeekOffset] = React.useState(0)
-  const [nowLabel, setNowLabel] = React.useState('')
+  const [filtroStato, setFiltroStato] = React.useState<FiltroStato>('tutti')
 
-  // Ref date moves with week navigation
+  // Current time in minutes — updated every minute for the "now" line
+  const [nowMinutes, setNowMinutes] = React.useState<number>(
+    () => now.getHours() * 60 + now.getMinutes()
+  )
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date()
+      setNowMinutes(d.getHours() * 60 + d.getMinutes())
+    }, 60_000)
+    return () => clearInterval(id)
+  }, [])
+
   const refDate = React.useMemo(() => {
     const d = new Date(now)
     d.setDate(now.getDate() + weekOffset * 7)
@@ -87,29 +92,14 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
 
   const weekDays = React.useMemo(() => getWeekDays(refDate), [refDate])
 
-  // Reset selected date when week changes
   React.useEffect(() => {
     if (weekOffset === 0) setSelectedDate(now)
     else setSelectedDate(weekDays[0])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekOffset])
 
-  // Current time label
-  React.useEffect(() => {
-    const update = () => {
-      const d = new Date()
-      setNowLabel(
-        `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
-      )
-    }
-    update()
-    const id = setInterval(update, 60_000)
-    return () => clearInterval(id)
-  }, [])
-
   const isSelectedToday = isSameDay(selectedDate, now)
 
-  // Appointments for the selected day
   const displayAppts = React.useMemo(() => {
     if (isSelectedToday && weekOffset === 0) return todayAppointments
     const sel = selectedDate.toISOString().slice(0, 10)
@@ -118,9 +108,58 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
     )
   }, [selectedDate, isSelectedToday, weekOffset, todayAppointments, weekAppointments])
 
-  const hours = hourLabels(displayAppts)
   const monthLabel = `${MONTHS[refDate.getMonth()]}, ${refDate.getFullYear()}`
   const dayLabel = `${selectedDate.getDate()} ${MONTHS[selectedDate.getMonth()]}`
+  const selectedDateStr = selectedDate.toISOString().slice(0, 10)
+
+  // Working hours for the selected day of week
+  const dayWorkingHours = React.useMemo(
+    () => workingHours.filter(wh => wh.day_of_week === selectedDate.getDay()),
+    [selectedDate, workingHours],
+  )
+
+  // Build 30-min timeline slots, filtered by status
+  const slots = React.useMemo((): TimelineSlot[] => {
+    if (dayWorkingHours.length === 0) return []
+    const workStart = Math.min(...dayWorkingHours.map(wh => parseTimeStr(wh.start_time)))
+    const workEnd = Math.max(...dayWorkingHours.map(wh => parseTimeStr(wh.end_time)))
+
+    const appts = filtroStato === 'tutti'
+      ? displayAppts
+      : displayAppts.filter(a => a.status === filtroStato)
+
+    const result: TimelineSlot[] = []
+    const shownAppts = new Set<string>()
+
+    for (let m = workStart; m < workEnd; m += 30) {
+      const h = Math.floor(m / 60)
+      const min = m % 60
+      const oraLabel = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+
+      const appt = appts.find(a => {
+        const start = apptMinutes(a.start_time)
+        const end = apptMinutes(a.end_time)
+        return start <= m && end > m
+      })
+
+      if (appt) {
+        if (!shownAppts.has(appt.id)) {
+          shownAppts.add(appt.id)
+          result.push({
+            ora: oraLabel,
+            tipo: 'appuntamento',
+            nomeCliente: appt.client_name,
+            iniziali: getInitials(appt.client_name),
+            servizio: appt.service_names[0] ?? '',
+            appointmentId: appt.id,
+          })
+        }
+      } else {
+        result.push({ ora: oraLabel, tipo: 'libero' })
+      }
+    }
+    return result
+  }, [dayWorkingHours, displayAppts, filtroStato])
 
   return (
     <div
@@ -130,7 +169,6 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
         border: '1px solid var(--card-border, #E9E9E9)',
         boxShadow: 'var(--card-shadow)',
         padding: 20,
-        paddingBottom: 20,
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
@@ -197,20 +235,10 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
                 padding: 0,
               }}
             >
-              <span style={{
-                fontSize: 11,
-                fontWeight: sel ? 400 : 500,
-                fontFamily: 'Outfit, sans-serif',
-                lineHeight: 1,
-              }}>
+              <span style={{ fontSize: 11, fontWeight: sel ? 400 : 500, fontFamily: 'Outfit, sans-serif', lineHeight: 1 }}>
                 {SHORT_DAYS[day.getDay()]}
               </span>
-              <span style={{
-                fontSize: 20,
-                fontWeight: sel ? 500 : 600,
-                fontFamily: 'Outfit, sans-serif',
-                lineHeight: 1,
-              }}>
+              <span style={{ fontSize: 20, fontWeight: sel ? 500 : 600, fontFamily: 'Outfit, sans-serif', lineHeight: 1 }}>
                 {day.getDate()}
               </span>
             </button>
@@ -218,229 +246,232 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
         })}
       </div>
 
-      {/* ── Action bar ─── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+      {/* ── Date + Add button ─── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color: 'var(--text-primary, #111827)',
+          fontFamily: 'Outfit, sans-serif',
+          letterSpacing: '-0.3px',
+        }}>
+          {dayLabel}
+        </div>
         <button
           type="button"
-          aria-label="Aggiorna"
-          onClick={() => router.refresh()}
-          style={iconBtnStyle}
+          onClick={() => router.push(`${basePath}/calendario?new=1&data=${selectedDateStr}`)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '6px 14px',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 600,
+            background: 'var(--sidebar-item-active-bg, #222222)',
+            color: '#FFFFFF',
+            border: 'none',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            fontFamily: 'Outfit, sans-serif',
+          }}
         >
-          <RefreshCw size={16} strokeWidth={2} color="#222" />
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Aggiungi
         </button>
       </div>
 
-      {/* ── Date label ─── */}
-      <p style={{
-        margin: 0,
-        fontSize: 22,
-        fontWeight: 500,
-        fontFamily: 'Outfit, sans-serif',
-        color: '#222',
-        letterSpacing: '-0.5px',
+      {/* ── Table header: Orario | Appuntamenti + filter ─── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: 8,
+        borderBottom: '1px solid var(--divider, #F0F0F0)',
         flexShrink: 0,
       }}>
-        {dayLabel}
-      </p>
-
-      {/* ── Column headers ─── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 20, fontSize: 13, fontWeight: 500, fontFamily: 'Outfit, sans-serif', color: '#222', letterSpacing: '-0.3px' }}>
-          <span>Orario</span>
-          <span>Appuntamenti</span>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--text-secondary, #9CA3AF)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontFamily: 'Outfit, sans-serif',
+          }}>
+            Orario
+          </span>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--text-secondary, #9CA3AF)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontFamily: 'Outfit, sans-serif',
+          }}>
+            Appuntamenti
+          </span>
         </div>
-        <div style={{
-          background: '#F4F4F4',
-          borderRadius: 10,
-          padding: '6px 12px',
-          fontSize: 13,
-          fontWeight: 500,
-          fontFamily: 'Outfit, sans-serif',
-          color: '#222',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 34,
-          boxSizing: 'border-box',
-        }}>
-          Tutti
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 4.5L6 7.5L9 4.5" stroke="#222" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+        <CustomSelect
+          compact
+          align="end"
+          value={filtroStato}
+          onChange={(v) => setFiltroStato(v as FiltroStato)}
+          options={[
+            { value: 'tutti', label: 'Tutti' },
+            { value: 'confirmed', label: 'Confermati' },
+            { value: 'pending', label: 'In attesa' },
+            { value: 'completed', label: 'Completati' },
+          ]}
+        />
       </div>
 
-      {/* ── Appointment list ─── */}
+      {/* ── Timeline ─── */}
       <div
-        className="cal-panel-scroll"
-        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}
+        className="mini-cal-timeline"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'none',
+        }}
       >
-        {displayAppts.length === 0 ? (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: 100,
-          }}>
+        {dayWorkingHours.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}>
             <p style={{ fontSize: 13, color: '#B0B0B0', fontFamily: 'Outfit, sans-serif', margin: 0 }}>
-              Nessun appuntamento
+              Giorno libero
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 10 }}>
+          slots.map((slot) => {
+            const slotMin = parseTimeStr(slot.ora)
+            const showNowLine = isSelectedToday &&
+              nowMinutes >= slotMin && nowMinutes < slotMin + 30
 
-            {/* Time column */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
-              flexShrink: 0,
-              width: 40,
-              position: 'relative',
-            }}>
-              {hours.map((h, i) => (
-                <React.Fragment key={h}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: 11,
-                    fontFamily: 'Outfit, sans-serif',
-                    color: '#222',
-                    letterSpacing: '-0.3px',
-                    lineHeight: 1,
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
+            return (
+              <React.Fragment key={slot.ora}>
+                {showNowLine && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    margin: '0 4px 2px 4px',
+                    pointerEvents: 'none',
                   }}>
-                    {String(h).padStart(2, '0')}:00
-                  </p>
-                  {i < hours.length - 1 && (
                     <div style={{
-                      width: 1,
-                      background: '#D0D0D0',
-                      minHeight: 50,
-                      flex: 1,
-                      marginLeft: 'auto',
-                      marginRight: 4,
-                      marginTop: 4,
-                      marginBottom: 4,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#EF4444',
+                      flexShrink: 0,
+                      marginLeft: 32,
+                      boxShadow: '0 0 6px rgba(239,68,68,0.6)',
                     }} />
-                  )}
-                </React.Fragment>
-              ))}
+                    <div style={{
+                      flex: 1,
+                      height: 1.5,
+                      background: '#EF4444',
+                      opacity: 0.8,
+                      borderRadius: 1,
+                    }} />
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    minHeight: 36,
+                    paddingLeft: 4,
+                    paddingRight: 4,
+                  }}
+                >
+                  {/* Time column */}
+                  <div style={{
+                    width: 40,
+                    fontSize: 11,
+                    color: 'var(--text-secondary, #9CA3AF)',
+                    fontWeight: 500,
+                    fontFamily: 'Outfit, sans-serif',
+                    flexShrink: 0,
+                    paddingTop: 10,
+                    lineHeight: 1,
+                    opacity: 0.6,
+                  }}>
+                    {slot.ora}
+                  </div>
 
-              {/* Current time overlay badge */}
-              {isSelectedToday && nowLabel && (
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '40%',
-                  background: '#FFFFFF',
-                  borderRadius: 5,
-                  padding: '2px 4px',
-                  fontSize: 10,
-                  fontFamily: 'Outfit, sans-serif',
-                  color: '#222',
-                  whiteSpace: 'nowrap',
-                  zIndex: 2,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                }}>
-                  {nowLabel}
-                </div>
-              )}
-            </div>
-
-            {/* Cards column */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {displayAppts.map((appt) => {
-                const st = apptStatus(appt, isSelectedToday)
-                const isPast = st === 'past'
-                const isCurrent = st === 'current'
-                const services = appt.service_names.join(' + ')
-                const timeRange = `${fmtTime(appt.start_time)} - ${fmtTime(appt.end_time)}`
-
-                return (
-                  <div
-                    key={appt.id}
-                    style={{
-                      background: '#F4F4F4',
+                  {/* Slot content */}
+                  {slot.tipo === 'appuntamento' ? (
+                    <div style={{
+                      flex: 1,
+                      background: 'var(--sidebar-item-active-bg, #222222)',
                       borderRadius: 10,
-                      padding: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      opacity: isPast ? 0.5 : 1,
-                      border: isCurrent ? '0.5px solid #222' : 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-                      {/* Avatar */}
-                      <div style={{
-                        width: 25, height: 25,
-                        borderRadius: '50%',
-                        background: '#EBEBEB',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9,
-                        fontWeight: 700,
-                        fontFamily: 'Outfit, sans-serif',
-                        color: '#666',
-                        flexShrink: 0,
-                      }}>
-                        {getInitials(appt.client_name)}
-                      </div>
-
-                      {/* Info */}
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{
-                          margin: 0,
-                          fontSize: 13,
-                          fontWeight: 500,
-                          fontFamily: 'Outfit, sans-serif',
-                          color: '#222',
-                          lineHeight: 1.2,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {appt.client_name}
-                        </p>
-                        <p style={{
-                          margin: '2px 0 0',
+                      padding: '8px 10px',
+                      marginBottom: 4,
+                      cursor: 'pointer',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: '50%',
+                          background: 'rgba(255,255,255,0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           fontSize: 9,
+                          fontWeight: 700,
+                          color: '#FFFFFF',
+                          flexShrink: 0,
                           fontFamily: 'Outfit, sans-serif',
-                          color: '#333',
-                          lineHeight: 1,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
                         }}>
-                          {timeRange}{services ? ` · ${services}` : ''}
-                        </p>
+                          {slot.iniziali}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: '#FFFFFF',
+                            fontFamily: 'Outfit, sans-serif',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            lineHeight: 1.2,
+                          }}>
+                            {slot.nomeCliente}
+                          </div>
+                          <div style={{
+                            fontSize: 10,
+                            color: 'rgba(255,255,255,0.55)',
+                            fontFamily: 'Outfit, sans-serif',
+                            marginTop: 1,
+                            lineHeight: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {slot.ora}{slot.servizio ? ` · ${slot.servizio}` : ''}
+                          </div>
+                        </div>
                       </div>
                     </div>
-
-                    {/* ··· menu */}
-                    <button
-                      type="button"
-                      aria-label={`Opzioni per ${appt.client_name}`}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '4px 6px',
-                        color: '#B0B0B0',
-                        flexShrink: 0,
-                        fontSize: 14,
-                        lineHeight: 1,
-                        letterSpacing: '1px',
-                      }}
-                    >
-                      ···
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+                  ) : (
+                    <div style={{
+                      flex: 1,
+                      height: 1,
+                      marginTop: 18,
+                      background: 'var(--divider, #F0F0F0)',
+                      opacity: 0.5,
+                    }} />
+                  )}
+                </div>
+              </React.Fragment>
+            )
+          })
         )}
       </div>
 
@@ -448,7 +479,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
       <div style={{ flexShrink: 0 }}>
         <button
           type="button"
-          onClick={() => router.push(`${basePath}/calendario`)}
+          onClick={() => router.push(`${basePath}/calendario?data=${selectedDateStr}`)}
           style={{
             width: '100%',
             height: 38,
@@ -476,14 +507,4 @@ const navBtnStyle: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-}
-
-const iconBtnStyle: React.CSSProperties = {
-  width: 38, height: 38,
-  borderRadius: '50%',
-  background: '#F4F4F4',
-  border: 'none',
-  cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  flexShrink: 0,
 }

@@ -1,18 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import Link from 'next/link'
-import { Plus } from 'lucide-react'
 import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { CalendarPanel } from './CalendarPanel'
 import { GreetingHeader } from './GreetingHeader'
 import { TodayKpiStrip } from './TodayKpiStrip'
-import { TopClientsWidget } from './TopClientsWidget'
 import { ChurnAlertCard } from './ChurnAlertCard'
-import { QuickActionsWidget } from './QuickActionsWidget'
-import { MobileHero } from './MobileHero'
-import { MobileAppointmentList } from './MobileAppointmentList'
-import { MobileChurnBanner } from './MobileChurnBanner'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 
 interface Props {
@@ -31,7 +24,7 @@ function getDynamicSummary(count: number, total: number): string {
 }
 
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekAppointments, yesterdayStats, atRiskClients } = data
+  const { staffName, todayAppointments, weekAppointments, yesterdayStats, atRiskClients, workingHours } = data
   const firstName  = staffName?.split(' ')[0] ?? null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
 
@@ -50,35 +43,24 @@ export function DashboardHomeClient({ data, basePath }: Props) {
         {/* ── LEFT — Scrollable content column ──────────────────── */}
         <div className="home-v2-main">
 
-          {/* ── DESKTOP layout — hidden on mobile ─── */}
-          <div
-            className="desktop-only"
-            style={{ flexDirection: 'column', gap: 16 }}
-          >
-            <GreetingHeader staffName={staffName} appointments={todayAppointments} />
+          <div className="home-main-card" style={{
+            background: 'var(--card-bg)',
+            borderRadius: 'var(--card-radius)',
+            border: '1px solid var(--card-border)',
+            boxShadow: 'var(--card-shadow)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}>
+            {/* Greeting + divider — hidden on mobile (topbar handles it) */}
+            <div className="home-v2-greeting-block" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <GreetingHeader staffName={staffName} appointments={todayAppointments} />
+              <div style={{ height: 1, background: 'var(--divider)' }} />
+            </div>
             <TodayKpiStrip appointments={todayAppointments} yesterdayStats={yesterdayStats} />
-            <TopClientsWidget weekAppointments={weekAppointments} basePath={basePath} />
             {atRiskClients.length > 0 && (
               <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
-            )}
-            <QuickActionsWidget basePath={basePath} />
-          </div>
-
-          {/* ── MOBILE layout — hidden on desktop ─── */}
-          <div
-            className="mobile-only"
-            style={{ flexDirection: 'column', gap: 20 }}
-          >
-            <MobileHero
-              staffName={staffName}
-              appointments={todayAppointments}
-            />
-            <MobileAppointmentList
-              appointments={todayAppointments}
-              basePath={basePath}
-            />
-            {atRiskClients.length > 0 && (
-              <MobileChurnBanner clients={atRiskClients} basePath={basePath} />
             )}
           </div>
 
@@ -90,6 +72,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
             <CalendarPanel
               todayAppointments={todayAppointments}
               weekAppointments={weekAppointments}
+              workingHours={workingHours}
               basePath={basePath}
             />
           </div>
@@ -97,30 +80,6 @@ export function DashboardHomeClient({ data, basePath }: Props) {
 
       </div>
 
-      {/* ── FAB — nuovo appuntamento (mobile only) ────────────── */}
-      <Link
-        href={`${basePath}/calendario?new=1`}
-        className="mobile-only"
-        aria-label="Aggiungi appuntamento"
-        style={{
-          position: 'fixed',
-          bottom: 'calc(var(--bottom-nav-height, 80px) + 16px)',
-          right: 20,
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          background: 'var(--sidebar-item-active-bg, #222222)',
-          color: '#FFFFFF',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textDecoration: 'none',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.28)',
-          zIndex: 40,
-        }}
-      >
-        <Plus size={28} strokeWidth={2} />
-      </Link>
     </>
   )
 }

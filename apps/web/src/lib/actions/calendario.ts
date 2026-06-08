@@ -1,8 +1,39 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
+
+/**
+ * Verifica che l'utente autenticato sia staff (o superadmin) del tenant indicato.
+ * Usato al posto del fragile getActiveTenantId() nei casi in cui tenantId
+ * è già noto (passato dal caller) ma serve comunque la verifica lato server.
+ */
+async function verifyUserTenantAccess(tenantId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non autenticato')
+
+  const db = createAdminClient()
+  const { data: staffRow } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!staffRow) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (!profile?.is_superadmin) throw new Error('Non autorizzato')
+  }
+}
 
 export interface CalendarioAppointment {
   id: string
@@ -95,10 +126,7 @@ export async function getCalendarioData(
   weekStart: string,
   staffId?: string | null
 ): Promise<CalendarioData> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
+  await verifyUserTenantAccess(tenantId)
 
   const db = createAdminClient()
   const weekEnd = addDays(weekStart, 7)
@@ -304,8 +332,9 @@ export async function createAppointment(input: {
   notes?: string | null
   status?: string
 }): Promise<{ success: boolean; appointmentId?: string; error?: string }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== input.tenantId) {
+  try {
+    await verifyUserTenantAccess(input.tenantId)
+  } catch {
     return { success: false, error: 'Non autorizzato' }
   }
   if (!input.locationId) {
@@ -397,8 +426,9 @@ export async function updateAppointmentServices(
   serviceIds: string[],
   tenantId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
+  try {
+    await verifyUserTenantAccess(tenantId)
+  } catch {
     return { success: false, error: 'Non autorizzato' }
   }
 
