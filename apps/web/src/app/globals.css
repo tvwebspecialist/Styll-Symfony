@@ -600,6 +600,23 @@
   gap: 16px;
 }
 
+/* 3D icon KPI cards */
+.kpi-card-3d {
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card-3d-icon {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  opacity: 0.92;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* KPI strip: horizontal scroll on mobile */
 .home-kpi-scroll {
   overflow-x: auto;

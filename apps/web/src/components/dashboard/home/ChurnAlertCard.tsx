@@ -38,8 +38,26 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
         gap: 12,
         height: '100%',
         boxSizing: 'border-box',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* 3D decoration icon */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/allert_churn.png"
+        alt=""
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: -10,
+          right: -10,
+          width: 110,
+          opacity: 0.9,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <p
           style={{
@@ -132,6 +150,19 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
                 >
                   {isRed ? '🔴' : '🟡'} {c.days_since}gg senza visita
                 </p>
+                {c.avg_frequency != null && (
+                  <p
+                    style={{
+                      margin: '2px 0 0',
+                      fontSize: 10,
+                      color: '#B0B8C1',
+                      fontFamily: 'Outfit, sans-serif',
+                      lineHeight: 1,
+                    }}
+                  >
+                    Viene ogni {c.avg_frequency}gg di media
+                  </p>
+                )}
               </div>
               <button
                 type="button"
