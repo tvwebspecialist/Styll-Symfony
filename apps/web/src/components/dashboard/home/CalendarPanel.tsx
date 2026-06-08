@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronLeft, ChevronRight, RefreshCw, FileDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { TodayAppointment } from '@/lib/actions/dashboard-home'
 
@@ -125,10 +125,12 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
   return (
     <div
       style={{
-        background: '#F4F4F4',
-        borderRadius: 20,
-        padding: 16,
-        paddingBottom: 16,
+        background: 'var(--card-bg, #FFFFFF)',
+        borderRadius: 'var(--card-radius, 16px)',
+        border: '1px solid var(--card-border, #E9E9E9)',
+        boxShadow: 'var(--card-shadow)',
+        padding: 20,
+        paddingBottom: 20,
         display: 'flex',
         flexDirection: 'column',
         gap: 14,
@@ -183,7 +185,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
                 flex: 1,
                 height: 72,
                 borderRadius: 10,
-                background: sel ? '#222' : '#FFFFFF',
+                background: sel ? '#222' : '#F4F4F4',
                 color: sel ? '#FFFFFF' : '#222',
                 border: 'none',
                 cursor: 'pointer',
@@ -217,25 +219,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
       </div>
 
       {/* ── Action bar ─── */}
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button
-          type="button"
-          onClick={() => router.push(`${basePath}/calendario`)}
-          style={{
-            flex: 1,
-            height: 38,
-            background: '#FFFFFF',
-            border: 'none',
-            borderRadius: 10,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-            fontFamily: 'Outfit, sans-serif',
-            color: '#222',
-          }}
-        >
-          Aggiungi appuntamento
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
         <button
           type="button"
           aria-label="Aggiorna"
@@ -243,13 +227,6 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
           style={iconBtnStyle}
         >
           <RefreshCw size={16} strokeWidth={2} color="#222" />
-        </button>
-        <button
-          type="button"
-          aria-label="Esporta"
-          style={iconBtnStyle}
-        >
-          <FileDown size={16} strokeWidth={2} color="#222" />
         </button>
       </div>
 
@@ -273,7 +250,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
           <span>Appuntamenti</span>
         </div>
         <div style={{
-          background: '#FFFFFF',
+          background: '#F4F4F4',
           borderRadius: 10,
           padding: '6px 12px',
           fontSize: 13,
@@ -384,7 +361,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
                   <div
                     key={appt.id}
                     style={{
-                      background: '#FFFFFF',
+                      background: '#F4F4F4',
                       borderRadius: 10,
                       padding: 10,
                       display: 'flex',
@@ -475,7 +452,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
           style={{
             width: '100%',
             height: 38,
-            background: '#FFFFFF',
+            background: '#F4F4F4',
             border: 'none',
             borderRadius: 10,
             cursor: 'pointer',
@@ -495,7 +472,7 @@ export function CalendarPanel({ todayAppointments, weekAppointments, basePath }:
 const navBtnStyle: React.CSSProperties = {
   width: 36, height: 36,
   borderRadius: '50%',
-  background: '#FFFFFF',
+  background: '#F4F4F4',
   border: 'none',
   cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -504,7 +481,7 @@ const navBtnStyle: React.CSSProperties = {
 const iconBtnStyle: React.CSSProperties = {
   width: 38, height: 38,
   borderRadius: '50%',
-  background: '#FFFFFF',
+  background: '#F4F4F4',
   border: 'none',
   cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',

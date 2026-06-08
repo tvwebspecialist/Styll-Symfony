@@ -7,7 +7,7 @@ import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { CalendarPanel } from './CalendarPanel'
 import { GreetingHeader } from './GreetingHeader'
 import { TodayKpiStrip } from './TodayKpiStrip'
-import { AgendaTimeline } from './AgendaTimeline'
+import { TopClientsWidget } from './TopClientsWidget'
 import { ChurnAlertCard } from './ChurnAlertCard'
 import { QuickActionsWidget } from './QuickActionsWidget'
 import { MobileHero } from './MobileHero'
@@ -57,7 +57,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
           >
             <GreetingHeader staffName={staffName} appointments={todayAppointments} />
             <TodayKpiStrip appointments={todayAppointments} yesterdayStats={yesterdayStats} />
-            <AgendaTimeline appointments={todayAppointments} basePath={basePath} />
+            <TopClientsWidget weekAppointments={weekAppointments} basePath={basePath} />
             {atRiskClients.length > 0 && (
               <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
             )}

@@ -74,6 +74,7 @@ export function TodayKpiStrip({ appointments, yesterdayStats }: Props) {
     background: '#F9FAFB',
     borderRadius: 14,
     padding: '14px 16px',
+    paddingRight: 80,
     minWidth: 148,
     flex: 1,
     display: 'flex',
@@ -115,10 +116,10 @@ export function TodayKpiStrip({ appointments, yesterdayStats }: Props) {
       <div style={{ display: 'flex', gap: 10, minWidth: 'max-content', width: '100%' }}>
 
         {/* Appuntamenti oggi */}
-        <div style={cardStyle}>
+        <div className="kpi-card-3d" style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <Calendar size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Appuntamenti</p>
+            <p style={labelStyle}>Appuntamenti oggi</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <p style={valueStyle}>{todayCount}</p>
@@ -131,31 +132,37 @@ export function TodayKpiStrip({ appointments, yesterdayStats }: Props) {
                 ? 'Nessuno oggi'
                 : 'Tutti completati'}
           </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="kpi-card-3d-icon" src="/Appuntamenti.png" alt="" aria-hidden="true" />
         </div>
 
-        {/* Revenue stimata */}
-        <div style={cardStyle}>
+        {/* Incassi di oggi */}
+        <div className="kpi-card-3d" style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <TrendingUp size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Revenue oggi</p>
+            <p style={labelStyle}>Incassi di oggi</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <p style={valueStyle}>€{todayRevenue}</p>
             <TrendBadge current={todayRevenue} prev={yesterdayStats.revenue} />
           </div>
           <p style={subStyle}>Stimata da confermati</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="kpi-card-3d-icon" src="/guadagni.png" alt="" aria-hidden="true" />
         </div>
 
-        {/* Slot liberi */}
-        <div style={cardStyle}>
+        {/* Ore libere oggi */}
+        <div className="kpi-card-3d" style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <Clock size={13} strokeWidth={2} color="#9CA3AF" />
-            <p style={labelStyle}>Slot liberi</p>
+            <p style={labelStyle}>Ore libere oggi</p>
           </div>
           <p style={valueStyle}>{freeSlots}</p>
           <p style={subStyle}>
             {freeSlots === 0 ? 'Agenda piena!' : `Disponibili oggi (≥${MIN_FREE_SLOT}min)`}
           </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="kpi-card-3d-icon" src="/megafono_icon.png" alt="" aria-hidden="true" />
         </div>
 
       </div>
