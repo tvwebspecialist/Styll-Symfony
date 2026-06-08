@@ -28,11 +28,11 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
     <div
       aria-label={`Clienti a rischio churn: ${clients.length}`}
       style={{
-        background: '#FFFFFF',
-        borderRadius: 20,
-        border: '1px solid #E9E9E9',
+        background: 'var(--card-bg, #FFFFFF)',
+        borderRadius: 'var(--card-radius, 16px)',
+        border: '1px solid var(--card-border, #E9E9E9)',
         borderLeft: '3px solid #DC2626',
-        padding: 20,
+        padding: 'var(--card-padding, 20px)',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
@@ -58,7 +58,7 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
           userSelect: 'none',
         }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: 100 }}>
         <p
           style={{
             margin: 0,
@@ -79,6 +79,7 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
             color: '#dc2626',
             borderRadius: 99,
             padding: '3px 8px',
+            flexShrink: 0,
           }}
         >
           {clients.length}

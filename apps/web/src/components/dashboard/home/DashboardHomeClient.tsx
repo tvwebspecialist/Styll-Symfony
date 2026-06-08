@@ -53,7 +53,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
           {/* ── DESKTOP layout — hidden on mobile ─── */}
           <div
             className="desktop-only"
-            style={{ flexDirection: 'column', gap: 20 }}
+            style={{ flexDirection: 'column', gap: 16 }}
           >
             <GreetingHeader staffName={staffName} appointments={todayAppointments} />
             <TodayKpiStrip appointments={todayAppointments} yesterdayStats={yesterdayStats} />
