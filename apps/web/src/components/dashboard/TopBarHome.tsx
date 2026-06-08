@@ -56,8 +56,9 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
     .slice(0, 2)
     .toUpperCase()
 
-  const displayGreeting = greeting || `Ciao, ${fullName.split(' ')[0]}`
-  const displaySubtitle = subtitle || 'Nessun appuntamento oggi'
+  // greeting/subtitle kept in store for potential future use; not displayed in topbar
+  void greeting
+  void subtitle
 
   React.useEffect(() => {
     if (open && !query) {
@@ -130,7 +131,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
         }}
       >
 
-        {/* ROW 1 — avatar + bell */}
+        {/* ROW 1 — name (left) + bell + avatar (right) */}
         <div
           style={{
             display: 'flex',
@@ -139,127 +140,115 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
             marginBottom: 10,
           }}
         >
-          <Link
-            href="/profilo"
-            aria-label="Profilo"
-            style={{ display: 'block', borderRadius: '50%', flexShrink: 0 }}
-          >
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt={fullName}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2.5px solid rgba(255,255,255,0.9)',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-                  cursor: 'pointer',
-                  display: 'block',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-                  border: '2.5px solid rgba(255,255,255,0.9)',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  letterSpacing: '0.5px',
-                  cursor: 'pointer',
-                }}
-              >
-                {initials}
-              </div>
-            )}
-          </Link>
+          {/* Name */}
+          <p style={{
+            margin: 0,
+            fontSize: 16,
+            fontWeight: 700,
+            color: '#111111',
+            fontFamily: 'Outfit, sans-serif',
+            letterSpacing: '-0.3px',
+            lineHeight: 1,
+          }}>
+            {fullName.split(' ')[0] || 'Dashboard'}
+          </p>
 
-          <Link
-            href="/notifiche"
-            aria-label="Notifiche"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: 'rgba(255,255,255,0.62)',
-              border: '1px solid rgba(255,255,255,0.7)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
-              textDecoration: 'none',
-              flexShrink: 0,
-            }}
-          >
-            <Bell size={21} color="#111111" strokeWidth={1.8} />
-            {MOCK_UNREAD_COUNT > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  minWidth: 16,
-                  height: 16,
-                  borderRadius: 999,
-                  background: '#ef4444',
-                  color: '#FFFFFF',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 3px',
-                  border: '2px solid rgba(250,251,253,0.9)',
-                  lineHeight: 1,
-                }}
-              >
-                {MOCK_UNREAD_COUNT}
-              </span>
-            )}
-          </Link>
+          {/* Bell + Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Link
+              href="/notifiche"
+              aria-label="Notifiche"
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.62)',
+                border: '1px solid rgba(255,255,255,0.7)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
+                textDecoration: 'none',
+                flexShrink: 0,
+              }}
+            >
+              <Bell size={21} color="#111111" strokeWidth={1.8} />
+              {MOCK_UNREAD_COUNT > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 999,
+                    background: '#ef4444',
+                    color: '#FFFFFF',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0 3px',
+                    border: '2px solid rgba(250,251,253,0.9)',
+                    lineHeight: 1,
+                  }}
+                >
+                  {MOCK_UNREAD_COUNT}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href="/profilo"
+              aria-label="Profilo"
+              style={{ display: 'block', borderRadius: '50%', flexShrink: 0 }}
+            >
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={fullName}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2.5px solid rgba(255,255,255,0.9)',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
+                    cursor: 'pointer',
+                    display: 'block',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+                    border: '2.5px solid rgba(255,255,255,0.9)',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: '#ffffff',
+                    letterSpacing: '0.5px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {initials}
+                </div>
+              )}
+            </Link>
+          </div>
         </div>
 
-        {/* ROW 2 — greeting + subtitle */}
-        <div style={{ marginBottom: 10 }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 20,
-              fontWeight: 800,
-              color: '#111111',
-              lineHeight: 1.15,
-              letterSpacing: '-0.5px',
-            }}
-          >
-            {displayGreeting}
-          </p>
-          <p
-            style={{
-              margin: 0,
-              marginTop: 4,
-              fontSize: 14,
-              fontWeight: 400,
-              color: '#666666',
-              lineHeight: 1.4,
-            }}
-          >
-            {displaySubtitle}
-          </p>
-        </div>
-
-        {/* ROW 3 — search bar */}
+        {/* ROW 2 — search bar */}
         <div ref={containerRef}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div

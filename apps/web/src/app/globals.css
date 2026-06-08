@@ -251,7 +251,7 @@
   --bottom-nav-height: 80px;
   --mobile-topbar-height: 88px;
   --mobile-simple-topbar-height: 82px;
-  --mobile-home-topbar-height: 224px;
+  --mobile-home-topbar-height: 120px;
   --sidebar-item-text: #222222;
   --sidebar-item-inactive: #6B7280;
   --sidebar-item-active-bg: #222222;
@@ -487,6 +487,13 @@
   -ms-overflow-style: none;
 }
 
+/* Mobile churn banner horizontal scroll */
+.home-mobile-churn-scroll::-webkit-scrollbar { display: none; }
+.home-mobile-churn-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
 /* Calendar panel inner scroll */
 .cal-panel-scroll::-webkit-scrollbar { display: none; }
 .cal-panel-scroll {
@@ -552,9 +559,15 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-bottom: 24px;
+    padding: 24px;
+    padding-bottom: 32px;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    background: var(--card-bg);
+    border-radius: var(--card-radius);
+    border: 1px solid var(--card-border);
+    box-shadow: var(--card-shadow);
+    box-sizing: border-box;
   }
   .home-v2-main::-webkit-scrollbar { display: none; }
 
@@ -562,6 +575,11 @@
     display: block;
     height: 100%;
     overflow: hidden;
+  }
+  .home-v2-calendar-sticky {
+    position: sticky;
+    top: 24px;
+    height: 100%;
   }
 
   .home-bento-grid {

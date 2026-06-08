@@ -1,16 +1,19 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
+import { Plus } from 'lucide-react'
 import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { CalendarPanel } from './CalendarPanel'
 import { GreetingHeader } from './GreetingHeader'
-import { KpiCard } from './KpiCard'
+import { TodayKpiStrip } from './TodayKpiStrip'
+import { AgendaTimeline } from './AgendaTimeline'
 import { ChurnAlertCard } from './ChurnAlertCard'
-import { SlotVuotiCard } from './SlotVuotiCard'
-import { ProssimoAppCard } from './ProssimoAppCard'
-import { BentoGrid } from './BentoGrid'
+import { QuickActionsWidget } from './QuickActionsWidget'
+import { MobileHero } from './MobileHero'
+import { MobileAppointmentList } from './MobileAppointmentList'
+import { MobileChurnBanner } from './MobileChurnBanner'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
-import { TopLoyaltyClientsWidget } from './TopLoyaltyClientsWidget'
 
 interface Props {
   data: DashboardHomeData
@@ -27,27 +30,10 @@ function getDynamicSummary(count: number, total: number): string {
   return part + (total > 0 ? ` · €${total} ricavi stimati` : '')
 }
 
-function findNextAppointment(
-  appointments: DashboardHomeData['todayAppointments'],
-): DashboardHomeData['todayAppointments'][0] | null {
-  const now = new Date()
-  return (
-    [...appointments]
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-      .find(
-        (a) =>
-          new Date(a.end_time) > now &&
-          a.status !== 'completed' &&
-          a.status !== 'cancelled',
-      ) ?? null
-  )
-}
-
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekAppointments, weekStats, atRiskClients, topLoyaltyClients } = data
-  const firstName = staffName?.split(' ')[0] ?? null
+  const { staffName, todayAppointments, weekAppointments, yesterdayStats, atRiskClients } = data
+  const firstName  = staffName?.split(' ')[0] ?? null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
-  const nextAppt = findNextAppointment(todayAppointments)
 
   const { setHomeData } = useDashboardHomeStore()
   React.useEffect(() => {
@@ -58,39 +44,83 @@ export function DashboardHomeClient({ data, basePath }: Props) {
   }, [firstName, todayAppointments.length, totalPrice, setHomeData])
 
   return (
-    <div className="home-v2-root">
+    <>
+      <div className="home-v2-root">
 
-      {/* ── LEFT — Greeting + Bento Grid ─────────────────────── */}
-      <div className="home-v2-main">
-        <GreetingHeader staffName={staffName} appointments={todayAppointments} />
+        {/* ── LEFT — Scrollable content column ──────────────────── */}
+        <div className="home-v2-main">
 
-        <BentoGrid>
-          {/* Card 1 — KPI Settimanali */}
-          <KpiCard stats={weekStats} />
+          {/* ── DESKTOP layout — hidden on mobile ─── */}
+          <div
+            className="desktop-only"
+            style={{ flexDirection: 'column', gap: 20 }}
+          >
+            <GreetingHeader staffName={staffName} appointments={todayAppointments} />
+            <TodayKpiStrip appointments={todayAppointments} yesterdayStats={yesterdayStats} />
+            <AgendaTimeline appointments={todayAppointments} basePath={basePath} />
+            {atRiskClients.length > 0 && (
+              <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
+            )}
+            <QuickActionsWidget basePath={basePath} />
+          </div>
 
-          {/* Card 2 — Clienti a Rischio Churn */}
-          <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
+          {/* ── MOBILE layout — hidden on desktop ─── */}
+          <div
+            className="mobile-only"
+            style={{ flexDirection: 'column', gap: 20 }}
+          >
+            <MobileHero
+              staffName={staffName}
+              appointments={todayAppointments}
+            />
+            <MobileAppointmentList
+              appointments={todayAppointments}
+              basePath={basePath}
+            />
+            {atRiskClients.length > 0 && (
+              <MobileChurnBanner clients={atRiskClients} basePath={basePath} />
+            )}
+          </div>
 
-          {/* Card 3 — Slot Vuoti Oggi */}
-          <SlotVuotiCard appointments={todayAppointments} />
+        </div>
 
-          {/* Card 4 — Prossimo Appuntamento */}
-          <ProssimoAppCard appointment={nextAppt} basePath={basePath} />
+        {/* ── RIGHT — Sticky calendar panel (desktop only) ──────── */}
+        <div className="home-v2-calendar">
+          <div className="home-v2-calendar-sticky">
+            <CalendarPanel
+              todayAppointments={todayAppointments}
+              weekAppointments={weekAppointments}
+              basePath={basePath}
+            />
+          </div>
+        </div>
 
-          {/* Card 5 — Top Clienti Fedeltà */}
-          <TopLoyaltyClientsWidget clients={topLoyaltyClients} basePath={basePath} />
-        </BentoGrid>
       </div>
 
-      {/* ── RIGHT — Calendar Panel (desktop only) ────────────── */}
-      <div className="home-v2-calendar">
-        <CalendarPanel
-          todayAppointments={todayAppointments}
-          weekAppointments={weekAppointments}
-          basePath={basePath}
-        />
-      </div>
-
-    </div>
+      {/* ── FAB — nuovo appuntamento (mobile only) ────────────── */}
+      <Link
+        href={`${basePath}/calendario?new=1`}
+        className="mobile-only"
+        aria-label="Aggiungi appuntamento"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(var(--bottom-nav-height, 80px) + 16px)',
+          right: 20,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'var(--sidebar-item-active-bg, #222222)',
+          color: '#FFFFFF',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textDecoration: 'none',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.28)',
+          zIndex: 40,
+        }}
+      >
+        <Plus size={28} strokeWidth={2} />
+      </Link>
+    </>
   )
 }
