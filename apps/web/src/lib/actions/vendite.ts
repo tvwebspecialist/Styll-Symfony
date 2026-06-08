@@ -68,6 +68,7 @@ export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
       .select('id')
       .eq('tenant_id', tenantId)
       .eq('status', 'completed')
+      .is('deleted_at', null)
       .gte('start_time', from)
       .lte('start_time', to)
     return (data ?? []).map((r) => r.id)
@@ -206,6 +207,7 @@ export async function getAppuntamentiVendite(
       `id, start_time, status, client:clients(full_name), staff:staff_members(profile:profiles(full_name)), appointment_services(price_at_booking, services(name)), appointment_products(price_at_sale, quantity), payments(amount, status)`,
     )
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('start_time', { ascending: false })
     .limit(200)
 
@@ -275,6 +277,11 @@ export async function getProdottiVenduti(
   tenantId: string,
   filters: ProdottiFilters = {},
 ): Promise<ProdottoVenduto[]> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   const db = createAdminClient()
   const now = new Date()
   const fromIso = filters.dateFrom
@@ -288,6 +295,7 @@ export async function getProdottiVenduti(
     .from('appointments')
     .select('id')
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .gte('start_time', fromIso)
     .lte('start_time', toIso)
   const apptIds = (appts ?? []).map((a) => a.id)
@@ -373,6 +381,11 @@ export async function getPagamenti(
   tenantId: string,
   filters: PagamentiFilters = {},
 ): Promise<PagamentiResult> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    throw new Error('Unauthorized: tenant mismatch')
+  }
+
   const db = createAdminClient()
   let q = db
     .from('payments')

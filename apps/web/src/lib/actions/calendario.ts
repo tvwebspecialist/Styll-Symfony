@@ -35,6 +35,63 @@ async function verifyUserTenantAccess(tenantId: string): Promise<void> {
   }
 }
 
+/**
+ * Verifica che client, staff, location e servizi appartengano tutti al tenant
+ * indicato. Previene la creazione di appuntamenti con foreign key cross-tenant.
+ * Ritorna i servizi validati (id + price) per riuso dello snapshot prezzo.
+ */
+async function verifyAppointmentRefs(input: {
+  tenantId: string
+  clientId: string
+  staffId: string
+  locationId: string
+  serviceIds: string[]
+}): Promise<{ ok: true; services: Array<{ id: string; price: number }> } | { ok: false; error: string }> {
+  const db = createAdminClient()
+
+  const [clientRes, staffRes, locationRes, servicesRes] = await Promise.all([
+    db
+      .from('clients')
+      .select('id')
+      .eq('id', input.clientId)
+      .eq('tenant_id', input.tenantId)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('staff_members')
+      .select('id')
+      .eq('id', input.staffId)
+      .eq('tenant_id', input.tenantId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('locations')
+      .select('id')
+      .eq('id', input.locationId)
+      .eq('tenant_id', input.tenantId)
+      .maybeSingle(),
+    input.serviceIds.length > 0
+      ? db
+          .from('services')
+          .select('id, price')
+          .eq('tenant_id', input.tenantId)
+          .in('id', input.serviceIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; price: number }> }),
+  ])
+
+  if (!clientRes.data) return { ok: false, error: 'Cliente non valido.' }
+  if (!staffRes.data) return { ok: false, error: 'Barbiere non valido.' }
+  if (!locationRes.data) return { ok: false, error: 'Sede non valida.' }
+
+  const services = (servicesRes.data ?? []) as Array<{ id: string; price: number }>
+  if (services.length !== input.serviceIds.length) {
+    return { ok: false, error: 'Uno o più servizi non sono validi.' }
+  }
+
+  return { ok: true, services }
+}
+
 export interface CalendarioAppointment {
   id: string
   start_time: string
@@ -254,6 +311,7 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
   staff: Array<{ id: string; full_name: string | null }>
   services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
 }> {
+  await verifyUserTenantAccess(tenantId)
   const db = createAdminClient()
 
   const [{ data: clients }, { data: staffRows }, { data: services }] = await Promise.all([
@@ -298,11 +356,13 @@ export async function getStaffLocations(
   staffId: string,
   tenantId: string,
 ): Promise<Array<{ id: string; name: string }>> {
+  await verifyUserTenantAccess(tenantId)
   const db = createAdminClient()
   const { data } = await db
     .from('staff_locations')
     .select('locations(id, name)')
     .eq('staff_id', staffId)
+    .eq('tenant_id', tenantId)
   const rows = (data ?? []) as unknown as Array<{ locations: { id: string; name: string } | null }>
   return rows
     .map((r) => r.locations)
@@ -310,12 +370,14 @@ export async function getStaffLocations(
 }
 
 /** Returns the subset of the given staffIds that have at least one location row. */
-export async function getStaffIdsWithLocations(staffIds: string[]): Promise<string[]> {
+export async function getStaffIdsWithLocations(staffIds: string[], tenantId: string): Promise<string[]> {
   if (staffIds.length === 0) return []
+  await verifyUserTenantAccess(tenantId)
   const db = createAdminClient()
   const { data } = await db
     .from('staff_locations')
     .select('staff_id')
+    .eq('tenant_id', tenantId)
     .in('staff_id', staffIds)
   if (!data) return []
   return [...new Set((data as Array<{ staff_id: string }>).map((r) => r.staff_id))]
@@ -341,6 +403,17 @@ export async function createAppointment(input: {
     return { success: false, error: 'Location non selezionata' }
   }
 
+  const refs = await verifyAppointmentRefs({
+    tenantId: input.tenantId,
+    clientId: input.clientId,
+    staffId: input.staffId,
+    locationId: input.locationId,
+    serviceIds: input.serviceIds,
+  })
+  if (!refs.ok) {
+    return { success: false, error: refs.error }
+  }
+
   const db = createAdminClient()
 
   const { data: appt, error } = await db
@@ -362,17 +435,12 @@ export async function createAppointment(input: {
   if (error || !appt) return { success: false, error: error?.message ?? 'Errore sconosciuto' }
 
   if (input.serviceIds.length > 0) {
-    const { data: svcPrices } = await db
-      .from('services')
-      .select('id, price')
-      .in('id', input.serviceIds)
-
     const { error: asErr } = await db.from('appointment_services').insert(
       input.serviceIds.map((serviceId) => ({
         appointment_id: appt.id,
         service_id: serviceId,
         tenant_id: input.tenantId,
-        price_at_booking: svcPrices?.find((s) => s.id === serviceId)?.price ?? 0,
+        price_at_booking: refs.services.find((s) => s.id === serviceId)?.price ?? 0,
       }))
     )
 
@@ -410,6 +478,20 @@ export async function updateAppointmentStaff(
 
   if (!appt || appt.tenant_id !== tenantId) {
     return { success: false, error: 'Non autorizzato' }
+  }
+
+  // Verify the new staff member belongs to the same tenant
+  const { data: newStaff } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('id', staffId)
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!newStaff) {
+    return { success: false, error: 'Barbiere non valido.' }
   }
 
   const { error } = await db
@@ -450,10 +532,16 @@ export async function updateAppointmentServices(
     const { data: services } = await db
       .from('services')
       .select('id, price')
+      .eq('tenant_id', tenantId)
       .in('id', serviceIds)
 
+    const validServices = (services ?? []) as Array<{ id: string; price: number }>
+    if (validServices.length !== serviceIds.length) {
+      return { success: false, error: 'Uno o più servizi non sono validi.' }
+    }
+
     const rows = serviceIds.map((serviceId) => {
-      const service = services?.find((s) => s.id === serviceId)
+      const service = validServices.find((s) => s.id === serviceId)
       return {
         appointment_id: appointmentId,
         service_id: serviceId,

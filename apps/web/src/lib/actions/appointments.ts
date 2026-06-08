@@ -111,6 +111,35 @@ export async function createAppointment(
 
   const db = createAdminClient()
 
+  // Verify client, staff, and location all belong to this tenant
+  const [clientChk, staffChk, locationChk] = await Promise.all([
+    db
+      .from('clients')
+      .select('id')
+      .eq('id', input.clientId)
+      .eq('tenant_id', input.tenantId)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('staff_members')
+      .select('id')
+      .eq('id', input.staffId)
+      .eq('tenant_id', input.tenantId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('locations')
+      .select('id')
+      .eq('id', input.locationId)
+      .eq('tenant_id', input.tenantId)
+      .maybeSingle(),
+  ])
+
+  if (!clientChk.data) return { success: false, error: 'Cliente non valido.' }
+  if (!staffChk.data) return { success: false, error: 'Barbiere non valido.' }
+  if (!locationChk.data) return { success: false, error: 'Sede non valida.' }
+
   const { data: services, error: svcErr } = await db
     .from('services')
     .select('id, price, duration_minutes, tenant_id')
@@ -191,14 +220,12 @@ export async function deleteAppointment(
   const access = await ensureTenantAccess(tenantId)
   if (!access) return { success: false, error: 'Permessi insufficienti.' }
   const db = createAdminClient()
-  await db
-    .from('appointment_services')
-    .delete()
-    .eq('appointment_id', appointmentId)
-    .eq('tenant_id', tenantId)
+  // Soft delete — appointments use deleted_at (never hard delete, see CLAUDE.md).
+  // appointment_services rows are kept as immutable price-snapshot history; the
+  // parent appointment is hidden by the deleted_at filter on all read queries.
   const { error } = await db
     .from('appointments')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', appointmentId)
     .eq('tenant_id', tenantId)
   if (error) return { success: false, error: error.message }

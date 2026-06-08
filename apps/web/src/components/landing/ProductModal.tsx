@@ -14,11 +14,7 @@ function formatPrice(price: number): string {
 
 // ── Availability section ──────────────────────────────────────────────────────
 
-function AvailabilitySection({ inventory }: { inventory: LandingProduct['inventory'] }) {
-  if (inventory.length === 0) return null
-
-  const inStock = inventory.filter((i) => i.quantity > 0)
-
+function AvailabilitySection({ available }: { available: boolean }) {
   return (
     <div>
       <div style={{ height: 1, background: '#F0F0F0', margin: '20px 0 16px' }} />
@@ -35,49 +31,21 @@ function AvailabilitySection({ inventory }: { inventory: LandingProduct['invento
         Disponibilità
       </p>
 
-      {inStock.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {inStock.map((item) => (
-            <div
-              key={item.locationName}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#22C55E',
-                  flexShrink: 0,
-                  display: 'inline-block',
-                }}
-              />
-              <span style={{ fontSize: 13, color: '#333333', flex: 1 }}>
-                {item.locationName}
-              </span>
-              <span style={{ fontSize: 13, color: '#888888', flexShrink: 0 }}>
-                {item.quantity} {item.quantity === 1 ? 'pezzo' : 'pezzi'}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#D1D5DB',
-              flexShrink: 0,
-              display: 'inline-block',
-            }}
-          />
-          <span style={{ fontSize: 13, color: '#888888' }}>
-            Disponibilità da verificare in negozio
-          </span>
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: available ? '#22C55E' : '#D1D5DB',
+            flexShrink: 0,
+            display: 'inline-block',
+          }}
+        />
+        <span style={{ fontSize: 13, color: '#333333' }}>
+          {available ? 'Disponibile in negozio' : 'Disponibilità da verificare in negozio'}
+        </span>
+      </div>
     </div>
   )
 }
@@ -336,7 +304,7 @@ export default function ProductModal({ product, onClose }: Props) {
                   )}
 
                   {/* Availability */}
-                  <AvailabilitySection inventory={product.inventory} />
+                  <AvailabilitySection available={product.available} />
 
                   {/* Price */}
                   <p

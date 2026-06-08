@@ -181,7 +181,16 @@ id, tenant_id, staff_id → staff_members, service_id → services
 Prodotti fisici vendibili (cera, olio barba, ecc.).
 ```
 id, tenant_id → tenants, name, brand, price_sell, price_cost,
-sku, photo_url, category, is_active, created_at, updated_at
+sku, photo_url, category, is_active,
+show_on_site (bool — visibile nella PWA cliente),
+is_new (bool — badge "nuovo"),
+display_order, created_at, updated_at
+```
+
+#### `client_product_wishlist`
+Wishlist prodotti del cliente nella PWA.
+```
+id, tenant_id, client_id → clients, product_id → products, created_at
 ```
 
 #### `product_inventory`

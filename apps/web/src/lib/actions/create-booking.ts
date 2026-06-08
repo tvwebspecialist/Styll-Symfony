@@ -62,6 +62,74 @@ export async function createGuestBooking(
   const email = data.email || null
   const notes = data.notes || null
   const db = createAdminClient()
+
+  // ── P0: verify slug ↔ tenantId and that referenced resources belong to this tenant ──
+  const [{ data: tenantRow }, { data: staffRow }, { data: locationRow }] = await Promise.all([
+    db
+      .from('tenants')
+      .select('id')
+      .eq('slug', data.slug)
+      .eq('id', data.tenantId)
+      .eq('status', 'active')
+      .maybeSingle(),
+    db
+      .from('staff_members')
+      .select('id')
+      .eq('id', data.staffId)
+      .eq('tenant_id', data.tenantId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('locations')
+      .select('id')
+      .eq('id', data.locationId)
+      .eq('tenant_id', data.tenantId)
+      .eq('is_active', true)
+      .maybeSingle(),
+  ])
+
+  if (!tenantRow) {
+    return { success: false, error: 'Tenant non valido.' }
+  }
+  if (!staffRow) {
+    return { success: false, error: 'Barbiere non valido.' }
+  }
+  if (!locationRow) {
+    return { success: false, error: 'Sede non valida.' }
+  }
+  // ── end P0 ──
+
+  // ── P1: rate limiting per numero di telefono ──────────────────────────────
+  // Cerca il cliente esistente con questo telefono nel tenant
+  const { data: existingClientForRateLimit } = await db
+    .from('clients')
+    .select('id')
+    .eq('tenant_id', data.tenantId)
+    .eq('phone', phone)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (existingClientForRateLimit) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count } = await db
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', data.tenantId)
+      .eq('client_id', existingClientForRateLimit.id)
+      .neq('status', 'cancelled')
+      .is('deleted_at', null)
+      .gte('created_at', oneHourAgo)
+
+    if ((count ?? 0) >= 3) {
+      return {
+        success: false,
+        error: 'Hai già effettuato troppe prenotazioni di recente. Riprova tra qualche ora.',
+      }
+    }
+  }
+  // ── end P1 ──
+
   const timezone = await getTenantTimezone(data.tenantId)
 
   const availableSlots = await getAvailableSlots({

@@ -229,7 +229,7 @@ export default function BookingAuthModal({
     <>
       {/* Overlay */}
       <motion.div
-        className="fixed inset-0 bg-black/45 z-50"
+        className="fixed inset-0 bg-black/45 z-[70]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         onClick={onDismiss}
@@ -238,7 +238,7 @@ export default function BookingAuthModal({
 
       {/* Floating panel — staccato dai bordi, rounded su tutti i lati */}
       <motion.div
-        className="fixed bottom-6 left-4 right-4 z-50 bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+        className="fixed bottom-6 left-4 right-4 z-[70] bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}

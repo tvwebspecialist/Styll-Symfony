@@ -111,57 +111,74 @@ export default async function ProfiloPage({ params }: Props) {
   }
 
   // ── Parallel data fetch ──────────────────────────────────────────────────────
+  const fetchResults = await Promise.all([
+    db
+      .from('client_loyalty')
+      .select('available_points, total_points, current_streak, longest_streak')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('client_id', client.id)
+      .maybeSingle(),
+    db
+      .from('loyalty_configs')
+      .select('template')
+      .eq('tenant_id', tenant.tenant_id)
+      .is('ended_at', null)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from('rewards')
+      .select('id, name, description, reward_type, points_cost')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('is_active', true)
+      .order('points_cost', { ascending: true }),
+    db
+      .from('appointments')
+      .select(
+        'id, start_time, appointment_services(services(name)), staff:staff_members(profile:profiles(full_name))',
+      )
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('client_id', client.id)
+      .is('deleted_at', null)
+      .eq('status', 'completed')
+      .order('start_time', { ascending: false })
+      .limit(5),
+    db
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('client_id', client.id)
+      .is('deleted_at', null)
+      .eq('status', 'completed'),
+    db
+      .from('appointments')
+      .select('start_time')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('client_id', client.id)
+      .is('deleted_at', null)
+      .eq('status', 'completed')
+      .order('start_time', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]).catch(() => null)
+
+  if (!fetchResults) {
+    return (
+      <main className="min-h-screen bg-[#F7F7F7] px-5 pb-8 pt-6">
+        <div className="mx-auto max-w-xl">
+          <div className="rounded-[28px] border border-red-200 bg-red-50 p-5 text-red-900">
+            <h1 className="text-lg font-extrabold">Qualcosa è andato storto</h1>
+            <p className="mt-2 text-sm leading-6">
+              Non siamo riusciti a caricare il tuo profilo. Riprova tra qualche momento.
+            </p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   const [loyaltyRes, loyaltyConfigRes, rewardsRes, visitsRes, visitCountRes, firstVisitRes] =
-    await Promise.all([
-      db
-        .from('client_loyalty')
-        .select('available_points, total_points, current_streak, longest_streak')
-        .eq('tenant_id', tenant.tenant_id)
-        .eq('client_id', client.id)
-        .maybeSingle(),
-      db
-        .from('loyalty_configs')
-        .select('template')
-        .eq('tenant_id', tenant.tenant_id)
-        .is('ended_at', null)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      db
-        .from('rewards')
-        .select('id, name, description, reward_type, points_cost')
-        .eq('tenant_id', tenant.tenant_id)
-        .eq('is_active', true)
-        .order('points_cost', { ascending: true }),
-      db
-        .from('appointments')
-        .select(
-          'id, start_time, appointment_services(services(name)), staff:staff_members(profile:profiles(full_name))',
-        )
-        .eq('tenant_id', tenant.tenant_id)
-        .eq('client_id', client.id)
-        .is('deleted_at', null)
-        .eq('status', 'completed')
-        .order('start_time', { ascending: false })
-        .limit(5),
-      db
-        .from('appointments')
-        .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenant.tenant_id)
-        .eq('client_id', client.id)
-        .is('deleted_at', null)
-        .eq('status', 'completed'),
-      db
-        .from('appointments')
-        .select('start_time')
-        .eq('tenant_id', tenant.tenant_id)
-        .eq('client_id', client.id)
-        .is('deleted_at', null)
-        .eq('status', 'completed')
-        .order('start_time', { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-    ])
+    fetchResults
 
   // ── Loyalty state ────────────────────────────────────────────────────────────
   const loyalty = loyaltyRes.data

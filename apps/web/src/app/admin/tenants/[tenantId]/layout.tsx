@@ -61,11 +61,12 @@ export default async function TenantDetailLayout({
     db.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     db.from('staff_members').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     db.from('locations').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-    db.from('clients').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    db.from('clients').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).is('deleted_at', null),
     db
       .from('appointments')
       .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId),
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null),
   ])
 
   const statusKey = String(tenant.status ?? '').toLowerCase()

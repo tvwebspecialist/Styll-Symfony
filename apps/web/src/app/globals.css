@@ -186,9 +186,12 @@
     background-color: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-primary);
+    overscroll-behavior: none;
   }
   html {
     font-family: var(--font-primary);
+    background: #ffffff;
+    overscroll-behavior: none;
   }
 }
 
