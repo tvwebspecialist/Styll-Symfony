@@ -16,51 +16,13 @@ function getInitials(name: string | null): string {
   return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase()
 }
 
-const MAX_SHOWN = 3
+const MAX_SHOWN = 5
 
 export function ChurnAlertCard({ clients, basePath }: Props) {
   const router = useRouter()
   const shown = clients.slice(0, MAX_SHOWN)
 
-  if (clients.length === 0) {
-    return (
-      <div
-        aria-label="Nessun cliente a rischio churn"
-        style={{
-          background: '#FFFFFF',
-          borderRadius: 20,
-          border: '1px solid #E9E9E9',
-          padding: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          height: '100%',
-          boxSizing: 'border-box',
-          textAlign: 'center',
-        }}
-      >
-        <span style={{ fontSize: 24 }}>🟢</span>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            fontWeight: 700,
-            color: '#111111',
-            fontFamily: 'Outfit, sans-serif',
-          }}
-        >
-          Nessun cliente a rischio
-        </p>
-        <p
-          style={{ margin: 0, fontSize: 12, color: '#9CA3AF', fontFamily: 'Outfit, sans-serif' }}
-        >
-          Ottimo lavoro!
-        </p>
-      </div>
-    )
-  }
+  if (clients.length === 0) return null
 
   return (
     <div
@@ -89,7 +51,7 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
             letterSpacing: '-0.2px',
           }}
         >
-          Clienti a rischio
+          ⚠️ Clienti che stai perdendo
         </p>
         <span
           style={{

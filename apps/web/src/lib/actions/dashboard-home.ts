@@ -46,12 +46,18 @@ export interface TopLoyaltyClient {
   currentTier: string
 }
 
+export interface YesterdayStats {
+  appointment_count: number
+  revenue: number
+}
+
 export interface DashboardHomeData {
   staffName: string | null
   todayAppointments: TodayAppointment[]
   weekAppointments: TodayAppointment[]
   weekSlots: WeekSlot[]
   weekStats: WeekStats
+  yesterdayStats: YesterdayStats
   atRiskClients: AtRiskClient[]
   topLoyaltyClients: TopLoyaltyClient[]
 }
@@ -64,6 +70,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     weekAppointments: [],
     weekSlots: [],
     weekStats: { revenue: 0, revenue_prev: 0, client_count: 0, client_count_prev: 0 },
+    yesterdayStats: { appointment_count: 0, revenue: 0 },
     atRiskClients: [],
     topLoyaltyClients: [],
   }
@@ -77,6 +84,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
   const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10)
+  const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
 
   // Week boundaries (Mon–Sun of current week)
   const dow = now.getDay() // 0=Sun
@@ -89,7 +97,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const prevMonStr = new Date(weekMonday.getTime() - 7 * 86400000).toISOString().slice(0, 10)
   const prevSunStr = new Date(weekMonday.getTime() - 1).toISOString().slice(0, 10)
 
-  const [staffRes, todayRes, weekRes, prevWeekRes, atRiskRes] = await Promise.all([
+  const [staffRes, todayRes, weekRes, prevWeekRes, atRiskRes, yesterdayRes] = await Promise.all([
     // Staff name
     user
       ? db
@@ -146,6 +154,15 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .in('churn_status', ['yellow', 'red'])
       .order('days_since_last_visit', { ascending: false })
       .limit(10),
+
+    // Yesterday's appointments (for KPI trend)
+    db
+      .from('appointments')
+      .select('client_id, appointment_services(price_at_booking)')
+      .eq('tenant_id', tenantId)
+      .gte('start_time', `${yesterdayStr}T00:00:00`)
+      .lt('start_time', `${todayStr}T00:00:00`)
+      .not('status', 'eq', 'cancelled'),
   ])
 
   // Staff name
@@ -226,6 +243,15 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     }
   })
 
+  // Yesterday stats (for KPI trend)
+  const yesterdayStats: YesterdayStats = {
+    appointment_count: (yesterdayRes.data ?? []).length,
+    revenue: (yesterdayRes.data ?? []).reduce((sum: number, appt: any) => {
+      const svcs: any[] = appt.appointment_services ?? []
+      return sum + svcs.reduce((s: number, sv: any) => s + (sv.price_at_booking ?? 0), 0)
+    }, 0),
+  }
+
   // At-risk clients
   const atRiskClients: AtRiskClient[] = (atRiskRes.data ?? []).map((row: any) => ({
     client_id: row.client_id,
@@ -252,5 +278,5 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     currentTier: r.current_tier ?? 'bronze',
   }))
 
-  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, atRiskClients, topLoyaltyClients }
+  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, yesterdayStats, atRiskClients, topLoyaltyClients }
 }
