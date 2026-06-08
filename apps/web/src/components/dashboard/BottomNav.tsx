@@ -71,16 +71,15 @@ export function BottomNav() {
           bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
           left: 16,
           right: 16,
-          height: 64,
+          height: 72,
           zIndex: 50,
           background: '#222222',
           borderRadius: 100,
           alignItems: 'center',
-          padding: '0 10px',
-          gap: 0,
+          padding: '5px 5px',
           justifyContent: 'space-between',
           overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
         }}
       >
         {MAIN_ITEMS.map((item) => {
@@ -92,60 +91,88 @@ export function BottomNav() {
               href={item.href}
               aria-label={item.label}
               style={{
-                flex: '0 0 auto',
-                width: active ? 'auto' : 44,
-                height: 48,
-                padding: active ? '8px 16px' : 0,
-                borderRadius: active ? 100 : 100,
+                flex: active ? '0 0 auto' : 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: active ? 8 : 0,
                 textDecoration: 'none',
-                background: active ? '#FFFFFF' : 'transparent',
-                whiteSpace: 'nowrap',
-                transition: 'background 180ms ease',
               }}
             >
-              <Icon size={20} color={active ? '#222222' : 'rgba(255,255,255,0.5)'} />
-              {active && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: active ? 8 : 0,
+                  backgroundColor: active ? '#FFFFFF' : 'transparent',
+                  borderRadius: 100,
+                  padding: active ? '0px 18px' : '0',
+                  width: active ? 'auto' : 52,
+                  height: active ? 62 : 52,
+                  overflow: 'hidden',
+                  transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                }}
+              >
+                <Icon
+                  size={active ? 22 : 24}
+                  strokeWidth={active ? 2.2 : 1.6}
+                  color={active ? '#222222' : 'rgba(255,255,255,0.6)'}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0 }}
+                />
                 <span
                   style={{
-                    fontSize: 13,
-                    fontWeight: 600,
                     color: '#222222',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    fontFamily: 'Outfit, sans-serif',
                     whiteSpace: 'nowrap',
-                    lineHeight: 1,
+                    overflow: 'hidden',
+                    maxWidth: active ? 120 : 0,
+                    opacity: active ? 1 : 0,
+                    transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
                   }}
                 >
                   {item.label}
                 </span>
-              )}
+              </div>
             </Link>
           )
         })}
+
+        {/* Menu button — stessa dimensione degli item inattivi */}
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Menu"
           style={{
-            flex: '0 0 auto',
-            width: 44,
-            height: 48,
-            borderRadius: 100,
-            background: 'transparent',
-            border: 'none',
+            flex: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
             cursor: 'pointer',
             padding: 0,
           }}
         >
-          <Menu size={20} color="rgba(255,255,255,0.5)" />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 52,
+              height: 52,
+              borderRadius: 100,
+            }}
+          >
+            <Menu size={24} strokeWidth={1.6} color="rgba(255,255,255,0.6)" aria-hidden="true" />
+          </div>
         </button>
       </nav>
 
+      {/* Backdrop */}
       {open && (
         <div
           onClick={() => setOpen(false)}
@@ -158,6 +185,7 @@ export function BottomNav() {
         />
       )}
 
+      {/* Drawer */}
       <div
         style={{
           position: 'fixed',
@@ -292,3 +320,4 @@ export function BottomNav() {
     </>
   )
 }
+

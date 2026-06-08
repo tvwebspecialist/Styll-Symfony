@@ -500,6 +500,11 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+.mini-cal-timeline::-webkit-scrollbar { display: none; }
+.mini-cal-timeline {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 
 /* Widget entry animation */
 @keyframes dashWidgetIn {
@@ -523,13 +528,18 @@
 .home-v2-main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 24px;
+  gap: 16px;
+  padding-bottom: 16px;
 }
 
 /* Calendar hidden on mobile */
 .home-v2-calendar {
   display: none;
+}
+
+/* Greeting + divider block — hidden on mobile (topbar handles it) */
+@media (max-width: 1024px) {
+  .home-v2-greeting-block { display: none; }
 }
 
 /* Bento: 1-col mobile, 2-col tablet+ */
@@ -559,15 +569,9 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: var(--card-padding);
     padding-bottom: 32px;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    background: var(--card-bg);
-    border-radius: var(--card-radius);
-    border: 1px solid var(--card-border);
-    box-shadow: var(--card-shadow);
-    box-sizing: border-box;
   }
   .home-v2-main::-webkit-scrollbar { display: none; }
 
@@ -617,6 +621,49 @@
   user-select: none;
 }
 
+/* KPI row — responsive grid: 1-col mobile, 2-col mid, 3-col desktop */
+.home-kpi-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 480px) {
+  .home-kpi-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1025px) {
+  .home-kpi-row {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* KPI cards — scale down icon and value on mobile */
+@media (max-width: 1024px) {
+  /* Remove outer card chrome — KPI cards have their own colored backgrounds */
+  .home-main-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .kpi-card-3d-icon {
+    width: 180px !important;
+    height: 180px !important;
+    bottom: -48px !important;
+    right: -36px !important;
+  }
+
+  .kpi-card-value {
+    font-size: 28px !important;
+    padding-right: 80px !important;
+  }
+}
+
 /* KPI strip: horizontal scroll on mobile */
 .home-kpi-scroll {
   overflow-x: auto;
@@ -643,6 +690,20 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Churn cards: 1-col on very small screens */
+@media (max-width: 420px) {
+  .churn-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Churn watermark icon: hidden on mobile */
+@media (max-width: 1024px) {
+  .churn-watermark-icon {
+    display: none !important;
+  }
 }
 
 /* Desktop: 2-column grid */

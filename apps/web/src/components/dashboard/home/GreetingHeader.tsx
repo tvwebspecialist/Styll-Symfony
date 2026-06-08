@@ -76,7 +76,7 @@ export function GreetingHeader({ staffName, appointments }: Props) {
           color: '#222222',
         }}
       >
-        <span style={{ color: '#B0B0B0' }}>{greeting ?? 'Ciao'}, </span>
+        <span>{greeting ?? 'Ciao'}, </span>
         <span>{firstName ?? 'Barbiere'}</span>
       </p>
 

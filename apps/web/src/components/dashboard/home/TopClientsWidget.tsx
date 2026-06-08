@@ -48,17 +48,7 @@ export function TopClientsWidget({ weekAppointments, basePath }: Props) {
   if (top.length === 0) return null
 
   return (
-    <div style={{
-      background: 'var(--card-bg, #FFFFFF)',
-      borderRadius: 'var(--card-radius, 16px)' as React.CSSProperties['borderRadius'],
-      border: '1px solid var(--card-border, #E9E9E9)' as React.CSSProperties['border'],
-      boxShadow: 'var(--card-shadow)' as React.CSSProperties['boxShadow'],
-      padding: 20,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 14,
-      boxSizing: 'border-box',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <p style={{
         margin: 0,
         fontSize: 13,

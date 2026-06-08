@@ -51,6 +51,12 @@ export interface YesterdayStats {
   revenue: number
 }
 
+export interface WorkingHour {
+  day_of_week: number   // 0=Dom … 6=Sab
+  start_time: string    // "HH:MM:SS"
+  end_time: string      // "HH:MM:SS"
+}
+
 export interface DashboardHomeData {
   staffName: string | null
   todayAppointments: TodayAppointment[]
@@ -60,6 +66,7 @@ export interface DashboardHomeData {
   yesterdayStats: YesterdayStats
   atRiskClients: AtRiskClient[]
   topLoyaltyClients: TopLoyaltyClient[]
+  workingHours: WorkingHour[]
 }
 
 export async function getDashboardHomeData(): Promise<DashboardHomeData> {
@@ -73,6 +80,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     yesterdayStats: { appointment_count: 0, revenue: 0 },
     atRiskClients: [],
     topLoyaltyClients: [],
+    workingHours: [],
   }
   if (!tenantId) return empty
 
@@ -102,7 +110,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     user
       ? db
           .from('staff_members')
-          .select('profiles(full_name)')
+          .select('id, profiles(full_name)')
           .eq('tenant_id', tenantId)
           .eq('profile_id', user.id)
           .eq('is_active', true)
@@ -165,9 +173,25 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .not('status', 'eq', 'cancelled'),
   ])
 
-  // Staff name
+  // Staff name + id
   const staffProfile = (staffRes.data as any)?.profiles ?? null
   const staffName: string | null = staffProfile?.full_name ?? null
+  const staffMemberId: string | null = (staffRes.data as any)?.id ?? null
+
+  // Working hours (all days of week for this staff member)
+  let workingHours: WorkingHour[] = []
+  if (staffMemberId) {
+    const { data: whData } = await db
+      .from('working_hours')
+      .select('day_of_week, start_time, end_time')
+      .eq('tenant_id', tenantId)
+      .eq('staff_id', staffMemberId)
+    workingHours = (whData ?? []).map((row: any) => ({
+      day_of_week: row.day_of_week as number,
+      start_time: row.start_time as string,
+      end_time: row.end_time as string,
+    }))
+  }
 
   // Today appointments
   const todayAppointments: TodayAppointment[] = (todayRes.data ?? []).map((appt: any) => {
@@ -278,5 +302,5 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     currentTier: r.current_tier ?? 'bronze',
   }))
 
-  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, yesterdayStats, atRiskClients, topLoyaltyClients }
+  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, yesterdayStats, atRiskClients, topLoyaltyClients, workingHours }
 }

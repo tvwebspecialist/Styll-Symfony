@@ -16,6 +16,8 @@ interface CustomSelectProps {
   placeholder?: string
   /** Renders a smaller, inline variant (no full-width wrapper) */
   compact?: boolean
+  /** Which edge of the trigger to align the panel to (default: 'start' = left) */
+  align?: 'start' | 'end'
 }
 
 /**
@@ -29,11 +31,12 @@ export function CustomSelect({
   options,
   placeholder = 'Seleziona…',
   compact = false,
+  align = 'start',
 }: CustomSelectProps) {
   const [isOpen, setIsOpen]       = React.useState(false)
   const [isClosing, setIsClosing] = React.useState(false)
   const [panelPos, setPanelPos]   = React.useState<{
-    top?: number; bottom?: number; left: number; width: number
+    top?: number; bottom?: number; left?: number; right?: number; width: number
   }>({ left: 0, width: 0 })
 
   const triggerRef    = React.useRef<HTMLButtonElement>(null)
@@ -44,17 +47,27 @@ export function CustomSelect({
 
   function computePosition() {
     if (!triggerRef.current) return
-    const rect          = triggerRef.current.getBoundingClientRect()
-    const PANEL_GAP     = 4
-    const PANEL_MAX_H   = 248
-    const estHeight     = Math.min(options.length * 49 + 8, PANEL_MAX_H)
-    const spaceBelow    = window.innerHeight - rect.bottom - PANEL_GAP
-    const showAbove     = spaceBelow < estHeight && rect.top > spaceBelow
-    setPanelPos(
-      showAbove
-        ? { bottom: window.innerHeight - rect.top + PANEL_GAP, left: rect.left, width: rect.width }
-        : { top: rect.bottom + PANEL_GAP, left: rect.left, width: rect.width }
-    )
+    const rect        = triggerRef.current.getBoundingClientRect()
+    const PANEL_GAP   = 4
+    const PANEL_MAX_H = 248
+    const estHeight   = Math.min(options.length * 49 + 8, PANEL_MAX_H)
+    const spaceBelow  = window.innerHeight - rect.bottom - PANEL_GAP
+    const showAbove   = spaceBelow < estHeight && rect.top > spaceBelow
+    if (align === 'end') {
+      const rightOffset = window.innerWidth - rect.right
+      const panelWidth  = Math.max(rect.width, 150)
+      setPanelPos(
+        showAbove
+          ? { bottom: window.innerHeight - rect.top + PANEL_GAP, right: rightOffset, width: panelWidth }
+          : { top: rect.bottom + PANEL_GAP, right: rightOffset, width: panelWidth }
+      )
+    } else {
+      setPanelPos(
+        showAbove
+          ? { bottom: window.innerHeight - rect.top + PANEL_GAP, left: rect.left, width: rect.width }
+          : { top: rect.bottom + PANEL_GAP, left: rect.left, width: rect.width }
+      )
+    }
   }
 
   function openDropdown() {
@@ -148,6 +161,7 @@ export function CustomSelect({
             top:          panelPos.top,
             bottom:       panelPos.bottom,
             left:         panelPos.left,
+            right:        panelPos.right,
             width:        panelPos.width,
             zIndex:       9999,
             background:   '#FFFFFF',
