@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Bell, ChevronRight, Shield, UserRound } from 'lucide-react'
+import { ChevronRight, Shield, UserRound } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
@@ -13,6 +13,7 @@ import { StreakCard } from '../_components/StreakCard'
 import { BadgeGrid } from '../_components/BadgeGrid'
 import { RewardsList } from '../_components/RewardsList'
 import { VisitHistory } from '../_components/VisitHistory'
+import { PushNotificationToggle } from './_components/PushNotificationToggle'
 import type { RewardItem } from '../_components/RewardsList'
 import type { VisitItem } from '../_components/VisitHistory'
 
@@ -292,29 +293,7 @@ export default async function ProfiloPage({ params }: Props) {
             <ChevronRight className="size-4 text-neutral-400" aria-hidden="true" />
           </Link>
 
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-5 py-4"
-            aria-label="Preferenze notifiche"
-          >
-            <div className="flex items-center gap-3">
-              <Bell className="size-5 text-neutral-400" aria-hidden="true" />
-              <span className="text-sm font-medium text-neutral-700">Preferenze notifiche</span>
-            </div>
-            <ChevronRight className="size-4 text-neutral-400" aria-hidden="true" />
-          </button>
-
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-5 py-4"
-            aria-label="Privacy e dati"
-          >
-            <div className="flex items-center gap-3">
-              <Shield className="size-5 text-neutral-400" aria-hidden="true" />
-              <span className="text-sm font-medium text-neutral-700">Privacy e dati</span>
-            </div>
-            <ChevronRight className="size-4 text-neutral-400" aria-hidden="true" />
-          </button>
+          <PushNotificationToggle tenantId={tenant.tenant_id} />
 
           <div className="px-5">
             <LogoutButton basePath={tp('')} />
