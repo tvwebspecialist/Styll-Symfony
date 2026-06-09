@@ -171,11 +171,13 @@ export default function BookingAuthModal({
                 tenantSlug={tenantSlug}
                 mode="modal"
                 prefillEmail={prefillEmail}
-                onSuccess={(verifiedEmail) => {
+                prefillFullName={prefillFullName}
+                prefillPhone={prefillPhone}
+                onSuccess={(data) => {
                   onSuccess({
-                    fullName: prefillFullName,
-                    phone: prefillPhone,
-                    email: verifiedEmail,
+                    fullName: data.fullName || prefillFullName,
+                    phone: data.phone || prefillPhone,
+                    email: data.email,
                   })
                 }}
               />

@@ -313,10 +313,21 @@ export async function sendEmailOtp(email: string): Promise<{ success: boolean; e
   return { success: true }
 }
 
+export async function checkEmailExists(email: string): Promise<{ isExisting: boolean }> {
+  const db = createAdminClient()
+  const { data } = await db
+    .from('profiles')
+    .select('id')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle()
+  return { isExisting: !!data }
+}
+
 export async function verifyEmailOtp(
   email: string,
   token: string,
   tenantId: string,
+  profileData?: { fullName?: string; phone?: string },
 ): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
   const db = createAdminClient()
 
@@ -351,11 +362,15 @@ export async function verifyEmailOtp(
   const userId = data.user.id
   const now = new Date().toISOString()
 
+  // Merge user_type + optional collected profile data in one update
+  const profileUpdatePayload: TablesUpdate<'profiles'> = { user_type: 'client', updated_at: now }
+  if (profileData?.fullName?.trim()) profileUpdatePayload.full_name = profileData.fullName.trim()
+  if (profileData?.phone?.trim()) profileUpdatePayload.phone = normalizePhoneValue(profileData.phone.trim())
+
   const { error: profileUpdateError } = await db
     .from('profiles')
-    .update({ user_type: 'client', updated_at: now })
+    .update(profileUpdatePayload)
     .eq('id', userId)
-    .neq('user_type', 'client')
 
   if (profileUpdateError) {
     return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
@@ -393,9 +408,13 @@ export async function verifyEmailOtp(
   }
 
   if (byEmailRes.data) {
+    const linkPayload: TablesUpdate<'clients'> = { profile_id: userId, updated_at: now }
+    if (profileData?.fullName?.trim()) linkPayload.full_name = profileData.fullName.trim()
+    if (profileData?.phone?.trim()) linkPayload.phone = normalizePhoneValue(profileData.phone.trim())
+
     const { error: linkError } = await db
       .from('clients')
-      .update({ profile_id: userId, updated_at: now })
+      .update(linkPayload)
       .eq('id', byEmailRes.data.id)
       .eq('tenant_id', tenantId)
 
@@ -406,6 +425,7 @@ export async function verifyEmailOtp(
     return { success: true, isNewClient: false }
   }
 
+  // No existing client — fetch profile full_name as fallback and insert
   const { data: profile } = await db
     .from('profiles')
     .select('full_name')
@@ -415,7 +435,11 @@ export async function verifyEmailOtp(
   const { error: insertError } = await db.from('clients').insert({
     tenant_id: tenantId,
     profile_id: userId,
-    full_name: (profile?.full_name as string | null | undefined)?.trim() || 'Cliente',
+    full_name:
+      profileData?.fullName?.trim() ||
+      (profile?.full_name as string | null | undefined)?.trim() ||
+      'Cliente',
+    phone: profileData?.phone?.trim() ? normalizePhoneValue(profileData.phone.trim()) : undefined,
     email: normalizedEmail,
     created_at: now,
     updated_at: now,
@@ -426,6 +450,88 @@ export async function verifyEmailOtp(
   if (insertError) {
     return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
   }
+
+  return { success: true, isNewClient: true }
+}
+
+export async function setupPwaGoogleClient(
+  tenantId: string,
+): Promise<{ success: boolean; isNewClient: boolean }> {
+  const db = createAdminClient()
+
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('id')
+    .eq('id', tenantId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!tenant) return { success: false, isNewClient: false }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, isNewClient: false }
+
+  const userId = user.id
+  const now = new Date().toISOString()
+  const normalizedEmail = user.email?.toLowerCase() ?? ''
+
+  await db
+    .from('profiles')
+    .update({ user_type: 'client', updated_at: now })
+    .eq('id', userId)
+    .neq('user_type', 'client')
+
+  const { data: byProfile } = await db
+    .from('clients')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', userId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (byProfile) return { success: true, isNewClient: false }
+
+  if (normalizedEmail) {
+    const { data: byEmail } = await db
+      .from('clients')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('email', normalizedEmail)
+      .is('profile_id', null)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (byEmail) {
+      await db
+        .from('clients')
+        .update({ profile_id: userId, updated_at: now })
+        .eq('id', byEmail.id)
+        .eq('tenant_id', tenantId)
+      return { success: true, isNewClient: false }
+    }
+  }
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle()
+
+  await db.from('clients').insert({
+    tenant_id: tenantId,
+    profile_id: userId,
+    full_name:
+      (profile?.full_name as string | null | undefined)?.trim() ||
+      (user.user_metadata?.full_name as string | undefined) ||
+      'Cliente',
+    email: normalizedEmail,
+    created_at: now,
+    updated_at: now,
+    marketing_consent: true,
+    tags: [],
+  })
 
   return { success: true, isNewClient: true }
 }

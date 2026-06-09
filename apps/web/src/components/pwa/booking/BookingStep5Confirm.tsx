@@ -22,6 +22,7 @@ interface Props {
   time: string
   onBack: () => void
   onSuccess: (appointmentId: string) => void
+  onAuthComplete?: () => void
   primaryColor?: string
   skipLocationStep?: boolean
   initialFullName?: string
@@ -62,6 +63,7 @@ export default function BookingStep5Confirm({
   time,
   onBack: _onBack,
   onSuccess,
+  onAuthComplete,
   primaryColor,
   initialFullName = '',
   initialPhone = '',
@@ -396,6 +398,7 @@ export default function BookingStep5Confirm({
           prefillPhone={initialPhone}
           onSuccess={async (contactData) => {
             setShowAuthModal(false)
+            onAuthComplete?.()
             await submitBooking(contactData)
           }}
           onGuestContinue={async (guestData) => {
