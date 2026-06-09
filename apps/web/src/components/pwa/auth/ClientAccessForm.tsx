@@ -21,6 +21,7 @@ function resolveUrlBanner(
   if (urlWelcome) return { tone: 'success', text: 'Account verificato! Bentornato 🎉' }
   if (urlError === 'link_invalido') return { tone: 'error', text: 'Link non valido. Prova ad accedere.' }
   if (urlError === 'link_scaduto') return { tone: 'warning', text: 'Link scaduto. Richiedi una nuova email di verifica.' }
+  if (urlError === 'oauth_failed') return { tone: 'error', text: 'Accesso con Google non riuscito. Riprova o usa il codice via email.' }
   return null
 }
 

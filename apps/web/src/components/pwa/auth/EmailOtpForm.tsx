@@ -186,11 +186,17 @@ export function EmailOtpForm({
     setError(null)
 
     try {
+      const callbackUrl = new URL(
+        `${window.location.origin}/tenant/app/${tenantSlug}/auth/callback`,
+      )
+      callbackUrl.searchParams.set('tenantId', tenantId)
+      if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
+
       const supabase = createClient()
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/tenant/app/${tenantSlug}/auth/callback?tenantId=${tenantId}`,
+          redirectTo: callbackUrl.toString(),
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       })
