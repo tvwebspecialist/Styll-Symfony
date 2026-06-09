@@ -861,6 +861,17 @@
   .dashboard-home-greeting { display: none !important; }
 }
 
+/* Dashboard root — white background on mobile */
+@media (max-width: 1024px) {
+  :root {
+    --dashboard-root-bg: #FFFFFF;
+  }
+  html,
+  body {
+    background-color: #FFFFFF !important;
+  }
+}
+
 /* ─── Safe Area & Mobile App Utilities ─────────────────────────
  * Supports iOS notch / home indicator via env(safe-area-inset-*)
  * Requires <meta viewport content="viewport-fit=cover">

@@ -391,6 +391,9 @@ export default function BookingStep5Confirm({
             date,
             time,
           }}
+          prefillEmail={initialEmail}
+          prefillFullName={initialFullName}
+          prefillPhone={initialPhone}
           onSuccess={async (contactData) => {
             setShowAuthModal(false)
             await submitBooking(contactData)
