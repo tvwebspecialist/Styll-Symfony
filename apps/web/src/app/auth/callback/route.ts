@@ -62,6 +62,23 @@ export async function GET(request: NextRequest) {
     .eq('id', user.id)
     .maybeSingle()
 
+  // Se è un login PWA cliente, redirect al callback tenant
+  const isPwa = searchParams.get('next') === 'pwa'
+  const tenantSlug = searchParams.get('tenantSlug')
+  const tenantId = searchParams.get('tenantId')
+  const returnTo = searchParams.get('return_to')
+
+  if (isPwa && tenantSlug) {
+    // Passa il code già exchanged — non serve, la sessione è già nei cookie
+    // Redirect diretto alla destinazione PWA
+    const destination = returnTo && returnTo.startsWith('/')
+      ? returnTo
+      : '/profilo'
+    return redirect(
+      `https://${tenantSlug}-app.styll.it${destination}`
+    )
+  }
+
   if (profile?.onboarding_completed) {
     return redirect(`${origin}/dashboard`)
   }

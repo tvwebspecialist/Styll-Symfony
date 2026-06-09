@@ -186,10 +186,10 @@ export function EmailOtpForm({
     setError(null)
 
     try {
-      const callbackUrl = new URL(
-        `${window.location.origin}/tenant/app/${tenantSlug}/auth/callback`,
-      )
+      const callbackUrl = new URL('https://styll.it/auth/callback')
+      callbackUrl.searchParams.set('tenantSlug', tenantSlug)
       callbackUrl.searchParams.set('tenantId', tenantId)
+      callbackUrl.searchParams.set('next', 'pwa')
       if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
 
       const supabase = createClient()
