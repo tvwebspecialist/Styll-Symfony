@@ -1,9 +1,10 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { CalendarPlus, ArrowRight, RefreshCw } from 'lucide-react'
+import { CalendarPlus, ArrowRight, RefreshCw, UserPlus } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 interface SuccessVariant {
@@ -20,6 +21,7 @@ interface SuccessVariant {
   locationCity?: string | null
   primaryColor: string
   slug: string
+  isLoggedIn?: boolean
   errorMessage?: undefined
   onRetry?: undefined
 }
@@ -159,7 +161,7 @@ export default function BookingSuccessModal(props: Props) {
                 <RefreshCw className="w-4 h-4" />
                 <span>Riprova</span>
               </button>
-            ) : (
+            ) : props.isLoggedIn ? (
               <>
                 <button
                   onClick={() => router.replace(tenantPath(''))}
@@ -169,6 +171,28 @@ export default function BookingSuccessModal(props: Props) {
                   <span>Visualizza appuntamento</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
+
+                <a
+                  href={calendarLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-2 border transition-all active:scale-[0.98]"
+                  style={{ color: props.primaryColor, borderColor: `${props.primaryColor}40` }}
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                  <span>Aggiungi al calendario</span>
+                </a>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={tenantPath('/accesso?return_to=/profilo')}
+                  className="w-full py-4 rounded-2xl text-[15px] font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  style={{ backgroundColor: props.primaryColor }}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Salva i tuoi punti — Registrati</span>
+                </Link>
 
                 <a
                   href={calendarLink}

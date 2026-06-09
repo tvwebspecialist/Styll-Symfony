@@ -45,6 +45,7 @@ export function ConfermaForm({
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
   const [successAppointmentId, setSuccessAppointmentId] = useState<string | null>(null)
+  const [hasAuthenticated, setHasAuthenticated] = useState(false)
 
   const totalDuration = useMemo(
     () => services.reduce((total, service) => total + Number(service.duration_minutes ?? 0), 0),
@@ -78,6 +79,7 @@ export function ConfermaForm({
         time={time}
         onBack={handleBack}
         onSuccess={handleSuccess}
+        onAuthComplete={() => setHasAuthenticated(true)}
         primaryColor={primaryColor}
         initialFullName={initialFullName}
         initialPhone={initialPhone}
@@ -100,6 +102,7 @@ export function ConfermaForm({
           locationCity={location.city}
           primaryColor={primaryColor ?? '#1a1a1a'}
           slug={slug}
+          isLoggedIn={isLoggedIn || hasAuthenticated}
         />
       )}
     </>

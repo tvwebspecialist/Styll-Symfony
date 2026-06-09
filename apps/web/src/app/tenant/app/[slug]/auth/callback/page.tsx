@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getPendingBooking, clearPendingBooking } from '@/lib/pwa-pending-booking'
+import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 
 export default function AuthCallbackPage() {
   const params = useParams<{ slug: string }>()
@@ -14,12 +15,47 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const slug = params.slug
     const authBase = `/tenant/app/${slug}/auth`
-    const hash = window.location.hash
+    const searchParams = new URLSearchParams(window.location.search)
+    const code = searchParams.get('code')
+    const tenantId = searchParams.get('tenantId') ?? ''
 
-    const searchParams = new URLSearchParams(hash.substring(1))
-    const errorCode = searchParams.get('error_code')
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
+    if (code) {
+      // Google OAuth — PKCE code exchange
+      const supabase = createClient()
+      supabase.auth
+        .exchangeCodeForSession(code)
+        .then(async ({ data, error }) => {
+          if (error || !data.session) {
+            router.replace(`${authBase}?error=Accesso+non+riuscito.+Riprova.`)
+            return
+          }
+
+          // Persist to localStorage for iOS PWA cold-launch
+          const pwa = createPwaClient()
+          await pwa.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          })
+
+          if (tenantId) {
+            await setupPwaGoogleClient(tenantId)
+          }
+
+          router.push(`/tenant/app/${slug}/profilo`)
+          router.refresh()
+        })
+        .catch(() => {
+          router.replace(`${authBase}?error=Accesso+non+riuscito.+Riprova.`)
+        })
+      return
+    }
+
+    // Magic link (hash-based implicit flow)
+    const hash = window.location.hash
+    const hashParams = new URLSearchParams(hash.substring(1))
+    const errorCode = hashParams.get('error_code')
+    const accessToken = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
 
     if (errorCode || !accessToken || !refreshToken) {
       router.replace(`${authBase}?error=Link+non+valido.+Prova+ad+accedere.`)
@@ -34,11 +70,9 @@ export default function AuthCallbackPage() {
         if (error) {
           router.replace(`${authBase}?error=Sessione+non+valida.+Riprova.`)
         } else {
-          // Also persist in localStorage so the session survives iOS cold launch
           const pwa = createPwaClient()
           await pwa.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
 
-          // Complete pending booking if user verified email during booking flow
           const pending = getPendingBooking()
           if (pending?.pendingAuth) {
             clearPendingBooking()
