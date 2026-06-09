@@ -7,17 +7,26 @@ import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 
 /**
- * Validates a return_to value and builds the full destination path.
- * Only allows relative paths within the tenant's PWA to prevent open redirect.
+ * Validates a return_to value and builds the destination path.
+ * On subdomains the proxy already prepends /tenant/app/[slug], so we return
+ * just the short path to avoid a double-slug 404.
  */
 function buildDestination(slug: string, returnTo: string | null): string {
-  const fallback = `/tenant/app/${slug}/profilo`
-  if (!returnTo) return fallback
-  // Must be a relative path: starts with '/', no '//', no protocol
-  if (!returnTo.startsWith('/') || returnTo.startsWith('//') || returnTo.includes('://')) {
-    return fallback
-  }
-  return `/tenant/app/${slug}${returnTo}`
+  const safe =
+    returnTo &&
+    returnTo.startsWith('/') &&
+    !returnTo.startsWith('//') &&
+    !returnTo.includes('://')
+      ? returnTo
+      : '/profilo'
+
+  const isSubdomain =
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== 'styll.it' &&
+    window.location.hostname !== 'www.styll.it'
+
+  return isSubdomain ? safe : `/tenant/app/${slug}${safe}`
 }
 
 export default function AuthCallbackPage() {
