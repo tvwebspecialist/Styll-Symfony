@@ -285,7 +285,6 @@ export function CalendarioClient({
                 style={{
                   position: 'absolute', top: top + 2, left: 3, right: 3, height: height - 4,
                   background: col.bg, borderRadius: 10, opacity,
-                  borderLeft: `3px solid ${col.border}`,
                   padding: compact ? '3px 6px' : '6px 8px',
                   cursor: 'pointer', overflow: 'hidden', zIndex: 2,
                   transition: 'transform 80ms ease',
@@ -367,6 +366,7 @@ export function CalendarioClient({
       staffColorMap={staffColorMap}
       completedToday={completedToday}
       todayAppts={todayAppts}
+      allAppts={liveAppts}
       remainingToday={remainingToday}
       todayRevenue={todayRevenue}
       avgTicket={avgTicket}

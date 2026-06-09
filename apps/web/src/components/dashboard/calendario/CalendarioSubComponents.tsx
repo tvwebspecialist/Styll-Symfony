@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, Users } from 'lucide-react'
 import type { CalendarioAppointment, CalendarioData } from '@/lib/actions/calendario'
 import { ApptDetailModal } from './ApptDetailModal'
 import { NewApptModal } from './NewApptModal'
+import { CalendarioMobileGiorno } from '@/app/dashboard/calendario/CalendarioMobileGiorno'
 import {
   HOUR_HEIGHT,
   HOUR_START,
@@ -201,6 +202,7 @@ interface CalendarioMainLayoutProps {
   staffColorMap: Record<string, string>
   completedToday: number
   todayAppts: CalendarioAppointment[]
+  allAppts: CalendarioAppointment[]
   remainingToday: number
   todayRevenue: number
   avgTicket: number
@@ -240,6 +242,7 @@ export function CalendarioMainLayout({
   staffColorMap,
   completedToday,
   todayAppts,
+  allAppts,
   remainingToday,
   todayRevenue,
   avgTicket,
@@ -258,87 +261,28 @@ export function CalendarioMainLayout({
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
-        {isMobile ? (
-          <div style={{ flexShrink: 0, marginBottom: 8, position: 'relative' }}>
-            {/* Line 1: full date (muted) */}
-            <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 500, color: 'var(--color-fg-muted)' }}>
-              {(() => {
-                const d = new Date(activeDayStr + 'T12:00:00')
-                return `${d.getDate()} ${MONTHS_IT[d.getMonth()]} ${d.getFullYear()}`
-              })()}
-            </p>
-            {/* Line 2: hero title */}
-            <p style={{ margin: '0 0 10px', fontSize: 26, fontWeight: 700, color: 'var(--color-fg)', lineHeight: 1.1, letterSpacing: '-0.5px' }}>
-              {isToday(activeDayStr) ? 'Oggi' : (() => {
-                const d = new Date(activeDayStr + 'T12:00:00')
-                return `${d.getDate()} ${MONTHS_IT[d.getMonth()]}`
-              })()}
-            </p>
-            {/* Line 3: week strip */}
-            <div style={{ display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none', marginBottom: 8 }}>
-              {dayDates.map((date) => {
-                const isActive = date === activeDayStr
-                const isTodayDay = date === todayStr
-                const d = new Date(date + 'T12:00:00')
-                return (
-                  <button
-                    key={date}
-                    type="button"
-                    onClick={() => {
-                      const p = new URLSearchParams({ day: date })
-                      if (selectedStaffId) p.set('staff', selectedStaffId)
-                      router.push(`/calendario?${p}`)
-                    }}
-                    style={{
-                      flex: '1 0 auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 3,
-                      padding: '7px 6px',
-                      borderRadius: 10,
-                      border: '1px solid transparent',
-                      background: isActive ? 'var(--color-fg)' : isTodayDay ? 'var(--color-bg-secondary)' : 'transparent',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ fontSize: 11, fontWeight: 500, color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--color-fg-muted)' }}>
-                      {DAYS_ABBR[d.getDay()]}
-                    </span>
-                    <span style={{ fontSize: 15, fontWeight: isActive || isTodayDay ? 700 : 400, color: isActive ? '#fff' : isTodayDay ? 'var(--color-primary)' : 'var(--color-fg)' }}>
-                      {d.getDate()}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+        {/* Mobile: vista giorno verticale */}
+        {isMobile && (
+          <CalendarioMobileGiorno
+            data={activeDayStr}
+            allAppts={allAppts}
+            orarioInizio={HOUR_START}
+            orarioFine={HOUR_END}
+            timezone={timezone}
+            onCambiaData={(date) => {
+              const p = new URLSearchParams({ day: date })
+              if (selectedStaffId) p.set('staff', selectedStaffId)
+              router.push(`/calendario?${p}`)
+            }}
+            onNuovoAppuntamento={() => setNewApptCell({ date: activeDayStr, hour: 9 })}
+            onClickAppuntamento={(apt) => setDetailAppt(apt)}
+            staffFilterLabel={selectedStaffId ? (data.staff.find((s) => s.id === selectedStaffId)?.full_name ?? null) : null}
+            onOpenStaffPicker={isManagerOrOwner && data.staff.length > 1 ? () => setStaffPickerOpen(true) : undefined}
+          />
+        )}
 
-            {/* FIX 2: compact staff picker button — top-right, mobile only */}
-            {isManagerOrOwner && data.staff.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setStaffPickerOpen(true)}
-                aria-label="Filtra staff"
-                style={{
-                  position: 'absolute', top: 0, right: 0,
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '6px 10px', borderRadius: 10,
-                  border: selectedStaffId ? 'none' : '1px solid #E5E7EB',
-                  background: selectedStaffId ? '#111827' : '#FFF',
-                  color: selectedStaffId ? '#FFF' : '#6B7280',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                <Users size={14} />
-                {selectedStaffId
-                  ? (data.staff.find((s) => s.id === selectedStaffId)?.full_name?.split(' ')[0] ?? '—')
-                  : 'Tutti'}
-              </button>
-            )}
-
-          </div>
-        ) : (
+        {/* Header — desktop only */}
+        {!isMobile && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexShrink: 0 }}>
 
             {/* LEFT: Month/Year */}
@@ -561,8 +505,8 @@ export function CalendarioMainLayout({
           </>
         )}
 
-        {/* Calendar card */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', overflow: 'hidden' }}>
+        {/* Calendar card — desktop only */}
+        {!isMobile && (<div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFF', borderRadius: 16, border: '1px solid #E9E9E9', overflow: 'hidden' }}>
 
           {showInitialRealtimeSpinner ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -674,7 +618,7 @@ export function CalendarioMainLayout({
               </div>
             </>
           )}
-        </div>
+        </div>)}
       </div>
 
       {/* ── RIGHT SIDEBAR (desktop only) ── */}
@@ -802,25 +746,6 @@ export function CalendarioMainLayout({
         >
           {visibleRealtimeError.message}
         </div>
-      )}
-
-      {/* ── Mobile FAB — new appointment ── */}
-      {isMobile && (
-        <button
-          type="button"
-          onClick={() => setNewApptCell({ date: activeDayStr, hour: 9 })}
-          aria-label="Nuovo appuntamento"
-          style={{
-            position: 'fixed', bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))', right: 16,
-            width: 52, height: 52, borderRadius: 100,
-            background: '#222222', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', zIndex: 40,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          }}
-        >
-          <Plus size={24} color="#FFF" strokeWidth={2.5} />
-        </button>
       )}
 
       {/* ── Modals ── */}

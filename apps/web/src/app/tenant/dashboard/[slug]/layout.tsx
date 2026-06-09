@@ -131,7 +131,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
           adminName: ctx.isShadow ? adminName : null,
         }}
       >
-        <div style={{ minHeight: '100vh', background: '#F5F5F5' }}>
+        <div className="dashboard-root" style={{ minHeight: '100vh', background: 'var(--dashboard-root-bg, #F5F5F5)' }}>
           <ImpersonationBanner
             state={{
               active: ctx.isShadow,

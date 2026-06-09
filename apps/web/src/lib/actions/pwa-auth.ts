@@ -286,3 +286,146 @@ export async function logoutClient(): Promise<{ success: boolean }> {
   await supabase.auth.signOut()
   return { success: true }
 }
+
+function mapEmailAuthError(message: string): string {
+  const m = message.toLowerCase()
+  // Supabase returns "Token has expired or is invalid" or "Otp has expired or is invalid"
+  // for both wrong codes and expired codes — map both to a single clear message
+  if (
+    (m.includes('otp') || m.includes('token')) &&
+    (m.includes('invalid') || m.includes('expired'))
+  ) {
+    return 'Codice non valido o scaduto. Richiedi un nuovo codice.'
+  }
+  if (m.includes('expired')) return 'Il codice è scaduto. Richiedi un nuovo codice.'
+  if (m.includes('too many') || m.includes('rate limit')) return 'Troppe richieste. Riprova tra qualche minuto.'
+  if (m.includes('email')) return 'Indirizzo email non valido.'
+  return 'Qualcosa è andato storto. Riprova.'
+}
+
+export async function sendEmailOtp(email: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.trim().toLowerCase(),
+    options: { shouldCreateUser: true },
+  })
+  if (error) return { success: false, error: mapEmailAuthError(error.message) }
+  return { success: true }
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  tenantId: string,
+): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
+  const db = createAdminClient()
+
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('id')
+    .eq('id', tenantId)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (!tenant) {
+    return { success: false, isNewClient: false, error: 'Salone non valido.' }
+  }
+
+  const supabase = await createClient()
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: normalizedEmail,
+    token,
+    type: 'email',
+  })
+
+  if (error) {
+    return { success: false, isNewClient: false, error: mapEmailAuthError(error.message) }
+  }
+
+  if (!data.user) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  const userId = data.user.id
+  const now = new Date().toISOString()
+
+  const { error: profileUpdateError } = await db
+    .from('profiles')
+    .update({ user_type: 'client', updated_at: now })
+    .eq('id', userId)
+    .neq('user_type', 'client')
+
+  if (profileUpdateError) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  // Find existing client record: first by profile_id, then by email (unlinked)
+  const [byProfileRes, byEmailRes] = await Promise.all([
+    db
+      .from('clients')
+      .select('id, profile_id')
+      .eq('tenant_id', tenantId)
+      .eq('profile_id', userId)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    db
+      .from('clients')
+      .select('id, profile_id')
+      .eq('tenant_id', tenantId)
+      .eq('email', normalizedEmail)
+      .is('profile_id', null)
+      .is('deleted_at', null)
+      .maybeSingle(),
+  ])
+
+  if (byProfileRes.error) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (byProfileRes.data) {
+    return { success: true, isNewClient: false }
+  }
+
+  if (byEmailRes.error) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (byEmailRes.data) {
+    const { error: linkError } = await db
+      .from('clients')
+      .update({ profile_id: userId, updated_at: now })
+      .eq('id', byEmailRes.data.id)
+      .eq('tenant_id', tenantId)
+
+    if (linkError) {
+      return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    return { success: true, isNewClient: false }
+  }
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('full_name')
+    .eq('id', userId)
+    .maybeSingle()
+
+  const { error: insertError } = await db.from('clients').insert({
+    tenant_id: tenantId,
+    profile_id: userId,
+    full_name: (profile?.full_name as string | null | undefined)?.trim() || 'Cliente',
+    email: normalizedEmail,
+    created_at: now,
+    updated_at: now,
+    marketing_consent: true,
+    tags: [],
+  })
+
+  if (insertError) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  return { success: true, isNewClient: true }
+}

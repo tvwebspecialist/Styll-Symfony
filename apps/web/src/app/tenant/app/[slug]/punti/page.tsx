@@ -1,5 +1,6 @@
-import { notFound, redirect } from 'next/navigation'
-import { Gift, History, Trophy } from 'lucide-react'
+import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { Gift, History, Lock, Trophy } from 'lucide-react'
 import { getMyClientRecord } from '@/lib/actions/client-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -44,7 +45,98 @@ export default async function PuntiPage({ params }: Props) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(tp('/accesso?mode=login&return_to=/punti'))
+    // Fetch rewards for teaser preview (no auth needed — tenant-level data)
+    const db = createAdminClient()
+    const { data: teaserRewards } = await db
+      .from('rewards')
+      .select('id, name, description, points_cost')
+      .eq('tenant_id', tenant.tenant_id)
+      .eq('is_active', true)
+      .order('points_cost', { ascending: true })
+      .limit(4)
+
+    return (
+      <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-4 pb-24">
+        {/* Blurred hero placeholder */}
+        <section className="relative overflow-hidden rounded-[28px] bg-neutral-950 p-5 text-white shadow-xl shadow-black/20">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-white/50">Punti disponibili</p>
+              <p className="mt-3 select-none text-6xl font-black tracking-tight text-[var(--brand-primary)] blur-[6px]">
+                000
+              </p>
+            </div>
+            <div className="flex size-16 items-center justify-center rounded-full bg-white/10">
+              <Trophy className="size-8 text-[var(--brand-primary)]" />
+            </div>
+          </div>
+        </section>
+
+        {/* Rewards teaser */}
+        {(teaserRewards ?? []).length > 0 && (
+          <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Gift className="size-5 text-[var(--brand-primary)]" />
+              <h2 className="text-base font-extrabold text-neutral-950">Rewards disponibili</h2>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {(teaserRewards ?? []).map((reward) => (
+                <div key={reward.id} className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-neutral-950">{reward.name}</p>
+                      {reward.description && (
+                        <p className="mt-1 text-sm text-neutral-500">{reward.description}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
+                      {reward.points_cost} pt
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Storico placeholder */}
+        <section className="rounded-3xl border border-neutral-100 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <History className="size-5 text-[var(--brand-primary)]" />
+            <h2 className="text-base font-extrabold text-neutral-950">Storico punti</h2>
+          </div>
+          <div className="mt-4 space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between rounded-2xl bg-neutral-50 px-4 py-3">
+                <div className="h-3 w-28 animate-pulse rounded-full bg-neutral-200" />
+                <div className="h-3 w-10 animate-pulse rounded-full bg-neutral-200" />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA login overlay card */}
+        <div className="sticky bottom-24 z-10 -mx-4 px-4">
+          <div className="rounded-[28px] border border-neutral-200 bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+                <Lock className="size-5 text-[var(--brand-primary)]" />
+              </div>
+              <div>
+                <p className="font-extrabold text-neutral-950">Accedi per vedere i tuoi punti</p>
+                <p className="text-xs text-neutral-500">Niente password — solo email + codice.</p>
+              </div>
+            </div>
+            <Link
+              href={tp('/accesso?return_to=/punti')}
+              className="flex h-[52px] w-full items-center justify-center rounded-full bg-neutral-950 text-base font-semibold text-white"
+            >
+              Accedi con la tua email
+            </Link>
+          </div>
+        </div>
+      </main>
+    )
   }
 
   const clientRecord = await getMyClientRecord(tenant.tenant_id)
