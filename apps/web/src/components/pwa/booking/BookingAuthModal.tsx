@@ -34,6 +34,7 @@ export default function BookingAuthModal({
   primaryColor,
   tenantId,
   tenantSlug,
+  pendingBookingData,
   prefillEmail = '',
   prefillFullName = '',
   prefillPhone = '',
@@ -43,6 +44,18 @@ export default function BookingAuthModal({
 }: BookingAuthModalProps) {
   const [view, setView] = useState<ModalView>('auth')
   const [error, setError] = useState<string | null>(null)
+
+  // Reconstruct the booking confirmation URL so that after Google OAuth the
+  // callback can redirect straight back here instead of going to /profilo.
+  // Email OTP uses onSuccess inline (no page navigation), so returnTo only
+  // matters for the Google OAuth path inside EmailOtpForm.handleGoogleSignIn.
+  const returnToBooking =
+    `/prenota/conferma` +
+    `?location=${pendingBookingData.locationId}` +
+    `&services=${pendingBookingData.serviceIds.join(',')}` +
+    `&staff=${pendingBookingData.staffId}` +
+    `&date=${pendingBookingData.date}` +
+    `&time=${pendingBookingData.time}`
 
   // Guest state
   const [guestFirstName, setGuestFirstName] = useState('')
@@ -173,6 +186,7 @@ export default function BookingAuthModal({
                 prefillEmail={prefillEmail}
                 prefillFullName={prefillFullName}
                 prefillPhone={prefillPhone}
+                returnTo={returnToBooking}
                 onSuccess={(data) => {
                   onSuccess({
                     fullName: data.fullName || prefillFullName,
