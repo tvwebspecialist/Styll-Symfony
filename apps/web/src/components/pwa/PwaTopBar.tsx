@@ -205,10 +205,44 @@ function TopBarInner({
     )
   }
 
-  // ── All other routes ──────────────────────────────────────────────────────
+  // ── Sub-pages with back button ────────────────────────────────────────────
   const base = homePath === '/' ? 0 : homePath.length
   const relative = pathname.slice(base).replace(/^\//, '')
-  const segment = relative.split('/')[0] ?? ''
+  const segments = relative.split('/')
+  const segment = segments[0] ?? ''
+  const subSegment = segments[1] ?? ''
+
+  // Pages that need a back button
+  const SUB_PAGES: Record<string, { title: string; backTo: string }> = {
+    'appuntamenti': { title: 'I miei appuntamenti', backTo: tenantPath('/profilo') },
+  }
+  const PROFILO_SUB_PAGES: Record<string, { title: string; backTo: string }> = {
+    'modifica': { title: 'Modifica profilo', backTo: tenantPath('/profilo') },
+    'preferenze': { title: 'Preferenze', backTo: tenantPath('/profilo') },
+  }
+
+  const subPage = SUB_PAGES[segment] ?? (segment === 'profilo' ? PROFILO_SUB_PAGES[subSegment] : null)
+
+  if (subPage) {
+    return (
+      <div style={glassShell}>
+        <div style={{ ...contentBar, paddingLeft: '20px', paddingRight: '20px' }}>
+          <button
+            type="button"
+            style={backBtnStyle}
+            onClick={() => router.push(subPage.backTo)}
+            aria-label="Torna indietro"
+          >
+            <ChevronLeft size={20} color="#111111" strokeWidth={2.5} />
+          </button>
+          <span style={titleStyle}>{subPage.title}</span>
+          <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+        </div>
+      </div>
+    )
+  }
+
+  // ── All other routes ──────────────────────────────────────────────────────
   const title = PAGE_TITLES[segment] ?? ''
 
   return (
