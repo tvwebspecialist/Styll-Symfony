@@ -3,6 +3,7 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
@@ -149,14 +150,44 @@ export async function createGuestBooking(
     }
   }
 
+  // ── Lookup by profile_id for authenticated users (handles Google users with phone: null) ──
+  let existingClientId: string | null = null
+  {
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user?.id) {
+      const { data: byProfile } = await db
+        .from('clients')
+        .select('id')
+        .eq('tenant_id', data.tenantId)
+        .eq('profile_id', user.id)
+        .is('deleted_at', null)
+        .maybeSingle()
+      if (byProfile) {
+        existingClientId = (byProfile as { id: string }).id
+        if (phone) {
+          await db
+            .from('clients')
+            .update({ phone, updated_at: new Date().toISOString() })
+            .eq('id', existingClientId)
+            .is('phone', null)
+        }
+      }
+    }
+  }
+
   const [{ data: clientRow }, { data: serviceRows }] = await Promise.all([
-    db
-      .from('clients')
-      .select('id')
-      .eq('tenant_id', data.tenantId)
-      .eq('phone', phone)
-      .is('deleted_at', null)
-      .maybeSingle(),
+    existingClientId
+      ? db.from('clients').select('id').eq('id', existingClientId).maybeSingle()
+      : db
+          .from('clients')
+          .select('id')
+          .eq('tenant_id', data.tenantId)
+          .eq('phone', phone)
+          .is('deleted_at', null)
+          .maybeSingle(),
     db
       .from('services')
       .select('id, price, duration_minutes')

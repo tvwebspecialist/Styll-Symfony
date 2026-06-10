@@ -1,7 +1,7 @@
 'use client'
 
 import type { ClipboardEvent, KeyboardEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { checkEmailExists, sendEmailOtp, startGoogleOAuthPwa, verifyEmailOtp } from '@/lib/actions/pwa-auth'
@@ -62,8 +62,12 @@ export function EmailOtpForm({
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
+  const [otpStatus, setOtpStatus] = useState<'normal' | 'success' | 'error'>('normal')
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null)
+  const [recentlyFilledIdx, setRecentlyFilledIdx] = useState<number | null>(null)
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
+  const otpContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -124,6 +128,7 @@ export function EmailOtpForm({
     setLoading(true)
     setError(null)
     setOtp(EMPTY_OTP)
+    setOtpStatus('normal')
 
     const result = await sendEmailOtp(email)
     setLoading(false)
@@ -133,6 +138,14 @@ export function EmailOtpForm({
     }
     setCountdown(60)
   }
+
+  const triggerShake = useCallback(() => {
+    const el = otpContainerRef.current
+    if (!el) return
+    el.style.animation = 'none'
+    void el.offsetHeight
+    el.style.animation = 'otp-shake 0.45s ease'
+  }, [])
 
   async function handleVerifyOtp(code: string) {
     if (loading || code.length !== 6) return
@@ -147,7 +160,14 @@ export function EmailOtpForm({
 
     if (!result.success) {
       setLoading(false)
+      setOtpStatus('error')
+      triggerShake()
       setError(result.error ?? 'Codice non valido. Riprova.')
+      setTimeout(() => {
+        setOtpStatus('normal')
+        setOtp(EMPTY_OTP)
+        otpRefs.current[0]?.focus()
+      }, 600)
       return
     }
 
@@ -210,10 +230,16 @@ export function EmailOtpForm({
     setOtp(next)
     setError(null)
 
+    if (digit) {
+      setRecentlyFilledIdx(index)
+      setTimeout(() => setRecentlyFilledIdx(null), 220)
+    }
+
     if (digit && index < 5) {
       otpRefs.current[index + 1]?.focus()
     }
     if (next.every(Boolean)) {
+      setOtpStatus('success')
       void handleVerifyOtp(next.join(''))
     }
   }
@@ -388,7 +414,13 @@ export function EmailOtpForm({
           </button>
         </div>
 
+        <style>{`
+          @keyframes digit-pop { 0%{transform:scale(1.15)} 100%{transform:scale(1)} }
+          @keyframes otp-shake { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-5px)} 30%{transform:translateX(5px)} 45%{transform:translateX(-5px)} 60%{transform:translateX(5px)} 75%{transform:translateX(-3px)} 90%{transform:translateX(3px)} }
+          @keyframes otp-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+        `}</style>
         <div
+          ref={otpContainerRef}
           className="flex w-full justify-between"
           onPaste={handleOtpPaste}
           aria-label="Inserimento codice OTP"
@@ -406,9 +438,42 @@ export function EmailOtpForm({
               autoComplete={idx === 0 ? 'one-time-code' : 'off'}
               onChange={(e) => handleOtpChange(idx, e.target.value)}
               onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+              onFocus={() => setFocusedIdx(idx)}
+              onBlur={() => setFocusedIdx(null)}
               disabled={loading}
-              className="h-12 w-11 rounded-xl border-[1.5px] text-center text-[22px] font-black text-gray-900 outline-none transition disabled:opacity-50"
-              style={{ borderColor: digit ? 'var(--brand-primary, #222222)' : '#e5e7eb' }}
+              className="h-12 w-11 rounded-xl text-center text-[22px] font-black outline-none transition-all disabled:opacity-50"
+              style={{
+                borderWidth: focusedIdx === idx ? 2 : 1.5,
+                borderStyle: 'solid',
+                borderColor:
+                  otpStatus === 'error'
+                    ? '#ef4444'
+                    : otpStatus === 'success'
+                    ? '#16a34a'
+                    : focusedIdx === idx || digit
+                    ? 'var(--brand-primary, #222222)'
+                    : '#e5e7eb',
+                color:
+                  otpStatus === 'error'
+                    ? '#ef4444'
+                    : otpStatus === 'success'
+                    ? '#16a34a'
+                    : '#111827',
+                boxShadow:
+                  otpStatus === 'error'
+                    ? '0 0 0 3px rgba(239,68,68,0.18)'
+                    : otpStatus === 'success'
+                    ? '0 0 0 3px rgba(22,163,74,0.18)'
+                    : focusedIdx === idx
+                    ? '0 0 0 3px rgba(0,0,0,0.08)'
+                    : 'none',
+                animation:
+                  otpStatus === 'success'
+                    ? 'otp-pulse 0.45s ease'
+                    : recentlyFilledIdx === idx && digit
+                    ? 'digit-pop 0.2s ease forwards'
+                    : undefined,
+              }}
               aria-label={`Cifra ${idx + 1}`}
             />
           ))}
@@ -659,7 +724,13 @@ export function EmailOtpForm({
         <div className="rounded-[28px] bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
           <p className="mb-4 text-sm font-medium text-neutral-700">Inserisci il codice a 6 cifre</p>
 
+          <style>{`
+            @keyframes digit-pop { 0%{transform:scale(1.15)} 100%{transform:scale(1)} }
+            @keyframes otp-shake { 0%,100%{transform:translateX(0)} 15%{transform:translateX(-5px)} 30%{transform:translateX(5px)} 45%{transform:translateX(-5px)} 60%{transform:translateX(5px)} 75%{transform:translateX(-3px)} 90%{transform:translateX(3px)} }
+            @keyframes otp-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+          `}</style>
           <div
+            ref={otpContainerRef}
             className="flex w-full justify-between"
             onPaste={handleOtpPaste}
             aria-label="Inserimento codice OTP"
@@ -677,16 +748,48 @@ export function EmailOtpForm({
                 autoComplete={idx === 0 ? 'one-time-code' : 'off'}
                 onChange={(e) => handleOtpChange(idx, e.target.value)}
                 onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                onFocus={() => setFocusedIdx(idx)}
+                onBlur={() => setFocusedIdx(null)}
                 disabled={loading}
-                className={[
-                  'h-12 w-12 rounded-xl border-2 text-center text-2xl font-black text-neutral-950',
-                  'outline-none transition disabled:cursor-not-allowed disabled:opacity-50',
-                  digit
-                    ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
-                    : 'border-neutral-200 bg-white',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                className="h-12 w-12 rounded-xl text-center text-2xl font-black outline-none transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  borderWidth: focusedIdx === idx ? 2.5 : 2,
+                  borderStyle: 'solid',
+                  borderColor:
+                    otpStatus === 'error'
+                      ? '#ef4444'
+                      : otpStatus === 'success'
+                      ? '#16a34a'
+                      : focusedIdx === idx || digit
+                      ? 'var(--brand-primary, #1a1a1a)'
+                      : '#e5e7eb',
+                  color:
+                    otpStatus === 'error'
+                      ? '#ef4444'
+                      : otpStatus === 'success'
+                      ? '#16a34a'
+                      : '#0a0a0a',
+                  background:
+                    otpStatus === 'success' && digit
+                      ? 'rgba(22,163,74,0.06)'
+                      : digit
+                      ? 'rgba(var(--brand-primary-rgb,0,0,0),0.04)'
+                      : 'white',
+                  boxShadow:
+                    otpStatus === 'error'
+                      ? '0 0 0 3px rgba(239,68,68,0.18)'
+                      : otpStatus === 'success'
+                      ? '0 0 0 3px rgba(22,163,74,0.18)'
+                      : focusedIdx === idx
+                      ? '0 0 0 3px rgba(0,0,0,0.07)'
+                      : 'none',
+                  animation:
+                    otpStatus === 'success'
+                      ? 'otp-pulse 0.45s ease'
+                      : recentlyFilledIdx === idx && digit
+                      ? 'digit-pop 0.2s ease forwards'
+                      : undefined,
+                }}
                 aria-label={`Cifra ${idx + 1}`}
               />
             ))}
