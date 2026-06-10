@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import BookingStep5Confirm from '@/components/pwa/booking/BookingStep5Confirm'
 import BookingSuccessModal from '@/components/pwa/booking/BookingSuccessModal'
+import { Toast } from '@/components/pwa/ui/Toast'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import type { PublicLocation, PublicService, PublicStaffMember } from '@/lib/actions/public-booking'
 
@@ -83,30 +84,12 @@ export function ConfermaForm({
 
   return (
     <>
-      {googleLogin && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 'calc(16px + env(safe-area-inset-top, 0px))',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 200,
-            background: '#16a34a',
-            color: '#fff',
-            padding: '12px 20px',
-            borderRadius: '14px',
-            fontSize: '14px',
-            fontWeight: 600,
-            boxShadow: '0 4px 16px rgba(22,163,74,0.35)',
-            opacity: googleToastVisible ? 1 : 0,
-            transition: 'opacity 0.4s ease',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}
-        >
-          ✓ Accesso effettuato con Google
-        </div>
-      )}
+      <Toast
+        type="success"
+        message="Accesso effettuato con Google"
+        visible={googleToastVisible}
+        onClose={() => setGoogleToastVisible(false)}
+      />
 
       <BookingStep5Confirm
         slug={slug}

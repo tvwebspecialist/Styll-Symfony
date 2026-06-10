@@ -85,14 +85,21 @@ export default function BookingAuthModal({
 
       {/* Floating panel */}
       <motion.div
-        className="fixed bottom-6 left-4 right-4 z-[70] rounded-3xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+        className="fixed bottom-6 left-4 right-4 z-[70] rounded-3xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         role="dialog"
         aria-label="Accedi per completare la prenotazione"
       >
-        <div className="px-5 pb-8 pt-6">
+        {/* Gradient header strip */}
+        <div
+          style={{
+            height: 4,
+            background: `linear-gradient(90deg, ${primaryColor}99 0%, ${primaryColor}33 100%)`,
+          }}
+        />
+        <div className="px-5 pb-8 pt-5">
 
           {/* ── GUEST VIEW ────────────────────────────────────────────────── */}
           {view === 'guest' && (
@@ -169,13 +176,13 @@ export default function BookingAuthModal({
             <>
               <div className="mb-5 text-center">
                 <p
-                  className="text-[22px] font-bold text-gray-900 leading-snug"
+                  className="text-[26px] font-black text-gray-900 leading-tight"
                   style={{ fontFamily: 'var(--font-tenant, inherit)' }}
                 >
                   Quasi fatto.
                 </p>
-                <p className="mt-1 text-[13px] text-gray-400">
-                  Accedi per salvare la tua prenotazione e guadagnare punti fedeltà.
+                <p className="mt-1.5 text-[12px] text-gray-400 leading-relaxed">
+                  Accedi per salvare la prenotazione e guadagnare punti fedeltà.
                 </p>
               </div>
 
@@ -196,11 +203,11 @@ export default function BookingAuthModal({
                 }}
               />
 
-              {/* Divisore + guest */}
-              <div className="my-4 flex items-center gap-3">
-                <div className="h-px flex-1 bg-gray-200" />
-                <span className="text-[11px] uppercase tracking-wider text-gray-400">oppure</span>
-                <div className="h-px flex-1 bg-gray-200" />
+              {/* Divisore */}
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(90deg, transparent, #e5e7eb)' }} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">oppure</span>
+                <div className="h-px flex-1" style={{ background: 'linear-gradient(270deg, transparent, #e5e7eb)' }} />
               </div>
 
               <button
@@ -209,7 +216,7 @@ export default function BookingAuthModal({
                   setView('guest')
                   setError(null)
                 }}
-                className="flex h-11 w-full items-center justify-center rounded-xl border border-gray-200 bg-white text-[14px] font-medium text-gray-600 transition-all active:scale-[0.98]"
+                className="w-full text-center text-[13px] font-medium text-gray-400 transition-colors hover:text-gray-600 active:opacity-70 py-1"
               >
                 Continua senza account
               </button>
