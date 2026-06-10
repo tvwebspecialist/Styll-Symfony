@@ -192,7 +192,7 @@ export function EmailOtpForm({
       callbackUrl.searchParams.set('next', 'pwa')
       if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
 
-      const supabase = createClient()
+      const supabase = createPwaClient()
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
