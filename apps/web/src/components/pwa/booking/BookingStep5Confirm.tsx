@@ -25,6 +25,8 @@ interface Props {
   onSuccess: (appointmentId: string) => void
   onAuthComplete?: () => void
   primaryColor?: string
+  logoUrl?: string | null
+  businessName?: string
   skipLocationStep?: boolean
   initialFullName?: string
   initialPhone?: string
@@ -67,6 +69,8 @@ export default function BookingStep5Confirm({
   onSuccess,
   onAuthComplete,
   primaryColor,
+  logoUrl,
+  businessName,
   initialFullName = '',
   initialPhone = '',
   initialEmail = '',
@@ -444,6 +448,8 @@ export default function BookingStep5Confirm({
       {showAuthModal && (
         <BookingAuthModal
           primaryColor={brandColor}
+          logoUrl={logoUrl ?? undefined}
+          businessName={businessName}
           tenantId={tenantId}
           tenantSlug={slug}
           pendingBookingData={{

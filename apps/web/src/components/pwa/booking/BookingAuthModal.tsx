@@ -7,6 +7,7 @@ import { EmailOtpForm } from '@/components/pwa/auth/EmailOtpForm'
 interface BookingAuthModalProps {
   primaryColor: string
   logoUrl?: string
+  businessName?: string
   tenantId: string
   tenantSlug: string
   pendingBookingData: {
@@ -41,15 +42,70 @@ function heroBg(color: string): string {
   }
 }
 
-function ScissorsIcon({ color }: { color: string }) {
+function getNameInitials(name: string | undefined, slug: string): string {
+  if (name) {
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => (w[0] ?? '').toUpperCase())
+      .join('')
+  }
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => (w[0] ?? '').toUpperCase())
+    .join('')
+}
+
+function TenantAppIcon({
+  logoUrl,
+  primaryColor,
+  initials,
+}: {
+  logoUrl?: string
+  primaryColor: string
+  initials: string
+}) {
+  if (logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt=""
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 18,
+          objectFit: 'cover',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          display: 'block',
+        }}
+      />
+    )
+  }
   return (
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="6" cy="18" r="3" />
-      <line x1="20" y1="4" x2="8.12" y2="15.88" />
-      <line x1="14.47" y1="14.48" x2="20" y2="20" />
-      <line x1="8.12" y1="8.12" x2="12" y2="12" />
-    </svg>
+    <div
+      style={{
+        width: 72,
+        height: 72,
+        borderRadius: 18,
+        backgroundColor: primaryColor,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        border: '1px solid rgba(0,0,0,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontWeight: 700,
+        fontSize: 26,
+        letterSpacing: '-0.5px',
+      }}
+    >
+      {initials}
+    </div>
   )
 }
 
@@ -59,6 +115,7 @@ const inputCls =
 export default function BookingAuthModal({
   primaryColor,
   logoUrl,
+  businessName,
   tenantId,
   tenantSlug,
   pendingBookingData,
@@ -72,10 +129,6 @@ export default function BookingAuthModal({
   const [view, setView] = useState<ModalView>('auth')
   const [error, setError] = useState<string | null>(null)
 
-  // Reconstruct the booking confirmation URL so that after Google OAuth the
-  // callback can redirect straight back here instead of going to /profilo.
-  // Email OTP uses onSuccess inline (no page navigation), so returnTo only
-  // matters for the Google OAuth path inside EmailOtpForm.handleGoogleSignIn.
   const returnToBooking =
     `/prenota/conferma` +
     `?location=${pendingBookingData.locationId}` +
@@ -84,11 +137,12 @@ export default function BookingAuthModal({
     `&date=${pendingBookingData.date}` +
     `&time=${pendingBookingData.time}`
 
-  // Guest state
   const [guestFirstName, setGuestFirstName] = useState('')
   const [guestLastName, setGuestLastName] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
+
+  const initials = getNameInitials(businessName, tenantSlug)
 
   function handleGuestSubmit() {
     if (!guestFirstName.trim() || !guestPhone.trim()) {
@@ -119,24 +173,21 @@ export default function BookingAuthModal({
         role="dialog"
         aria-label="Accedi per completare la prenotazione"
       >
-        {/* Hero gradient block */}
+        {/* Hero gradient block with logo emerging at bottom */}
         <div
           style={{
-            height: 80,
+            height: 100,
             background: heroBg(primaryColor),
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             justifyContent: 'center',
+            paddingBottom: 16,
           }}
         >
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
-          ) : (
-            <ScissorsIcon color={primaryColor} />
-          )}
+          <TenantAppIcon logoUrl={logoUrl} primaryColor={primaryColor} initials={initials} />
         </div>
-        <div className="px-5 pb-8 pt-4">
+
+        <div className="px-5 pb-8 pt-5">
 
           {/* ── GUEST VIEW ────────────────────────────────────────────────── */}
           {view === 'guest' && (
@@ -213,12 +264,12 @@ export default function BookingAuthModal({
             <>
               <div className="mb-5 text-center">
                 <p
-                  className="text-[26px] font-black text-gray-900 leading-tight"
+                  className="text-[24px] font-extrabold text-gray-900 leading-tight"
                   style={{ fontFamily: 'var(--font-tenant, inherit)' }}
                 >
                   Quasi fatto.
                 </p>
-                <p className="mt-1.5 text-[12px] text-gray-400 leading-relaxed">
+                <p className="mt-1.5 mx-auto max-w-[260px] text-[14px] text-gray-400 leading-relaxed">
                   Accedi per salvare la prenotazione e guadagnare punti fedeltà.
                 </p>
               </div>
@@ -253,7 +304,7 @@ export default function BookingAuthModal({
                   setView('guest')
                   setError(null)
                 }}
-                className="w-full text-center text-[13px] font-medium text-gray-400 transition-colors hover:text-gray-600 active:opacity-70 py-1"
+                className="w-full text-center text-[13px] text-gray-400 underline underline-offset-2 py-1 bg-transparent border-none cursor-pointer"
               >
                 Continua senza account
               </button>
