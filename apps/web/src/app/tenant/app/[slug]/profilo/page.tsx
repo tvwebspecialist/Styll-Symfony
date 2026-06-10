@@ -214,7 +214,7 @@ export default async function ProfiloPage({ params }: Props) {
           <SettingsList
             tenantId={tenant.tenant_id}
             appuntamentiPath={tp('/appuntamenti')}
-            prodottiPath={tp('/prodotti/preferiti')}
+            prodottiPath={tp('/preferiti')}
             puntiPath={tp('/punti')}
             modificaPath={tp('/profilo/modifica')}
             preferenzePath={tp('/profilo/preferenze')}
