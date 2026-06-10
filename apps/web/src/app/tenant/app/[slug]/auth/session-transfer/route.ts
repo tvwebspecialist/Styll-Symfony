@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/accesso?error=oauth_failed', origin))
   }
 
-  const response = NextResponse.redirect(new URL(next, origin))
+  const freshUrl = new URL(next, origin)
+  freshUrl.searchParams.set('_t', Date.now().toString())
+  const response = NextResponse.redirect(freshUrl)
   response.headers.set('Cache-Control', 'no-store')
   return response
 }
