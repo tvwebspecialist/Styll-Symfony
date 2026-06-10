@@ -5,11 +5,11 @@ import { uploadAvatar } from '@/lib/actions/profilo'
 
 type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
 
-const TIER_STYLES: Record<Tier, { bg: string; text: string; label: string }> = {
-  Bronze: { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Bronze' },
-  Silver: { bg: 'bg-neutral-200', text: 'text-neutral-700', label: 'Silver' },
-  Gold: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Gold' },
-  Platinum: { bg: 'bg-slate-100', text: 'text-slate-700', label: 'Platinum' },
+const TIER_STYLES: Record<Tier, { bg: string; text: string }> = {
+  Bronze: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  Silver: { bg: 'bg-neutral-200', text: 'text-neutral-600' },
+  Gold: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  Platinum: { bg: 'bg-slate-100', text: 'text-slate-600' },
 }
 
 interface Props {
@@ -45,7 +45,7 @@ export function AvatarHero({ avatarUrl: initialAvatarUrl, fullName, tierLabel }:
   }
 
   return (
-    <div className="flex flex-col items-center pt-6 pb-4">
+    <div className="flex flex-col items-center">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -98,7 +98,7 @@ export function AvatarHero({ avatarUrl: initialAvatarUrl, fullName, tierLabel }:
 
       <p className="text-[18px] font-bold text-neutral-950 leading-tight">{fullName}</p>
       <span className={`mt-1.5 inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${tierStyle.bg} ${tierStyle.text}`}>
-        {tierStyle.label} Member
+        {tierLabel} Member
       </span>
     </div>
   )

@@ -1,41 +1,70 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { AppuntamentiClient } from './_components/AppuntamentiClient'
+import type { AppointmentItem, AppStatus } from './_components/AppuntamentiClient'
 
 interface Props {
   params: Promise<{ slug: string }>
 }
 
-type AppStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show'
-
-const STATUS_LABELS: Record<AppStatus, string> = {
-  confirmed: 'Confermato',
-  pending: 'In attesa',
-  completed: 'Completato',
-  cancelled: 'Cancellato',
-  no_show: 'Non presentato',
+type RawApt = {
+  id: string
+  start_time: string
+  status: string
+  staff_id: string | null
+  location_id: string | null
+  appointment_services: Array<{
+    price_at_booking: number | null
+    services: { name: string | null } | Array<{ name: string | null }> | null
+  }> | null
+  staff: {
+    profile: { full_name: string | null } | Array<{ full_name: string | null }> | null
+  } | Array<{
+    profile: { full_name: string | null } | Array<{ full_name: string | null }> | null
+  }> | null
+  locations: { name: string | null; address: string | null } | Array<{ name: string | null; address: string | null }> | null
 }
 
-const STATUS_STYLES: Record<AppStatus, string> = {
-  confirmed: 'bg-green-100 text-green-700',
-  pending: 'bg-yellow-100 text-yellow-700',
-  completed: 'bg-neutral-100 text-neutral-600',
-  cancelled: 'bg-red-100 text-red-600',
-  no_show: 'bg-red-50 text-red-400',
+function readRel<T>(v: T | T[] | null | undefined): T | null {
+  if (Array.isArray(v)) return v[0] ?? null
+  return v ?? null
 }
 
-function formatDate(isoString: string): string {
-  return new Intl.DateTimeFormat('it-IT', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(isoString))
+function parseApt(raw: RawApt): AppointmentItem {
+  const services = raw.appointment_services ?? []
+  const serviceNames = services
+    .map((s) => {
+      const svc = readRel(s.services)
+      return svc?.name ?? null
+    })
+    .filter(Boolean)
+    .join(', ') || 'Appuntamento'
+
+  const serviceIds = services.map((_, i) => `svc_${i}`) // we don't have service_id in this query
+
+  const totalPrice = services.reduce((sum, s) => sum + (s.price_at_booking ?? 0), 0)
+  const staffRel = readRel(raw.staff)
+  const staffName = readRel(staffRel?.profile)?.full_name ?? null
+  const locationRel = readRel(raw.locations)
+  const locationName = locationRel?.name ?? null
+  const locationAddress = locationRel?.address ?? null
+
+  return {
+    id: raw.id,
+    start_time: raw.start_time,
+    status: raw.status as AppStatus,
+    serviceNames,
+    staffName,
+    locationName,
+    locationAddress,
+    totalPrice: totalPrice > 0 ? totalPrice : null,
+    staffId: raw.staff_id,
+    locationId: raw.location_id,
+    serviceIds,
+  }
 }
 
 export default async function AppuntamentiPage({ params }: Props) {
@@ -45,13 +74,11 @@ export default async function AppuntamentiPage({ params }: Props) {
 
   const tp = await createTenantPaths(slug)
   const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center">
+      <main className="min-h-screen bg-[#F8F8F8] flex items-center justify-center">
         <p className="text-sm text-neutral-500">Accedi per vedere i tuoi appuntamenti.</p>
       </main>
     )
@@ -68,116 +95,50 @@ export default async function AppuntamentiPage({ params }: Props) {
 
   if (!client) {
     return (
-      <main className="min-h-screen bg-white px-5 pt-6">
+      <main className="min-h-screen bg-[#F8F8F8] px-4 pt-6">
         <p className="text-sm text-neutral-500">Nessun profilo associato a questo salone.</p>
       </main>
     )
   }
 
+  const SELECT = 'id, start_time, status, staff_id, location_id, appointment_services(price_at_booking, services(name)), staff:staff_members(profile:profiles(full_name)), locations(name, address)'
   const now = new Date().toISOString()
+
   const [upcomingRes, pastRes] = await Promise.all([
     db
       .from('appointments')
-      .select('id, start_time, status, appointment_services(services(name))')
+      .select(SELECT)
       .eq('tenant_id', tenant.tenant_id)
-      .eq('client_id', client.id)
+      .eq('client_id', (client as { id: string }).id)
       .is('deleted_at', null)
       .in('status', ['confirmed', 'pending'])
       .gte('start_time', now)
       .order('start_time', { ascending: true }),
     db
       .from('appointments')
-      .select('id, start_time, status, appointment_services(services(name))')
+      .select(SELECT)
       .eq('tenant_id', tenant.tenant_id)
-      .eq('client_id', client.id)
+      .eq('client_id', (client as { id: string }).id)
       .is('deleted_at', null)
       .not('status', 'in', '("confirmed","pending")')
       .order('start_time', { ascending: false })
       .limit(20),
   ])
 
-  const upcoming = upcomingRes.data ?? []
-  const past = pastRes.data ?? []
-
-  function getServiceNames(row: { appointment_services: { services: { name: string | null } | { name: string | null }[] | null }[] | null }): string {
-    const services = row.appointment_services ?? []
-    return services
-      .map((as) => {
-        const s = as.services
-        if (!s) return null
-        if (Array.isArray(s)) return s[0]?.name
-        return s.name
-      })
-      .filter(Boolean)
-      .join(', ') || 'Appuntamento'
-  }
+  const upcoming = (upcomingRes.data ?? []).map((r) => parseApt(r as unknown as RawApt))
+  const past = (pastRes.data ?? []).map((r) => parseApt(r as unknown as RawApt))
 
   return (
-    <main className="min-h-screen bg-white pb-24">
-      <div className="mx-auto max-w-xl px-5 pt-4">
-        <div className="mb-6 flex items-center gap-2">
-          <Link href={tp('/profilo')} className="flex items-center gap-1 text-sm text-neutral-500 active:opacity-60">
-            <ChevronLeft className="size-4" />
-            Profilo
-          </Link>
-        </div>
-
-        <h1 className="text-2xl font-extrabold text-neutral-950 mb-6">I miei appuntamenti</h1>
-
-        {/* Prossimi */}
-        <section className="mb-6">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Prossimi</h2>
-          {upcoming.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-200 px-5 py-8 text-center">
-              <p className="text-sm text-neutral-400">Nessun appuntamento in programma</p>
-              <Link
-                href={tp('/prenota')}
-                className="mt-3 inline-block rounded-xl px-5 py-2.5 text-sm font-semibold text-white active:opacity-80"
-                style={{ backgroundColor: tenant.primary_color ?? '#1a1a1a' }}
-              >
-                Prenota ora
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {upcoming.map((apt) => (
-                <div key={apt.id} className="rounded-2xl bg-white border border-neutral-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] px-4 py-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-900">{getServiceNames(apt as Parameters<typeof getServiceNames>[0])}</p>
-                      <p className="mt-0.5 text-xs text-neutral-400">{formatDate(apt.start_time)}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[apt.status as AppStatus] ?? 'bg-neutral-100 text-neutral-500'}`}>
-                      {STATUS_LABELS[apt.status as AppStatus] ?? apt.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Passati */}
-        {past.length > 0 && (
-          <section>
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Storico</h2>
-            <div className="flex flex-col gap-3">
-              {past.map((apt) => (
-                <div key={apt.id} className="rounded-2xl bg-white border border-neutral-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] px-4 py-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-900">{getServiceNames(apt as Parameters<typeof getServiceNames>[0])}</p>
-                      <p className="mt-0.5 text-xs text-neutral-400">{formatDate(apt.start_time)}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[apt.status as AppStatus] ?? 'bg-neutral-100 text-neutral-500'}`}>
-                      {STATUS_LABELS[apt.status as AppStatus] ?? apt.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+      <div className="mx-auto max-w-xl px-4 pt-4">
+        <AppuntamentiClient
+          upcoming={upcoming}
+          past={past}
+          tenantId={tenant.tenant_id}
+          slug={slug}
+          primaryColor={tenant.primary_color ?? '#1a1a1a'}
+          prenotaPath={tp('/prenota')}
+        />
       </div>
     </main>
   )

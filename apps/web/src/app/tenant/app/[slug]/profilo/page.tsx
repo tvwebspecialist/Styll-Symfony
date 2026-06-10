@@ -6,7 +6,6 @@ import { createTenantPaths } from '@/lib/pwa-redirect'
 import { ProfileLoginGate } from '../_components/ProfileLoginGate'
 import { ProfiloAuthGuard } from './_components/ProfiloAuthGuard'
 import { AvatarHero } from './_components/AvatarHero'
-import { ProfiloStatsBar } from './_components/ProfiloStatsBar'
 import { GamificationBox } from './_components/GamificationBox'
 import { SettingsList } from './_components/SettingsList'
 
@@ -19,19 +18,28 @@ type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
 function computeTier(totalPoints: number): {
   tierLabel: Tier
   nextTierLabel: Tier | null
-  nextMin: number | null
   progress: number
   pointsToNextTier: number | null
 } {
   if (totalPoints >= 1000) {
-    return { tierLabel: 'Gold', nextTierLabel: null, nextMin: null, progress: 100, pointsToNextTier: null }
+    return { tierLabel: 'Gold', nextTierLabel: null, progress: 100, pointsToNextTier: null }
   }
   if (totalPoints >= 500) {
     const progress = Math.min(100, Math.round(((totalPoints - 500) / 500) * 100))
-    return { tierLabel: 'Silver', nextTierLabel: 'Gold', nextMin: 1000, progress, pointsToNextTier: 1000 - totalPoints }
+    return { tierLabel: 'Silver', nextTierLabel: 'Gold', progress, pointsToNextTier: 1000 - totalPoints }
   }
   const progress = Math.min(100, Math.round((totalPoints / 500) * 100))
-  return { tierLabel: 'Bronze', nextTierLabel: 'Silver', nextMin: 500, progress, pointsToNextTier: 500 - totalPoints }
+  return { tierLabel: 'Bronze', nextTierLabel: 'Silver', progress, pointsToNextTier: 500 - totalPoints }
+}
+
+function StatBlock({ value, label, withBorder }: { value: number; label: string; withBorder?: boolean }) {
+  const fmt = new Intl.NumberFormat('it-IT')
+  return (
+    <div className={`flex-1 flex flex-col items-center py-4 ${withBorder ? 'border-r border-neutral-100' : ''}`}>
+      <span className="text-[22px] font-black text-neutral-950 leading-none">{fmt.format(value)}</span>
+      <span className="mt-1 text-[11px] text-neutral-400 font-medium">{label}</span>
+    </div>
+  )
 }
 
 export default async function ProfiloPage({ params }: Props) {
@@ -82,9 +90,9 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!client) {
     return (
-      <main className="min-h-screen bg-white px-5 pb-8 pt-6">
+      <main className="min-h-screen bg-[#F8F8F8] px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
-          <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 text-amber-900">
+          <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-amber-900">
             <h1 className="text-lg font-extrabold">Profilo non collegato</h1>
             <p className="mt-2 text-sm leading-6">
               Il tuo account è attivo, ma non è ancora collegato a una scheda cliente di{' '}
@@ -136,9 +144,9 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!fetchResults) {
     return (
-      <main className="min-h-screen bg-white px-5 pb-8 pt-6">
+      <main className="min-h-screen bg-[#F8F8F8] px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
-          <div className="rounded-[28px] border border-red-200 bg-red-50 p-5 text-red-900">
+          <div className="rounded-[20px] border border-red-200 bg-red-50 p-5 text-red-900">
             <h1 className="text-lg font-extrabold">Qualcosa è andato storto</h1>
             <p className="mt-2 text-sm leading-6">
               Non siamo riusciti a caricare il tuo profilo. Riprova tra qualche momento.
@@ -166,25 +174,31 @@ export default async function ProfiloPage({ params }: Props) {
   const primaryColor = tenant.primary_color ?? '#1a1a1a'
 
   return (
-    <main className="min-h-screen bg-white pb-24">
-      <div className="mx-auto max-w-xl px-5">
-        {/* Section 1 — Hero avatar */}
-        <AvatarHero
-          userId={user.id}
-          avatarUrl={avatarUrl}
-          fullName={profileFullName}
-          tierLabel={tierLabel}
-        />
+    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+      <div className="mx-auto max-w-xl px-4 pt-4">
+        <div className="flex flex-col gap-3">
 
-        <div className="flex flex-col gap-4 pb-4">
-          {/* Section 2 — Stats bar */}
-          <ProfiloStatsBar
-            upcoming={upcomingCount}
-            completed={completedCount}
-            cancelled={cancelledCount}
-          />
+          {/* Hero card — avatar + name + stats */}
+          <div className="rounded-[20px] bg-white shadow-[0_2px_16px_rgba(0,0,0,0.07)] border border-neutral-100 overflow-hidden">
+            {/* Avatar + name */}
+            <div className="px-5 pt-6 pb-4 flex flex-col items-center">
+              <AvatarHero
+                userId={user.id}
+                avatarUrl={avatarUrl}
+                fullName={profileFullName}
+                tierLabel={tierLabel}
+              />
+            </div>
 
-          {/* Section 3 — Gamification box */}
+            {/* Stats bar */}
+            <div className="flex border-t border-neutral-100">
+              <StatBlock value={upcomingCount} label="Prossimi" withBorder />
+              <StatBlock value={completedCount} label="Completati" withBorder />
+              <StatBlock value={cancelledCount} label="Cancellati" />
+            </div>
+          </div>
+
+          {/* Gamification card */}
           <GamificationBox
             availablePoints={availablePoints}
             totalPoints={totalPoints}
@@ -196,13 +210,14 @@ export default async function ProfiloPage({ params }: Props) {
             primaryColor={primaryColor}
           />
 
-          {/* Section 4 — Settings */}
+          {/* Settings */}
           <SettingsList
             tenantId={tenant.tenant_id}
             appuntamentiPath={tp('/appuntamenti')}
-            prodottiPath={tp('/prodotti?tab=preferiti')}
+            prodottiPath={tp('/prodotti/preferiti')}
             puntiPath={tp('/punti')}
-            datiPath={tp('/profilo/dati')}
+            modificaPath={tp('/profilo/modifica')}
+            preferenzePath={tp('/profilo/preferenze')}
             basePath={tp('')}
             profile={{
               fullName: profileFullName,
@@ -210,6 +225,10 @@ export default async function ProfiloPage({ params }: Props) {
               email: profileEmail,
             }}
           />
+
+          {/* Version footer */}
+          <p className="text-center text-[11px] text-neutral-300 pb-2 mt-1">Styll v1.0</p>
+
         </div>
       </div>
     </main>
