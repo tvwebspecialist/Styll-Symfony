@@ -6,6 +6,7 @@ import { EmailOtpForm } from '@/components/pwa/auth/EmailOtpForm'
 
 interface BookingAuthModalProps {
   primaryColor: string
+  logoUrl?: string
   tenantId: string
   tenantSlug: string
   pendingBookingData: {
@@ -27,11 +28,37 @@ interface BookingAuthModalProps {
 
 type ModalView = 'auth' | 'guest'
 
+function heroBg(color: string): string {
+  try {
+    let hex = color.replace('#', '')
+    if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('')
+    const r = parseInt(hex.slice(0, 2), 16)
+    const g = parseInt(hex.slice(2, 4), 16)
+    const b = parseInt(hex.slice(4, 6), 16)
+    return `linear-gradient(to bottom, rgba(${r},${g},${b},0.18), transparent)`
+  } catch {
+    return 'linear-gradient(to bottom, rgba(0,0,0,0.10), transparent)'
+  }
+}
+
+function ScissorsIcon({ color }: { color: string }) {
+  return (
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  )
+}
+
 const inputCls =
   'w-full h-12 px-4 bg-gray-50 border border-gray-200 rounded-xl text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-900 transition-colors'
 
 export default function BookingAuthModal({
   primaryColor,
+  logoUrl,
   tenantId,
   tenantSlug,
   pendingBookingData,
@@ -92,14 +119,24 @@ export default function BookingAuthModal({
         role="dialog"
         aria-label="Accedi per completare la prenotazione"
       >
-        {/* Gradient header strip */}
+        {/* Hero gradient block */}
         <div
           style={{
-            height: 4,
-            background: `linear-gradient(90deg, ${primaryColor}99 0%, ${primaryColor}33 100%)`,
+            height: 80,
+            background: heroBg(primaryColor),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
-        />
-        <div className="px-5 pb-8 pt-5">
+        >
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
+          ) : (
+            <ScissorsIcon color={primaryColor} />
+          )}
+        </div>
+        <div className="px-5 pb-8 pt-4">
 
           {/* ── GUEST VIEW ────────────────────────────────────────────────── */}
           {view === 'guest' && (

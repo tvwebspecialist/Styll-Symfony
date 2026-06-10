@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import BookingStep5Confirm from '@/components/pwa/booking/BookingStep5Confirm'
 import BookingSuccessModal from '@/components/pwa/booking/BookingSuccessModal'
-import { Toast } from '@/components/pwa/ui/Toast'
+import { ToastProvider } from '@/components/pwa/ui/Toast'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import type { PublicLocation, PublicService, PublicStaffMember } from '@/lib/actions/public-booking'
 
@@ -48,19 +48,12 @@ export function ConfermaForm({
   const tenantPath = useTenantPath(slug)
   const [successAppointmentId, setSuccessAppointmentId] = useState<string | null>(null)
   const [hasAuthenticated, setHasAuthenticated] = useState(false)
-  const [googleToastVisible, setGoogleToastVisible] = useState(false)
 
   useEffect(() => {
     if (!googleLogin) return
     const url = new URL(window.location.href)
     url.searchParams.delete('google_login')
     window.history.replaceState(null, '', url.toString())
-    const showTimer = setTimeout(() => setGoogleToastVisible(true), 50)
-    const hideTimer = setTimeout(() => setGoogleToastVisible(false), 3000)
-    return () => {
-      clearTimeout(showTimer)
-      clearTimeout(hideTimer)
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -83,15 +76,9 @@ export function ConfermaForm({
   }
 
   return (
-    <>
-      <Toast
-        type="success"
-        message="Accesso effettuato con Google"
-        visible={googleToastVisible}
-        onClose={() => setGoogleToastVisible(false)}
-      />
-
+    <ToastProvider>
       <BookingStep5Confirm
+        googleLogin={googleLogin}
         slug={slug}
         tenantId={tenantId}
         locationId={locationId}
@@ -129,6 +116,6 @@ export function ConfermaForm({
           isLoggedIn={isLoggedIn || hasAuthenticated}
         />
       )}
-    </>
+    </ToastProvider>
   )
 }

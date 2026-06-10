@@ -110,6 +110,10 @@ export function EmailOtpForm({
       setError('Il nome è obbligatorio.')
       return
     }
+    if (!phone.trim()) {
+      setError('Il numero di telefono è obbligatorio.')
+      return
+    }
     setLoading(true)
     setError(null)
 
@@ -354,7 +358,7 @@ export function EmailOtpForm({
           <input
             type="tel"
             autoComplete="tel"
-            placeholder="Telefono (opzionale)"
+            placeholder="+39 333 123 4567"
             value={phone}
             onChange={(e) => {
               setPhone(e.target.value)
@@ -366,7 +370,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || loading}
+            disabled={!fullName.trim() || !phone.trim() || loading}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
@@ -449,7 +453,7 @@ export function EmailOtpForm({
                   otpStatus === 'error'
                     ? '#ef4444'
                     : otpStatus === 'success'
-                    ? '#16a34a'
+                    ? 'var(--brand-primary, #222222)'
                     : focusedIdx === idx || digit
                     ? 'var(--brand-primary, #222222)'
                     : '#e5e7eb',
@@ -457,13 +461,13 @@ export function EmailOtpForm({
                   otpStatus === 'error'
                     ? '#ef4444'
                     : otpStatus === 'success'
-                    ? '#16a34a'
+                    ? 'var(--brand-primary, #222222)'
                     : '#111827',
                 boxShadow:
                   otpStatus === 'error'
                     ? '0 0 0 3px rgba(239,68,68,0.18)'
                     : otpStatus === 'success'
-                    ? '0 0 0 3px rgba(22,163,74,0.18)'
+                    ? '0 0 0 3px color-mix(in srgb, var(--brand-primary, #222222) 18%, transparent)'
                     : focusedIdx === idx
                     ? '0 0 0 3px rgba(0,0,0,0.08)'
                     : 'none',
@@ -642,8 +646,7 @@ export function EmailOtpForm({
             </div>
             <div>
               <label htmlFor="profile-phone" className="mb-2 block text-sm font-medium text-neutral-700">
-                Telefono{' '}
-                <span className="font-normal text-neutral-400">(opzionale)</span>
+                Numero di telefono
               </label>
               <input
                 id="profile-phone"
@@ -668,7 +671,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || loading}
+            disabled={!fullName.trim() || !phone.trim() || loading}
             className="mt-5 flex h-[52px] w-full items-center justify-center rounded-full text-base font-semibold text-white transition disabled:opacity-40"
             style={{ backgroundColor: 'var(--brand-primary, #1a1a1a)' }}
           >
@@ -759,7 +762,7 @@ export function EmailOtpForm({
                     otpStatus === 'error'
                       ? '#ef4444'
                       : otpStatus === 'success'
-                      ? '#16a34a'
+                      ? 'var(--brand-primary, #1a1a1a)'
                       : focusedIdx === idx || digit
                       ? 'var(--brand-primary, #1a1a1a)'
                       : '#e5e7eb',
@@ -767,19 +770,19 @@ export function EmailOtpForm({
                     otpStatus === 'error'
                       ? '#ef4444'
                       : otpStatus === 'success'
-                      ? '#16a34a'
+                      ? 'var(--brand-primary, #1a1a1a)'
                       : '#0a0a0a',
                   background:
                     otpStatus === 'success' && digit
-                      ? 'rgba(22,163,74,0.06)'
+                      ? 'color-mix(in srgb, var(--brand-primary, #1a1a1a) 6%, transparent)'
                       : digit
-                      ? 'rgba(var(--brand-primary-rgb,0,0,0),0.04)'
+                      ? 'color-mix(in srgb, var(--brand-primary, #1a1a1a) 4%, transparent)'
                       : 'white',
                   boxShadow:
                     otpStatus === 'error'
                       ? '0 0 0 3px rgba(239,68,68,0.18)'
                       : otpStatus === 'success'
-                      ? '0 0 0 3px rgba(22,163,74,0.18)'
+                      ? '0 0 0 3px color-mix(in srgb, var(--brand-primary, #1a1a1a) 18%, transparent)'
                       : focusedIdx === idx
                       ? '0 0 0 3px rgba(0,0,0,0.07)'
                       : 'none',
