@@ -9,6 +9,7 @@ import BookingSuccessModal from './BookingSuccessModal'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
 import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
+import { useToast } from '@/components/pwa/ui/Toast'
 
 interface Props {
   slug: string
@@ -30,6 +31,7 @@ interface Props {
   initialEmail?: string
   isLoggedIn?: boolean
   clientId?: string
+  googleLogin?: boolean
 }
 
 function getInitials(name: string | null): string {
@@ -70,8 +72,10 @@ export default function BookingStep5Confirm({
   initialEmail = '',
   isLoggedIn = false,
   clientId,
+  googleLogin = false,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
+  const { showToast } = useToast()
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -106,6 +110,19 @@ export default function BookingStep5Confirm({
       .catch(() => setUpsellDone(true))
       .finally(() => setLoadingUpsell(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!googleLogin) return
+    const t = setTimeout(() => {
+      showToast({
+        type: 'success',
+        title: 'Accesso effettuato',
+        subtitle: 'Hai effettuato l\'accesso con Google',
+      })
+    }, 300)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const totalPrice = useMemo(
