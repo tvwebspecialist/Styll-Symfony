@@ -4,7 +4,7 @@ import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pwa-auth'
+import { checkEmailExists, sendEmailOtp, startGoogleOAuthPwa, verifyEmailOtp } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -186,18 +186,17 @@ export function EmailOtpForm({
     setError(null)
 
     try {
-      const callbackUrl = new URL('https://styll.it/auth/callback')
-      callbackUrl.searchParams.set('next', 'pwa')
-      callbackUrl.searchParams.set('tenantSlug', tenantSlug)
-      callbackUrl.searchParams.set('tenantId', tenantId)
-      if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
-
-      const supabase = createClient()
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: callbackUrl.toString() },
+      const result = await startGoogleOAuthPwa({
+        tenantSlug,
+        tenantId,
+        returnTo: returnTo ?? undefined,
       })
-      // Browser redirects — code below never executes
+      if ('error' in result) {
+        setError('Accesso con Google non disponibile. Prova con email.')
+        setGoogleLoading(false)
+        return
+      }
+      window.location.href = result.url
     } catch {
       setGoogleLoading(false)
       setError('Accesso con Google non disponibile. Prova con email.')
