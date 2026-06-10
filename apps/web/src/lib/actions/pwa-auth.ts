@@ -552,7 +552,7 @@ export async function setupPwaGoogleClient(
       (user.user_metadata?.full_name as string | undefined) ||
       'Cliente',
     email: normalizedEmail,
-    phone: '',
+    phone: null as string | null,
     created_at: now,
     updated_at: now,
     marketing_consent: true,
