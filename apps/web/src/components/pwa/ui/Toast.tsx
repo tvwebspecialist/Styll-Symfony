@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ function ErrorIcon() {
   )
 }
 
-const ICONS: Record<ToastType, () => JSX.Element> = {
+const ICONS: Record<ToastType, () => React.ReactElement> = {
   success: SuccessIcon,
   warning: WarningIcon,
   info:    InfoIcon,
