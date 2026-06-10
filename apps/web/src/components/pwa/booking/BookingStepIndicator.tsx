@@ -50,7 +50,7 @@ export default function BookingStepIndicator({
   return (
     <div
       style={{
-        background: '#F7F7F7',
+        background: '#ffffff',
         position: 'sticky',
         top: stickyTopOverride ?? 56,
         zIndex: 50,

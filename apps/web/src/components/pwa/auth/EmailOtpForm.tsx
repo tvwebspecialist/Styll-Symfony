@@ -520,7 +520,7 @@ export function EmailOtpForm({
 
   if (step === 'email') {
     return (
-      <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-[#F7F7F7] px-5 pb-10 pt-10">
+      <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="relative mb-8 mt-2">
           <div className="flex size-28 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
             <Mail className="size-12 text-[var(--brand-primary)]" strokeWidth={1.5} aria-hidden="true" />
@@ -611,7 +611,7 @@ export function EmailOtpForm({
 
   if (step === 'profile-data') {
     return (
-      <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-[#F7F7F7] px-5 pb-10 pt-10">
+      <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-black text-neutral-950">Come ti chiami?</h1>
           <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-neutral-500">
@@ -703,7 +703,7 @@ export function EmailOtpForm({
   }
 
   return (
-    <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-[#F7F7F7] px-5 pb-10 pt-10">
+    <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
       <div className="w-full max-w-[440px]">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-black text-neutral-950">Controlla la tua email</h1>

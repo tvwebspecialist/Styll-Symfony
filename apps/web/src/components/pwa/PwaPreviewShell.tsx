@@ -107,7 +107,7 @@ export function PwaPreviewShell({
 
   return (
     <div
-      style={{ ...brandVars, background: '#F7F7F7', minHeight: '100dvh' }}
+      style={{ ...brandVars, background: '#ffffff', minHeight: '100dvh' }}
       className="text-foreground [font-family:var(--font-active)]"
     >
       {!preview.enabled && (

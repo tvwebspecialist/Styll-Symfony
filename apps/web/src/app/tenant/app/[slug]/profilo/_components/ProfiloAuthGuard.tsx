@@ -46,7 +46,7 @@ export function ProfiloAuthGuard({ slug: _slug, tenantId: _tenantId, loginGate, 
 
   if (state === 'checking') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F7]">
+      <main className="flex min-h-screen items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3">
           <div className="size-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-800" />
           <p className="text-sm text-neutral-400">Caricamento profilo…</p>

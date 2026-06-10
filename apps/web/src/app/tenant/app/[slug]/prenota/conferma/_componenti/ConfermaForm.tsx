@@ -20,6 +20,7 @@ interface Props {
   staff: PublicStaffMember
   services: PublicService[]
   primaryColor?: string
+  logoUrl?: string | null
   businessName?: string
   initialFullName?: string
   initialPhone?: string
@@ -40,7 +41,7 @@ function formatBookingDate(date: string): string {
 
 export function ConfermaForm({
   slug, tenantId, locationId, staffId, serviceIds, date, time,
-  location, staff, services, primaryColor, businessName = '',
+  location, staff, services, primaryColor, logoUrl, businessName = '',
   initialFullName = '', initialPhone = '', initialEmail = '',
   isLoggedIn = false, clientId, googleLogin = false,
 }: Props) {
@@ -92,6 +93,8 @@ export function ConfermaForm({
         onSuccess={handleSuccess}
         onAuthComplete={() => setHasAuthenticated(true)}
         primaryColor={primaryColor}
+        logoUrl={logoUrl}
+        businessName={businessName}
         initialFullName={initialFullName}
         initialPhone={initialPhone}
         initialEmail={initialEmail}
