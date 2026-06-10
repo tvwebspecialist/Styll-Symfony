@@ -9,6 +9,7 @@ export function createPwaClient() {
       (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '').trim(),
       {
         auth: {
+          flowType: 'pkce',
           persistSession: true,
           storageKey: 'styll-pwa-session',
           storage: typeof window !== 'undefined' ? window.localStorage : undefined,
