@@ -76,6 +76,8 @@ export default function BookingStep5Confirm({
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [phone, setPhone] = useState(initialPhone ?? '')
+  const [phoneError, setPhoneError] = useState('')
 
   const [upsellProducts, setUpsellProducts] = useState<UpsellProduct[]>([])
   const [loadingUpsell, setLoadingUpsell] = useState(true)
@@ -152,9 +154,14 @@ export default function BookingStep5Confirm({
       setShowAuthModal(true)
       return
     }
+    if (!phone || phone.trim().length < 6) {
+      setPhoneError('Inserisci un numero di telefono valido')
+      return
+    }
+    setPhoneError('')
     await submitBooking({
-      fullName: initialFullName,
-      phone: initialPhone ?? '',
+      fullName: initialFullName ?? '',
+      phone: phone.trim(),
       email: initialEmail ?? '',
     })
   }
@@ -348,6 +355,26 @@ export default function BookingStep5Confirm({
       {/* ── CTA FIXED IN BASSO ──────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-3 z-20"
            style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+
+        {isLoggedIn && (!initialPhone || initialPhone.trim() === '') && (
+          <div className="mb-3">
+            <input
+              type="tel"
+              placeholder="+39 333 123 4567"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); setPhoneError('') }}
+              className="w-full px-4 py-3 rounded-2xl text-[15px] font-medium text-gray-900 placeholder-gray-400 bg-white border focus:outline-none"
+              style={{
+                borderColor: phoneError ? '#EF4444' : 'rgba(0,0,0,0.12)',
+                boxShadow: phoneError ? '0 0 0 2px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.06)',
+              }}
+            />
+            {phoneError && (
+              <p className="mt-1.5 text-[12px] font-medium text-red-500 px-1">{phoneError}</p>
+            )}
+          </div>
+        )}
+
         <button
           onClick={handleConferma}
           disabled={isSubmitting}
