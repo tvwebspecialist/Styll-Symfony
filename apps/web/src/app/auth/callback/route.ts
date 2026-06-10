@@ -74,7 +74,6 @@ export async function GET(request: NextRequest) {
 
     const destination = (() => {
       if (!returnTo || !returnTo.startsWith('/')) return '/profilo'
-      if (returnTo.includes('/prenota/conferma')) return '/profilo'
       if (returnTo.includes('://')) return '/profilo'
       return returnTo
     })()
