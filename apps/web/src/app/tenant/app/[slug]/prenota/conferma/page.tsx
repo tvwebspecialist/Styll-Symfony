@@ -28,6 +28,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
   const staffId = readParam(resolvedSearchParams.staff)
   const date = readParam(resolvedSearchParams.date)
   const time = readParam(resolvedSearchParams.time)
+  const googleLogin = readParam(resolvedSearchParams.google_login) === '1'
   const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
   const tp = await createTenantPaths(slug)
 
@@ -71,6 +72,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
       initialEmail={clientRecord?.email ?? ''}
       isLoggedIn={clientRecord !== null}
       clientId={clientRecord?.id ?? undefined}
+      googleLogin={googleLogin}
     />
   )
 }

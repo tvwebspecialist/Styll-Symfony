@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
 
   const freshUrl = new URL(next, origin)
   freshUrl.searchParams.set('_t', Date.now().toString())
+  freshUrl.searchParams.set('google_login', '1')
   const response = NextResponse.redirect(freshUrl)
   response.headers.set('Cache-Control', 'no-store')
   return response

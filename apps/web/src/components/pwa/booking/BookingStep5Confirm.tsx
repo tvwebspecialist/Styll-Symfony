@@ -95,7 +95,13 @@ export default function BookingStep5Confirm({
     })
       .then((products) => {
         setUpsellProducts(products)
-        if (products.length === 0) setUpsellDone(true)
+        if (products.length === 0) {
+          setUpsellDone(true)
+        } else if (sessionStorage.getItem('upsell_shown') === '1') {
+          setUpsellDone(true)
+        } else {
+          sessionStorage.setItem('upsell_shown', '1')
+        }
       })
       .catch(() => setUpsellDone(true))
       .finally(() => setLoadingUpsell(false))
@@ -358,6 +364,9 @@ export default function BookingStep5Confirm({
 
         {isLoggedIn && (!initialPhone || initialPhone.trim() === '') && (
           <div className="mb-3">
+            <p className="text-[12px] font-medium text-gray-500 px-1 mb-2">
+              Per completare la prenotazione inserisci il tuo numero di telefono
+            </p>
             <input
               type="tel"
               placeholder="+39 333 123 4567"
@@ -375,24 +384,33 @@ export default function BookingStep5Confirm({
           </div>
         )}
 
-        <button
-          onClick={handleConferma}
-          disabled={isSubmitting}
-          className="w-full py-4 rounded-2xl text-[16px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-          style={{
-            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
-            boxShadow: `0 4px 20px ${brandColor}44`,
-          }}
-        >
-          {isSubmitting ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>
-              <span>Conferma prenotazione</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
+        {(() => {
+          const needsPhone = isLoggedIn && (!initialPhone || initialPhone.trim() === '')
+          const phoneValid = phone.trim().length >= 6
+          return (
+            <button
+              onClick={handleConferma}
+              disabled={isSubmitting || (needsPhone && !phoneValid)}
+              className="w-full py-4 rounded-2xl text-[16px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+              style={{
+                background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
+                boxShadow: `0 4px 20px ${brandColor}44`,
+                transition: 'opacity 0.2s ease, box-shadow 0.2s ease',
+              }}
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : needsPhone && !phoneValid ? (
+                <span>Inserisci il numero per continuare</span>
+              ) : (
+                <>
+                  <span>Conferma prenotazione</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          )
+        })()}
       </div>
 
       {/* Error modal */}

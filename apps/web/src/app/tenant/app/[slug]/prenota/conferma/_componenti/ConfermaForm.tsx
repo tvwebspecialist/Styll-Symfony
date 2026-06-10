@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import BookingStep5Confirm from '@/components/pwa/booking/BookingStep5Confirm'
 import BookingSuccessModal from '@/components/pwa/booking/BookingSuccessModal'
@@ -25,6 +25,7 @@ interface Props {
   initialEmail?: string
   isLoggedIn?: boolean
   clientId?: string
+  googleLogin?: boolean
 }
 
 function formatBookingDate(date: string): string {
@@ -40,12 +41,27 @@ export function ConfermaForm({
   slug, tenantId, locationId, staffId, serviceIds, date, time,
   location, staff, services, primaryColor, businessName = '',
   initialFullName = '', initialPhone = '', initialEmail = '',
-  isLoggedIn = false, clientId,
+  isLoggedIn = false, clientId, googleLogin = false,
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
   const [successAppointmentId, setSuccessAppointmentId] = useState<string | null>(null)
   const [hasAuthenticated, setHasAuthenticated] = useState(false)
+  const [googleToastVisible, setGoogleToastVisible] = useState(false)
+
+  useEffect(() => {
+    if (!googleLogin) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('google_login')
+    window.history.replaceState(null, '', url.toString())
+    const showTimer = setTimeout(() => setGoogleToastVisible(true), 50)
+    const hideTimer = setTimeout(() => setGoogleToastVisible(false), 3000)
+    return () => {
+      clearTimeout(showTimer)
+      clearTimeout(hideTimer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const totalDuration = useMemo(
     () => services.reduce((total, service) => total + Number(service.duration_minutes ?? 0), 0),
@@ -67,6 +83,31 @@ export function ConfermaForm({
 
   return (
     <>
+      {googleLogin && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 'calc(16px + env(safe-area-inset-top, 0px))',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            background: '#16a34a',
+            color: '#fff',
+            padding: '12px 20px',
+            borderRadius: '14px',
+            fontSize: '14px',
+            fontWeight: 600,
+            boxShadow: '0 4px 16px rgba(22,163,74,0.35)',
+            opacity: googleToastVisible ? 1 : 0,
+            transition: 'opacity 0.4s ease',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}
+        >
+          ✓ Accesso effettuato con Google
+        </div>
+      )}
+
       <BookingStep5Confirm
         slug={slug}
         tenantId={tenantId}
