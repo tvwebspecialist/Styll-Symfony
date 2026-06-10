@@ -63,11 +63,26 @@ export async function GET(request: NextRequest) {
   const returnTo = searchParams.get('return_to')
 
   if (isPwa && tenantSlug) {
-    if (tenantId) {
-      await setupPwaGoogleClient(tenantId)
+    if (tenantId) await setupPwaGoogleClient(tenantId)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) {
+      return redirect(`https://${tenantSlug}-app.styll.it/accesso?error=oauth_failed`)
     }
-    const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/profilo'
-    return redirect(`https://${tenantSlug}-app.styll.it${destination}`)
+
+    const destination =
+      returnTo && returnTo.startsWith('/') && !returnTo.includes('://')
+        ? returnTo
+        : '/profilo'
+
+    const transferUrl = new URL(`https://${tenantSlug}-app.styll.it/auth/session-transfer`)
+    transferUrl.searchParams.set('access_token', session.access_token)
+    transferUrl.searchParams.set('refresh_token', session.refresh_token)
+    transferUrl.searchParams.set('next', destination)
+
+    return redirect(transferUrl.toString())
   }
 
   const { data: profile } = await supabase
