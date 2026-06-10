@@ -544,7 +544,7 @@ export async function setupPwaGoogleClient(
     .eq('id', userId)
     .maybeSingle()
 
-  await db.from('clients').insert({
+  const { error: insertError } = await db.from('clients').insert({
     tenant_id: tenantId,
     profile_id: userId,
     full_name:
@@ -557,6 +557,11 @@ export async function setupPwaGoogleClient(
     marketing_consent: true,
     tags: [],
   })
+
+  if (insertError) {
+    console.error('[setupPwaGoogleClient] insert failed:', insertError.message, insertError.details)
+    return { success: false, isNewClient: false }
+  }
 
   return { success: true, isNewClient: true }
 }
