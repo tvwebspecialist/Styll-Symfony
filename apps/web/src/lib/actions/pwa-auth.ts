@@ -313,6 +313,31 @@ export async function sendEmailOtp(email: string): Promise<{ success: boolean; e
   return { success: true }
 }
 
+export async function startGoogleOAuthPwa(params: {
+  tenantSlug: string
+  tenantId: string
+  returnTo?: string
+}): Promise<{ url: string } | { error: string }> {
+  'use server'
+  const supabase = await createClient()
+  const callbackUrl = new URL('https://styll.it/auth/callback')
+  callbackUrl.searchParams.set('next', 'pwa')
+  callbackUrl.searchParams.set('tenantSlug', params.tenantSlug)
+  callbackUrl.searchParams.set('tenantId', params.tenantId)
+  if (params.returnTo) callbackUrl.searchParams.set('return_to', params.returnTo)
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: callbackUrl.toString(),
+      queryParams: { access_type: 'offline', prompt: 'consent' },
+      skipBrowserRedirect: true,
+    },
+  })
+  if (error || !data.url) return { error: error?.message ?? 'OAuth error' }
+  return { url: data.url }
+}
+
 export async function checkEmailExists(email: string): Promise<{ isExisting: boolean }> {
   const db = createAdminClient()
   const { data } = await db
