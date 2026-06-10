@@ -72,10 +72,12 @@ export async function GET(request: NextRequest) {
       return redirect(`https://${tenantSlug}-app.styll.it/accesso?error=oauth_failed`)
     }
 
-    const destination =
-      returnTo && returnTo.startsWith('/') && !returnTo.includes('://')
-        ? returnTo
-        : '/profilo'
+    const destination = (() => {
+      if (!returnTo || !returnTo.startsWith('/')) return '/profilo'
+      if (returnTo.includes('/prenota/conferma')) return '/profilo'
+      if (returnTo.includes('://')) return '/profilo'
+      return returnTo
+    })()
 
     const transferUrl = new URL(`https://${tenantSlug}-app.styll.it/auth/session-transfer`)
     transferUrl.searchParams.set('access_token', session.access_token)
