@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -56,28 +57,24 @@ export async function GET(request: NextRequest) {
       .eq('email_verified', false)
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('onboarding_completed')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  // Se è un login PWA cliente, redirect al callback tenant
   const isPwa = searchParams.get('next') === 'pwa'
   const tenantSlug = searchParams.get('tenantSlug')
   const tenantId = searchParams.get('tenantId')
   const returnTo = searchParams.get('return_to')
 
   if (isPwa && tenantSlug) {
-    // Passa il code già exchanged — non serve, la sessione è già nei cookie
-    // Redirect diretto alla destinazione PWA
-    const destination = returnTo && returnTo.startsWith('/')
-      ? returnTo
-      : '/profilo'
-    return redirect(
-      `https://${tenantSlug}-app.styll.it${destination}`
-    )
+    if (tenantId) {
+      await setupPwaGoogleClient(tenantId)
+    }
+    const destination = returnTo && returnTo.startsWith('/') ? returnTo : '/profilo'
+    return redirect(`https://${tenantSlug}-app.styll.it${destination}`)
   }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('onboarding_completed')
+    .eq('id', user.id)
+    .maybeSingle()
 
   if (profile?.onboarding_completed) {
     return redirect(`${origin}/dashboard`)

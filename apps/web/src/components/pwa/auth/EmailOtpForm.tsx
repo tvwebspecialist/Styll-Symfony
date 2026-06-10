@@ -187,18 +187,15 @@ export function EmailOtpForm({
 
     try {
       const callbackUrl = new URL('https://styll.it/auth/callback')
+      callbackUrl.searchParams.set('next', 'pwa')
       callbackUrl.searchParams.set('tenantSlug', tenantSlug)
       callbackUrl.searchParams.set('tenantId', tenantId)
-      callbackUrl.searchParams.set('next', 'pwa')
       if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
 
-      const supabase = createPwaClient()
+      const supabase = createClient()
       await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: callbackUrl.toString(),
-          queryParams: { access_type: 'offline', prompt: 'consent' },
-        },
+        options: { redirectTo: callbackUrl.toString() },
       })
       // Browser redirects — code below never executes
     } catch {
