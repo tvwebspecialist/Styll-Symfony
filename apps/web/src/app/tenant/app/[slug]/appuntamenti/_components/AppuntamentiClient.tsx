@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import { cancelClientAppointment } from '@/lib/actions/pwa-client-actions'
@@ -38,18 +38,37 @@ const STATUS_LABELS: Record<AppStatus, string> = {
   no_show: 'Non presentato',
 }
 
-const STATUS_STYLES: Record<AppStatus, string> = {
-  confirmed: 'bg-emerald-100 text-emerald-700',
-  pending: 'bg-amber-100 text-amber-700',
-  completed: 'bg-neutral-100 text-neutral-600',
-  cancelled: 'bg-red-100 text-red-500',
-  no_show: 'bg-red-50 text-red-400',
+const STATUS_STYLES: Record<AppStatus, { bg: string; color: string }> = {
+  confirmed: { bg: '#dcfce7', color: '#16a34a' },
+  pending: { bg: '#fef9c3', color: '#ca8a04' },
+  completed: { bg: '#f3f4f6', color: '#6b7280' },
+  cancelled: { bg: '#fee2e2', color: '#dc2626' },
+  no_show: { bg: '#fee2e2', color: '#dc2626' },
+}
+
+function StatusBadge({ status, size = 'sm' }: { status: AppStatus; size?: 'sm' | 'lg' }) {
+  const s = STATUS_STYLES[status]
+  return (
+    <span
+      style={{
+        backgroundColor: s.bg,
+        color: s.color,
+        padding: size === 'lg' ? '4px 12px' : '3px 10px',
+        borderRadius: 20,
+        fontSize: size === 'lg' ? 13 : 12,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+      }}
+    >
+      {STATUS_LABELS[status]}
+    </span>
+  )
 }
 
 function formatDateParts(iso: string): { day: string; weekday: string; month: string; time: string } {
   const d = new Date(iso)
-  const fmt = (opts: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat('it-IT', opts).format(d)
+  const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('it-IT', opts).format(d)
   return {
     day: fmt({ day: 'numeric' }),
     weekday: fmt({ weekday: 'short' }),
@@ -59,18 +78,24 @@ function formatDateParts(iso: string): { day: string; weekday: string; month: st
 }
 
 function formatFullDate(iso: string): string {
-  return new Intl.DateTimeFormat('it-IT', {
+  const d = new Date(iso)
+  const date = new Intl.DateTimeFormat('it-IT', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso))
+  }).format(d)
+  const time = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(d)
+  const capitalized = date.charAt(0).toUpperCase() + date.slice(1)
+  return `${capitalized} · ${time}`
 }
 
 function formatPrice(n: number): string {
-  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n)
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+  }).format(n)
 }
 
 function AppCard({
@@ -88,37 +113,119 @@ function AppCard({
     <button
       type="button"
       onClick={() => onOpen(apt)}
-      className="w-full text-left rounded-2xl bg-white border border-neutral-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden flex active:scale-[0.98] transition-transform"
+      className="w-full text-left active:scale-[0.98] transition-transform"
+      style={{
+        background: '#ffffff',
+        borderRadius: 16,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        padding: 16,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        border: 'none',
+        cursor: 'pointer',
+      }}
     >
-      {/* Date column */}
+      {/* Date block */}
       <div
-        className="flex flex-col items-center justify-center w-16 shrink-0 px-2 py-4"
-        style={{ backgroundColor: primaryColor }}
+        style={{
+          backgroundColor: primaryColor,
+          borderRadius: 12,
+          padding: '10px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          minWidth: 52,
+        }}
       >
-        <span className="text-[22px] font-black text-white leading-none">{day}</span>
-        <span className="text-[10px] font-semibold text-white/80 uppercase mt-0.5">{weekday}</span>
-        <span className="text-[10px] font-medium text-white/70 uppercase">{month}</span>
+        <span style={{ fontSize: 22, fontWeight: 700, color: '#ffffff', lineHeight: 1 }}>{day}</span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.85)',
+            textTransform: 'uppercase',
+            marginTop: 3,
+          }}
+        >
+          {weekday}
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.70)',
+            textTransform: 'uppercase',
+          }}
+        >
+          {month}
+        </span>
       </div>
 
       {/* Info column */}
-      <div className="flex-1 px-4 py-3 min-w-0">
-        <p className="text-sm font-semibold text-neutral-900 truncate">{apt.serviceNames}</p>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: '#111111',
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {apt.serviceNames}
+        </p>
         {apt.staffName && (
-          <p className="mt-0.5 text-xs text-neutral-400 truncate">{apt.staffName}</p>
+          <p
+            style={{
+              fontSize: 13,
+              color: '#9ca3af',
+              margin: '2px 0 0 0',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {apt.staffName}
+          </p>
         )}
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-neutral-500">
-          <Clock className="size-3 shrink-0" />
-          <span>{time}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Clock size={12} color="#9ca3af" />
+            <span style={{ fontSize: 13, color: '#9ca3af' }}>{time}</span>
+          </div>
+          <StatusBadge status={apt.status} />
         </div>
       </div>
-
-      {/* Status badge */}
-      <div className="flex items-center pr-4">
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${STATUS_STYLES[apt.status]}`}>
-          {STATUS_LABELS[apt.status]}
-        </span>
-      </div>
     </button>
+  )
+}
+
+function InfoRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
+  return (
+    <div>
+      <div style={{ padding: '14px 0' }}>
+        <span
+          style={{
+            display: 'block',
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: '#9ca3af',
+            marginBottom: 4,
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: 15, color: '#111111' }}>{value}</span>
+      </div>
+      {!last && <div style={{ height: 1, backgroundColor: '#f3f4f6' }} />}
+    </div>
   )
 }
 
@@ -128,7 +235,7 @@ function DetailSheet({
   tenantId,
   primaryColor,
   prenotaPath,
-  slug,
+  slug: _slug,
 }: {
   apt: AppointmentItem
   onClose: () => void
@@ -140,6 +247,17 @@ function DetailSheet({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  function close() {
+    setVisible(false)
+    setTimeout(onClose, 290)
+  }
 
   const isFuture = new Date(apt.start_time) > new Date()
   const isActionable = isFuture && ['confirmed', 'pending'].includes(apt.status)
@@ -148,86 +266,192 @@ function DetailSheet({
     startTransition(async () => {
       const res = await cancelClientAppointment(tenantId, apt.id)
       if (res.ok) {
-        onClose()
+        close()
       } else {
         setError(res.error)
       }
     })
   }
 
-  const rescheduleUrl = apt.staffId && apt.locationId
-    ? `${prenotaPath}?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&_skip=sede,barbiere,servizi`
-    : prenotaPath
+  const rescheduleUrl =
+    apt.staffId && apt.locationId
+      ? `${prenotaPath}?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&_skip=sede,barbiere,servizi`
+      : prenotaPath
+
+  const infoRows: Array<{ label: string; value: string }> = [
+    { label: 'Data e ora', value: formatFullDate(apt.start_time) },
+    ...(apt.staffName ? [{ label: 'Barbiere', value: apt.staffName }] : []),
+    ...(apt.locationName
+      ? [{ label: 'Sede', value: [apt.locationName, apt.locationAddress].filter(Boolean).join(' · ') }]
+      : []),
+    ...(apt.totalPrice !== null && apt.totalPrice > 0
+      ? [{ label: 'Totale stimato', value: formatPrice(apt.totalPrice) }]
+      : []),
+  ]
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/45" onClick={onClose} />
-      <div className="relative z-10 rounded-t-3xl bg-white shadow-2xl max-h-[85dvh] overflow-y-auto">
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-neutral-200" />
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'flex-end',
+      }}
+    >
+      {/* Overlay — covers everything including topbar and bottom nav */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 290ms ease',
+        }}
+        onClick={close}
+      />
+
+      {/* Sheet — floats 12px from all edges, rounded on all sides */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          margin: 12,
+          width: 'calc(100% - 24px)',
+          maxHeight: '85dvh',
+          backgroundColor: '#ffffff',
+          borderRadius: 24,
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
+          overflowY: 'auto',
+          transform: visible ? 'translateY(0)' : 'translateY(110%)',
+          transition: 'transform 290ms cubic-bezier(0.32, 0.72, 0, 1)',
+        }}
+      >
+        {/* Handle bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12, marginBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#e5e7eb' }} />
         </div>
 
-        <div className="px-5 pt-2 pb-10">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <h2 className="text-lg font-bold text-neutral-900">{apt.serviceNames}</h2>
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_STYLES[apt.status]}`}>
-              {STATUS_LABELS[apt.status]}
-            </span>
+        <div style={{ padding: 20, paddingBottom: 32 }}>
+          {/* Title + badge */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+              marginBottom: 4,
+            }}
+          >
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#111111', margin: 0, flex: 1 }}>
+              {apt.serviceNames}
+            </h2>
+            <StatusBadge status={apt.status} size="lg" />
           </div>
 
-          <div className="flex flex-col gap-3">
-            <InfoRow label="Data e ora" value={formatFullDate(apt.start_time)} />
-            {apt.staffName && <InfoRow label="Barbiere" value={apt.staffName} />}
-            {apt.locationName && (
-              <InfoRow
-                label="Sede"
-                value={[apt.locationName, apt.locationAddress].filter(Boolean).join(' · ')}
-              />
-            )}
-            {apt.totalPrice !== null && apt.totalPrice > 0 && (
-              <InfoRow label="Totale stimato" value={formatPrice(apt.totalPrice)} />
-            )}
+          {/* Info rows */}
+          <div>
+            {infoRows.map((row, i) => (
+              <InfoRow key={row.label} label={row.label} value={row.value} last={i === infoRows.length - 1} />
+            ))}
           </div>
 
+          {/* Actions */}
           {isActionable && (
-            <div className="mt-6 flex flex-col gap-3">
+            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {!confirmDelete ? (
                 <>
                   <Link
                     href={rescheduleUrl}
-                    className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-white active:opacity-80"
-                    style={{ backgroundColor: primaryColor }}
-                    onClick={onClose}
+                    onClick={close}
+                    style={{
+                      display: 'flex',
+                      height: 50,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 14,
+                      backgroundColor: primaryColor,
+                      color: '#ffffff',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
                   >
                     Modifica orario
                   </Link>
                   <button
                     type="button"
                     onClick={() => setConfirmDelete(true)}
-                    className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-red-500 border border-red-200 bg-red-50 active:bg-red-100"
+                    style={{
+                      display: 'flex',
+                      height: 50,
+                      width: '100%',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 14,
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
                   >
                     Annulla appuntamento
                   </button>
                 </>
               ) : (
                 <>
-                  <p className="text-center text-sm text-neutral-600 mb-1">
+                  <p style={{ textAlign: 'center', fontSize: 14, color: '#6b7280', margin: '0 0 8px 0' }}>
                     Sei sicuro di voler annullare questo appuntamento?
                   </p>
-                  {error && <p className="text-center text-xs text-red-500">{error}</p>}
+                  {error && (
+                    <p style={{ textAlign: 'center', fontSize: 12, color: '#dc2626', margin: '0 0 4px 0' }}>
+                      {error}
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={handleCancel}
                     disabled={isPending}
-                    className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-bold text-white bg-red-500 active:opacity-80 disabled:opacity-60"
+                    style={{
+                      display: 'flex',
+                      height: 50,
+                      width: '100%',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 14,
+                      backgroundColor: '#dc2626',
+                      color: '#ffffff',
+                      fontSize: 15,
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: isPending ? 'not-allowed' : 'pointer',
+                      opacity: isPending ? 0.6 : 1,
+                    }}
                   >
                     {isPending ? 'Annullamento…' : 'Conferma annullamento'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setConfirmDelete(false); setError(null) }}
-                    className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-neutral-500 border border-neutral-200"
+                    onClick={() => {
+                      setConfirmDelete(false)
+                      setError(null)
+                    }}
+                    style={{
+                      display: 'flex',
+                      height: 50,
+                      width: '100%',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 14,
+                      backgroundColor: '#f3f4f6',
+                      color: '#6b7280',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
                   >
                     Torna indietro
                   </button>
@@ -237,15 +461,6 @@ function DetailSheet({
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{label}</span>
-      <span className="text-sm text-neutral-800">{value}</span>
     </div>
   )
 }
@@ -285,7 +500,7 @@ export function AppuntamentiClient({
         )}
       </section>
 
-      {/* Passati */}
+      {/* Storico */}
       {past.length > 0 && (
         <section className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-3">Storico</h2>
@@ -297,7 +512,6 @@ export function AppuntamentiClient({
         </section>
       )}
 
-      {/* Detail sheet */}
       {selectedApt && (
         <DetailSheet
           apt={selectedApt}

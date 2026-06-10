@@ -214,7 +214,7 @@ function TopBarInner({
 
   // Pages that need a back button
   const SUB_PAGES: Record<string, { title: string; backTo: string }> = {
-    'appuntamenti': { title: 'I miei appuntamenti', backTo: tenantPath('/profilo') },
+    'appuntamenti': { title: 'Appuntamenti', backTo: tenantPath('/profilo') },
   }
   const PROFILO_SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'modifica': { title: 'Modifica profilo', backTo: tenantPath('/profilo') },
