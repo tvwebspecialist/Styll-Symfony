@@ -68,32 +68,25 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
   return null
 }
 
-// ─── CSP (nonce-based) ────────────────────────────────────────────────────────
+// ─── CSP ──────────────────────────────────────────────────────────────────────
 
 /**
  * Build the Content-Security-Policy header for this request.
  *
- * - `script-src` lists a per-request nonce alongside `'self'` and `'unsafe-inline'`.
- *   Modern (CSP3) browsers honour the nonce and IGNORE `'unsafe-inline'`, so we
- *   keep the nonce protection where it matters. `'unsafe-inline'` is kept as a
- *   fallback for older browsers that don't understand nonces. We deliberately
- *   avoid `'strict-dynamic'` here: it ignores host-based allow-lists and was
- *   blocking parser-inserted `/_next/static/*` chunk preloads in production.
+ * - `script-src` uses `'self'` + `'unsafe-inline'` as a pragmatic production-safe
+ *   fallback. The ideal nonce-based variant was not being propagated reliably to
+ *   the inline scripts emitted by Next.js, which caused real breakage in prod.
  * - `style-src` keeps `'unsafe-inline'`: tenant brand colors and many components
- *   inject inline <style> blocks; nonce'ing every site would be a large refactor.
+ *   inject inline <style> blocks; tightening this would be a large refactor.
  * - `'unsafe-eval'` is dev-only — React uses eval to rebuild server stacks.
  * - `frame-ancestors` opens up only on public tenant surfaces (landing/app) so
  *   the dashboard can embed live previews; everywhere else stays `'none'`.
- *
- * The nonce is also exposed via `x-nonce` so Server Components can read it via
- * `headers()` and apply it to their own inline <script> tags (see
- * apps/web/src/app/tenant/app/[slug]/layout.tsx).
  */
-function buildCspHeader(nonce: string, allowEmbedding: boolean): string {
+function buildCspHeader(allowEmbedding: boolean): string {
   const isDev = process.env.NODE_ENV === 'development'
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://www.google-analytics.com https://va.vercel-scripts.com",
@@ -118,13 +111,6 @@ const ONBOARDING_COMPLETE = '/onboarding/complete'
 const LEGACY_COMPLETE = '/register/complete'
 
 export async function proxy(request: NextRequest) {
-  // ── CSP nonce ──────────────────────────────────────────────────────────────
-  // Fresh per-request, base64-encoded so it's a valid CSP token. Computed up
-  // front because every downstream branch (next/redirect/rewrite) must emit
-  // the same CSP and Next.js needs the nonce in the request headers before
-  // SSR begins so it can inject it onto framework scripts.
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
-
   // Resolve tenant rewrite before running auth guards
   const tenantRewriteUrl = resolveTenantRewrite(request)
 
@@ -134,13 +120,7 @@ export async function proxy(request: NextRequest) {
     tenantRewriteUrl?.pathname.startsWith('/tenant/landing/') === true
     || tenantRewriteUrl?.pathname.startsWith('/tenant/app/') === true
 
-  const cspHeader = buildCspHeader(nonce, isEmbeddableTenantSurface)
-
-  // Inject nonce + CSP into the request headers so Next.js can extract the
-  // nonce during SSR and propagate it to framework scripts + <Script> tags.
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-nonce', nonce)
-  requestHeaders.set('Content-Security-Policy', cspHeader)
+  const cspHeader = buildCspHeader(isEmbeddableTenantSurface)
 
   // On subdomain requests, skip auth-page redirects to avoid redirect loops.
   // Auth is enforced by the tenant layout itself.
@@ -154,7 +134,7 @@ export async function proxy(request: NextRequest) {
   const isPwaRoute = pathname.startsWith('/tenant/app/')
     || tenantRewriteUrl?.pathname.startsWith('/tenant/app/') === true
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  const response = NextResponse.next({ request })
   response.headers.set('Content-Security-Policy', cspHeader)
 
   if (!isPwaRoute) {
@@ -331,11 +311,7 @@ export async function proxy(request: NextRequest) {
 
   // Apply subdomain rewrite, carrying over Supabase session cookies
   if (tenantRewriteUrl) {
-    // Pass `requestHeaders` so Next.js can extract the nonce when rendering
-    // the rewritten route (otherwise framework scripts wouldn't get nonced).
-    const rewriteResponse = NextResponse.rewrite(tenantRewriteUrl, {
-      request: { headers: requestHeaders },
-    })
+    const rewriteResponse = NextResponse.rewrite(tenantRewriteUrl)
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
     })
