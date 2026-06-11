@@ -32,18 +32,9 @@ interface Props {
   }
 }
 
-interface IconBubbleProps {
-  icon: React.ReactNode
-  bg: string
-  color: string
-}
-
-function IconBubble({ icon, bg, color }: IconBubbleProps) {
+function GreyIcon({ icon }: { icon: React.ReactNode }) {
   return (
-    <div
-      className="size-8 rounded-full flex items-center justify-center shrink-0"
-      style={{ backgroundColor: bg, color }}
-    >
+    <div className="size-5 shrink-0 flex items-center justify-center" style={{ color: '#6b7280' }}>
       {icon}
     </div>
   )
@@ -129,17 +120,17 @@ export function SettingsList({
       {/* Group 1 — Il mio account */}
       <SectionCard title="Il mio account">
         <SettingRow
-          icon={<IconBubble icon={<CalendarDays className="size-4" />} bg="#EFF6FF" color="#3B82F6" />}
+          icon={<GreyIcon icon={<CalendarDays className="size-5" />} />}
           label="I miei appuntamenti"
           href={appuntamentiPath}
         />
         <SettingRow
-          icon={<IconBubble icon={<ShoppingBag className="size-4" />} bg="#FFF7ED" color="#F97316" />}
+          icon={<GreyIcon icon={<ShoppingBag className="size-5" />} />}
           label="Prodotti preferiti"
           href={prodottiPath}
         />
         <SettingRow
-          icon={<IconBubble icon={<Trophy className="size-4" />} bg="#FEFCE8" color="#EAB308" />}
+          icon={<GreyIcon icon={<Trophy className="size-5" />} />}
           label="Programma fedeltà"
           href={puntiPath}
         />
@@ -148,7 +139,7 @@ export function SettingsList({
       {/* Group 2 — Impostazioni */}
       <SectionCard title="Impostazioni">
         <SettingRow
-          icon={<IconBubble icon={<UserPen className="size-4" />} bg="#F0FDF4" color="#22C55E" />}
+          icon={<GreyIcon icon={<UserPen className="size-5" />} />}
           label="Modifica profilo"
           href={modificaPath}
         />
@@ -156,7 +147,7 @@ export function SettingsList({
           <PushNotificationToggle tenantId={tenantId} />
         </div>
         <SettingRow
-          icon={<IconBubble icon={<Settings className="size-4" />} bg="#F5F3FF" color="#8B5CF6" />}
+          icon={<GreyIcon icon={<Settings className="size-5" />} />}
           label="Preferenze"
           sublabel="Comunicazioni, notifiche, privacy"
           href={preferenzePath}
@@ -166,12 +157,12 @@ export function SettingsList({
       {/* Group 3 — Altro */}
       <SectionCard title="Altro">
         <SettingRow
-          icon={<IconBubble icon={<FileText className="size-4" />} bg="#F9FAFB" color="#6B7280" />}
+          icon={<GreyIcon icon={<FileText className="size-5" />} />}
           label="Termini e Privacy"
           href="https://styll.it/privacy"
         />
         <SettingRow
-          icon={<IconBubble icon={<LogOut className="size-4" />} bg="#FEF2F2" color="#EF4444" />}
+          icon={<GreyIcon icon={<LogOut className="size-5" />} />}
           label="Esci"
           onClick={handleLogout}
           danger

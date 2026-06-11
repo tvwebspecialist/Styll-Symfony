@@ -15,6 +15,13 @@ interface Props {
 
 type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
 
+const TIER_STYLES: Record<Tier, { bg: string; text: string }> = {
+  Bronze: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  Silver: { bg: 'bg-neutral-200', text: 'text-neutral-600' },
+  Gold: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  Platinum: { bg: 'bg-slate-100', text: 'text-slate-600' },
+}
+
 function computeTier(totalPoints: number): {
   tierLabel: Tier
   nextTierLabel: Tier | null
@@ -30,16 +37,6 @@ function computeTier(totalPoints: number): {
   }
   const progress = Math.min(100, Math.round((totalPoints / 500) * 100))
   return { tierLabel: 'Bronze', nextTierLabel: 'Silver', progress, pointsToNextTier: 500 - totalPoints }
-}
-
-function StatBlock({ value, label, withBorder }: { value: number; label: string; withBorder?: boolean }) {
-  const fmt = new Intl.NumberFormat('it-IT')
-  return (
-    <div className={`flex-1 flex flex-col items-center py-4 ${withBorder ? 'border-r border-neutral-100' : ''}`}>
-      <span className="text-[22px] font-black text-neutral-950 leading-none">{fmt.format(value)}</span>
-      <span className="mt-1 text-[11px] text-neutral-400 font-medium">{label}</span>
-    </div>
-  )
 }
 
 export default async function ProfiloPage({ params }: Props) {
@@ -178,23 +175,80 @@ export default async function ProfiloPage({ params }: Props) {
       <div className="mx-auto max-w-xl px-4 pt-4">
         <div className="flex flex-col gap-3">
 
-          {/* Hero card — avatar + name + stats */}
-          <div className="rounded-[20px] bg-white shadow-[0_2px_16px_rgba(0,0,0,0.07)] border border-neutral-100 overflow-hidden">
-            {/* Avatar + name */}
-            <div className="px-5 pt-6 pb-4 flex flex-col items-center">
+          {/* Hero section — photo zone + avatar at seam + info card */}
+          <div style={{ position: 'relative' }}>
+            {/* Photo zone */}
+            <div style={{
+              height: 180,
+              backgroundColor: '#F0F0F0',
+              borderRadius: '20px 20px 0 0',
+            }} />
+
+            {/* Avatar — bottom edge at photo zone bottom, lower portion covered by card */}
+            <div style={{
+              position: 'absolute',
+              top: 70,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 2,
+            }}>
               <AvatarHero
                 userId={user.id}
                 avatarUrl={avatarUrl}
                 fullName={profileFullName}
-                tierLabel={tierLabel}
               />
             </div>
 
-            {/* Stats bar */}
-            <div className="flex border-t border-neutral-100">
-              <StatBlock value={upcomingCount} label="Prossimi" withBorder />
-              <StatBlock value={completedCount} label="Completati" withBorder />
-              <StatBlock value={cancelledCount} label="Cancellati" />
+            {/* Info card — white, rounded top, overlaps photo zone */}
+            <div style={{
+              position: 'relative',
+              backgroundColor: '#ffffff',
+              borderRadius: '20px 20px 0 0',
+              boxShadow: '0 -4px 20px rgba(0,0,0,0.06)',
+              marginTop: -40,
+              paddingTop: 56,
+              paddingLeft: 20,
+              paddingRight: 20,
+              paddingBottom: 8,
+              zIndex: 1,
+            }}>
+              {/* Name + tier badge */}
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <p style={{ fontSize: 18, fontWeight: 700, color: '#0a0a0a', margin: '0 0 8px 0', lineHeight: 1.2 }}>
+                  {profileFullName}
+                </p>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${TIER_STYLES[tierLabel].bg} ${TIER_STYLES[tierLabel].text}`}>
+                  {tierLabel} Member
+                </span>
+              </div>
+
+              {/* Stats row */}
+              <div style={{ display: 'flex', borderTop: '1px solid #f3f4f6', marginTop: 4 }}>
+                {[
+                  { value: upcomingCount, label: 'Futuri' },
+                  { value: completedCount, label: 'Completati' },
+                  { value: cancelledCount, label: 'Cancellati' },
+                ].map((stat, i, arr) => (
+                  <div
+                    key={stat.label}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      padding: '14px 0',
+                      borderRight: i < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 22, fontWeight: 900, color: '#0a0a0a', lineHeight: 1 }}>
+                      {new Intl.NumberFormat('it-IT').format(stat.value)}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, marginTop: 4 }}>
+                      {stat.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
