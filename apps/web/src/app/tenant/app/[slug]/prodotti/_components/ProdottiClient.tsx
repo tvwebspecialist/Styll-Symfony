@@ -138,7 +138,6 @@ export function ProdottiClient({
               borderRadius: 20,
               border: '1px solid #F0F0F0',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-              overflow: 'hidden',
               opacity: product.available ? 1 : 0.55,
             }}
           >
@@ -153,14 +152,15 @@ export function ProdottiClient({
               aria-label={`Vedi dettagli ${product.name}`}
             />
 
-            {/* Square image */}
+            {/* Inset image — floated inside card, mirrors dashboard ProdottoCard */}
             <div
               style={{
                 position: 'relative',
-                width: '100%',
-                aspectRatio: '1 / 1',
-                background: '#F5F5F5',
+                margin: '8px 8px 0 8px',
+                borderRadius: 12,
                 overflow: 'hidden',
+                aspectRatio: '1 / 1',
+                background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
               }}
             >
               {product.photo_url ? (
@@ -264,22 +264,6 @@ export function ProdottiClient({
                 {product.name}
               </p>
 
-              {/* Brand */}
-              {product.brand && (
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: '#9CA3AF',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    marginBottom: product.description ? 4 : 8,
-                  }}
-                >
-                  {product.brand}
-                </p>
-              )}
-
               {/* Description */}
               {product.description && (
                 <p
@@ -303,7 +287,7 @@ export function ProdottiClient({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginTop: !product.brand && !product.description ? 4 : 0,
+                  marginTop: !product.description ? 4 : 0,
                 }}
               >
                 <p
