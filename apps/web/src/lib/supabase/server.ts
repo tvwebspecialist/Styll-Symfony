@@ -22,6 +22,9 @@ export async function createClient() {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, {
+                maxAge: 60 * 60 * 24 * 365,
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
                 ...options,
                 ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
               })
