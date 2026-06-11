@@ -6,7 +6,6 @@ import { createTenantPaths } from '@/lib/pwa-redirect'
 import { ProfileLoginGate } from '../_components/ProfileLoginGate'
 import { ProfiloAuthGuard } from './_components/ProfiloAuthGuard'
 import { AvatarHero } from './_components/AvatarHero'
-import { GamificationBox } from './_components/GamificationBox'
 import { SettingsList } from './_components/SettingsList'
 
 interface Props {
@@ -173,17 +172,12 @@ export default async function ProfiloPage({ params }: Props) {
             userId={user.id}
             avatarUrl={avatarUrl}
             fullName={profileFullName}
+            email={profileEmail}
             tierLabel={tierLabel}
-            upcomingCount={upcomingCount}
-            completedCount={completedCount}
-            cancelledCount={cancelledCount}
-          />
-
-          {/* Gamification card */}
-          <GamificationBox
+            upcoming={upcomingCount}
+            completed={completedCount}
+            cancelled={cancelledCount}
             availablePoints={availablePoints}
-            totalPoints={totalPoints}
-            tierLabel={tierLabel}
             nextTierLabel={nextTierLabel}
             pointsToNextTier={pointsToNextTier}
             progress={progress}
