@@ -73,9 +73,13 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
 /**
  * Build the Content-Security-Policy header for this request.
  *
- * - `script-src` uses a per-request nonce + 'strict-dynamic'. Origin entries
- *   remain as a CSP2 fallback for older browsers that ignore 'strict-dynamic'.
- * - `style-src` keeps 'unsafe-inline': tenant brand colors and many components
+ * - `script-src` lists a per-request nonce alongside `'self'` and `'unsafe-inline'`.
+ *   Modern (CSP3) browsers honour the nonce and IGNORE `'unsafe-inline'`, so we
+ *   keep the nonce protection where it matters. `'unsafe-inline'` is kept as a
+ *   fallback for older browsers that don't understand nonces. We deliberately
+ *   avoid `'strict-dynamic'` here: it ignores host-based allow-lists and was
+ *   blocking parser-inserted `/_next/static/*` chunk preloads in production.
+ * - `style-src` keeps `'unsafe-inline'`: tenant brand colors and many components
  *   inject inline <style> blocks; nonce'ing every site would be a large refactor.
  * - `'unsafe-eval'` is dev-only — React uses eval to rebuild server stacks.
  * - `frame-ancestors` opens up only on public tenant surfaces (landing/app) so
@@ -89,10 +93,10 @@ function buildCspHeader(nonce: string, allowEmbedding: boolean): string {
   const isDev = process.env.NODE_ENV === 'development'
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://va.vercel-scripts.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://www.google-analytics.com https://va.vercel-scripts.com",
     "img-src 'self' https://*.supabase.co data: blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
