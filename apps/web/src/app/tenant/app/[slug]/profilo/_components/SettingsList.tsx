@@ -15,10 +15,8 @@ import {
 } from 'lucide-react'
 import { logoutClient } from '@/lib/actions/client-auth'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
-import { PushNotificationToggle } from './PushNotificationToggle'
 
 interface Props {
-  tenantId: string
   appuntamentiPath: string
   prodottiPath: string
   puntiPath: string
@@ -95,7 +93,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
 }
 
 export function SettingsList({
-  tenantId,
   appuntamentiPath,
   prodottiPath,
   puntiPath,
@@ -143,9 +140,6 @@ export function SettingsList({
           label="Modifica profilo"
           href={modificaPath}
         />
-        <div className="px-4">
-          <PushNotificationToggle tenantId={tenantId} />
-        </div>
         <SettingRow
           icon={<GreyIcon icon={<Settings className="size-5" />} />}
           label="Preferenze"
@@ -162,7 +156,7 @@ export function SettingsList({
           href="https://styll.it/privacy"
         />
         <SettingRow
-          icon={<GreyIcon icon={<LogOut className="size-5" />} />}
+          icon={<div className="size-5 shrink-0 flex items-center justify-center" style={{ color: '#dc2626' }}><LogOut className="size-5" /></div>}
           label="Esci"
           onClick={handleLogout}
           danger
