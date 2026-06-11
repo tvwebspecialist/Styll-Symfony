@@ -24,20 +24,36 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          { key: 'ngrok-skip-browser-warning', value: '1' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-          { key: 'X-XSS-Protection', value: '1; mode=block' },
-        ],
-      },
+    const securityHeaders = [
+      { key: 'ngrok-skip-browser-warning', value: '1' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+      { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+      // CSP solo in produzione — in dev Turbopack usa script inline e blob: che il CSP blocca
+      ...(process.env.NODE_ENV === 'production'
+        ? [{
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' https://va.vercel-scripts.com",
+              "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
+              "font-src 'self' https://fonts.gstatic.com",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://va.vercel-scripts.com",
+              "img-src 'self' https://*.supabase.co data: blob:",
+              "worker-src 'self' blob:",
+              "manifest-src 'self'",
+              "frame-src 'self' https://accounts.google.com",
+              "frame-ancestors 'none'",
+              "form-action 'self'",
+              "base-uri 'self'",
+            ].join('; '),
+          }]
+        : []),
     ]
+
+    return [{ source: '/(.*)', headers: securityHeaders }]
   },
 }
 
