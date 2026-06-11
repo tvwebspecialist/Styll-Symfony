@@ -103,9 +103,9 @@ export function ProfileLoginGate({
       {/* Form area */}
       <div className="flex flex-1 flex-col items-center px-5 pt-6 pb-10">
         <div className="mb-6 text-center">
-          <h1 className="text-[24px] font-extrabold text-gray-900 leading-tight">Quasi fatto.</h1>
+          <h1 className="text-[24px] font-extrabold text-gray-900 leading-tight">Bentornato.</h1>
           <p className="mx-auto mt-1.5 max-w-[260px] text-[14px] text-gray-400 leading-relaxed">
-            Accedi per gestire il tuo profilo e guadagnare punti fedeltà.
+            Accedi per vedere i tuoi appuntamenti, punti e molto altro.
           </p>
         </div>
 
