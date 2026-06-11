@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 /**
  * GET /api/push/subscribe
@@ -16,6 +18,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * Body: { endpoint }
  */
 
+const PushSubscribeSchema = z.object({
+  tenantId: z.string().uuid(),
+  subscription: z.object({
+    endpoint: z.string().url(),
+    keys: z.object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    }),
+  }),
+})
+
+const PushUnsubscribeSchema = z.object({
+  endpoint: z.string().url(),
+})
+
 export async function GET() {
   const key = process.env.VAPID_PUBLIC_KEY
   if (!key) {
@@ -29,15 +46,25 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json() as {
-    tenantId: string
-    subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+  // Rate limit: max 5 registrazioni/aggiornamenti per utente all'ora.
+  // Check posto DOPO l'auth così gli utenti anonimi ricevono 401, non 429.
+  const rl = checkRateLimit(`push-subscribe:${user.id}`, 5, 60 * 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+    )
   }
 
-  const { tenantId, subscription } = body
-  if (!tenantId || !subscription?.endpoint) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  const body = await req.json()
+  const parsed = PushSubscribeSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid payload', details: parsed.error.flatten() },
+      { status: 400 }
+    )
   }
+  const { tenantId, subscription } = parsed.data
 
   // Verify tenant exists and user has access (is a client of this tenant)
   const db = createAdminClient()
@@ -87,14 +114,20 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json() as { endpoint: string }
-  if (!body?.endpoint) return NextResponse.json({ error: 'Missing endpoint' }, { status: 400 })
+  const body = await req.json()
+  const parsed = PushUnsubscribeSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid payload', details: parsed.error.flatten() },
+      { status: 400 }
+    )
+  }
 
   const db = createAdminClient()
   await db
     .from('push_subscriptions')
     .delete()
-    .eq('endpoint', body.endpoint)
+    .eq('endpoint', parsed.data.endpoint)
     .eq('profile_id', user.id) // sicurezza: solo la tua subscription
 
   return NextResponse.json({ success: true })
