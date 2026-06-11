@@ -184,11 +184,13 @@ async function processReminders(type: ReminderType): Promise<{ processed: number
 export async function POST(req: NextRequest) {
   // Auth: Bearer token
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') ?? ''
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  if (!cronSecret) {
+    console.error('[cron/reminders] CRON_SECRET non configurato')
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+  }
+  const auth = req.headers.get('authorization')
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const results = await Promise.all([
