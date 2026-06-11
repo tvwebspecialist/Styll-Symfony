@@ -48,6 +48,7 @@ export function ProdottiClient({
   initialWishlistIds,
 }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [animationEpoch, setAnimationEpoch] = useState(0)
   const { isFavorite, toggle } = useFavoriteProducts({
     isLoggedIn,
     clientId,
@@ -57,6 +58,11 @@ export function ProdottiClient({
   })
   const tenantPath = useTenantPath(slug)
 
+  function selectCategory(cat: string | null) {
+    setSelectedCategory(cat)
+    setAnimationEpoch((e) => e + 1)
+  }
+
   const filtered =
     selectedCategory == null
       ? products
@@ -64,74 +70,74 @@ export function ProdottiClient({
 
   return (
     <div>
+      <style>{`
+        @keyframes prodotti-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .prodotti-card { animation: none !important; opacity: 1 !important; }
+        }
+        .prodotti-filters::-webkit-scrollbar { display: none; }
+      `}</style>
+
       {/* Category filter pills */}
       {categories.length > 1 && (
         <div
+          className="prodotti-filters"
           style={{
             display: 'flex',
-            gap: 8,
+            gap: 6,
             overflowX: 'auto',
-            paddingBottom: 4,
-            marginBottom: 16,
+            paddingBottom: 12,
+            marginBottom: 8,
             scrollbarWidth: 'none',
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          <button
-            type="button"
-            onClick={() => setSelectedCategory(null)}
-            style={{
-              flexShrink: 0,
-              padding: '7px 16px',
-              borderRadius: 100,
-              border: '1.5px solid',
-              borderColor: selectedCategory == null ? 'var(--brand-primary, #222)' : '#E5E5E5',
-              backgroundColor: selectedCategory == null ? 'var(--brand-primary, #222)' : '#FFFFFF',
-              color: selectedCategory == null ? '#FFFFFF' : '#555',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Tutti
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
-              style={{
-                flexShrink: 0,
-                padding: '7px 16px',
-                borderRadius: 100,
-                border: '1.5px solid',
-                borderColor: selectedCategory === cat ? 'var(--brand-primary, #222)' : '#E5E5E5',
-                backgroundColor: selectedCategory === cat ? 'var(--brand-primary, #222)' : '#FFFFFF',
-                color: selectedCategory === cat ? '#FFFFFF' : '#555',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {cat}
-            </button>
-          ))}
+          {(['__all__', ...categories] as const).map((cat) => {
+            const isAll = cat === '__all__'
+            const active = isAll ? selectedCategory == null : selectedCategory === cat
+            const label = isAll ? 'Tutti' : cat
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => selectCategory(isAll ? null : (cat === selectedCategory ? null : cat as string))}
+                style={{
+                  flexShrink: 0,
+                  padding: '8px 18px',
+                  borderRadius: 100,
+                  border: '1.5px solid',
+                  borderColor: active ? 'var(--brand-primary, #222)' : 'transparent',
+                  backgroundColor: active ? 'var(--brand-primary, #222)' : '#F2F2F2',
+                  color: active ? '#FFFFFF' : '#444',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 200ms, color 200ms, border-color 200ms',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {/* 2-column product grid */}
+      {/* 2-column product grid — always rigid 2 cols */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           gap: 12,
         }}
       >
-        {filtered.map((product) => (
+        {filtered.map((product, index) => (
           <div
-            key={product.id}
+            key={`${product.id}-${animationEpoch}`}
+            className="prodotti-card"
             style={{
               position: 'relative',
               background: '#FFFFFF',
@@ -139,6 +145,12 @@ export function ProdottiClient({
               border: '1px solid #F0F0F0',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               opacity: product.available ? 1 : 0.55,
+              minWidth: 0,
+              animationName: 'prodotti-in',
+              animationDuration: '380ms',
+              animationTimingFunction: 'ease-out',
+              animationFillMode: 'both',
+              animationDelay: `${index * 55}ms`,
             }}
           >
             {/* Full-card link — behind everything */}
@@ -247,7 +259,7 @@ export function ProdottiClient({
             </div>
 
             {/* Card body */}
-            <div style={{ padding: '10px 12px 12px', position: 'relative', zIndex: 1 }}>
+            <div style={{ padding: '10px 12px 12px', position: 'relative', zIndex: 1, minWidth: 0 }}>
               {/* Name */}
               <p
                 style={{
@@ -300,7 +312,7 @@ export function ProdottiClient({
                   {product.price_sell > 0 ? formatPrice(product.price_sell) : '—'}
                 </p>
 
-                {/* Arrow button — visual only, navigation handled by the card Link */}
+                {/* Arrow — visual only, navigation handled by card Link */}
                 <div
                   aria-hidden="true"
                   style={{
