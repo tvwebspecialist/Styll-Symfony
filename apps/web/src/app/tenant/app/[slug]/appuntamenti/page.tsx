@@ -17,6 +17,7 @@ type RawApt = {
   staff_id: string | null
   location_id: string | null
   appointment_services: Array<{
+    service_id: string | null
     price_at_booking: number | null
     services: { name: string | null } | Array<{ name: string | null }> | null
   }> | null
@@ -43,7 +44,7 @@ function parseApt(raw: RawApt): AppointmentItem {
     .filter(Boolean)
     .join(', ') || 'Appuntamento'
 
-  const serviceIds = services.map((_, i) => `svc_${i}`) // we don't have service_id in this query
+  const serviceIds = services.map((s) => s.service_id).filter((id): id is string => Boolean(id))
 
   const totalPrice = services.reduce((sum, s) => sum + (s.price_at_booking ?? 0), 0)
   const staffRel = readRel(raw.staff)
@@ -101,7 +102,7 @@ export default async function AppuntamentiPage({ params }: Props) {
     )
   }
 
-  const SELECT = 'id, start_time, status, staff_id, location_id, appointment_services(price_at_booking, services(name)), staff:staff_members(profile:profiles(full_name)), locations(name, address)'
+  const SELECT = 'id, start_time, status, staff_id, location_id, appointment_services(service_id, price_at_booking, services(name)), staff:staff_members(profile:profiles(full_name)), locations(name, address)'
   const now = new Date().toISOString()
 
   const [upcomingRes, pastRes] = await Promise.all([

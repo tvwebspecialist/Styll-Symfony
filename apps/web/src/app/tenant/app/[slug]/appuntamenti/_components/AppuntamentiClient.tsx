@@ -275,7 +275,7 @@ function DetailSheet({
 
   const rescheduleUrl =
     apt.staffId && apt.locationId
-      ? `${prenotaPath}?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&_skip=sede,barbiere,servizi`
+      ? `${prenotaPath}/data?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&excludeAppointmentId=${apt.id}&rescheduleAppointmentId=${apt.id}`
       : prenotaPath
 
   const infoRows: Array<{ label: string; value: string }> = [

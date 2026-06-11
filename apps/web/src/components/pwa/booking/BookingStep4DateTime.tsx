@@ -16,6 +16,7 @@ interface Props {
   onBack: () => void
   onSelect: (date: string, time: string) => void
   primaryColor?: string
+  isLoading?: boolean
 }
 
 function getInitials(name: string | null): string {
@@ -77,6 +78,7 @@ export default function BookingStep4DateTime({
   onBack,
   onSelect,
   primaryColor,
+  isLoading = false,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const dates = useMemo(() => Object.keys(slotsByDate), [slotsByDate])
@@ -151,7 +153,11 @@ export default function BookingStep4DateTime({
     return `${time} — ${addMinutesToTime(time, totalDurationMinutes!)}`
   }
 
-  const ctaLabel = selectedTime ? `Conferma · ${formatSlotLabel(selectedTime)}` : 'Scegli un orario'
+  const ctaLabel = isLoading
+    ? 'Modifica in corso…'
+    : selectedTime
+      ? `Conferma · ${formatSlotLabel(selectedTime)}`
+      : 'Scegli un orario'
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
@@ -552,7 +558,7 @@ export default function BookingStep4DateTime({
         primary={{
           label: ctaLabel,
           onClick: handleConfirmSlot,
-          disabled: !selectedTime,
+          disabled: !selectedTime || isLoading,
         }}
         tenantPrimary={brandColor}
       />

@@ -211,7 +211,7 @@
 | `tenant_id` | `uuid` |  |
 | `profile_id` | `uuid` |  Nullable |
 | `full_name` | `text` |  |
-| `phone` | `text` |  |
+| `phone` | `text` |  Nullable |
 | `email` | `text` |  Nullable |
 | `date_of_birth` | `date` |  Nullable |
 | `preferred_contact_channel` | `text` |  Nullable |
@@ -568,4 +568,33 @@
 | `client_id` | `uuid` |  |
 | `product_id` | `uuid` |  |
 | `created_at` | `timestamptz` |  |
+
+## Table `push_subscriptions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `profile_id` | `uuid` |  |
+| `endpoint` | `text` |  Unique |
+| `p256dh` | `text` |  |
+| `auth` | `text` |  |
+| `user_agent` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `last_seen_at` | `timestamptz` |  |
+
+## Table `notification_log`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `profile_id` | `uuid` |  Nullable |
+| `appointment_id` | `uuid` |  Nullable |
+| `type` | `text` |  |
+| `sent_at` | `timestamptz` |  |
 

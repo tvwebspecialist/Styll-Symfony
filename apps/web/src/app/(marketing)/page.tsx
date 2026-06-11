@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+export const dynamic = 'force-static'
+
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
   primary: '#1A1A2E',

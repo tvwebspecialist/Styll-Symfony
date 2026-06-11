@@ -26,6 +26,7 @@ interface GetAvailableSlotsParams {
   serviceIds: string[]
   date: string
   timezone?: string
+  excludeAppointmentId?: string
 }
 
 interface AppointmentWindow {
@@ -100,6 +101,7 @@ export async function getAvailableSlots({
   serviceIds,
   date,
   timezone = DEFAULT_TIMEZONE,
+  excludeAppointmentId,
 }: GetAvailableSlotsParams): Promise<GetAvailableSlotsResult> {
   if (serviceIds.length === 0) {
     return { slots: [], isWorkingDay: false, reason: 'Nessun servizio selezionato' }
@@ -163,7 +165,7 @@ export async function getAvailableSlots({
   }
 
   // Fetch existing appointments for this staff on this date
-  const { data: appointmentRows } = await db
+  let aptQuery = db
     .from('appointments')
     .select('start_time, end_time')
     .eq('tenant_id', tenantId)
@@ -173,6 +175,12 @@ export async function getAvailableSlots({
     .lt('start_time', `${nextDate}T00:00:00`)
     .neq('status', APPOINTMENT_STATUS.CANCELLED)
     .neq('status', APPOINTMENT_STATUS.NO_SHOW)
+
+  if (excludeAppointmentId) {
+    aptQuery = aptQuery.neq('id', excludeAppointmentId)
+  }
+
+  const { data: appointmentRows } = await aptQuery
 
   // Convert appointments to local-time minute ranges
   const busyWindows = ((appointmentRows ?? []) as AppointmentWindow[]).map((appt) => {
