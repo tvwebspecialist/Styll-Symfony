@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getTenantBySlug } from '@/lib/tenant'
 
@@ -98,6 +99,10 @@ export default async function LandingLayout({ params, children }: Props) {
     notFound()
   }
 
+  // CSP nonce — JSON-LD <script type="application/ld+json"> is still governed
+  // by `script-src` under strict CSP, so we tag it with the per-request nonce.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   const fontFamily = FONT_MAP[tenant.font_family?.toLowerCase() ?? ''] ?? FONT_MAP.outfit
   const brandVars = {
     '--brand-primary': tenant.primary_color ?? '#1a1a1a',
@@ -125,6 +130,7 @@ export default async function LandingLayout({ params, children }: Props) {
     >
       <script
         type="application/ld+json"
+        nonce={nonce}
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       {children}

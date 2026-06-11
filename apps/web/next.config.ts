@@ -31,27 +31,9 @@ const nextConfig: NextConfig = {
       { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-      // CSP temporaneamente disabilitato — Next.js usa script inline anche in
-      // produzione. Da reimplementare con nonce-based CSP via middleware.
-      // ...(process.env.NODE_ENV === 'production'
-      //   ? [{
-      //       key: 'Content-Security-Policy',
-      //       value: [
-      //         "default-src 'self'",
-      //         "script-src 'self' https://va.vercel-scripts.com",
-      //         "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
-      //         "font-src 'self' https://fonts.gstatic.com",
-      //         "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://va.vercel-scripts.com",
-      //         "img-src 'self' https://*.supabase.co data: blob:",
-      //         "worker-src 'self' blob:",
-      //         "manifest-src 'self'",
-      //         "frame-src 'self' https://accounts.google.com",
-      //         "frame-ancestors 'none'",
-      //         "form-action 'self'",
-      //         "base-uri 'self'",
-      //       ].join('; '),
-      //     }]
-      //   : []),
+      // Content-Security-Policy is set in apps/web/src/proxy.ts (nonce-based,
+      // per-request). Keeping it there ensures every request gets a fresh nonce
+      // that Next.js can inject into framework and inline scripts.
     ]
 
     return [{ source: '/(.*)', headers: securityHeaders }]

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
 import { getTenantBySlug } from '@/lib/tenant'
@@ -142,6 +143,11 @@ export default async function AppLayout({ params, children }: Props) {
     return null
   })
 
+  // CSP nonce — set by proxy.ts on the request headers. Required to allow the
+  // inline beforeinstallprompt capture <script> below under our strict CSP.
+  // `?? undefined` because React treats `null` on `nonce` as an empty string.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   // Persisted tenant font: inject Google Fonts server-side so Playfair/Montserrat
   // are requested during the initial HTML parse (no FOUC on the client).
   // outfit/poppins/inter are bundled via next/font in the root layout, so they
@@ -188,6 +194,7 @@ export default async function AppLayout({ params, children }: Props) {
 
       {/* Cattura beforeinstallprompt prima di React — salva su window per PwaInstallBanner */}
       <script
+        nonce={nonce}
         dangerouslySetInnerHTML={{
           __html: `
             window.__pwaPrompt = null;
