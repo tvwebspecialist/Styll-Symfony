@@ -1,6 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
+
+const MessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1).max(10_000),
+})
+
+const AiutoChatSchema = z.object({
+  messages: z.array(MessageSchema).min(1).max(20),
+})
 
 const FAQ_CONTEXT = `
 🚀 Primo avvio
@@ -92,7 +102,12 @@ export async function POST(req: Request) {
     })
   }
 
-  const { messages } = await req.json() as { messages: { role: 'user' | 'assistant'; content: string }[] }
+  const body = await req.json()
+  const parsed = AiutoChatSchema.safeParse(body)
+  if (!parsed.success) {
+    return new Response('Invalid request', { status: 400 })
+  }
+  const { messages } = parsed.data
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
