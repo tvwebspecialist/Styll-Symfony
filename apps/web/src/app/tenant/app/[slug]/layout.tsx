@@ -5,10 +5,28 @@ import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
+import {
+  GOOGLE_FONT_URLS,
+  isRuntimeGoogleFont,
+  normalizeFontKey,
+  resolveFontFamily,
+} from '@/lib/pwa-fonts'
 
 function buildSplashUrl(slug: string, w: number, h: number): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
   return `${base}/api/pwa-splash?slug=${encodeURIComponent(slug)}&w=${w}&h=${h}`
+}
+
+// Styll brand defaults — kept in sync with PwaPreviewShell / landing layout.
+const DEFAULT_BRAND_PRIMARY = '#1A1A1A'
+const DEFAULT_BRAND_SECONDARY = '#666666'
+
+// Tenant colors are stored in the DB and rendered into a raw <style> below, so
+// they must be validated before interpolation to prevent CSS/script injection.
+// Only #rrggbb is accepted (matches the <input type="color"> output); anything
+// else falls back to the Styll default.
+function sanitizeBrandColor(value: string | null | undefined, fallback: string): string {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback
 }
 
 const IOS_SPLASH_SIZES = [
@@ -124,8 +142,50 @@ export default async function AppLayout({ params, children }: Props) {
     return null
   })
 
+  // Persisted tenant font: inject Google Fonts server-side so Playfair/Montserrat
+  // are requested during the initial HTML parse (no FOUC on the client).
+  // outfit/poppins/inter are bundled via next/font in the root layout, so they
+  // need no runtime <link> and are skipped here.
+  const tenantFontKey = normalizeFontKey(tenant.font_family)
+  const tenantFontUrl = isRuntimeGoogleFont(tenantFontKey)
+    ? GOOGLE_FONT_URLS[tenantFontKey]
+    : null
+
+  // Persisted tenant branding: expose the brand colors at :root server-side.
+  // globals.css defines no --brand-* default, and many consumers use a bare
+  // `var(--brand-primary)` (no inline fallback), so a :root value guarantees the
+  // brand is correct at first paint — including portaled/body-level elements
+  // outside PwaPreviewShell's wrapper div. PwaPreviewShell still overrides these
+  // on its div for the unsaved live preview.
+  const brandPrimary = sanitizeBrandColor(tenant.primary_color, DEFAULT_BRAND_PRIMARY)
+  const brandSecondary = sanitizeBrandColor(tenant.secondary_color, DEFAULT_BRAND_SECONDARY)
+
   return (
     <>
+      {/* Tenant branding (persisted) — server-rendered, zero FOUC. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `:root{--brand-primary:${brandPrimary};--brand-secondary:${brandSecondary};--brand-accent:${brandPrimary};}`,
+        }}
+      />
+
+      {/* Tenant font (persisted) — server-rendered so the web font downloads
+          before first paint; `display=swap` keeps the fallback visible meanwhile.
+          The :root variable mirrors the value PwaPreviewShell applies, so it is
+          ready at first paint even outside the React tree. */}
+      {tenantFontUrl && (
+        <>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="stylesheet" href={tenantFontUrl} />
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `:root{--font-active:${resolveFontFamily(tenantFontKey)};}`,
+            }}
+          />
+        </>
+      )}
+
       {/* Cattura beforeinstallprompt prima di React — salva su window per PwaInstallBanner */}
       <script
         dangerouslySetInnerHTML={{

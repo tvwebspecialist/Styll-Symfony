@@ -8,6 +8,7 @@ const outfit = Outfit({
   variable: '--font-outfit',
   subsets: ['latin'],
   display: 'swap',
+  preload: true,
 })
 
 const poppins = Poppins({
@@ -15,12 +16,14 @@ const poppins = Poppins({
   subsets: ['latin'],
   display: 'swap',
   weight: ['400', '500', '600', '700'],
+  preload: false,
 })
 
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],
   display: 'swap',
+  preload: false,
 })
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'

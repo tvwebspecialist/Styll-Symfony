@@ -8,19 +8,7 @@ import { PwaSplash } from '@/components/pwa/PwaSplash'
 import PwaInstallBanner from '@/components/pwa/PwaInstallBanner'
 import { PwaSessionRestorer } from '@/components/pwa/PwaSessionRestorer'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
-
-const FONT_MAP: Record<string, string> = {
-  outfit: 'var(--font-outfit)',
-  poppins: 'var(--font-poppins)',
-  inter: 'var(--font-inter)',
-  playfair: '"Playfair Display", serif',
-  montserrat: '"Montserrat", sans-serif',
-}
-
-const GOOGLE_FONT_URLS: Record<string, string> = {
-  playfair: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&display=swap',
-  montserrat: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap',
-}
+import { GOOGLE_FONT_URLS, resolveFontFamily } from '@/lib/pwa-fonts'
 
 interface Props {
   slug: string
@@ -88,11 +76,17 @@ export function PwaPreviewShell({
   const activePrimaryColor = preview.primaryColor ?? primaryColor ?? '#1A1A1A'
   const activeSecondaryColor = secondaryColor ?? '#666666'
   const activeFontKey = (preview.fontFamily ?? fontFamily ?? 'outfit').toLowerCase()
-  const activeFontFamily = FONT_MAP[activeFontKey] ?? FONT_MAP.outfit
+  const activeFontFamily = resolveFontFamily(activeFontKey)
 
   React.useEffect(() => {
+    // Caso A — font persistito (nessun preview_font_family): il <link> è già
+    // iniettato server-side nel layout PWA, quindi NON ricarichiamo nulla qui
+    // (evita il FOUC per il cliente finale). Applichiamo solo --font-active.
+    // Caso B — preview dashboard (preview_font_family presente): carichiamo il
+    // font a runtime per la live preview prima del salvataggio.
+    if (!preview.fontFamily) return
     ensureGoogleFont(activeFontKey)
-  }, [activeFontKey])
+  }, [preview.fontFamily, activeFontKey])
 
   const brandVars = React.useMemo(
     () =>

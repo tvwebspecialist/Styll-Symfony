@@ -48,6 +48,8 @@ export default async function DataPage({ params, searchParams }: Props) {
   const servicesParam = readParam(resolvedSearchParams.services)
   const staffId = readParam(resolvedSearchParams.staff)
   const skipParam = readParam(resolvedSearchParams._skip) ?? ''
+  const excludeAppointmentId = readParam(resolvedSearchParams.excludeAppointmentId) ?? undefined
+  const rescheduleAppointmentId = readParam(resolvedSearchParams.rescheduleAppointmentId) ?? undefined
   const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
   const tp = await createTenantPaths(slug)
 
@@ -88,6 +90,7 @@ export default async function DataPage({ params, searchParams }: Props) {
         serviceIds,
         date,
         timezone,
+        excludeAppointmentId,
       })
     )
   )
@@ -101,6 +104,7 @@ export default async function DataPage({ params, searchParams }: Props) {
   return (
     <DataSelector
       slug={slug}
+      tenantId={tenant.tenant_id}
       locationId={locationId}
       staffId={staffId}
       serviceIds={serviceIds}
@@ -110,6 +114,7 @@ export default async function DataPage({ params, searchParams }: Props) {
       selectedServiceNames={selectedServices.map((service) => service.name)}
       totalDurationMinutes={totalDurationMinutes}
       primaryColor={tenant.primary_color}
+      rescheduleAppointmentId={rescheduleAppointmentId}
     />
   )
 }
