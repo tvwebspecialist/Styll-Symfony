@@ -14,6 +14,10 @@ const TIER_STYLES: Record<Tier, { bg: string; color: string }> = {
 
 const fmt = new Intl.NumberFormat('it-IT')
 
+const AVATAR_SIZE = 110
+const OVERLAP = AVATAR_SIZE / 2   // 55 — quanto scende nella card
+const GREY_HEIGHT = 100            // altezza zona grigia
+
 interface Props {
   userId: string
   avatarUrl: string | null
@@ -62,158 +66,159 @@ export function AvatarHero({
     { value: cancelledCount, label: 'Cancellati' },
   ]
 
+  // Avatar top = GREY_HEIGHT - OVERLAP so the lower half sits in the white card
+  const avatarTop = GREY_HEIGHT - OVERLAP  // 45
+
   return (
     <div style={{ overflow: 'hidden', borderRadius: 20, boxShadow: '0 2px 16px rgba(0,0,0,0.07)' }}>
-      {/* Grey photo zone */}
-      <div style={{
-        backgroundColor: '#F0F0F0',
-        height: 140,
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-      }}>
-        {/* Avatar straddling grey/white boundary */}
-        <div style={{ position: 'relative', marginBottom: -50, zIndex: 1 }}>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            style={{
-              position: 'relative',
-              width: 100,
-              height: 100,
-              borderRadius: '50%',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              display: 'block',
-            }}
-            aria-label="Cambia foto profilo"
-          >
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt={fullName}
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '4px solid #ffffff',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                  display: 'block',
-                }}
-              />
-            ) : (
-              <div style={{
-                width: 100,
-                height: 100,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'var(--brand-primary)',
-                border: '4px solid #ffffff',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                color: '#ffffff',
-                fontSize: 28,
-                fontWeight: 700,
-              }}>
-                {initials}
-              </div>
-            )}
+      <div style={{ position: 'relative' }}>
 
-            {uploading && (
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                backgroundColor: 'rgba(0,0,0,0.30)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <div className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              </div>
-            )}
+        {/* Grey zone — contains top half of avatar */}
+        <div style={{
+          backgroundColor: '#F0F0F0',
+          borderRadius: '20px 20px 0 0',
+          height: GREY_HEIGHT,
+          position: 'relative',
+        }} />
 
-            {/* Camera badge */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 2,
-                right: 2,
-                width: 26,
-                height: 26,
-                borderRadius: '50%',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              aria-hidden="true"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
+        {/* Avatar button — absolutely positioned straddling grey/white */}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          aria-label="Cambia foto profilo"
+          style={{
+            position: 'absolute',
+            top: avatarTop,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2,
+            width: AVATAR_SIZE,
+            height: AVATAR_SIZE,
+            borderRadius: '50%',
+            border: '4px solid #ffffff',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            overflow: 'hidden',
+            cursor: 'pointer',
+            padding: 0,
+            background: 'none',
+          }}
+        >
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatarUrl}
+              alt={fullName}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--brand-primary)',
+              color: '#ffffff',
+              fontSize: 30,
+              fontWeight: 700,
+            }}>
+              {initials}
             </div>
-          </button>
-        </div>
-      </div>
+          )}
 
-      {/* White info card */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        paddingTop: 60,
-        paddingBottom: 4,
-        paddingLeft: 20,
-        paddingRight: 20,
-        textAlign: 'center',
-      }}>
-        <p style={{ fontSize: 18, fontWeight: 700, color: '#0a0a0a', margin: '0 0 8px 0', lineHeight: 1.2 }}>
-          {fullName}
-        </p>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          borderRadius: 999,
-          padding: '4px 12px',
-          fontSize: 12,
-          fontWeight: 700,
-          backgroundColor: tierStyle.bg,
-          color: tierStyle.color,
+          {uploading && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.30)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <div className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            </div>
+          )}
+        </button>
+
+        {/* Camera badge — bottom-right of avatar */}
+        <div
+          style={{
+            position: 'absolute',
+            top: avatarTop + AVATAR_SIZE - 28,
+            left: `calc(50% + ${Math.round(AVATAR_SIZE / 2) - 8}px)`,
+            zIndex: 3,
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+          aria-hidden="true"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </div>
+
+        {/* White info card */}
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '0 0 20px 20px',
+          paddingTop: OVERLAP + 12,
+          paddingBottom: 16,
+          paddingLeft: 20,
+          paddingRight: 20,
+          textAlign: 'center',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
         }}>
-          {tierLabel} Member
-        </span>
+          <p style={{ fontSize: 18, fontWeight: 700, color: '#0a0a0a', margin: '0 0 8px 0', lineHeight: 1.2 }}>
+            {fullName}
+          </p>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            borderRadius: 999,
+            padding: '4px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            backgroundColor: tierStyle.bg,
+            color: tierStyle.color,
+          }}>
+            {tierLabel} Member
+          </span>
 
-        {/* Stats row */}
-        <div style={{ display: 'flex', borderTop: '1px solid #f3f4f6', marginTop: 16 }}>
-          {stats.map((stat, i, arr) => (
-            <div
-              key={stat.label}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                padding: '14px 0',
-                borderRight: i < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
-              }}
-            >
-              <span style={{ fontSize: 22, fontWeight: 900, color: '#0a0a0a', lineHeight: 1 }}>
-                {fmt.format(stat.value)}
-              </span>
-              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, marginTop: 4 }}>
-                {stat.label}
-              </span>
-            </div>
-          ))}
+          {/* Stats row */}
+          <div style={{ display: 'flex', borderTop: '1px solid #f3f4f6', marginTop: 16 }}>
+            {stats.map((stat, i, arr) => (
+              <div
+                key={stat.label}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '14px 0',
+                  borderRight: i < arr.length - 1 ? '1px solid #f3f4f6' : 'none',
+                }}
+              >
+                <span style={{ fontSize: 22, fontWeight: 900, color: '#0a0a0a', lineHeight: 1 }}>
+                  {fmt.format(stat.value)}
+                </span>
+                <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, marginTop: 4 }}>
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
+
       </div>
 
       <input
