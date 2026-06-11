@@ -18,9 +18,11 @@ interface Props {
   groups: ServiceGroup[]
   staff: PublicStaffMember | null
   primaryColor?: string
+  initialServiceIds?: string[]
+  cancelAppointmentId?: string
 }
 
-export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff, primaryColor }: Props) {
+export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff, primaryColor, initialServiceIds, cancelAppointmentId }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
 
@@ -41,6 +43,7 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff
       services: serviceIds.join(','),
     })
     if (skip) params.set('_skip', skip)
+    if (cancelAppointmentId) params.set('cancelAppointmentId', cancelAppointmentId)
     router.push(tenantPath(`/prenota/data?${params}`))
   }
 
@@ -55,6 +58,7 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff
       onContinue={handleContinue}
       primaryColor={primaryColor}
       skipLocationStep={skipLocationStep}
+      initialSelectedIds={initialServiceIds}
     />
   )
 }

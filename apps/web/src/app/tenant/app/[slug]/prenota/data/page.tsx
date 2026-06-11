@@ -50,6 +50,7 @@ export default async function DataPage({ params, searchParams }: Props) {
   const skipParam = readParam(resolvedSearchParams._skip) ?? ''
   const excludeAppointmentId = readParam(resolvedSearchParams.excludeAppointmentId) ?? undefined
   const rescheduleAppointmentId = readParam(resolvedSearchParams.rescheduleAppointmentId) ?? undefined
+  const cancelAppointmentId = readParam(resolvedSearchParams.cancelAppointmentId) ?? undefined
   const serviceIds = servicesParam?.split(',').filter(Boolean) ?? []
   const tp = await createTenantPaths(slug)
 
@@ -115,6 +116,7 @@ export default async function DataPage({ params, searchParams }: Props) {
       totalDurationMinutes={totalDurationMinutes}
       primaryColor={tenant.primary_color}
       rescheduleAppointmentId={rescheduleAppointmentId}
+      cancelAppointmentId={cancelAppointmentId}
     />
   )
 }

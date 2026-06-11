@@ -166,6 +166,45 @@ export async function rescheduleClientAppointment(
   }
 }
 
+export async function cancelAppointmentForReschedule(
+  tenantId: string,
+  appointmentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const ctx = await getAuthenticatedClientId(tenantId)
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
+
+    const db = createAdminClient()
+
+    const { data: apt } = await db
+      .from('appointments')
+      .select('id, status, client_id')
+      .eq('id', appointmentId)
+      .eq('tenant_id', tenantId)
+      .eq('client_id', ctx.clientId)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (!apt) return { ok: false, error: 'Appuntamento non trovato' }
+    if (!['confirmed', 'pending'].includes((apt as { id: string; status: string; client_id: string }).status)) {
+      return { ok: false, error: 'Appuntamento non cancellabile' }
+    }
+
+    const { error } = await db
+      .from('appointments')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', appointmentId)
+      .eq('tenant_id', tenantId)
+
+    if (error) return { ok: false, error: error.message }
+
+    revalidatePath(`/tenant/app`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
+  }
+}
+
 export async function updateClientProfileData(
   tenantId: string,
   data: {
