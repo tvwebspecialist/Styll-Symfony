@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ShoppingBag, Sparkles } from 'lucide-react'
+import { ShoppingBag } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getTenantBySlug } from '@/lib/tenant'
@@ -45,7 +45,6 @@ export default async function ProductDetailPage({ params }: Props) {
     is_new: boolean
   }
 
-  // Fetch locations + inventory in parallel
   const [locationsRes, inventoryRes] = await Promise.all([
     db
       .from('locations')
@@ -61,21 +60,16 @@ export default async function ProductDetailPage({ params }: Props) {
   ])
 
   const stockMap = new Map<string, number>()
-  for (const row of (inventoryRes.data ?? []) as Array<{
-    location_id: string
-    quantity: number
-  }>) {
+  for (const row of (inventoryRes.data ?? []) as Array<{ location_id: string; quantity: number }>) {
     stockMap.set(row.location_id, (stockMap.get(row.location_id) ?? 0) + row.quantity)
   }
 
-  const locationStocks = (locationsRes.data ?? [])
-    .map((loc: { id: string; name: string }) => ({
-      id: loc.id,
-      name: loc.name,
-      available: (stockMap.get(loc.id) ?? 0) > 0,
-    }))
+  const locationStocks = (locationsRes.data ?? []).map((loc: { id: string; name: string }) => ({
+    id: loc.id,
+    name: loc.name,
+    available: (stockMap.get(loc.id) ?? 0) > 0,
+  }))
 
-  // Auth
   const supabase = await createServerClient()
   const {
     data: { user },
@@ -120,153 +114,38 @@ export default async function ProductDetailPage({ params }: Props) {
   const brandColor = tenant.primary_color ?? '#1a1a1a'
 
   return (
-    <main
-      style={{
-        maxWidth: 640,
-        margin: '0 auto',
-        padding: '16px 16px 32px',
-        position: 'relative',
-      }}
-    >
-      {/* Hero image */}
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: '1 / 1',
-          borderRadius: 24,
-          overflow: 'hidden',
-          background: '#F5F5F5',
-          marginBottom: 20,
-        }}
-      >
+    <main style={{ position: 'relative', height: '100dvh', overflow: 'hidden', background: '#111' }}>
+      {/* Fullscreen background image */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
         {p.photo_url ? (
           <Image
             src={p.photo_url}
             alt={p.name}
             fill
             className="object-cover"
-            sizes="(max-width: 640px) 100vw, 640px"
+            sizes="100vw"
             priority
           />
         ) : (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <ShoppingBag size={64} color="#D0D0D0" />
+          <div style={{ width: '100%', height: '100%', background: '#1c1c1e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShoppingBag size={80} color="#3a3a3c" />
           </div>
         )}
-
-        {p.is_new && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 14,
-              left: 14,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '5px 10px',
-              borderRadius: 100,
-              background: '#111',
-              color: '#FFFFFF',
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-            }}
-          >
-            <Sparkles size={11} />
-            Novità
-          </div>
-        )}
-
-        {/* Brand strip at bottom of hero */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 100%)',
-            padding: '24px 16px 16px',
-          }}
-        >
-          {p.brand && (
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {p.brand}
-            </p>
-          )}
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 800,
-              color: '#FFFFFF',
-              lineHeight: 1.15,
-              fontFamily: 'var(--font-tenant, inherit)',
-            }}
-          >
-            {p.name}
-          </h1>
-        </div>
+        {/* Gradient — darken top for controls, subtle at bottom */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.05) 100%)',
+        }} />
       </div>
 
-      {/* Description */}
-      {p.description && (
-        <div
-          style={{
-            background: '#FFFFFF',
-            borderRadius: 18,
-            border: '1px solid #F0F0F0',
-            padding: '14px 16px',
-            marginBottom: 16,
-          }}
-        >
-          <p
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#B0B0B0',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: 8,
-            }}
-          >
-            Descrizione
-          </p>
-          <p style={{ fontSize: 14, color: '#444', lineHeight: 1.6 }}>{p.description}</p>
-        </div>
-      )}
-
-      {/* Category tag */}
-      {p.category && (
-        <div style={{ marginBottom: 4 }}>
-          <span
-            style={{
-              display: 'inline-block',
-              padding: '4px 12px',
-              borderRadius: 100,
-              background: `${brandColor}15`,
-              color: brandColor,
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            {p.category}
-          </span>
-        </div>
-      )}
-
-      {/* Interactive part: back button, favorites, appointment linker, price bar */}
       <ProductDetailClient
         productId={productId}
         productName={p.name}
+        productBrand={p.brand}
+        productCategory={p.category}
+        productDescription={p.description}
+        isNew={p.is_new}
         priceSell={Number(p.price_sell ?? 0)}
         tenantId={tenant.tenant_id}
         slug={slug}
@@ -275,6 +154,7 @@ export default async function ProductDetailPage({ params }: Props) {
         initialIsFavorite={isInWishlist}
         locationStocks={locationStocks}
         upcomingAppointments={upcomingAppointments}
+        brandColor={brandColor}
       />
     </main>
   )
