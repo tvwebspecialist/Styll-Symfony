@@ -79,7 +79,7 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!client) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8] px-4 pb-8 pt-6">
+      <main className="min-h-screen bg-white px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
           <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-amber-900">
             <h1 className="text-lg font-extrabold">Profilo non collegato</h1>
@@ -133,7 +133,7 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!fetchResults) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8] px-4 pb-8 pt-6">
+      <main className="min-h-screen bg-white px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
           <div className="rounded-[20px] border border-red-200 bg-red-50 p-5 text-red-900">
             <h1 className="text-lg font-extrabold">Qualcosa è andato storto</h1>
@@ -163,7 +163,7 @@ export default async function ProfiloPage({ params }: Props) {
   const primaryColor = tenant.primary_color ?? '#1a1a1a'
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+    <main className="min-h-screen bg-white pb-24">
       <div className="mx-auto max-w-xl px-4 pt-4">
         <div className="flex flex-col gap-3">
 
