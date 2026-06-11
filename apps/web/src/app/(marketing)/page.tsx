@@ -272,6 +272,164 @@ function HowItWorks() {
   )
 }
 
+// ─── Feature mockups ─────────────────────────────────────────────────────────
+
+function CalendarMockup() {
+  const appts = [
+    { time: '09:00', name: 'Marco B.', service: 'Taglio + Barba', status: 'confirmed', color: '#E94560' },
+    { time: '10:30', name: 'Luigi R.', service: 'Taglio', status: 'confirmed', color: '#7C3AED' },
+    { time: '12:00', name: '—', service: 'Slot libero', status: 'free', color: '#e5e7eb' },
+    { time: '14:00', name: 'Federico M.', service: 'Colorazione', status: 'confirmed', color: '#059669' },
+    { time: '15:30', name: 'Stefano P.', service: 'Taglio + Barba', status: 'confirmed', color: '#D97706' },
+  ]
+  return (
+    <div style={{ background: '#ffffff', borderRadius: 20, border: `1px solid ${C.border}`, padding: 24, minHeight: 320 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Mercoledì 11 Giugno</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.primary }}>Calendario</div>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['#E94560', '#10B981', '#F59E0B'].map(c => (
+            <div key={c} style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />
+          ))}
+        </div>
+      </div>
+      {/* Timeline */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {appts.map((a) => (
+          <div key={a.time} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 11, color: C.textMuted, width: 38, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{a.time}</div>
+            <div style={{
+              flex: 1,
+              borderRadius: 8,
+              padding: '8px 12px',
+              background: a.status === 'free' ? '#f9fafb' : `${a.color}12`,
+              border: `1px solid ${a.status === 'free' ? '#e5e7eb' : a.color + '30'}`,
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: a.status === 'free' ? C.textMuted : C.primary }}>{a.name}</div>
+              <div style={{ fontSize: 10, color: C.textMuted, marginTop: 1 }}>{a.service}</div>
+            </div>
+            {a.status === 'confirmed' && (
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: a.color, flexShrink: 0 }} />
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Footer stat */}
+      <div style={{ marginTop: 14, padding: '10px 12px', background: '#f8fafc', borderRadius: 10, display: 'flex', justifyContent: 'space-between' }}>
+        {[{ v: '4', l: 'Confermati' }, { v: '€360', l: 'Revenue' }, { v: '0', l: 'No-show' }].map(s => (
+          <div key={s.l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.primary }}>{s.v}</div>
+            <div style={{ fontSize: 9, color: C.textMuted, marginTop: 1 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function LoyaltyMockup() {
+  return (
+    <div style={{ background: C.primary, borderRadius: 20, padding: 24, minHeight: 320, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Luca E.</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff' }}>La tua loyalty</div>
+        </div>
+        <div style={{ background: '#fef9c3', borderRadius: 100, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#a16207' }}>Gold Member</div>
+      </div>
+      {/* Points */}
+      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: 16 }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>Punti disponibili</div>
+        <div style={{ fontSize: 36, fontWeight: 900, color: '#ffffff', lineHeight: 1 }}>1.240</div>
+        <div style={{ marginTop: 10, height: 4, background: 'rgba(255,255,255,0.12)', borderRadius: 99 }}>
+          <div style={{ height: '100%', width: '82%', background: 'linear-gradient(90deg, #E94560, #7C3AED)', borderRadius: 99 }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Gold</span>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Platinum a 1.500 pt</span>
+        </div>
+      </div>
+      {/* Streak */}
+      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ fontSize: 28 }}>🔥</div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>7 visite consecutive</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>Streak record: 12 · Continua così!</div>
+        </div>
+      </div>
+      {/* Badges */}
+      <div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, marginBottom: 8 }}>BADGE SBLOCCATI</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { icon: '🏆', label: 'VIP' },
+            { icon: '⚡', label: 'Early' },
+            { icon: '💎', label: 'Fedele' },
+            { icon: '🎯', label: 'Streak' },
+          ].map(b => (
+            <div key={b.label} style={{ flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: '8px 4px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18 }}>{b.icon}</div>
+              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)', marginTop: 3 }}>{b.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChurnMockup() {
+  const clients = [
+    { name: 'Roberto V.', days: 48, avg: 28, risk: 'alto', color: '#EF4444' },
+    { name: 'Andrea M.', days: 35, avg: 25, risk: 'medio', color: '#F59E0B' },
+    { name: 'Carlo F.', days: 29, avg: 28, risk: 'attenzione', color: '#F97316' },
+  ]
+  return (
+    <div style={{ background: '#ffffff', borderRadius: 20, border: `1px solid ${C.border}`, padding: 24, minHeight: 320 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: '#FFF1F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.primary }}>Silent Churn Detector</div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>3 clienti a rischio — agisci ora</div>
+        </div>
+      </div>
+      {/* Client risk cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {clients.map(c => (
+          <div key={c.name} style={{ borderRadius: 12, border: `1px solid ${c.color}25`, background: `${c.color}07`, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${c.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: c.color }}>
+                  {c.name.split(' ').map(w => w[0]).join('')}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>{c.name}</span>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: c.color, background: `${c.color}15`, borderRadius: 100, padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {c.risk}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: C.textMuted }}>
+              Assente da <strong style={{ color: c.color }}>{c.days} giorni</strong> · media {c.avg}gg
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button style={{ fontSize: 11, fontWeight: 700, color: c.color, background: `${c.color}15`, border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                Invia messaggio win-back →
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Detailed Features (zig-zag) ─────────────────────────────────────────────
 function DetailedFeatures() {
   const features = [
@@ -279,19 +437,19 @@ function DetailedFeatures() {
       tag: 'Gestione',
       title: 'Gestisci tutto in un posto',
       items: ['Calendario con vista giorno, settimana e mese', 'CRM clienti con storico e note', 'Team multi-sede con permessi granulari'],
-      mockup: { bg: '#EFF6FF', icon: '📅', label: 'Calendario' },
+      mockup: <CalendarMockup />,
     },
     {
       tag: 'Loyalty',
       title: 'Gamification che funziona davvero',
       items: ['Streak settimanali con counter visibile ai clienti', 'Badge collezionabili per traguardi raggiunti', 'Tier VIP con benefit reali (sconti, priorità)'],
-      mockup: { bg: '#FDF4FF', icon: '🏆', label: 'Loyalty' },
+      mockup: <LoyaltyMockup />,
     },
     {
       tag: 'Retention',
       title: 'Sappi chi stai perdendo',
       items: ['Silent churn detector: riconosce pattern di abbandono', 'Win-back automatici via SMS/email al momento giusto', "Alert 'A rischio' con 30 giorni di anticipo"],
-      mockup: { bg: '#FFF1F2', icon: '🔔', label: 'Churn Detector' },
+      mockup: <ChurnMockup />,
     },
   ]
 
@@ -301,11 +459,7 @@ function DetailedFeatures() {
         {features.map((f, i) => (
           <div key={f.tag} className="feature-zigzag" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', direction: i % 2 === 1 ? 'rtl' : 'ltr' }}>
             {/* Mockup */}
-            <div style={{ direction: 'ltr', background: f.mockup.bg, borderRadius: 24, border: `1px solid ${C.border}`, padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, minHeight: 280 }}>
-              <div style={{ fontSize: 64 }}>{f.mockup.icon}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.primary }}>{f.mockup.label}</div>
-              <div style={{ fontSize: 13, color: C.textMuted, textAlign: 'center' }}>Placeholder screenshot — arrivo presto!</div>
-            </div>
+            <div style={{ direction: 'ltr' }}>{f.mockup}</div>
             {/* Text */}
             <div style={{ direction: 'ltr' }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: C.accent, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>{f.tag}</p>

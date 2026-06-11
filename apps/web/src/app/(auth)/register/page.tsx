@@ -4,7 +4,6 @@ import type { Metadata } from 'next'
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { GoogleButton } from '@/components/auth/google-button'
 import { RegisterForm } from '@/components/auth/register-form'
-import { RegisterIllustration } from '@/components/illustrations'
 
 export const metadata: Metadata = {
   title: 'Crea il tuo account — Styll',
@@ -27,7 +26,6 @@ function Divider() {
 export default function RegisterPage() {
   return (
     <AuthSplitLayout
-      illustration={<RegisterIllustration />}
       caption="Zero commissioni. Il tuo brand. I tuoi dati. Sempre."
       mobileTopRight={
         <Link
@@ -39,21 +37,22 @@ export default function RegisterPage() {
         </Link>
       }
     >
+      {/* Desktop Styll link */}
       <Link
         href="/"
-        className="hidden lg:block text-2xl font-bold tracking-tight"
-        style={{ color: 'var(--color-fg)' }}
+        className="hidden lg:block text-2xl font-bold tracking-tight mb-2"
+        style={{ color: 'var(--color-fg)', letterSpacing: '-0.02em' }}
       >
         Styll
       </Link>
 
-      {/* Mobile hero — hidden su desktop */}
-      <div className="mb-6 lg:hidden">
+      {/* Mobile hero */}
+      <div className="mb-6 mt-2 lg:hidden">
         <div
           style={{
-            background: 'var(--color-bg-secondary)',
+            background: 'linear-gradient(135deg, #0d0d1a, #1a1a2e)',
             borderRadius: 16,
-            padding: '20px 20px 16px',
+            padding: '18px 20px',
             display: 'flex',
             alignItems: 'center',
             gap: 14,
@@ -61,41 +60,42 @@ export default function RegisterPage() {
         >
           <div
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: 14,
-              background: '#222222',
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              fontSize: 20,
             }}
           >
-            <span style={{ color: '#fff', fontSize: 20 }}>🚀</span>
+            🚀
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#222222' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
               Inizia gratis oggi
             </div>
-            <div style={{ fontSize: 13, color: '#B0B0B0', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
               14 giorni di prova. Nessuna carta richiesta.
             </div>
           </div>
         </div>
       </div>
 
-      <header className="mt-6 mb-7">
+      <header className="mt-4 mb-7 lg:mt-8">
         <h1
-          className="auth-heading font-bold tracking-tight"
-          style={{ color: 'var(--color-fg)', fontSize: 26 }}
+          className="font-bold tracking-tight"
+          style={{ color: 'var(--color-fg)', fontSize: 'clamp(24px, 5vw, 30px)', letterSpacing: '-0.02em' }}
         >
-          Inizia gratis.
+          Crea il tuo negozio digitale.
         </h1>
         <p
-          className="mt-1.5 text-sm"
+          className="mt-2 text-sm leading-relaxed"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
-          14 giorni di prova. Nessuna carta richiesta.
+          In 2 minuti. Nessuna carta di credito. Annulli quando vuoi.
         </p>
       </header>
 
