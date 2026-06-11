@@ -47,6 +47,9 @@ export default async function ServiziPage({ params, searchParams }: Props) {
   const locationId = readParam(resolvedSearchParams.location)
   const staffId = readParam(resolvedSearchParams.staff)
   const skipParam = readParam(resolvedSearchParams._skip) ?? ''
+  const servicesParam = readParam(resolvedSearchParams.services)
+  const cancelAppointmentId = readParam(resolvedSearchParams.cancelAppointmentId) ?? undefined
+  const initialServiceIds = servicesParam?.split(',').filter(Boolean) ?? []
   const tp = await createTenantPaths(slug)
 
   if (!locationId) {
@@ -79,6 +82,8 @@ export default async function ServiziPage({ params, searchParams }: Props) {
       groups={groupServices(services)}
       staff={staffMember}
       primaryColor={tenant.primary_color}
+      initialServiceIds={initialServiceIds}
+      cancelAppointmentId={cancelAppointmentId}
     />
   )
 }

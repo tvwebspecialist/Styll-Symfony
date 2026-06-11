@@ -21,6 +21,7 @@ interface Props {
   totalDurationMinutes?: number
   primaryColor?: string | null
   rescheduleAppointmentId?: string
+  cancelAppointmentId?: string
 }
 
 type RescheduleStatus =
@@ -201,6 +202,7 @@ export function DataSelector({
   totalDurationMinutes,
   primaryColor,
   rescheduleAppointmentId,
+  cancelAppointmentId,
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
@@ -215,6 +217,7 @@ export function DataSelector({
     }
     const params = new URLSearchParams({ location: locationId, staff: staffId })
     if (skip) params.set('_skip', skip)
+    if (cancelAppointmentId) params.set('cancelAppointmentId', cancelAppointmentId)
     router.push(tenantPath(`/prenota/servizi?${params}`))
   }
 
@@ -239,6 +242,7 @@ export function DataSelector({
       time,
     })
     if (skip) params.set('_skip', skip)
+    if (cancelAppointmentId) params.set('cancelAppointmentId', cancelAppointmentId)
     router.push(tenantPath(`/prenota/conferma?${params}`))
   }
 

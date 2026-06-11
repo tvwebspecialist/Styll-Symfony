@@ -107,7 +107,7 @@ function AppCard({
   primaryColor: string
   onOpen: (apt: AppointmentItem) => void
 }) {
-  const { day, weekday, month, time } = formatDateParts(apt.start_time)
+  const { day, month, time } = formatDateParts(apt.start_time)
 
   return (
     <button
@@ -144,20 +144,10 @@ function AppCard({
         <span
           style={{
             fontSize: 11,
-            fontWeight: 600,
-            color: 'rgba(255,255,255,0.85)',
-            textTransform: 'uppercase',
-            marginTop: 3,
-          }}
-        >
-          {weekday}
-        </span>
-        <span
-          style={{
-            fontSize: 11,
             fontWeight: 500,
             color: 'rgba(255,255,255,0.70)',
             textTransform: 'uppercase',
+            marginTop: 3,
           }}
         >
           {month}
@@ -273,9 +263,14 @@ function DetailSheet({
     })
   }
 
-  const rescheduleUrl =
+  const changeDateUrl =
     apt.staffId && apt.locationId
       ? `${prenotaPath}/data?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&excludeAppointmentId=${apt.id}&rescheduleAppointmentId=${apt.id}`
+      : prenotaPath
+
+  const modifyUrl =
+    apt.staffId && apt.locationId
+      ? `${prenotaPath}/servizi?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&cancelAppointmentId=${apt.id}`
       : prenotaPath
 
   const infoRows: Array<{ label: string; value: string }> = [
@@ -362,7 +357,26 @@ function DetailSheet({
               {!confirmDelete ? (
                 <>
                   <Link
-                    href={rescheduleUrl}
+                    href={changeDateUrl}
+                    onClick={close}
+                    style={{
+                      display: 'flex',
+                      height: 50,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 14,
+                      backgroundColor: 'transparent',
+                      border: `2px solid ${primaryColor}`,
+                      color: primaryColor,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Cambia data e ora
+                  </Link>
+                  <Link
+                    href={modifyUrl}
                     onClick={close}
                     style={{
                       display: 'flex',
@@ -377,7 +391,7 @@ function DetailSheet({
                       textDecoration: 'none',
                     }}
                   >
-                    Modifica orario
+                    Modifica prenotazione
                   </Link>
                   <button
                     type="button"

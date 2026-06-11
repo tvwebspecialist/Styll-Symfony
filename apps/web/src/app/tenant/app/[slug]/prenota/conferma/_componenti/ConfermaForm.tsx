@@ -6,6 +6,7 @@ import BookingStep5Confirm from '@/components/pwa/booking/BookingStep5Confirm'
 import BookingSuccessModal from '@/components/pwa/booking/BookingSuccessModal'
 import { ToastProvider } from '@/components/pwa/ui/Toast'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { cancelAppointmentForReschedule } from '@/lib/actions/pwa-client-actions'
 import type { PublicLocation, PublicService, PublicStaffMember } from '@/lib/actions/public-booking'
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   isLoggedIn?: boolean
   clientId?: string
   googleLogin?: boolean
+  cancelAppointmentId?: string
 }
 
 function formatBookingDate(date: string): string {
@@ -43,7 +45,7 @@ export function ConfermaForm({
   slug, tenantId, locationId, staffId, serviceIds, date, time,
   location, staff, services, primaryColor, logoUrl, businessName = '',
   initialFullName = '', initialPhone = '', initialEmail = '',
-  isLoggedIn = false, clientId, googleLogin = false,
+  isLoggedIn = false, clientId, googleLogin = false, cancelAppointmentId,
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
@@ -69,10 +71,16 @@ export function ConfermaForm({
       staff: staffId,
       services: serviceIds.join(','),
     })
+    if (cancelAppointmentId) params.set('cancelAppointmentId', cancelAppointmentId)
     router.push(tenantPath(`/prenota/data?${params}`))
   }
 
   function handleSuccess(appointmentId: string) {
+    if (cancelAppointmentId) {
+      void cancelAppointmentForReschedule(tenantId, cancelAppointmentId).catch((e) => {
+        console.error('cancelAppointmentForReschedule failed:', e)
+      })
+    }
     setSuccessAppointmentId(appointmentId)
   }
 

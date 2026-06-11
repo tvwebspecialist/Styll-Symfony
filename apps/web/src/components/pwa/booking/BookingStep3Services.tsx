@@ -20,6 +20,7 @@ interface Props {
   onContinue: (serviceIds: string[]) => void
   primaryColor?: string
   skipLocationStep?: boolean
+  initialSelectedIds?: string[]
 }
 
 function formatCurrency(value: number): string {
@@ -54,9 +55,10 @@ export default function BookingStep3Services({
   onContinue,
   primaryColor,
   skipLocationStep = false,
+  initialSelectedIds,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds ?? [])
   const [pressedId, setPressedId] = useState<string | null>(null)
 
   const flatServices = useMemo(() => groups.flatMap((group) => group.services), [groups])
