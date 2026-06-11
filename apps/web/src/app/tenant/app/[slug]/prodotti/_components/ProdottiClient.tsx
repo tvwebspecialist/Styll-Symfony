@@ -173,6 +173,7 @@ export function ProdottiClient({
                 overflow: 'hidden',
                 aspectRatio: '1 / 1',
                 background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
+                pointerEvents: 'none',
               }}
             >
               {product.photo_url ? (
@@ -247,6 +248,7 @@ export function ProdottiClient({
                   cursor: 'pointer',
                   boxShadow: '0 1px 6px rgba(0,0,0,0.15)',
                   transition: 'background 150ms',
+                  pointerEvents: 'auto',
                 }}
               >
                 <Heart
@@ -259,7 +261,7 @@ export function ProdottiClient({
             </div>
 
             {/* Card body */}
-            <div style={{ padding: '10px 12px 12px', position: 'relative', zIndex: 1, minWidth: 0 }}>
+            <div style={{ padding: '10px 12px 12px', position: 'relative', zIndex: 1, minWidth: 0, pointerEvents: 'none' }}>
               {/* Name */}
               <p
                 style={{
