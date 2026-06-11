@@ -228,9 +228,13 @@ export function useRealtimeAppointments(
 
       const realtimeFilter = buildRealtimeFilter(tenantId, locationId, staffId)
 
+      // Unique channel topic per active filter set so multiple calendar views
+      // (different staff / week / location) don't collide on the same topic.
+      const channelName = `calendar:${tenantId}:${locationId ?? 'all'}:${staffId ?? 'all'}:${startDate ?? 'all'}:${endDate ?? 'all'}`
+
       try {
         channel = supabase
-          .channel(`calendar:appointments:${tenantId}`)
+          .channel(channelName)
           .on(
             'postgres_changes',
             {

@@ -7,6 +7,7 @@ import { PwaShell } from '@/components/pwa/PwaShell'
 import { PwaSplash } from '@/components/pwa/PwaSplash'
 import PwaInstallBanner from '@/components/pwa/PwaInstallBanner'
 import { PwaSessionRestorer } from '@/components/pwa/PwaSessionRestorer'
+import { PwaServiceWorkerRegistrar } from '@/components/pwa/PwaServiceWorkerRegistrar'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { GOOGLE_FONT_URLS, resolveFontFamily } from '@/lib/pwa-fonts'
 
@@ -141,6 +142,9 @@ export function PwaPreviewShell({
           <PwaSessionRestorer />
         </React.Suspense>
       )}
+
+      {/* Service worker — offline-first caching (mai in preview dashboard) */}
+      {!preview.enabled && <PwaServiceWorkerRegistrar />}
     </div>
   )
 }
