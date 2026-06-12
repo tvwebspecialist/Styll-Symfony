@@ -16,24 +16,26 @@ export interface BottomCTAProps {
   primary: BottomCTAPrimary
   secondary?: BottomCTASecondary
   tenantPrimary?: string
+  /** CSS length to raise the bar above a visible bottom nav, e.g. 'calc(var(--bottom-nav-height, 80px) + 16px)' */
+  bottomOffset?: string
 }
 
-export function BottomCTA({ primary, secondary, tenantPrimary }: BottomCTAProps) {
+export function BottomCTA({ primary, secondary, tenantPrimary, bottomOffset }: BottomCTAProps) {
   const brandColor = tenantPrimary ?? '#1a1a1a'
   const isDisabled = primary.disabled === true || primary.loading === true
+  const spacerHeight = bottomOffset
+    ? `calc(76px + max(12px, env(safe-area-inset-bottom, 0px)) + ${bottomOffset})`
+    : 'calc(76px + max(12px, env(safe-area-inset-bottom, 0px)))'
 
   return (
     <>
       {/* Spacer so scrollable content clears the fixed bar */}
-      <div
-        aria-hidden="true"
-        style={{ height: 'calc(76px + max(12px, env(safe-area-inset-bottom, 0px)))' }}
-      />
+      <div aria-hidden="true" style={{ height: spacerHeight }} />
 
       <div
         style={{
           position: 'fixed',
-          bottom: 0,
+          bottom: bottomOffset ?? 0,
           left: 0,
           right: 0,
           zIndex: 50,

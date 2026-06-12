@@ -21,6 +21,8 @@ interface Props {
   primaryColor?: string
   skipLocationStep?: boolean
   initialSelectedIds?: string[]
+  /** True when both sede and barbiere are skipped — this step is the first, so bottom nav is visible */
+  isFirstStep?: boolean
 }
 
 function formatCurrency(value: number): string {
@@ -56,6 +58,7 @@ export default function BookingStep3Services({
   primaryColor,
   skipLocationStep = false,
   initialSelectedIds,
+  isFirstStep = false,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds ?? [])
@@ -255,7 +258,7 @@ export default function BookingStep3Services({
         </p>
       </div>
 
-      <div style={{ paddingTop: 24, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}>
+      <div style={{ paddingTop: 24, paddingBottom: isFirstStep ? 'calc(96px + var(--bottom-nav-height, 80px) + 16px + env(safe-area-inset-bottom))' : 'calc(96px + env(safe-area-inset-bottom))' }}>
         {groups.map((group) => (
           <section key={group.category} style={{ marginBottom: 28 }}>
             {/* Label categoria — sobria, grigio chiaro */}
@@ -390,6 +393,7 @@ export default function BookingStep3Services({
           disabled: selectedIds.length === 0,
         }}
         tenantPrimary={brandColor}
+        bottomOffset={isFirstStep ? 'calc(var(--bottom-nav-height, 80px) + 16px)' : undefined}
       />
     </div>
   )
