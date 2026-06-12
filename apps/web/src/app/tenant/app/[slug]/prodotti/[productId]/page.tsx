@@ -45,31 +45,6 @@ export default async function ProductDetailPage({ params }: Props) {
     is_new: boolean
   }
 
-  const [locationsRes, inventoryRes] = await Promise.all([
-    db
-      .from('locations')
-      .select('id, name')
-      .eq('tenant_id', tenant.tenant_id)
-      .eq('is_active', true)
-      .order('name', { ascending: true }),
-    db
-      .from('product_inventory')
-      .select('location_id, quantity')
-      .eq('tenant_id', tenant.tenant_id)
-      .eq('product_id', productId),
-  ])
-
-  const stockMap = new Map<string, number>()
-  for (const row of (inventoryRes.data ?? []) as Array<{ location_id: string; quantity: number }>) {
-    stockMap.set(row.location_id, (stockMap.get(row.location_id) ?? 0) + row.quantity)
-  }
-
-  const locationStocks = (locationsRes.data ?? []).map((loc: { id: string; name: string }) => ({
-    id: loc.id,
-    name: loc.name,
-    available: (stockMap.get(loc.id) ?? 0) > 0,
-  }))
-
   const supabase = await createServerClient()
   const {
     data: { user },
@@ -131,11 +106,25 @@ export default async function ProductDetailPage({ params }: Props) {
             <ShoppingBag size={80} color="#3a3a3c" />
           </div>
         )}
-        {/* Gradient — darken top for controls, subtle at bottom */}
+        {/* Top gradient — control readability */}
         <div style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.05) 100%)',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 30%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Bottom blur zone — softens image edge for glass panel backdrop */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '26%',
+          backdropFilter: 'blur(24px) saturate(130%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(130%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 55%)',
+          maskImage: 'linear-gradient(to bottom, transparent, black 55%)',
+          pointerEvents: 'none',
         }} />
       </div>
 
@@ -152,7 +141,6 @@ export default async function ProductDetailPage({ params }: Props) {
         isLoggedIn={!!user}
         clientId={clientId}
         initialIsFavorite={isInWishlist}
-        locationStocks={locationStocks}
         upcomingAppointments={upcomingAppointments}
         brandColor={brandColor}
       />

@@ -72,15 +72,17 @@ export function PwaShell({
   // top, altrimenti il glass non risale sotto la status bar (doppio conteggio).
   return (
     <>
-      <PwaTopBar
-        businessName={businessName}
-        logoUrl={logoUrl}
-        primaryColor={primaryColor}
-        fontFamily={fontFamily}
-        clientName={clientName}
-        clientAvatarUrl={clientAvatarUrl}
-        slug={slug}
-      />
+      {!isProductDetail && (
+        <PwaTopBar
+          businessName={businessName}
+          logoUrl={logoUrl}
+          primaryColor={primaryColor}
+          fontFamily={fontFamily}
+          clientName={clientName}
+          clientAvatarUrl={clientAvatarUrl}
+          slug={slug}
+        />
+      )}
       <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail) ? 0 : 96 }}>
         {children}
       </div>

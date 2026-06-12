@@ -1,9 +1,11 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useState, useCallback } from 'react'
 import {
-  Calendar,
+  ArrowLeft,
+  CalendarPlus,
   Check,
   ChevronRight,
   Heart,
@@ -16,12 +18,6 @@ import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { addProductToAppointment } from '@/lib/actions/wishlist'
 import type { UpcomingAppointmentWithStatus } from '@/lib/actions/wishlist'
-
-export interface LocationStock {
-  id: string
-  name: string
-  available: boolean
-}
 
 interface Props {
   productId: string
@@ -36,7 +32,6 @@ interface Props {
   isLoggedIn: boolean
   clientId?: string | null
   initialIsFavorite: boolean
-  locationStocks: LocationStock[]
   upcomingAppointments: UpcomingAppointmentWithStatus[]
   brandColor: string
 }
@@ -55,6 +50,14 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
+function formatDateShort(iso: string): string {
+  return new Intl.DateTimeFormat('it-IT', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(iso))
+}
+
 export function ProductDetailClient({
   productId,
   productName,
@@ -68,10 +71,10 @@ export function ProductDetailClient({
   isLoggedIn,
   clientId,
   initialIsFavorite,
-  locationStocks,
   upcomingAppointments,
   brandColor,
 }: Props) {
+  const router = useRouter()
   const tenantPath = useTenantPath(slug)
   const { isFavorite, toggle } = useFavoriteProducts({
     isLoggedIn,
@@ -89,11 +92,18 @@ export function ProductDetailClient({
     ),
   )
 
+  const [selectedApptId, setSelectedApptId] = useState<string | null>(
+    upcomingAppointments[0]?.id ?? null,
+  )
+
   const addToAppointment = useCallback(
     async (appointmentId: string) => {
       const state = apptStates[appointmentId]
       if (!state || state.added || state.loading) return
-      setApptStates((prev) => ({ ...prev, [appointmentId]: { ...prev[appointmentId], loading: true } }))
+      setApptStates((prev) => ({
+        ...prev,
+        [appointmentId]: { ...prev[appointmentId], loading: true },
+      }))
       const result = await addProductToAppointment({
         tenantId,
         appointmentId,
@@ -118,6 +128,12 @@ export function ProductDetailClient({
   }, [])
 
   const favorited = isFavorite(productId)
+  const selectedAppt = upcomingAppointments.find((a) => a.id === selectedApptId) ?? null
+  const selectedState = selectedApptId
+    ? (apptStates[selectedApptId] ?? { added: false, loading: false, qty: 1 })
+    : null
+
+  const TOP_OFFSET = 'calc(env(safe-area-inset-top, 0px) + 16px)'
 
   return (
     <>
@@ -130,28 +146,30 @@ export function ProductDetailClient({
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
         }
+        .detail-appt-chips::-webkit-scrollbar { display: none; }
         @media (prefers-reduced-motion: reduce) {
           .detail-panel { animation: none !important; opacity: 1 !important; transform: none !important; }
         }
       `}</style>
 
-      {/* Heart — top-right, positioned below the topbar */}
+      {/* Back — top-left Liquid Glass circle */}
       <button
         type="button"
-        onClick={() => void toggle(productId)}
-        aria-label={favorited ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+        onClick={() => router.back()}
+        aria-label="Torna indietro"
         style={{
           position: 'absolute',
-          top: 'calc(75px + env(safe-area-inset-top, 0px) + 8px)',
-          right: 16,
+          top: TOP_OFFSET,
+          left: 16,
           zIndex: 20,
           width: 44,
           height: 44,
           borderRadius: '50%',
-          border: 'none',
-          background: favorited ? 'var(--brand-primary, #222)' : 'rgba(0,0,0,0.48)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
+          border: '1px solid rgba(255,255,255,0.45)',
+          background: 'rgba(255,255,255,0.22)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -159,15 +177,38 @@ export function ProductDetailClient({
           transition: 'background 200ms',
         }}
       >
-        <Heart
-          size={18}
-          color="#FFFFFF"
-          fill={favorited ? '#FFFFFF' : 'none'}
-          strokeWidth={2}
-        />
+        <ArrowLeft size={18} color="#FFFFFF" strokeWidth={2.5} />
       </button>
 
-      {/* Glass panel — emerges from bottom */}
+      {/* Heart — top-right Liquid Glass circle */}
+      <button
+        type="button"
+        onClick={() => void toggle(productId)}
+        aria-label={favorited ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+        style={{
+          position: 'absolute',
+          top: TOP_OFFSET,
+          right: 16,
+          zIndex: 20,
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
+          border: '1px solid rgba(255,255,255,0.45)',
+          background: favorited ? `${brandColor}dd` : 'rgba(255,255,255,0.22)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'background 200ms',
+        }}
+      >
+        <Heart size={18} color="#FFFFFF" fill={favorited ? '#FFFFFF' : 'none'} strokeWidth={2} />
+      </button>
+
+      {/* Liquid Glass panel */}
       <div
         className="detail-panel"
         style={{
@@ -179,30 +220,31 @@ export function ProductDetailClient({
           maxHeight: '62dvh',
           overflowY: 'auto',
           overscrollBehavior: 'contain',
-          backdropFilter: 'blur(40px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-          background: 'rgba(255,255,255,0.76)',
-          borderRadius: '30px 30px 0 0',
+          backdropFilter: 'blur(60px) saturate(240%)',
+          WebkitBackdropFilter: 'blur(60px) saturate(240%)',
+          background: 'rgba(255,255,255,0.28)',
+          borderRadius: '28px 28px 0 0',
+          borderTop: '1.5px solid rgba(255,255,255,0.6)',
           animationName: 'detail-panel-up',
           animationDuration: '360ms',
           animationTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
           animationFillMode: 'both',
         }}
       >
-        {/* Drag handle indicator */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2, flexShrink: 0 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.12)' }} />
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
         </div>
 
         <div style={{
-          padding: '10px 20px calc(env(safe-area-inset-bottom, 12px) + 16px)',
+          padding: '8px 20px calc(env(safe-area-inset-bottom, 12px) + 16px)',
           maxWidth: 640,
           margin: '0 auto',
         }}>
 
-          {/* Badges row: isNew + category */}
+          {/* Badges */}
           {(isNew || productCategory) && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               {isNew && (
                 <span style={{
                   display: 'inline-flex',
@@ -226,7 +268,7 @@ export function ProductDetailClient({
                   display: 'inline-block',
                   padding: '3px 10px',
                   borderRadius: 100,
-                  background: `${brandColor}1a`,
+                  background: `${brandColor}22`,
                   color: brandColor,
                   fontSize: 11,
                   fontWeight: 600,
@@ -242,17 +284,17 @@ export function ProductDetailClient({
             <p style={{
               fontSize: 11,
               fontWeight: 700,
-              color: '#9CA3AF',
+              color: 'rgba(0,0,0,0.45)',
               textTransform: 'uppercase',
               letterSpacing: '0.09em',
-              marginBottom: 6,
+              marginBottom: 4,
             }}>
               {productBrand}
             </p>
           )}
 
           {/* Name + Price */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0a0a0a', lineHeight: 1.15, margin: 0, flex: 1 }}>
               {productName}
             </h1>
@@ -265,184 +307,201 @@ export function ProductDetailClient({
 
           {/* Description */}
           {productDescription && (
-            <p style={{ fontSize: 14, color: '#555', lineHeight: 1.65, marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, marginBottom: 16 }}>
               {productDescription}
             </p>
           )}
 
-          {/* Location availability */}
-          {locationStocks.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#B0B0B0', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-                Disponibilità per sede
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {locationStocks.map((loc) => (
-                  <div
-                    key={loc.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      background: '#f5f5f5',
-                      borderRadius: 12,
-                    }}
-                  >
-                    <p style={{ fontSize: 13, fontWeight: 500, color: '#333' }}>{loc.name}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: loc.available ? '#22C55E' : '#D1D5DB' }} />
-                      <span style={{ fontSize: 12, color: loc.available ? '#16A34A' : '#9CA3AF', fontWeight: 500 }}>
-                        {loc.available ? 'Disponibile' : 'Non disponibile'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Appointment section */}
-          <div style={{ background: '#f5f5f5', borderRadius: 18, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 16px 10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={15} color={brandColor} />
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>
-                  Usa questo prodotto alla prossima visita
-                </p>
-              </div>
-              <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4, paddingLeft: 23 }}>
-                Il barbiere lo preparerà per te
-              </p>
-            </div>
-
+          {/* Appointment CTA — compact e-commerce row */}
+          <div style={{
+            background: 'rgba(255,255,255,0.38)',
+            borderRadius: 16,
+            border: '1px solid rgba(255,255,255,0.52)',
+            padding: '12px 14px',
+          }}>
             {!isLoggedIn ? (
-              <div style={{ padding: '12px 16px 16px', textAlign: 'center' }}>
-                <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 12 }}>
-                  Accedi per associare il prodotto al tuo appuntamento
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <p style={{ flex: 1, fontSize: 13, color: 'rgba(0,0,0,0.45)', margin: 0 }}>
+                  Accedi per aggiungere alla visita
                 </p>
                 <Link
                   href={tenantPath('/accesso?mode=login')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 6,
-                    padding: '10px 20px',
+                    gap: 5,
+                    padding: '8px 16px',
                     borderRadius: 100,
                     background: 'var(--brand-primary, #222)',
                     color: '#FFFFFF',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 600,
                     textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   Accedi
-                  <ChevronRight size={14} />
+                  <ChevronRight size={13} />
                 </Link>
               </div>
             ) : upcomingAppointments.length === 0 ? (
-              <div style={{ padding: '12px 16px 16px', textAlign: 'center' }}>
-                <p style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 12 }}>
-                  Non hai appuntamenti futuri
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <p style={{ flex: 1, fontSize: 13, color: 'rgba(0,0,0,0.45)', margin: 0 }}>
+                  Nessun appuntamento futuro
                 </p>
                 <Link
                   href={tenantPath('/prenota')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 6,
-                    padding: '10px 20px',
+                    gap: 5,
+                    padding: '8px 16px',
                     borderRadius: 100,
                     background: 'var(--brand-primary, #222)',
                     color: '#FFFFFF',
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 600,
                     textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
-                  Prenota ora
-                  <ChevronRight size={14} />
+                  Prenota
+                  <ChevronRight size={13} />
                 </Link>
               </div>
             ) : (
-              <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                {upcomingAppointments.map((appt, idx) => {
-                  const state = apptStates[appt.id] ?? { added: appt.hasProduct, loading: false, qty: 1 }
-                  return (
-                    <div
-                      key={appt.id}
-                      style={{
-                        padding: '12px 16px',
-                        borderTop: idx === 0 ? 'none' : '1px solid rgba(0,0,0,0.06)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111', textTransform: 'capitalize' }}>
-                          {formatDate(appt.start_time)}
-                        </p>
-                        {appt.serviceNames.length > 0 && (
-                          <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {appt.serviceNames.join(' · ')}
-                          </p>
-                        )}
-                      </div>
-
-                      {!state.added && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.08)', borderRadius: 100, padding: '3px 6px', flexShrink: 0 }}>
-                          <button type="button" onClick={() => changeQty(appt.id, -1)} style={{ width: 24, height: 24, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                            <Minus size={12} color="#555" />
-                          </button>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#222', minWidth: 16, textAlign: 'center' }}>
-                            {state.qty}
-                          </span>
-                          <button type="button" onClick={() => changeQty(appt.id, 1)} style={{ width: 24, height: 24, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                            <Plus size={12} color="#555" />
-                          </button>
-                        </div>
-                      )}
-
-                      {state.added ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 100, background: '#F0FDF4', fontSize: 12, fontWeight: 600, color: '#16A34A', flexShrink: 0 }}>
-                          <Check size={13} color="#16A34A" strokeWidth={2.5} />
-                          Aggiunto
-                        </div>
-                      ) : (
+              <>
+                {/* Chip selector — only when multiple appointments */}
+                {upcomingAppointments.length > 1 && (
+                  <div
+                    className="detail-appt-chips"
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      overflowX: 'auto',
+                      paddingBottom: 10,
+                      scrollbarWidth: 'none',
+                    }}
+                  >
+                    {upcomingAppointments.map((appt) => {
+                      const isSelected = selectedApptId === appt.id
+                      return (
                         <button
+                          key={appt.id}
                           type="button"
-                          onClick={() => void addToAppointment(appt.id)}
-                          disabled={state.loading}
+                          onClick={() => setSelectedApptId(appt.id)}
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            padding: '7px 14px',
-                            borderRadius: 100,
-                            border: 'none',
-                            background: 'var(--brand-primary, #222)',
-                            color: '#FFFFFF',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            cursor: state.loading ? 'not-allowed' : 'pointer',
-                            opacity: state.loading ? 0.7 : 1,
-                            transition: 'opacity 150ms',
                             flexShrink: 0,
+                            padding: '5px 12px',
+                            borderRadius: 100,
+                            border: `1.5px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.12)'}`,
+                            background: isSelected ? `${brandColor}18` : 'transparent',
+                            color: isSelected ? brandColor : 'rgba(0,0,0,0.4)',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            cursor: 'pointer',
                             fontFamily: 'inherit',
                           }}
                         >
-                          {state.loading
-                            ? <Loader2 size={13} style={{ animation: 'detail-spin 1s linear infinite' }} />
-                            : <Plus size={13} />
-                          }
-                          {!state.loading && 'Aggiungi'}
+                          {formatDateShort(appt.start_time)}
                         </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Single action row */}
+                {selectedAppt && selectedState && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* Date + services */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111', margin: 0, textTransform: 'capitalize' }}>
+                        {formatDate(selectedAppt.start_time)}
+                      </p>
+                      {selectedAppt.serviceNames.length > 0 && (
+                        <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {selectedAppt.serviceNames.join(' · ')}
+                        </p>
                       )}
                     </div>
-                  )
-                })}
-              </div>
+
+                    {/* Qty stepper — hidden when already added */}
+                    {!selectedState.added && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        background: 'rgba(0,0,0,0.07)',
+                        borderRadius: 100,
+                        padding: '4px 6px',
+                        flexShrink: 0,
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => changeQty(selectedAppt.id, -1)}
+                          style={{ width: 26, height: 26, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                        >
+                          <Minus size={11} color="#555" />
+                        </button>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#222', minWidth: 18, textAlign: 'center' }}>
+                          {selectedState.qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => changeQty(selectedAppt.id, 1)}
+                          style={{ width: 26, height: 26, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                        >
+                          <Plus size={11} color="#555" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Action button */}
+                    {selectedState.added ? (
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: '#F0FDF4',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Check size={18} color="#16A34A" strokeWidth={2.5} />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void addToAppointment(selectedAppt.id)}
+                        disabled={selectedState.loading}
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          border: 'none',
+                          background: 'var(--brand-primary, #222)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: selectedState.loading ? 'not-allowed' : 'pointer',
+                          opacity: selectedState.loading ? 0.7 : 1,
+                          transition: 'opacity 150ms',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {selectedState.loading
+                          ? <Loader2 size={16} color="#fff" style={{ animation: 'detail-spin 1s linear infinite' }} />
+                          : <CalendarPlus size={16} color="#fff" />
+                        }
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
