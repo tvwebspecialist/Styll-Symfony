@@ -412,6 +412,20 @@ variables (jsonb), is_active, created_at, updated_at
 
 ---
 
+## Onboarding Gating — Invariante Architetturale
+
+**Fonte di verità: `staff_members` attivo**, non `profiles.onboarding_completed` (il flag può essere null per tenant storici o dopo onboarding parziale).
+
+Tre punti devono restare in sync:
+
+1. **`proxy.ts`** — su `/onboarding/*`: se l'utente ha righe attive in `staff_members`, redirect alla dashboard. Se >1 riga, usa `/dashboard` (non il subdomain diretto) — `dashboard/layout.tsx` gestisce il routing a `/select-tenant`. Stessa logica sul path `/login`/`/register` per utenti già loggati.
+2. **`(auth)/onboarding/layout.tsx`** — firewall SSR: stessa logica staff_members → `/dashboard`. Controlla anche `is_superadmin` → `/admin` (superadmin non ha staff_members ma non deve vedere il wizard barbiere).
+3. **`auth/callback/route.ts`** — post-login OAuth: controlla `onboarding_completed`, fallback su `staff_members`. Se trova tenant attivo, fa self-heal (`UPDATE profiles SET onboarding_completed = true`) prima del redirect.
+
+Nessun redirect circolare possibile: `dashboard/layout.tsx` gestisce 0 tenant → `/onboarding`, mai il contrario.
+
+---
+
 ## Problemi Noti / TODO
 
 - [ ] **Shadow Mode bug:** quando in shadow mode, le pagine che chiamano `auth.getUser()` mostrano il profilo dell'admin invece del barbiere impersonato. Fix: usare context override basato sul cookie `shadow_tenant_id`

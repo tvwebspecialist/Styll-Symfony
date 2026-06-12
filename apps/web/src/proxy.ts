@@ -233,28 +233,35 @@ export async function proxy(request: NextRequest) {
 
       const completed = !!profile?.onboarding_completed
 
-      if (!completed && isProtected && !isAdmin && !isSubdomainRequest) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/onboarding/step-1'
-        return redirectTo(url)
-      }
+      // Do NOT block /dashboard based solely on onboarding_completed — that flag
+      // can be null for tenants created before the flag existed. dashboard/layout.tsx
+      // is the authoritative gate: it checks staff_members and redirects correctly.
 
-      if (completed && isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
+      // If the user is on an onboarding step, check whether they already have an
+      // active tenant. Both `completed=true` (normal case) and `completed=false` with
+      // existing staff_members (flag missing or stale) should be redirected away so
+      // existing tenants never see the wizard again.
+      if (isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
         const db = createAdminClient()
-        const { data: staffRow } = await db
+        const { data: staffRows } = await db
           .from('staff_members')
           .select('tenant_id')
           .eq('profile_id', user.id)
           .eq('is_active', true)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
-        if (staffRow?.tenant_id) {
+          .limit(2)
+        if (staffRows && staffRows.length > 0) {
+          if (staffRows.length > 1) {
+            // Multi-tenant: delegate to dashboard/layout.tsx which routes to /select-tenant
+            const multiUrl = request.nextUrl.clone()
+            multiUrl.pathname = '/dashboard'
+            return redirectTo(multiUrl)
+          }
           const { data: tenantRow } = await db
             .from('tenants')
             .select('slug')
-            .eq('id', staffRow.tenant_id)
+            .eq('id', staffRows[0].tenant_id)
             .maybeSingle()
           if (tenantRow?.slug) {
             const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
@@ -264,29 +271,34 @@ export async function proxy(request: NextRequest) {
             redirectUrl.port = ''
             return redirectTo(redirectUrl)
           }
+          const fallbackUrl = request.nextUrl.clone()
+          fallbackUrl.pathname = '/dashboard'
+          return redirectTo(fallbackUrl)
         }
-        const fallbackUrl = request.nextUrl.clone()
-        fallbackUrl.pathname = '/dashboard'
-        return redirectTo(fallbackUrl)
       }
 
       if (isAuthPage && !isSubdomainRequest) {
         if (completed) {
           const db = createAdminClient()
-          const { data: staffRow } = await db
+          const { data: staffRows } = await db
             .from('staff_members')
             .select('tenant_id')
             .eq('profile_id', user.id)
             .eq('is_active', true)
             .is('deleted_at', null)
             .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle()
-          if (staffRow?.tenant_id) {
+            .limit(2)
+          if (staffRows && staffRows.length > 1) {
+            // Multi-tenant: delegate to dashboard/layout.tsx which routes to /select-tenant
+            const multiUrl = request.nextUrl.clone()
+            multiUrl.pathname = '/dashboard'
+            return redirectTo(multiUrl)
+          }
+          if (staffRows && staffRows.length === 1) {
             const { data: tenantRow } = await db
               .from('tenants')
               .select('slug')
-              .eq('id', staffRow.tenant_id)
+              .eq('id', staffRows[0].tenant_id)
               .maybeSingle()
             if (tenantRow?.slug) {
               const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
