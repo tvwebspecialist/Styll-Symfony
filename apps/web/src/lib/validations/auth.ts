@@ -3,9 +3,10 @@ import { z } from 'zod'
 export const finalizeOnboardingSchema = z.object({
   step1: z.object({
     name: z.string().trim().min(2, 'Nome attività obbligatorio'),
-    business_type: z
-      .enum(['barbiere', 'parrucchiere', 'salone_misto', 'beauty_center', 'altro'])
-      .nullable(),
+    business_type: z.preprocess(
+      (v) => (v === '' ? null : v),
+      z.enum(['barbiere', 'parrucchiere', 'salone_misto', 'beauty_center', 'altro']).nullable()
+    ),
     phone: z.string().trim().max(40).optional().default(''),
     address: z.string().trim().min(2, 'Indirizzo obbligatorio'),
     city: z.string().trim().min(2, 'Città obbligatoria'),
