@@ -48,6 +48,8 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff
   }
 
   const skipLocationStep = skip.includes('sede')
+  const skipStaffStep = skip.includes('barbiere')
+  const isFirstStep = skipLocationStep && skipStaffStep
 
   return (
     <BookingStep3Services
@@ -58,6 +60,7 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff
       onContinue={handleContinue}
       primaryColor={primaryColor}
       skipLocationStep={skipLocationStep}
+      isFirstStep={isFirstStep}
       initialSelectedIds={initialServiceIds}
     />
   )
