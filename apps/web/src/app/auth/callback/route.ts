@@ -92,7 +92,30 @@ export async function GET(request: NextRequest) {
     .eq('id', user.id)
     .maybeSingle()
 
+  // Prefer the onboarding_completed flag, but fall back to checking staff_members
+  // directly. This handles tenants whose profile was created before the flag existed
+  // or where a partial onboarding run left the flag unset.
   if (profile?.onboarding_completed) {
+    return redirect(`${origin}/dashboard`)
+  }
+
+  const adminDb = createAdminClient()
+  const { data: staffRow } = await adminDb
+    .from('staff_members')
+    .select('id')
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (staffRow) {
+    // Self-heal: flag may be null for tenants created before it existed.
+    // Idempotent — only runs when onboarding_completed is not already true.
+    await adminDb
+      .from('profiles')
+      .update({ onboarding_completed: true })
+      .eq('id', user.id)
     return redirect(`${origin}/dashboard`)
   }
 
