@@ -212,6 +212,25 @@ function TopBarInner({
   const segment = segments[0] ?? ''
   const subSegment = segments[1] ?? ''
 
+  // Product detail — back button to /prodotti list
+  if (segment === 'prodotti' && subSegment) {
+    return (
+      <div style={glassShell}>
+        <div style={{ ...contentBar, paddingLeft: '20px', paddingRight: '20px' }}>
+          <button
+            type="button"
+            style={backBtnStyle}
+            onClick={() => router.push(tenantPath('/prodotti'))}
+            aria-label="Torna ai prodotti"
+          >
+            <ChevronLeft size={20} color="#111111" strokeWidth={2.5} />
+          </button>
+          <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+        </div>
+      </div>
+    )
+  }
+
   // Pages that need a back button
   const SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'appuntamenti': { title: 'Appuntamenti', backTo: tenantPath('/profilo') },

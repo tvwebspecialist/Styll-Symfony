@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
-import { ArrowRight, Heart, ShoppingBag } from 'lucide-react'
+import { ArrowUpRight, Heart, ShoppingBag } from 'lucide-react'
 import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
@@ -49,6 +49,7 @@ export function ProdottiClient({
 }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [animationEpoch, setAnimationEpoch] = useState(0)
+  const [pressedCardId, setPressedCardId] = useState<string | null>(null)
   const { isFavorite, toggle } = useFavoriteProducts({
     isLoggedIn,
     clientId,
@@ -75,8 +76,13 @@ export function ProdottiClient({
           from { opacity: 0; transform: translateY(12px); }
           to   { opacity: 1; transform: translateY(0);    }
         }
+        .prodotti-card { transition: transform 120ms ease, box-shadow 120ms ease; }
+        .prodotti-card--pressed { transform: scale(0.965) !important; box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important; }
+        .prodotti-filter-pill { transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
         @media (prefers-reduced-motion: reduce) {
-          .prodotti-card { animation: none !important; opacity: 1 !important; }
+          .prodotti-card { animation: none !important; opacity: 1 !important; transition: none !important; }
+          .prodotti-card--pressed { transform: none !important; }
+          .prodotti-filter-pill { transition: none !important; }
         }
         .prodotti-filters::-webkit-scrollbar { display: none; }
       `}</style>
@@ -87,10 +93,10 @@ export function ProdottiClient({
           className="prodotti-filters"
           style={{
             display: 'flex',
-            gap: 6,
+            gap: 7,
             overflowX: 'auto',
-            paddingBottom: 12,
-            marginBottom: 8,
+            paddingBottom: 14,
+            marginBottom: 6,
             scrollbarWidth: 'none',
             WebkitOverflowScrolling: 'touch',
           }}
@@ -103,20 +109,22 @@ export function ProdottiClient({
               <button
                 key={cat}
                 type="button"
+                className="prodotti-filter-pill"
                 onClick={() => selectCategory(isAll ? null : (cat === selectedCategory ? null : cat as string))}
                 style={{
                   flexShrink: 0,
                   padding: '8px 18px',
                   borderRadius: 100,
-                  border: '1.5px solid',
-                  borderColor: active ? 'var(--brand-primary, #222)' : 'transparent',
-                  backgroundColor: active ? 'var(--brand-primary, #222)' : '#F2F2F2',
-                  color: active ? '#FFFFFF' : '#444',
+                  border: 'none',
+                  backgroundColor: active ? 'var(--brand-primary, #111)' : 'rgba(0,0,0,0.06)',
+                  color: active ? '#FFFFFF' : 'rgba(0,0,0,0.55)',
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: active ? 700 : 500,
+                  letterSpacing: active ? '-0.1px' : '0',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  transition: 'background 200ms, color 200ms, border-color 200ms',
+                  boxShadow: active ? '0 3px 10px rgba(0,0,0,0.18)' : 'none',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 {label}
@@ -137,7 +145,10 @@ export function ProdottiClient({
         {filtered.map((product, index) => (
           <div
             key={`${product.id}-${animationEpoch}`}
-            className="prodotti-card"
+            className={`prodotti-card${pressedCardId === product.id ? ' prodotti-card--pressed' : ''}`}
+            onPointerDown={() => setPressedCardId(product.id)}
+            onPointerUp={() => setPressedCardId(null)}
+            onPointerCancel={() => setPressedCardId(null)}
             style={{
               position: 'relative',
               background: '#FFFFFF',
@@ -151,6 +162,7 @@ export function ProdottiClient({
               animationTimingFunction: 'ease-out',
               animationFillMode: 'both',
               animationDelay: `${index * 55}ms`,
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             {/* Full-card link — behind everything */}
@@ -328,7 +340,7 @@ export function ProdottiClient({
                     flexShrink: 0,
                   }}
                 >
-                  <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  <ArrowUpRight size={16} color="#FFFFFF" strokeWidth={2.5} />
                 </div>
               </div>
             </div>

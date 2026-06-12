@@ -60,6 +60,8 @@ export function PwaShell({
 
   // Hide the bottom nav (and its padding) for all prenota subroutes — BottomCTA handles spacing there
   const isPrenotaSubroute = pathname.startsWith(`${tenantPath('/prenota')}/`)
+  // Product detail is fullscreen — no bottom nav
+  const isProductDetail = pathname.startsWith(`${tenantPath('/prodotti')}/`)
 
   if (isAuthPage) {
     return <>{children}</>
@@ -79,10 +81,10 @@ export function PwaShell({
         clientAvatarUrl={clientAvatarUrl}
         slug={slug}
       />
-      <div style={{ paddingBottom: isPrenotaSubroute ? 0 : 96 }}>
+      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail) ? 0 : 96 }}>
         {children}
       </div>
-      {!isPrenotaSubroute && (
+      {!(isPrenotaSubroute || isProductDetail) && (
         <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
       )}
       {isPrenotaSubroute && (

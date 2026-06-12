@@ -2,9 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft,
   Calendar,
   Check,
   ChevronRight,
@@ -74,7 +72,6 @@ export function ProductDetailClient({
   upcomingAppointments,
   brandColor,
 }: Props) {
-  const router = useRouter()
   const tenantPath = useTenantPath(slug)
   const { isFavorite, toggle } = useFavoriteProducts({
     isLoggedIn,
@@ -138,43 +135,14 @@ export function ProductDetailClient({
         }
       `}</style>
 
-      {/* Back — top-left frosted pill */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        style={{
-          position: 'absolute',
-          top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-          left: 16,
-          zIndex: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '8px 14px 8px 10px',
-          borderRadius: 100,
-          border: 'none',
-          background: 'rgba(0,0,0,0.48)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
-          color: '#FFFFFF',
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-        }}
-      >
-        <ArrowLeft size={16} color="#FFFFFF" />
-        Prodotti
-      </button>
-
-      {/* Heart — top-right frosted circle */}
+      {/* Heart — top-right, positioned below the topbar */}
       <button
         type="button"
         onClick={() => void toggle(productId)}
         aria-label={favorited ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
         style={{
           position: 'absolute',
-          top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+          top: 'calc(75px + env(safe-area-inset-top, 0px) + 8px)',
           right: 16,
           zIndex: 20,
           width: 44,
@@ -208,12 +176,12 @@ export function ProductDetailClient({
           left: 0,
           right: 0,
           zIndex: 10,
-          maxHeight: '68dvh',
+          maxHeight: '62dvh',
           overflowY: 'auto',
           overscrollBehavior: 'contain',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          background: 'rgba(255,255,255,0.93)',
+          backdropFilter: 'blur(40px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+          background: 'rgba(255,255,255,0.76)',
           borderRadius: '30px 30px 0 0',
           animationName: 'detail-panel-up',
           animationDuration: '360ms',
@@ -222,12 +190,12 @@ export function ProductDetailClient({
         }}
       >
         {/* Drag handle indicator */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 2, flexShrink: 0 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.10)' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2, flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.12)' }} />
         </div>
 
         <div style={{
-          padding: '16px 20px calc(env(safe-area-inset-bottom, 16px) + 28px)',
+          padding: '10px 20px calc(env(safe-area-inset-bottom, 12px) + 16px)',
           maxWidth: 640,
           margin: '0 auto',
         }}>
