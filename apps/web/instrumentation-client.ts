@@ -5,13 +5,17 @@ Sentry.init({
   enabled: process.env.NODE_ENV === 'production',
   tracesSampleRate: 0.2,
   profilesSampleRate: 0.1,
+  enableLogs: true,
   integrations: [
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration({
-      maskAllText: true, // GDPR: maschera testo utente
-      blockAllMedia: true, // GDPR: blocca media
+      maskAllText: true,
+      blockAllMedia: true,
     }),
+    Sentry.consoleLoggingIntegration({ levels: ['warn', 'error'] }),
   ],
   replaysSessionSampleRate: 0.05,
   replaysOnErrorSampleRate: 1.0,
 })
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
