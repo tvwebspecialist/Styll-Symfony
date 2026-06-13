@@ -20,7 +20,8 @@ jobs:
           RCLONE_CONFIG_SUPABASE_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_STORAGE_SECRET_ACCESS_KEY }}
           RCLONE_CONFIG_SUPABASE_ENDPOINT: https://anlftwawcemhxegztvst.storage.supabase.co/storage/v1/s3
           RCLONE_CONFIG_SUPABASE_REGION: eu-west-1
-        run: rclone copy supabase: ./storage-backup
+        run: |
+          rclone copy supabase: ./storage-backup
 
       - name: Compress backup
         run: tar czf storage-backup.tar.gz storage-backup
