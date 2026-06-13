@@ -76,6 +76,7 @@ function BusinessTab({ tenant }: { tenant: ImpostazioniData['tenant'] }) {
       const supabase = createClient()
       const ext = file.name.split('.').pop() ?? 'png'
       const path = `logos/${tenant?.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      console.log(path)
       const { error: uploadError } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
       const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
@@ -254,6 +255,7 @@ function PhotosUploader({
       for (const file of toUpload) {
         const ext = file.name.split('.').pop() ?? 'jpg'
         const path = `locations/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        console.log(path)
         const { error } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
         if (error) throw error
         const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
