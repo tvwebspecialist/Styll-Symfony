@@ -1,0 +1,33 @@
+name: Storage Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Sync Supabase Storage
+        env:
+          RCLONE_CONFIG_SUPABASE_TYPE: s3
+          RCLONE_CONFIG_SUPABASE_PROVIDER: Other
+          RCLONE_CONFIG_SUPABASE_ACCESS_KEY_ID: ${{ secrets.SUPABASE_STORAGE_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_SUPABASE_SECRET_ACCESS_KEY: ${{ secrets.SUPABASE_STORAGE_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_SUPABASE_ENDPOINT: https://anlftwawcemhxegztvst.storage.supabase.co/storage/v1/s3
+          RCLONE_CONFIG_SUPABASE_REGION: eu-west-1
+        run: rclone copy supabase: ./storage-backup
+
+      - name: Compress backup
+        run: tar czf storage-backup.tar.gz storage-backup
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-backup-${{ github.run_id }}
+          path: storage-backup.tar.gz
+          retention-days: 30
