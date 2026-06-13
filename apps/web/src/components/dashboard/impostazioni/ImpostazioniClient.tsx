@@ -75,10 +75,9 @@ function BusinessTab({ tenant }: { tenant: ImpostazioniData['tenant'] }) {
     try {
       const supabase = createClient()
       const ext = file.name.split('.').pop() ?? 'png'
-      const path = `logos/${tenant?.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-      console.log(path)
-      const { data: tid, error: tidErr } = await supabase.rpc('get_my_tenant_id')
-      console.log('get_my_tenant_id() via RPC:', tid, tidErr)
+      const { data: tenantId, error: tidErr } = await supabase.rpc('get_my_tenant_id')
+      if (tidErr || !tenantId) throw new Error(tidErr?.message ?? 'Tenant non trovato')
+      const path = `logos/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { error: uploadError } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
       const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
@@ -253,13 +252,12 @@ function PhotosUploader({
     setUploading(true)
     try {
       const supabase = createClient()
+      const { data: rpcTenantId, error: tidErr } = await supabase.rpc('get_my_tenant_id')
+      if (tidErr || !rpcTenantId) throw new Error(tidErr?.message ?? 'Tenant non trovato')
       const urls: string[] = []
       for (const file of toUpload) {
         const ext = file.name.split('.').pop() ?? 'jpg'
-        const path = `locations/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-        console.log(path)
-        const { data: tid, error: tidErr } = await supabase.rpc('get_my_tenant_id')
-        console.log('get_my_tenant_id() via RPC:', tid, tidErr)
+        const path = `locations/${rpcTenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
         const { error } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
         if (error) throw error
         const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
