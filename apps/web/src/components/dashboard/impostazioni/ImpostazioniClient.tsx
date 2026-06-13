@@ -75,7 +75,7 @@ function BusinessTab({ tenant }: { tenant: ImpostazioniData['tenant'] }) {
     try {
       const supabase = createClient()
       const ext = file.name.split('.').pop() ?? 'png'
-      const path = `logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const path = `logos/${tenant?.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { error: uploadError } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
       const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
@@ -234,10 +234,12 @@ function PhotosUploader({
   photos,
   onChange,
   maxPhotos = 10,
+  tenantId,
 }: {
   photos: string[]
   onChange: (photos: string[]) => void
   maxPhotos?: number
+  tenantId: string
 }) {
   const [uploading, setUploading] = React.useState(false)
 
@@ -251,7 +253,7 @@ function PhotosUploader({
       const urls: string[] = []
       for (const file of toUpload) {
         const ext = file.name.split('.').pop() ?? 'jpg'
-        const path = `locations/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const path = `locations/${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
         const { error } = await supabase.storage.from('tenants').upload(path, file, { upsert: true })
         if (error) throw error
         const { data: urlData } = supabase.storage.from('tenants').getPublicUrl(path)
@@ -350,10 +352,12 @@ function LocationForm({
   location,
   onClose,
   onSaved,
+  tenantId,
 }: {
   location: LocationSettings | null
   onClose: () => void
   onSaved: (loc: LocationSettings) => void
+  tenantId: string
 }) {
   const [name, setName] = React.useState(location?.name ?? '')
   const [address, setAddress] = React.useState(location?.address ?? '')
@@ -425,7 +429,7 @@ function LocationForm({
         />
       </Field>
       <Field label="Foto sede">
-        <PhotosUploader photos={photos} onChange={setPhotos} />
+        <PhotosUploader photos={photos} onChange={setPhotos} tenantId={tenantId} />
       </Field>
       {/* FIX 4: sticky footer so Save button is always accessible on mobile */}
       <div style={{
@@ -688,7 +692,7 @@ function LocationCard({
 
 // ─── Sedi tab ─────────────────────────────────────────────────────────────────
 
-function SediTab({ locations: initialLocations }: { locations: LocationSettings[] }) {
+function SediTab({ locations: initialLocations, tenantId }: { locations: LocationSettings[]; tenantId: string }) {
   const [locations, setLocations] = React.useState<LocationSettings[]>(initialLocations)
   const [modalOpen, setModalOpen] = React.useState(false)
   const [editingLoc, setEditingLoc] = React.useState<LocationSettings | null>(null)
@@ -798,6 +802,7 @@ function SediTab({ locations: initialLocations }: { locations: LocationSettings[
           location={editingLoc}
           onClose={() => setModalOpen(false)}
           onSaved={handleSaved}
+          tenantId={tenantId}
         />
       </StyllModal>
     </div>
@@ -966,7 +971,7 @@ export function ImpostazioniClient({ data }: { data: ImpostazioniData }) {
       {/* Tab content */}
       <div className="styll-card" style={{ padding: '28px 24px' }}>
         {activeTab === 'business' && <BusinessTab tenant={data.tenant} />}
-        {activeTab === 'sedi' && <SediTab locations={data.locations} />}
+        {activeTab === 'sedi' && <SediTab locations={data.locations} tenantId={data.tenant?.id ?? ''} />}
         {activeTab === 'abbonamento' && <AbbonamentoTab subscription={data.subscription} />}
       </div>
     </div>
