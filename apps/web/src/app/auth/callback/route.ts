@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -22,6 +23,20 @@ export async function GET(request: NextRequest) {
     return redirect(`${origin}/login`)
   }
 
+  const cookieStore = await cookies()
+  const requestCookies = cookieStore.getAll()
+  const pkceCookieNames = requestCookies
+    .map(({ name }) => name)
+    .filter((name) => name.includes('code-verifier'))
+
+  // Diagnostic log for mobile OAuth debugging: names only, never cookie values.
+  console.log('[auth/callback] request diagnostics:', {
+    cookieNames: requestCookies.map(({ name }) => name),
+    hasPkceCodeVerifierCookie: pkceCookieNames.length > 0,
+    pkceCookieNames,
+    userAgent: request.headers.get('user-agent'),
+  })
+
   const supabase = await createClient()
   const { error } = await supabase.auth.exchangeCodeForSession(code)
 
@@ -32,7 +47,7 @@ export async function GET(request: NextRequest) {
       error.message.toLowerCase().includes('code challenge') ||
       error.message.toLowerCase().includes('code verifier')
     const errorMsg = isPkceMismatch
-      ? 'Sessione scaduta o browser non supportato. Riprova il login.'
+      ? 'Sessione scaduta o browser non supportato. Riprova il login. Se hai bloccato i cookie o usi la modalita privata, abilita i cookie per styll.it e riprova.'
       : error.message
 
     return redirect(`${origin}/login?error=${encodeURIComponent(errorMsg)}`)
