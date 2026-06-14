@@ -90,7 +90,14 @@ export default function BookingStep5Confirm({
   const [upsellProducts, setUpsellProducts] = useState<UpsellProduct[]>([])
   const [loadingUpsell, setLoadingUpsell] = useState(true)
   const [upsellDone, setUpsellDone] = useState(false)
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(() => {
+    try {
+      const stored = sessionStorage.getItem('booking_upsell_ids')
+      return stored ? (JSON.parse(stored) as string[]) : []
+    } catch {
+      return []
+    }
+  })
 
   useEffect(() => {
     const categories = services.map((s) => s.category).filter((c): c is string => Boolean(c))
@@ -173,6 +180,8 @@ export default function BookingStep5Confirm({
       setIsSubmitting(false)
       return
     }
+    sessionStorage.removeItem('booking_upsell_ids')
+    sessionStorage.removeItem('upsell_shown')
     onSuccess(result.appointmentId)
   }
 
@@ -488,11 +497,13 @@ export default function BookingStep5Confirm({
           tenantId={tenantId}
           onContinue={(ids) => {
             setSelectedProductIds(ids)
+            sessionStorage.setItem('booking_upsell_ids', JSON.stringify(ids))
             setUpsellDone(true)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
           onSkip={() => {
             setSelectedProductIds([])
+            sessionStorage.removeItem('booking_upsell_ids')
             setUpsellDone(true)
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}

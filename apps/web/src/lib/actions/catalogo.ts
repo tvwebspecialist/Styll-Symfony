@@ -56,9 +56,10 @@ export async function getCatalogoData(): Promise<{
   locations: LocationRow[]
   dbCategories: ServiceCategoryRow[]
   tenantId: string | null
+  inventoryByProduct: Record<string, InventoryEntry[]>
 }> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { servizi: [], prodotti: [], locations: [], dbCategories: [], tenantId: null }
+  if (!tenantId) return { servizi: [], prodotti: [], locations: [], dbCategories: [], tenantId: null, inventoryByProduct: {} }
 
   const db = createAdminClient()
 
@@ -91,11 +92,14 @@ export async function getCatalogoData(): Promise<{
   const inventory    = inventoryRes.data ?? []
   const rawLocations = locationsRes.data ?? []
 
-  // Aggregate inventory per product
+  // Aggregate inventory per product (total) and per-location (for edit form)
   const stockByProduct = new Map<string, number>()
+  const inventoryByProduct: Record<string, InventoryEntry[]> = {}
   for (const inv of inventory) {
     const current = stockByProduct.get(inv.product_id) ?? 0
     stockByProduct.set(inv.product_id, current + (inv.quantity ?? 0))
+    if (!inventoryByProduct[inv.product_id]) inventoryByProduct[inv.product_id] = []
+    inventoryByProduct[inv.product_id].push({ location_id: inv.location_id, quantity: inv.quantity ?? 0 })
   }
 
   const servizi: ServizioRow[] = rawServizi.map((s) => ({
@@ -144,7 +148,7 @@ export async function getCatalogoData(): Promise<{
     .map(([name, color]) => ({ name, color }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  return { servizi, prodotti, locations, dbCategories, tenantId }
+  return { servizi, prodotti, locations, dbCategories, tenantId, inventoryByProduct }
 }
 
 // ─── upsertServizio ───────────────────────────────────────────────────────────

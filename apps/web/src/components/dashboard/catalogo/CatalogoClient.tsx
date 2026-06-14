@@ -1302,11 +1302,13 @@ export function CatalogoClient({
   prodotti: initialProdotti,
   locations,
   dbCategories: initialDbCategories,
+  inventoryByProduct,
 }: {
   servizi: ServizioRow[]
   prodotti: ProdottoRow[]
   locations: LocationRow[]
   dbCategories: ServiceCategoryRow[]
+  inventoryByProduct: Record<string, InventoryEntry[]>
 }) {
   const [activeTab, setActiveTab] = React.useState<'servizi' | 'prodotti'>('servizi')
 
@@ -1369,14 +1371,15 @@ export function CatalogoClient({
     return Array.from(cats).sort()
   }, [prodotti])
 
-  // ── Existing inventory for editing product
+  // ── Existing inventory for editing product (per-location from DB)
   const existingInventory = React.useMemo<InventoryEntry[]>(() => {
     if (!editingProdotto) return []
-    return locations.map((loc) => ({
-      location_id: loc.id,
-      quantity: 0, // We don't have per-location data in the list view; start from 0 when editing
-    }))
-  }, [editingProdotto, locations])
+    const productInv = inventoryByProduct[editingProdotto.id] ?? []
+    return locations.map((loc) => {
+      const found = productInv.find((e) => e.location_id === loc.id)
+      return { location_id: loc.id, quantity: found?.quantity ?? 0 }
+    })
+  }, [editingProdotto, locations, inventoryByProduct])
 
   // ── Drag end handler
   async function handleDragEnd(event: DragEndEvent) {
