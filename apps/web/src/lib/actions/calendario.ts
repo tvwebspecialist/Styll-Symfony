@@ -281,7 +281,7 @@ export async function updateAppointmentStatus(
   const db = createAdminClient()
   const { data: appt } = await db
     .from('appointments')
-    .select('tenant_id')
+    .select('tenant_id, location_id')
     .eq('id', appointmentId)
     .maybeSingle()
 
@@ -296,10 +296,13 @@ export async function updateAppointmentStatus(
 
   if (error) return { success: false, error: error.message }
 
-  // Fire-and-forget: assign loyalty points when appointment is completed
+  // Fire-and-forget side-effects on completion
   if (status === 'completed') {
     assignPointsOnCompletion(appointmentId, tenantId).catch((err) => {
       console.error('[loyalty] assignPointsOnCompletion error:', err)
+    })
+    decrementInventoryOnCompletion(appointmentId, tenantId, (appt as { location_id: string | null }).location_id).catch((err) => {
+      console.error('[inventory] decrementInventoryOnCompletion error:', err)
     })
   }
 
@@ -307,14 +310,15 @@ export async function updateAppointmentStatus(
 }
 
 export async function getCalendarioFormOptions(tenantId: string): Promise<{
-  clients: Array<{ id: string; full_name: string | null }>
-  staff: Array<{ id: string; full_name: string | null }>
+  clients:  Array<{ id: string; full_name: string | null }>
+  staff:    Array<{ id: string; full_name: string | null }>
   services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
+  products: Array<{ id: string; name: string; brand: string | null; price_sell: number }>
 }> {
   await verifyUserTenantAccess(tenantId)
   const db = createAdminClient()
 
-  const [{ data: clients }, { data: staffRows }, { data: services }] = await Promise.all([
+  const [{ data: clients }, { data: staffRows }, { data: services }, { data: products }] = await Promise.all([
     db
       .from('clients')
       .select('id, full_name')
@@ -333,6 +337,12 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name'),
+    db
+      .from('products')
+      .select('id, name, brand, price_sell')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('name'),
   ])
 
   return {
@@ -348,6 +358,12 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
       category: string | null
       price: number
       color: string | null
+    }>),
+    products: ((products ?? []) as Array<{
+      id: string
+      name: string
+      brand: string | null
+      price_sell: number
     }>),
   }
 }
@@ -555,4 +571,152 @@ export async function updateAppointmentServices(
   }
 
   return { success: true }
+}
+
+// ── Appointment products (barber-side) ─────────────────────────────────────
+
+export interface AppointmentProductRow {
+  id:            string
+  product_id:    string
+  product_name:  string
+  product_brand: string | null
+  quantity:      number
+  price_at_sale: number
+}
+
+type RawApptProduct = {
+  id:            string
+  product_id:    string
+  quantity:      number
+  price_at_sale: number
+  products: { name: string; brand: string | null } | null
+}
+
+export async function getAppointmentProducts(
+  appointmentId: string,
+  tenantId: string,
+): Promise<AppointmentProductRow[]> {
+  await verifyUserTenantAccess(tenantId)
+  const db = createAdminClient()
+  const { data } = await db
+    .from('appointment_products')
+    .select('id, product_id, quantity, price_at_sale, products(name, brand)')
+    .eq('appointment_id', appointmentId)
+    .eq('tenant_id', tenantId)
+    .order('created_at')
+  return ((data ?? []) as unknown as RawApptProduct[]).map((r) => ({
+    id:            r.id,
+    product_id:    r.product_id,
+    product_name:  r.products?.name ?? '—',
+    product_brand: r.products?.brand ?? null,
+    quantity:      r.quantity,
+    price_at_sale: r.price_at_sale,
+  }))
+}
+
+export async function addProductToAppointmentByStaff(params: {
+  tenantId:      string
+  appointmentId: string
+  productId:     string
+  quantity:      number
+}): Promise<{ success: boolean; alreadyExists?: boolean; error?: string }> {
+  const { tenantId, appointmentId, productId, quantity } = params
+  await verifyUserTenantAccess(tenantId)
+  const db = createAdminClient()
+
+  // Verify appointment belongs to tenant and is not completed/cancelled
+  const { data: appt } = await db
+    .from('appointments')
+    .select('id, status')
+    .eq('id', appointmentId)
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!appt) return { success: false, error: 'Appuntamento non trovato.' }
+  if (appt.status === 'completed') return { success: false, error: 'Appuntamento già completato.' }
+
+  // Verify product belongs to tenant
+  const { data: product } = await db
+    .from('products')
+    .select('id, price_sell')
+    .eq('id', productId)
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (!product) return { success: false, error: 'Prodotto non trovato.' }
+
+  // Prevent duplicate
+  const { data: existing } = await db
+    .from('appointment_products')
+    .select('id')
+    .eq('appointment_id', appointmentId)
+    .eq('product_id', productId)
+    .maybeSingle()
+  if (existing) return { success: true, alreadyExists: true }
+
+  const { error } = await db.from('appointment_products').insert({
+    tenant_id:      tenantId,
+    appointment_id: appointmentId,
+    product_id:     productId,
+    quantity,
+    price_at_sale:  (product as { price_sell: number }).price_sell,
+  })
+  if (error) return { success: false, error: 'Errore nel salvataggio.' }
+  return { success: true }
+}
+
+export async function removeAppointmentProduct(
+  appointmentProductId: string,
+  tenantId: string,
+): Promise<{ success: boolean; error?: string }> {
+  await verifyUserTenantAccess(tenantId)
+  const db = createAdminClient()
+  const { error } = await db
+    .from('appointment_products')
+    .delete()
+    .eq('id', appointmentProductId)
+    .eq('tenant_id', tenantId)
+  if (error) return { success: false, error: error.message }
+  return { success: true }
+}
+
+// ── Internal: inventory decrement on appointment completion ─────────────────
+
+async function decrementInventoryOnCompletion(
+  appointmentId: string,
+  tenantId:       string,
+  locationId:     string | null,
+): Promise<void> {
+  if (!locationId) return  // no location → no inventory row to decrement
+
+  const db = createAdminClient()
+
+  const { data: items } = await db
+    .from('appointment_products')
+    .select('product_id, quantity')
+    .eq('appointment_id', appointmentId)
+    .eq('tenant_id', tenantId)
+
+  if (!items?.length) return
+
+  await Promise.all(
+    (items as Array<{ product_id: string; quantity: number }>).map(async (item) => {
+      await Promise.all([
+        db.rpc('decrement_product_inventory', {
+          p_tenant_id:   tenantId,
+          p_product_id:  item.product_id,
+          p_location_id: locationId,
+          p_quantity:    item.quantity,
+        }),
+        db.from('inventory_movements').insert({
+          tenant_id:      tenantId,
+          product_id:     item.product_id,
+          location_id:    locationId,
+          appointment_id: appointmentId,
+          movement_type:  'sale',
+          quantity:       -item.quantity,
+        }),
+      ])
+    }),
+  )
 }

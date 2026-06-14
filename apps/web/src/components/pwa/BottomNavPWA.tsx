@@ -63,6 +63,7 @@ export function BottomNavPWA({ slug, primaryColor: _primaryColor, fontFamily }: 
                 key={label}
                 href={href}
                 aria-label={label}
+                className="pwa-nav-item"
                 style={{
                   flex: isActive ? '0 0 auto' : 1,
                   display: 'flex',
@@ -84,7 +85,7 @@ export function BottomNavPWA({ slug, primaryColor: _primaryColor, fontFamily }: 
                     width: isActive ? 'auto' : 52,
                     height: isActive ? 62 : 52,
                     overflow: 'hidden',
-                    transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 100ms, transform 100ms',
                     cursor: 'pointer',
                   }}
                 >

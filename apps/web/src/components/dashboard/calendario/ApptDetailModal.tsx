@@ -2,13 +2,17 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { X, Users } from 'lucide-react'
+import { Package, Trash2, X, Users } from 'lucide-react'
 import type { CalendarioAppointment } from '@/lib/actions/calendario'
 import {
   updateAppointmentStatus,
   updateAppointmentStaff,
   getCalendarioFormOptions,
   updateAppointmentServices,
+  getAppointmentProducts,
+  addProductToAppointmentByStaff,
+  removeAppointmentProduct,
+  type AppointmentProductRow,
 } from '@/lib/actions/calendario'
 import { CustomSelect } from '@/components/ui/custom-select'
 import {
@@ -24,6 +28,11 @@ interface FormOptions {
   clients:  Array<{ id: string; full_name: string | null }>
   staff:    Array<{ id: string; full_name: string | null }>
   services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
+  products: Array<{ id: string; name: string; brand: string | null; price_sell: number }>
+}
+
+function formatPrice(n: number) {
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 export function ApptDetailModal({
@@ -50,17 +59,35 @@ export function ApptDetailModal({
   const [viewStatus, setViewStatus]     = React.useState(appt.status)
   const [quickSaving, setQuickSaving]   = React.useState(false)
 
+  // Products state
+  const [apptProducts, setApptProducts]     = React.useState<AppointmentProductRow[]>([])
+  const [productsLoading, setProductsLoading] = React.useState(true)
+  const [addProductId, setAddProductId]     = React.useState('')
+  const [addProductQty, setAddProductQty]   = React.useState(1)
+  const [productAdding, setProductAdding]   = React.useState(false)
+  const [productError, setProductError]     = React.useState<string | null>(null)
+
   React.useEffect(() => {
     getCalendarioFormOptions(tenantId)
       .then((opts) => setOptions(opts))
       .catch(() => setOptions(null))
   }, [tenantId])
 
+  React.useEffect(() => {
+    getAppointmentProducts(appt.id, tenantId)
+      .then((rows) => setApptProducts(rows))
+      .catch(() => setApptProducts([]))
+      .finally(() => setProductsLoading(false))
+  }, [appt.id, tenantId])
+
   const sc  = STATUS_BADGE[viewStatus] ?? { bg: '#F3F4F6', text: '#374151' }
   const col = getCategoryColor(appt.services[0]?.category)
   const dateLabel = new Date(appt.start_time).toLocaleDateString('it-IT', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
+
+  const isCompleted = viewStatus === 'completed'
+  const productsEditable = !isCompleted
 
   async function handleSave() {
     setSaving(true)
@@ -78,10 +105,40 @@ export function ApptDetailModal({
     onClose()
   }
 
+  async function handleAddProduct() {
+    if (!addProductId) return
+    setProductAdding(true)
+    setProductError(null)
+    const res = await addProductToAppointmentByStaff({
+      tenantId,
+      appointmentId: appt.id,
+      productId: addProductId,
+      quantity: addProductQty,
+    })
+    if (!res.success && !res.alreadyExists) {
+      setProductError(res.error ?? 'Errore')
+      setProductAdding(false)
+      return
+    }
+    // Reload products list
+    const rows = await getAppointmentProducts(appt.id, tenantId)
+    setApptProducts(rows)
+    setAddProductId('')
+    setAddProductQty(1)
+    setProductAdding(false)
+  }
+
+  async function handleRemoveProduct(id: string) {
+    await removeAppointmentProduct(id, tenantId)
+    setApptProducts((prev) => prev.filter((p) => p.id !== id))
+  }
+
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E5E7EB',
     fontSize: 13, color: '#111827', background: '#FFF', outline: 'none', boxSizing: 'border-box',
   }
+
+  const productsTotal = apptProducts.reduce((s, p) => s + p.price_at_sale * p.quantity, 0)
 
   return (
     <div
@@ -95,6 +152,7 @@ export function ApptDetailModal({
         style={{ background: '#FFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}
       >
         <div className="styll-modal-drag-handle" aria-hidden="true" />
+
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -137,10 +195,131 @@ export function ApptDetailModal({
         </div>
 
         {/* Time */}
-        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: '#374151' }}>
+        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: apptProducts.length > 0 && !productsLoading ? 8 : 16, fontSize: 13, color: '#374151' }}>
           <span style={{ fontWeight: 600 }}>{formatTime(appt.start_time)} – {formatTime(appt.end_time)}</span>
           <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {getDurationMin(appt)}min</span>
           {appt.notes && !editing && <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {appt.notes}</span>}
+        </div>
+
+        {/* Product chips — quick-glance summary, shown only when products exist */}
+        {!productsLoading && apptProducts.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {apptProducts.map((p) => (
+              <span
+                key={p.id}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '4px 10px',
+                  borderRadius: 100,
+                  background: '#FEF3C7',
+                  border: '1px solid #FDE68A',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#92400E',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Package size={11} color="#D97706" />
+                {p.product_name}{p.quantity > 1 ? ` ×${p.quantity}` : ''}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* ── Prodotti ──────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Package size={13} color="#9CA3AF" />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Prodotti
+            </span>
+            {apptProducts.length > 0 && (
+              <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                {formatPrice(productsTotal)}
+              </span>
+            )}
+          </div>
+
+          <div style={{ background: '#F9FAFB', borderRadius: 12, overflow: 'hidden' }}>
+            {productsLoading ? (
+              <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Caricamento…</p>
+            ) : apptProducts.length === 0 && !productsEditable ? (
+              <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Nessun prodotto associato</p>
+            ) : (
+              <>
+                {apptProducts.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid #F0F0F0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.product_name}
+                      </p>
+                      {p.product_brand && (
+                        <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF' }}>{p.product_brand}</p>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 12, color: '#6B7280', flexShrink: 0 }}>×{p.quantity}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flexShrink: 0 }}>
+                      {formatPrice(p.price_at_sale * p.quantity)}
+                    </span>
+                    {productsEditable && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveProduct(p.id)}
+                        style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <Trash2 size={12} color="#DC2626" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add product form — only when not completed */}
+                {productsEditable && options && options.products.length > 0 && (
+                  <div style={{ padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <CustomSelect
+                          value={addProductId}
+                          onChange={(v) => setAddProductId(v)}
+                          options={options.products
+                            .filter((p) => !apptProducts.some((ap) => ap.product_id === p.id))
+                            .map((p) => ({
+                              value: p.id,
+                              label: p.brand ? `${p.name} — ${p.brand}` : p.name,
+                            }))}
+                          placeholder="Aggiungi prodotto…"
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#F3F4F6', borderRadius: 8, padding: '0 8px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => setAddProductQty((q) => Math.max(1, q - 1))}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}
+                        >−</button>
+                        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 16, textAlign: 'center', color: '#111827' }}>{addProductQty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setAddProductQty((q) => q + 1)}
+                          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}
+                        >+</button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleAddProduct()}
+                        disabled={!addProductId || productAdding}
+                        style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: '#111827', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: !addProductId || productAdding ? 'not-allowed' : 'pointer', opacity: !addProductId || productAdding ? 0.5 : 1, flexShrink: 0 }}
+                      >
+                        {productAdding ? '…' : 'Aggiungi'}
+                      </button>
+                    </div>
+                    {productError && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{productError}</p>}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Edit form or action buttons */}

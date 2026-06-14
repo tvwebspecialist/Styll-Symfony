@@ -89,7 +89,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const brandColor = tenant.primary_color ?? '#1a1a1a'
 
   return (
-    <main style={{ position: 'fixed', inset: 0, zIndex: 2, overflow: 'hidden', background: '#111' }}>
+    <main style={{ position: 'fixed', inset: 0, zIndex: 80, overflow: 'hidden', background: '#111' }}>
       {/* Fullscreen background image */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
         {p.photo_url ? (
