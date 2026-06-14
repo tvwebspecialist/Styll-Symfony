@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   ArrowLeft,
   CalendarPlus,
@@ -13,6 +13,7 @@ import {
   Minus,
   Plus,
   Sparkles,
+  X,
 } from 'lucide-react'
 import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -85,16 +86,18 @@ export function ProductDetailClient({
   })
 
   const [apptStates, setApptStates] = useState<
-    Record<string, { added: boolean; loading: boolean; qty: number }>
+    Record<string, { added: boolean; loading: boolean }>
   >(
     Object.fromEntries(
-      upcomingAppointments.map((a) => [a.id, { added: a.hasProduct, loading: false, qty: 1 }]),
+      upcomingAppointments.map((a) => [a.id, { added: a.hasProduct, loading: false }]),
     ),
   )
 
   const [selectedApptId, setSelectedApptId] = useState<string | null>(
     upcomingAppointments[0]?.id ?? null,
   )
+  const [qty, setQty] = useState(1)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const addToAppointment = useCallback(
     async (appointmentId: string) => {
@@ -108,7 +111,7 @@ export function ProductDetailClient({
         tenantId,
         appointmentId,
         productId,
-        quantity: state.qty,
+        quantity: qty,
         priceAtSale: priceSell,
       })
       setApptStates((prev) => ({
@@ -116,24 +119,41 @@ export function ProductDetailClient({
         [appointmentId]: { ...prev[appointmentId], loading: false, added: result.success },
       }))
     },
-    [apptStates, tenantId, productId, priceSell],
+    [apptStates, tenantId, productId, priceSell, qty],
   )
 
-  const changeQty = useCallback((appointmentId: string, delta: number) => {
-    setApptStates((prev) => {
-      const current = prev[appointmentId]
-      if (!current) return prev
-      return { ...prev, [appointmentId]: { ...current, qty: Math.max(1, current.qty + delta) } }
-    })
-  }, [])
+  useEffect(() => {
+    if (!isModalOpen) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsModalOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isModalOpen])
 
   const favorited = isFavorite(productId)
   const selectedAppt = upcomingAppointments.find((a) => a.id === selectedApptId) ?? null
   const selectedState = selectedApptId
-    ? (apptStates[selectedApptId] ?? { added: false, loading: false, qty: 1 })
+    ? (apptStates[selectedApptId] ?? { added: false, loading: false })
     : null
 
   const TOP_OFFSET = 'calc(env(safe-area-inset-top, 0px) + 16px)'
+
+  // Topbar-glass recipe applied to circular buttons
+  const glassCircleBase = {
+    width: 44,
+    height: 44,
+    borderRadius: '50%' as const,
+    border: '1px solid rgba(255,255,255,0.62)',
+    backdropFilter: 'blur(28px) saturate(210%)',
+    WebkitBackdropFilter: 'blur(28px) saturate(210%)',
+    boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.45), 0 1px 0 rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.11)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'background 200ms',
+  }
 
   return (
     <>
@@ -146,13 +166,23 @@ export function ProductDetailClient({
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
         }
+        @keyframes modal-slide-up {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
+        @keyframes modal-fade-in {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
         .detail-appt-chips::-webkit-scrollbar { display: none; }
         @media (prefers-reduced-motion: reduce) {
           .detail-panel { animation: none !important; opacity: 1 !important; transform: none !important; }
+          .detail-modal { animation: none !important; }
+          .detail-modal-backdrop { animation: none !important; }
         }
       `}</style>
 
-      {/* Back — top-left Liquid Glass circle */}
+      {/* Back — topbar-glass circle */}
       <button
         type="button"
         onClick={() => router.back()}
@@ -162,25 +192,14 @@ export function ProductDetailClient({
           top: TOP_OFFSET,
           left: 16,
           zIndex: 20,
-          width: 44,
-          height: 44,
-          borderRadius: '50%',
-          border: '1px solid rgba(255,255,255,0.45)',
-          background: 'rgba(255,255,255,0.22)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'background 200ms',
+          ...glassCircleBase,
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.68)), rgba(250,251,253,0.72)',
         }}
       >
-        <ArrowLeft size={18} color="#FFFFFF" strokeWidth={2.5} />
+        <ArrowLeft size={18} color="#0a0a0a" strokeWidth={2.5} />
       </button>
 
-      {/* Heart — top-right Liquid Glass circle */}
+      {/* Heart — topbar-glass circle */}
       <button
         type="button"
         onClick={() => void toggle(productId)}
@@ -190,25 +209,21 @@ export function ProductDetailClient({
           top: TOP_OFFSET,
           right: 16,
           zIndex: 20,
-          width: 44,
-          height: 44,
-          borderRadius: '50%',
-          border: '1px solid rgba(255,255,255,0.45)',
-          background: favorited ? `${brandColor}dd` : 'rgba(255,255,255,0.22)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'background 200ms',
+          ...glassCircleBase,
+          background: favorited
+            ? `${brandColor}dd`
+            : 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.68)), rgba(250,251,253,0.72)',
         }}
       >
-        <Heart size={18} color="#FFFFFF" fill={favorited ? '#FFFFFF' : 'none'} strokeWidth={2} />
+        <Heart
+          size={18}
+          color={favorited ? '#FFFFFF' : '#0a0a0a'}
+          fill={favorited ? '#FFFFFF' : 'none'}
+          strokeWidth={2}
+        />
       </button>
 
-      {/* Liquid Glass panel */}
+      {/* Info panel — white, always legible regardless of photo colors */}
       <div
         className="detail-panel"
         style={{
@@ -218,295 +233,459 @@ export function ProductDetailClient({
           right: 0,
           zIndex: 10,
           maxHeight: '62dvh',
-          overflowY: 'auto',
-          overscrollBehavior: 'contain',
-          backdropFilter: 'blur(60px) saturate(240%)',
-          WebkitBackdropFilter: 'blur(60px) saturate(240%)',
-          background: 'rgba(255,255,255,0.28)',
+          display: 'flex',
+          flexDirection: 'column',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          background: 'rgba(255,255,255,0.96)',
           borderRadius: '28px 28px 0 0',
-          borderTop: '1.5px solid rgba(255,255,255,0.6)',
+          borderTop: '1px solid rgba(0,0,0,0.08)',
           animationName: 'detail-panel-up',
           animationDuration: '360ms',
           animationTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
           animationFillMode: 'both',
         }}
       >
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
-        </div>
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          {/* Drag handle */}
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
+          </div>
 
-        <div style={{
-          padding: '8px 20px calc(env(safe-area-inset-bottom, 12px) + 16px)',
-          maxWidth: 640,
-          margin: '0 auto',
-        }}>
+          <div style={{ padding: '8px 20px 16px', maxWidth: 640, margin: '0 auto' }}>
+            {/* Badges */}
+            {(isNew || productCategory) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                {isNew && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '3px 10px',
+                    borderRadius: 100,
+                    background: '#111',
+                    color: '#fff',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                  }}>
+                    <Sparkles size={10} />
+                    Novità
+                  </span>
+                )}
+                {productCategory && (
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    borderRadius: 100,
+                    background: `${brandColor}22`,
+                    color: brandColor,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}>
+                    {productCategory}
+                  </span>
+                )}
+              </div>
+            )}
 
-          {/* Badges */}
-          {(isNew || productCategory) && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              {isNew && (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '3px 10px',
-                  borderRadius: 100,
-                  background: '#111',
-                  color: '#fff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                }}>
-                  <Sparkles size={10} />
-                  Novità
-                </span>
-              )}
-              {productCategory && (
-                <span style={{
-                  display: 'inline-block',
-                  padding: '3px 10px',
-                  borderRadius: 100,
-                  background: `${brandColor}22`,
-                  color: brandColor,
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}>
-                  {productCategory}
-                </span>
-              )}
-            </div>
-          )}
+            {/* Brand */}
+            {productBrand && (
+              <p style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: 'rgba(0,0,0,0.45)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.09em',
+                marginBottom: 4,
+              }}>
+                {productBrand}
+              </p>
+            )}
 
-          {/* Brand */}
-          {productBrand && (
-            <p style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'rgba(0,0,0,0.45)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.09em',
-              marginBottom: 4,
+            {/* Title — full width (price moved to bottom bar) */}
+            <h1 style={{
+              fontSize: 26,
+              fontWeight: 800,
+              color: '#0a0a0a',
+              lineHeight: 1.15,
+              margin: '0 0 10px',
             }}>
-              {productBrand}
-            </p>
-          )}
-
-          {/* Name + Price */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0a0a0a', lineHeight: 1.15, margin: 0, flex: 1 }}>
               {productName}
             </h1>
-            {priceSell > 0 && (
-              <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--brand-primary, #222)', lineHeight: 1.15, flexShrink: 0, margin: 0 }}>
-                {formatPrice(priceSell)}
+
+            {/* Description */}
+            {productDescription && (
+              <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, marginBottom: 0 }}>
+                {productDescription}
               </p>
             )}
           </div>
+        </div>
 
-          {/* Description */}
-          {productDescription && (
-            <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, marginBottom: 16 }}>
-              {productDescription}
-            </p>
-          )}
-
-          {/* Appointment CTA — compact e-commerce row */}
+        {/* Bottom bar — white card: price | stepper | squircle action */}
+        <div style={{
+          flexShrink: 0,
+          padding: '8px 16px calc(env(safe-area-inset-bottom, 8px) + 12px)',
+        }}>
           <div style={{
-            background: 'rgba(255,255,255,0.38)',
-            borderRadius: 16,
-            border: '1px solid rgba(255,255,255,0.52)',
-            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+            background: '#ffffff',
+            borderRadius: 20,
+            boxShadow: '0 2px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)',
+            maxWidth: 640,
+            margin: '0 auto',
           }}>
-            {!isLoggedIn ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <p style={{ flex: 1, fontSize: 13, color: 'rgba(0,0,0,0.45)', margin: 0 }}>
-                  Accedi per aggiungere alla visita
-                </p>
-                <Link
-                  href={tenantPath('/accesso?mode=login')}
+            {/* Price */}
+            {priceSell > 0 && (
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0a0a', margin: 0, flexShrink: 0 }}>
+                {formatPrice(priceSell)}
+              </p>
+            )}
+
+            <div style={{ flex: 1 }} />
+
+            {/* Qty stepper pill */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              background: 'rgba(0,0,0,0.06)',
+              borderRadius: 100,
+              padding: '5px 6px',
+              flexShrink: 0,
+            }}>
+              <button
+                type="button"
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <Minus size={12} color="#444" />
+              </button>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#222', minWidth: 20, textAlign: 'center' }}>
+                {qty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setQty((q) => q + 1)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <Plus size={12} color="#444" />
+              </button>
+            </div>
+
+            {/* Action button — squircle, matches reference */}
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              aria-label="Aggiungi alla visita"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                border: 'none',
+                background: 'var(--brand-primary, #222)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
+              }}
+            >
+              <CalendarPlus size={20} color="#fff" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="detail-modal-backdrop"
+            onClick={() => setIsModalOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 50,
+              background: 'rgba(0,0,0,0.4)',
+              animation: 'modal-fade-in 200ms ease both',
+            }}
+          />
+
+          {/* Bottom sheet */}
+          <div
+            className="detail-modal"
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 51,
+              maxHeight: '80dvh',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              background: 'rgba(255,255,255,0.96)',
+              backdropFilter: 'blur(40px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+              borderRadius: '28px 28px 0 0',
+              borderTop: '1.5px solid rgba(255,255,255,0.8)',
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+              animation: 'modal-slide-up 300ms cubic-bezier(0.22,1,0.36,1) both',
+            }}
+          >
+            {/* Handle */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
+            </div>
+
+            <div style={{
+              padding: '8px 20px calc(env(safe-area-inset-bottom, 12px) + 20px)',
+              maxWidth: 640,
+              margin: '0 auto',
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0a0a0a', margin: 0 }}>
+                  Aggiungi alla visita
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
                   style={{
-                    display: 'inline-flex',
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'rgba(0,0,0,0.07)',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 5,
-                    padding: '8px 16px',
-                    borderRadius: 100,
-                    background: 'var(--brand-primary, #222)',
-                    color: '#FFFFFF',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
                   }}
                 >
-                  Accedi
-                  <ChevronRight size={13} />
-                </Link>
+                  <X size={16} color="#444" />
+                </button>
               </div>
-            ) : upcomingAppointments.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <p style={{ flex: 1, fontSize: 13, color: 'rgba(0,0,0,0.45)', margin: 0 }}>
-                  Nessun appuntamento futuro
-                </p>
-                <Link
-                  href={tenantPath('/prenota')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '8px 16px',
-                    borderRadius: 100,
-                    background: 'var(--brand-primary, #222)',
-                    color: '#FFFFFF',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                  }}
-                >
-                  Prenota
-                  <ChevronRight size={13} />
-                </Link>
-              </div>
-            ) : (
-              <>
-                {/* Chip selector — only when multiple appointments */}
-                {upcomingAppointments.length > 1 && (
-                  <div
-                    className="detail-appt-chips"
+
+              {/* State: not logged in */}
+              {!isLoggedIn ? (
+                <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
+                  <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)', marginBottom: 20, lineHeight: 1.6 }}>
+                    Accedi per aggiungere questo prodotto alla tua visita.
+                  </p>
+                  <Link
+                    href={tenantPath('/accesso?mode=login')}
                     style={{
-                      display: 'flex',
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: 6,
-                      overflowX: 'auto',
-                      paddingBottom: 10,
-                      scrollbarWidth: 'none',
+                      padding: '12px 24px',
+                      borderRadius: 100,
+                      background: 'var(--brand-primary, #222)',
+                      color: '#FFFFFF',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textDecoration: 'none',
                     }}
                   >
-                    {upcomingAppointments.map((appt) => {
-                      const isSelected = selectedApptId === appt.id
-                      return (
+                    Accedi
+                    <ChevronRight size={14} />
+                  </Link>
+                </div>
+
+              ) : upcomingAppointments.length === 0 ? (
+                /* State: no upcoming appointments */
+                <div style={{ textAlign: 'center', padding: '8px 0 8px' }}>
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    background: `${brandColor}18`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                  }}>
+                    <CalendarPlus size={24} color={brandColor} />
+                  </div>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: '#0a0a0a', marginBottom: 6 }}>
+                    Nessuna visita in programma
+                  </p>
+                  <p style={{ fontSize: 13, color: 'rgba(0,0,0,0.45)', marginBottom: 24, lineHeight: 1.65 }}>
+                    Prenota un appuntamento per poter aggiungere questo prodotto alla tua visita.
+                  </p>
+                  <Link
+                    href={tenantPath('/prenota')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '12px 24px',
+                      borderRadius: 100,
+                      background: 'var(--brand-primary, #222)',
+                      color: '#FFFFFF',
+                      fontSize: 14,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Prenota ora
+                    <ChevronRight size={14} />
+                  </Link>
+                </div>
+
+              ) : (
+                /* State: has upcoming appointments */
+                <>
+                  {/* Chip selector — only when multiple appointments */}
+                  {upcomingAppointments.length > 1 && (
+                    <div
+                      className="detail-appt-chips"
+                      style={{
+                        display: 'flex',
+                        gap: 6,
+                        overflowX: 'auto',
+                        paddingBottom: 14,
+                        scrollbarWidth: 'none',
+                      }}
+                    >
+                      {upcomingAppointments.map((appt) => {
+                        const isSelected = selectedApptId === appt.id
+                        return (
+                          <button
+                            key={appt.id}
+                            type="button"
+                            onClick={() => setSelectedApptId(appt.id)}
+                            style={{
+                              flexShrink: 0,
+                              padding: '5px 12px',
+                              borderRadius: 100,
+                              border: `1.5px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.12)'}`,
+                              background: isSelected ? `${brandColor}18` : 'transparent',
+                              color: isSelected ? brandColor : 'rgba(0,0,0,0.4)',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            {formatDateShort(appt.start_time)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Selected appointment info + add button */}
+                  {selectedAppt && selectedState && (
+                    <div>
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: '#111',
+                          margin: '0 0 3px',
+                          textTransform: 'capitalize',
+                        }}>
+                          {formatDate(selectedAppt.start_time)}
+                        </p>
+                        {selectedAppt.serviceNames.length > 0 && (
+                          <p style={{ fontSize: 12, color: 'rgba(0,0,0,0.38)', margin: 0 }}>
+                            {selectedAppt.serviceNames.join(' · ')}
+                          </p>
+                        )}
+                      </div>
+
+                      {selectedState.added ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '12px 16px',
+                          borderRadius: 14,
+                          background: '#F0FDF4',
+                          border: '1px solid #BBF7D0',
+                        }}>
+                          <Check size={18} color="#16A34A" strokeWidth={2.5} />
+                          <p style={{ fontSize: 14, fontWeight: 600, color: '#15803D', margin: 0 }}>
+                            Prodotto aggiunto alla visita
+                          </p>
+                        </div>
+                      ) : (
                         <button
-                          key={appt.id}
                           type="button"
-                          onClick={() => setSelectedApptId(appt.id)}
+                          onClick={() => void addToAppointment(selectedAppt.id)}
+                          disabled={selectedState.loading}
                           style={{
-                            flexShrink: 0,
-                            padding: '5px 12px',
+                            width: '100%',
+                            padding: '14px',
                             borderRadius: 100,
-                            border: `1.5px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.12)'}`,
-                            background: isSelected ? `${brandColor}18` : 'transparent',
-                            color: isSelected ? brandColor : 'rgba(0,0,0,0.4)',
-                            fontSize: 11,
+                            border: 'none',
+                            background: 'var(--brand-primary, #222)',
+                            color: '#FFFFFF',
+                            fontSize: 15,
                             fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            cursor: selectedState.loading ? 'not-allowed' : 'pointer',
+                            opacity: selectedState.loading ? 0.7 : 1,
+                            transition: 'opacity 150ms',
                             fontFamily: 'inherit',
                           }}
                         >
-                          {formatDateShort(appt.start_time)}
+                          {selectedState.loading ? (
+                            <Loader2 size={18} color="#fff" style={{ animation: 'detail-spin 1s linear infinite' }} />
+                          ) : (
+                            <>
+                              <CalendarPlus size={18} color="#fff" />
+                              {qty > 1
+                                ? `Aggiungi ${qty}× — ${formatPrice(priceSell * qty)}`
+                                : `Aggiungi — ${formatPrice(priceSell)}`
+                              }
+                            </>
+                          )}
                         </button>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Single action row */}
-                {selectedAppt && selectedState && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {/* Date + services */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111', margin: 0, textTransform: 'capitalize' }}>
-                        {formatDate(selectedAppt.start_time)}
-                      </p>
-                      {selectedAppt.serviceNames.length > 0 && (
-                        <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {selectedAppt.serviceNames.join(' · ')}
-                        </p>
                       )}
                     </div>
-
-                    {/* Qty stepper — hidden when already added */}
-                    {!selectedState.added && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        background: 'rgba(0,0,0,0.07)',
-                        borderRadius: 100,
-                        padding: '4px 6px',
-                        flexShrink: 0,
-                      }}>
-                        <button
-                          type="button"
-                          onClick={() => changeQty(selectedAppt.id, -1)}
-                          style={{ width: 26, height: 26, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                        >
-                          <Minus size={11} color="#555" />
-                        </button>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#222', minWidth: 18, textAlign: 'center' }}>
-                          {selectedState.qty}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => changeQty(selectedAppt.id, 1)}
-                          style={{ width: 26, height: 26, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                        >
-                          <Plus size={11} color="#555" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Action button */}
-                    {selectedState.added ? (
-                      <div style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: '#F0FDF4',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}>
-                        <Check size={18} color="#16A34A" strokeWidth={2.5} />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void addToAppointment(selectedAppt.id)}
-                        disabled={selectedState.loading}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: '50%',
-                          border: 'none',
-                          background: 'var(--brand-primary, #222)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: selectedState.loading ? 'not-allowed' : 'pointer',
-                          opacity: selectedState.loading ? 0.7 : 1,
-                          transition: 'opacity 150ms',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {selectedState.loading
-                          ? <Loader2 size={16} color="#fff" style={{ animation: 'detail-spin 1s linear infinite' }} />
-                          : <CalendarPlus size={16} color="#fff" />
-                        }
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </div>
-
-        </div>
-      </div>
+        </>
+      )}
     </>
   )
 }

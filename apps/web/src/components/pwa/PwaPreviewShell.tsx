@@ -89,6 +89,14 @@ export function PwaPreviewShell({
     ensureGoogleFont(activeFontKey)
   }, [preview.fontFamily, activeFontKey])
 
+  React.useEffect(() => {
+    // iOS standalone: registering any touch listener on document unlocks
+    // CSS :active pseudo-class, which is suppressed by default in PWA mode.
+    const noop = () => {}
+    document.addEventListener('touchstart', noop, { passive: true })
+    return () => document.removeEventListener('touchstart', noop)
+  }, [])
+
   const brandVars = React.useMemo(
     () =>
       ({
@@ -105,6 +113,18 @@ export function PwaPreviewShell({
       style={{ ...brandVars, background: '#ffffff', minHeight: '100dvh' }}
       className="text-foreground [font-family:var(--font-active)]"
     >
+      <style>{`
+        /* PWA tap feedback — :active unlocked by touchstart listener above */
+        button:active:not(:disabled) { opacity: 0.72; }
+        .pwa-nav-item:active > div {
+          opacity: 0.65;
+          transform: scale(0.91);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          button:active:not(:disabled) { opacity: 0.72; transform: none !important; }
+          .pwa-nav-item:active > div { transform: none !important; }
+        }
+      `}</style>
       {!preview.enabled && (
         <PwaSplash
           businessName={activeBusinessName}
