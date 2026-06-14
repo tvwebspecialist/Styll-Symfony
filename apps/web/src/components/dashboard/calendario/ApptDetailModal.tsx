@@ -12,6 +12,7 @@ import {
   getAppointmentProducts,
   addProductToAppointmentByStaff,
   removeAppointmentProduct,
+  cancelCompletedAppointment,
   type AppointmentProductRow,
 } from '@/lib/actions/calendario'
 import { CustomSelect } from '@/components/ui/custom-select'
@@ -58,6 +59,8 @@ export function ApptDetailModal({
   const [options, setOptions]       = React.useState<FormOptions | null>(null)
   const [viewStatus, setViewStatus]     = React.useState(appt.status)
   const [quickSaving, setQuickSaving]   = React.useState(false)
+  const [inventoryChoiceOpen, setInventoryChoiceOpen] = React.useState(false)
+  const [pendingCancelNotes, setPendingCancelNotes]   = React.useState<string | null>(null)
 
   // Products state
   const [apptProducts, setApptProducts]     = React.useState<AppointmentProductRow[]>([])
@@ -89,7 +92,26 @@ export function ApptDetailModal({
   const isCompleted = viewStatus === 'completed'
   const productsEditable = !isCompleted
 
+  async function handleInventoryChoice(choice: 'rollback' | 'keep') {
+    setInventoryChoiceOpen(false)
+    setSaving(true)
+    setSaveError(null)
+    const res = await cancelCompletedAppointment(appt.id, pendingCancelNotes, choice)
+    setSaving(false)
+    if (res.success) { onUpdated(); onClose() }
+    else setSaveError(res.error ?? 'Errore')
+  }
+
+  function triggerInventoryGate(notes: string | null) {
+    setPendingCancelNotes(notes)
+    setInventoryChoiceOpen(true)
+  }
+
+  const needsInventoryGate = (targetStatus: string) =>
+    targetStatus === 'cancelled' && viewStatus === 'completed' && apptProducts.length > 0 && !productsLoading
+
   async function handleSave() {
+    if (needsInventoryGate(editStatus)) { triggerInventoryGate(editNotes || null); return }
     setSaving(true)
     setSaveError(null)
     const res = await updateAppointmentStatus(appt.id, editStatus, editNotes || null)
@@ -141,6 +163,7 @@ export function ApptDetailModal({
   const productsTotal = apptProducts.reduce((s, p) => s + p.price_at_sale * p.quantity, 0)
 
   return (
+    <>
     <div
       className="styll-modal-overlay"
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
@@ -194,63 +217,35 @@ export function ApptDetailModal({
           )}
         </div>
 
-        {/* Time */}
-        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: apptProducts.length > 0 && !productsLoading ? 8 : 16, fontSize: 13, color: '#374151' }}>
-          <span style={{ fontWeight: 600 }}>{formatTime(appt.start_time)} – {formatTime(appt.end_time)}</span>
-          <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {getDurationMin(appt)}min</span>
-          {appt.notes && !editing && <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {appt.notes}</span>}
+        {/* Time + totale */}
+        <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>
+            <span style={{ fontWeight: 600 }}>{formatTime(appt.start_time)} – {formatTime(appt.end_time)}</span>
+            <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {getDurationMin(appt)}min</span>
+            {appt.notes && !editing && <span style={{ color: '#9CA3AF', marginLeft: 8 }}>· {appt.notes}</span>}
+          </span>
+          {!productsLoading && (
+            <span style={{ fontWeight: 700, color: '#111827', fontSize: 14, marginLeft: 8, flexShrink: 0 }}>
+              {formatPrice(appt.total_price + productsTotal)}
+            </span>
+          )}
         </div>
 
-        {/* Product chips — quick-glance summary, shown only when products exist */}
-        {!productsLoading && apptProducts.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-            {apptProducts.map((p) => (
-              <span
-                key={p.id}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 10px',
-                  borderRadius: 100,
-                  background: '#FEF3C7',
-                  border: '1px solid #FDE68A',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#92400E',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Package size={11} color="#D97706" />
-                {p.product_name}{p.quantity > 1 ? ` ×${p.quantity}` : ''}
+        {/* ── Prodotti (sola lettura) ───────────────────────────────────── */}
+        {(productsLoading || apptProducts.length > 0) && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Package size={13} color="#9CA3AF" />
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Prodotti
               </span>
-            ))}
-          </div>
-        )}
-
-        {/* ── Prodotti ──────────────────────────────────────────────────── */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <Package size={13} color="#9CA3AF" />
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Prodotti
-            </span>
-            {apptProducts.length > 0 && (
-              <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#374151' }}>
-                {formatPrice(productsTotal)}
-              </span>
-            )}
-          </div>
-
-          <div style={{ background: '#F9FAFB', borderRadius: 12, overflow: 'hidden' }}>
-            {productsLoading ? (
-              <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Caricamento…</p>
-            ) : apptProducts.length === 0 && !productsEditable ? (
-              <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Nessun prodotto associato</p>
-            ) : (
-              <>
-                {apptProducts.map((p) => (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid #F0F0F0' }}>
+            </div>
+            <div style={{ background: '#F9FAFB', borderRadius: 12, overflow: 'hidden' }}>
+              {productsLoading ? (
+                <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Caricamento…</p>
+              ) : (
+                apptProducts.map((p, i) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: i < apptProducts.length - 1 ? '1px solid #F0F0F0' : 'none' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.product_name}
@@ -263,64 +258,12 @@ export function ApptDetailModal({
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flexShrink: 0 }}>
                       {formatPrice(p.price_at_sale * p.quantity)}
                     </span>
-                    {productsEditable && (
-                      <button
-                        type="button"
-                        onClick={() => void handleRemoveProduct(p.id)}
-                        style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-                      >
-                        <Trash2 size={12} color="#DC2626" />
-                      </button>
-                    )}
                   </div>
-                ))}
-
-                {/* Add product form — only when not completed */}
-                {productsEditable && options && options.products.length > 0 && (
-                  <div style={{ padding: '10px 14px' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <div style={{ flex: 1 }}>
-                        <CustomSelect
-                          value={addProductId}
-                          onChange={(v) => setAddProductId(v)}
-                          options={options.products
-                            .filter((p) => !apptProducts.some((ap) => ap.product_id === p.id))
-                            .map((p) => ({
-                              value: p.id,
-                              label: p.brand ? `${p.name} — ${p.brand}` : p.name,
-                            }))}
-                          placeholder="Aggiungi prodotto…"
-                        />
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#F3F4F6', borderRadius: 8, padding: '0 8px', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => setAddProductQty((q) => Math.max(1, q - 1))}
-                          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}
-                        >−</button>
-                        <span style={{ fontSize: 13, fontWeight: 700, minWidth: 16, textAlign: 'center', color: '#111827' }}>{addProductQty}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAddProductQty((q) => q + 1)}
-                          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}
-                        >+</button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleAddProduct()}
-                        disabled={!addProductId || productAdding}
-                        style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: '#111827', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: !addProductId || productAdding ? 'not-allowed' : 'pointer', opacity: !addProductId || productAdding ? 0.5 : 1, flexShrink: 0 }}
-                      >
-                        {productAdding ? '…' : 'Aggiungi'}
-                      </button>
-                    </div>
-                    {productError && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{productError}</p>}
-                  </div>
-                )}
-              </>
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Edit form or action buttons */}
         {editing ? (
@@ -364,6 +307,86 @@ export function ApptDetailModal({
                 style={{ ...inputStyle, resize: 'vertical' }}
               />
             </div>
+            {/* ── Gestione prodotti ── */}
+            {productsEditable && options && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#888', display: 'block', marginBottom: 6, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Prodotti</label>
+                <div style={{ background: '#F9FAFB', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
+                  {apptProducts.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#9CA3AF', padding: '10px 14px', margin: 0 }}>Nessun prodotto</p>
+                  ) : (
+                    apptProducts.map((p) => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid #F0F0F0' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.product_name}
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#6B7280', flexShrink: 0 }}>×{p.quantity}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flexShrink: 0 }}>{formatPrice(p.price_at_sale * p.quantity)}</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemoveProduct(p.id)}
+                          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          <Trash2 size={12} color="#DC2626" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {options.products.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <CustomSelect
+                        value={addProductId}
+                        onChange={(v) => setAddProductId(v)}
+                        options={options.products
+                          .filter((p) => !apptProducts.some((ap) => ap.product_id === p.id))
+                          .map((p) => ({ value: p.id, label: p.brand ? `${p.name} — ${p.brand}` : p.name }))}
+                        placeholder="Aggiungi prodotto…"
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#F3F4F6', borderRadius: 8, padding: '0 8px', flexShrink: 0 }}>
+                      <button type="button" onClick={() => setAddProductQty((q) => Math.max(1, q - 1))} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}>−</button>
+                      <span style={{ fontSize: 13, fontWeight: 700, minWidth: 16, textAlign: 'center', color: '#111827' }}>{addProductQty}</span>
+                      <button type="button" onClick={() => setAddProductQty((q) => q + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#374151', padding: '0 2px', lineHeight: 1 }}>+</button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleAddProduct()}
+                      disabled={!addProductId || productAdding}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: '#111827', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: !addProductId || productAdding ? 'not-allowed' : 'pointer', opacity: !addProductId || productAdding ? 0.5 : 1, flexShrink: 0 }}
+                    >
+                      {productAdding ? '…' : 'Aggiungi'}
+                    </button>
+                  </div>
+                )}
+                {productError && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#DC2626' }}>{productError}</p>}
+              </div>
+            )}
+
+            {/* ── Cancella appuntamento ── */}
+            {editStatus !== 'cancelled' && (
+              <div style={{ borderTop: '1px solid #FEE2E2', paddingTop: 12, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (needsInventoryGate('cancelled')) { triggerInventoryGate(editNotes || null); return }
+                    if (!confirm('Cancellare questo appuntamento?')) return
+                    setSaving(true)
+                    const res = await updateAppointmentStatus(appt.id, 'cancelled', editNotes || null)
+                    setSaving(false)
+                    if (res.success) { onUpdated(); onClose() }
+                    else setSaveError(res.error ?? 'Errore')
+                  }}
+                  style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1px solid #dc2626', background: '#FFF', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancella appuntamento
+                </button>
+              </div>
+            )}
+
             {saveError && <p style={{ margin: '0 0 8px', fontSize: 12, color: '#dc2626' }}>{saveError}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => { setEditing(false); setSaveError(null) }}
@@ -393,6 +416,7 @@ export function ApptDetailModal({
               <CustomSelect
                 value={viewStatus}
                 onChange={(v) => {
+                  if (needsInventoryGate(v)) { triggerInventoryGate(appt.notes); return }
                   setViewStatus(v)
                   setQuickSaving(true)
                   void updateAppointmentStatus(appt.id, v, appt.notes)
@@ -409,10 +433,10 @@ export function ApptDetailModal({
               />
               {quickSaving && <span style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4, display: 'block' }}>Salvataggio…</span>}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: viewStatus !== 'cancelled' ? 10 : 0 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <Link
                 href={`/clienti/${appt.client_id}`}
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 0', borderRadius: 10, border: '1px solid #E9E9E9', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', textDecoration: 'none' }}
+                style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 16px', borderRadius: 10, border: '1px solid #E9E9E9', background: '#FFF', fontSize: 13, fontWeight: 500, color: '#374151', textDecoration: 'none' }}
               >
                 Vai al cliente
               </Link>
@@ -421,18 +445,71 @@ export function ApptDetailModal({
                 Modifica
               </button>
             </div>
-            {viewStatus !== 'cancelled' && (
-              <button
-                type="button"
-                onClick={() => { setEditStatus('cancelled'); setEditing(true) }}
-                style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid #dc2626', background: '#FFF', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-              >
-                Cancella appuntamento
-              </button>
-            )}
           </>
         )}
       </div>
     </div>
+
+    {/* ── Inventory choice popup (completed → cancelled gate) ── */}
+    {inventoryChoiceOpen && (
+      <>
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1010 }}
+          onClick={() => setInventoryChoiceOpen(false)}
+          aria-hidden="true"
+        />
+        <div
+          style={{
+            position: 'fixed', left: '50%', top: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: '#FFF', borderRadius: 20, padding: 24,
+            width: 'calc(100% - 32px)', maxWidth: 368,
+            zIndex: 1011, boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
+          }}
+          role="dialog"
+          aria-label="Scegli come gestire la giacenza"
+        >
+          <p style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>
+            Cosa succede alla giacenza?
+          </p>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6B7280', lineHeight: 1.5 }}>
+            Questo appuntamento ha prodotti già scalati dal magazzino.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleInventoryChoice('rollback')}
+              style={{ padding: '12px 16px', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', textAlign: 'left', opacity: saving ? 0.6 : 1 }}
+            >
+              <span style={{ display: 'block' }}>Annulla la vendita</span>
+              <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>
+                La giacenza torna su — come se i prodotti non fossero mai stati venduti
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleInventoryChoice('keep')}
+              style={{ padding: '12px 16px', borderRadius: 10, border: '1.5px solid #E5E7EB', background: '#FFF', color: '#374151', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', textAlign: 'left', opacity: saving ? 0.6 : 1 }}
+            >
+              <span style={{ display: 'block' }}>Mantieni come evaso</span>
+              <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: '#9CA3AF', marginTop: 3 }}>
+                La giacenza resta dov'è — i prodotti restano considerati venduti
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInventoryChoiceOpen(false)}
+              style={{ padding: '10px', borderRadius: 10, border: 'none', background: 'none', color: '#9CA3AF', fontSize: 13, cursor: 'pointer' }}
+            >
+              Annulla
+            </button>
+          </div>
+          {saveError && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#DC2626' }}>{saveError}</p>}
+        </div>
+      </>
+    )}
+    </>
   )
 }

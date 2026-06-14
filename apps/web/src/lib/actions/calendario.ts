@@ -680,6 +680,97 @@ export async function removeAppointmentProduct(
   return { success: true }
 }
 
+// ── Cancel a completed appointment with explicit inventory choice ────────────
+
+export async function cancelCompletedAppointment(
+  appointmentId: string,
+  notes: string | null,
+  inventoryChoice: 'rollback' | 'keep',
+): Promise<{ success: boolean; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false, error: 'Non autenticato' }
+
+  const db = createAdminClient()
+  const { data: appt } = await db
+    .from('appointments')
+    .select('tenant_id, location_id, status')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt || appt.tenant_id !== tenantId) return { success: false, error: 'Non autorizzato' }
+  if ((appt as { status: string }).status !== 'completed') {
+    return { success: false, error: 'Appuntamento non completato.' }
+  }
+
+  const { error } = await db
+    .from('appointments')
+    .update({ status: 'cancelled', notes })
+    .eq('id', appointmentId)
+
+  if (error) return { success: false, error: error.message }
+
+  if (inventoryChoice === 'rollback' && (appt as { location_id: string | null }).location_id) {
+    rollbackInventoryOnCancellation(
+      appointmentId,
+      tenantId,
+      (appt as { location_id: string }).location_id,
+    ).catch((err) => {
+      console.error('[inventory] rollbackInventoryOnCancellation error:', err)
+    })
+  }
+
+  return { success: true }
+}
+
+// ── Internal: inventory rollback on completed → cancelled ────────────────────
+
+async function rollbackInventoryOnCancellation(
+  appointmentId: string,
+  tenantId:       string,
+  locationId:     string,
+): Promise<void> {
+  const db = createAdminClient()
+
+  const { data: items } = await db
+    .from('appointment_products')
+    .select('product_id, quantity')
+    .eq('appointment_id', appointmentId)
+    .eq('tenant_id', tenantId)
+
+  if (!items?.length) return
+
+  await Promise.all(
+    (items as Array<{ product_id: string; quantity: number }>).map(async (item) => {
+      const { data: inv } = await db
+        .from('product_inventory')
+        .select('id, quantity')
+        .eq('product_id', item.product_id)
+        .eq('location_id', locationId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
+
+      if (inv) {
+        await db
+          .from('product_inventory')
+          .update({
+            quantity: ((inv as { quantity: number }).quantity ?? 0) + item.quantity,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', (inv as { id: string }).id)
+      }
+
+      await db.from('inventory_movements').insert({
+        tenant_id:      tenantId,
+        product_id:     item.product_id,
+        location_id:    locationId,
+        appointment_id: appointmentId,
+        movement_type:  'return',
+        quantity:       item.quantity,
+      })
+    }),
+  )
+}
+
 // ── Internal: inventory decrement on appointment completion ─────────────────
 
 async function decrementInventoryOnCompletion(
