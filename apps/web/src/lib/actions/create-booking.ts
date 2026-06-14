@@ -326,7 +326,10 @@ export async function createGuestBooking(
     )
 
     if (productPayload.length > 0) {
-      await db.from('appointment_products').insert(productPayload)
+      const { error: prodError } = await db.from('appointment_products').insert(productPayload)
+      if (prodError) {
+        console.error('[createGuestBooking] appointment_products insert failed:', prodError.message, { appointmentId, productIds: data.productIds })
+      }
     }
   }
 

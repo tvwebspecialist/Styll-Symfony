@@ -598,4 +598,3 @@
 | `type` | `text` |  |
 | `sent_at` | `timestamptz` |  |
 
-/
