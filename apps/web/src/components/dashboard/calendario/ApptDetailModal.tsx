@@ -231,8 +231,8 @@ export function ApptDetailModal({
           )}
         </div>
 
-        {/* ── Prodotti (sola lettura) ───────────────────────────────────── */}
-        {(productsLoading || apptProducts.length > 0) && (
+        {/* ── Prodotti (sola lettura — solo in view mode) ──────────────── */}
+        {!editing && (productsLoading || apptProducts.length > 0) && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <Package size={13} color="#9CA3AF" />
@@ -470,32 +470,32 @@ export function ApptDetailModal({
           aria-label="Scegli come gestire la giacenza"
         >
           <p style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>
-            Cosa succede alla giacenza?
+            Il prodotto è stato venduto?
           </p>
           <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6B7280', lineHeight: 1.5 }}>
-            Questo appuntamento ha prodotti già scalati dal magazzino.
+            Questo appuntamento ha prodotti associati. Di' cosa è successo con la merce.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void handleInventoryChoice('rollback')}
+              onClick={() => void handleInventoryChoice('keep')}
               style={{ padding: '12px 16px', borderRadius: 10, border: 'none', background: '#111827', color: '#FFF', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', textAlign: 'left', opacity: saving ? 0.6 : 1 }}
             >
-              <span style={{ display: 'block' }}>Annulla la vendita</span>
+              <span style={{ display: 'block' }}>Sì, il cliente l&apos;ha preso</span>
               <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>
-                La giacenza torna su — come se i prodotti non fossero mai stati venduti
+                La giacenza resta com&apos;è
               </span>
             </button>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void handleInventoryChoice('keep')}
+              onClick={() => void handleInventoryChoice('rollback')}
               style={{ padding: '12px 16px', borderRadius: 10, border: '1.5px solid #E5E7EB', background: '#FFF', color: '#374151', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', textAlign: 'left', opacity: saving ? 0.6 : 1 }}
             >
-              <span style={{ display: 'block' }}>Mantieni come evaso</span>
+              <span style={{ display: 'block' }}>No, il prodotto torna in magazzino</span>
               <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: '#9CA3AF', marginTop: 3 }}>
-                La giacenza resta dov'è — i prodotti restano considerati venduti
+                La giacenza viene ripristinata
               </span>
             </button>
             <button
