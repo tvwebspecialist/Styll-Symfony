@@ -8,13 +8,33 @@ import { Bell, Search, HelpCircle } from 'lucide-react'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
+import { useNotificationCount } from '@/contexts/NotificationCountContext'
+
 interface TopBarHomeProps {
   fullName: string
   avatarUrl: string | null
-  unreadCount?: number
 }
 
-export default function TopBarHome({ fullName, avatarUrl, unreadCount = 0 }: TopBarHomeProps) {
+export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
+  const { count: unreadCount, ring } = useNotificationCount()
+  const bellRef = React.useRef<HTMLAnchorElement>(null)
+
+  React.useEffect(() => {
+    if (ring && bellRef.current) {
+      bellRef.current.animate(
+        [
+          { transform: 'rotate(0deg)' },
+          { transform: 'rotate(18deg)' },
+          { transform: 'rotate(-15deg)' },
+          { transform: 'rotate(11deg)' },
+          { transform: 'rotate(-7deg)' },
+          { transform: 'rotate(3deg)' },
+          { transform: 'rotate(0deg)' },
+        ],
+        { duration: 600, easing: 'ease-out' }
+      )
+    }
+  }, [ring])
   const { greeting, subtitle } = useDashboardHomeStore()
   const pathname = usePathname()
   const router = useRouter()
@@ -155,6 +175,7 @@ export default function TopBarHome({ fullName, avatarUrl, unreadCount = 0 }: Top
           {/* Bell + Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link
+              ref={bellRef}
               href="/notifiche"
               aria-label="Notifiche"
               style={{
