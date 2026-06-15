@@ -11,6 +11,7 @@ import { TenantProvider } from '@/lib/hooks/use-tenant-context'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getImpersonationState, resolveActiveProfileForTenant } from '@/lib/tenant-context'
 import { getTenantBySlug } from '@/lib/tenant'
+import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -137,35 +138,37 @@ export default async function TenantDashboardLayout({ params, children }: Props)
           adminName: ctx.isShadow ? adminName : null,
         }}
       >
-        <div className="dashboard-root" style={{ minHeight: '100vh', background: 'var(--dashboard-root-bg, #F5F5F5)' }}>
-          <ImpersonationBanner
-            state={{
-              active: ctx.isShadow,
-              businessName: ctx.isShadow ? tenantBySlug.business_name : null,
-            }}
-          />
-          <StaffImpersonationBanner />
-          <TopBar
-            fullName={displayName}
-            avatarUrl={ownerProfile?.avatar_url ?? null}
-            impersonation={
-              ctx.isShadow
-                ? { adminName, tenantName: tenantBySlug.business_name }
-                : null
-            }
-            unreadCount={unreadNotifCount ?? 0}
-            profileId={ctx.profileId}
-          />
-          <Sidebar />
-          <MobileTopBar
-            fullName={displayName}
-            avatarUrl={ownerProfile?.avatar_url ?? null}
-            unreadCount={unreadNotifCount ?? 0}
-            profileId={ctx.profileId}
-          />
-          <BottomNav />
-          <MainContent>{children}</MainContent>
-        </div>
+        <NotificationCountProvider
+          initialCount={unreadNotifCount ?? 0}
+          tenantId={tenantBySlug.tenant_id}
+          profileId={ctx.profileId}
+        >
+          <div className="dashboard-root" style={{ minHeight: '100vh', background: 'var(--dashboard-root-bg, #F5F5F5)' }}>
+            <ImpersonationBanner
+              state={{
+                active: ctx.isShadow,
+                businessName: ctx.isShadow ? tenantBySlug.business_name : null,
+              }}
+            />
+            <StaffImpersonationBanner />
+            <TopBar
+              fullName={displayName}
+              avatarUrl={ownerProfile?.avatar_url ?? null}
+              impersonation={
+                ctx.isShadow
+                  ? { adminName, tenantName: tenantBySlug.business_name }
+                  : null
+              }
+            />
+            <Sidebar />
+            <MobileTopBar
+              fullName={displayName}
+              avatarUrl={ownerProfile?.avatar_url ?? null}
+            />
+            <BottomNav />
+            <MainContent>{children}</MainContent>
+          </div>
+        </NotificationCountProvider>
       </ShadowModeProvider>
     </TenantProvider>
   )

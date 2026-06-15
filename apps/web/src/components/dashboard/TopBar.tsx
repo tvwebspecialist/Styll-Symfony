@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Search, HelpCircle, Moon, Bell, User as UserIcon, Calendar, Scissors } from 'lucide-react'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
-import { useNotificationCount } from '@/hooks/useNotificationCount'
-import { useTenantContext } from '@/lib/hooks/use-tenant-context'
+import { useNotificationCount } from '@/contexts/NotificationCountContext'
 
 interface TopBarProps {
   fullName?: string | null
@@ -17,8 +16,6 @@ interface TopBarProps {
     adminName: string
     tenantName: string
   } | null
-  unreadCount?: number
-  profileId?: string
 }
 
 function computeInitials(fullName: string | null | undefined, fallback?: string): string {
@@ -42,10 +39,27 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
   service: 'Servizi',
 }
 
-export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCount = 0, profileId = '' }: TopBarProps) {
+export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarProps) {
   const router = useRouter()
-  const { tenantId } = useTenantContext()
-  const liveUnreadCount = useNotificationCount(unreadCount, tenantId, profileId, 'desktop')
+  const { count: unreadCount, ring } = useNotificationCount()
+  const bellRef = React.useRef<HTMLAnchorElement>(null)
+
+  React.useEffect(() => {
+    if (ring && bellRef.current) {
+      bellRef.current.animate(
+        [
+          { transform: 'rotate(0deg)' },
+          { transform: 'rotate(18deg)' },
+          { transform: 'rotate(-15deg)' },
+          { transform: 'rotate(11deg)' },
+          { transform: 'rotate(-7deg)' },
+          { transform: 'rotate(3deg)' },
+          { transform: 'rotate(0deg)' },
+        ],
+        { duration: 600, easing: 'ease-out' }
+      )
+    }
+  }, [ring])
   const [imgError, setImgError] = React.useState(false)
   const [aiutoHref, setAiutoHref] = React.useState('/aiuto')
 
@@ -364,6 +378,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCou
           </button>
 
           <Link
+            ref={bellRef}
             href="/notifiche"
             aria-label="Notifiche"
             style={{
@@ -381,7 +396,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCou
             }}
           >
             <Bell size={18} color="#222222" />
-            {liveUnreadCount > 0 && (
+            {unreadCount > 0 && (
               <span
                 style={{
                   position: 'absolute',
@@ -402,7 +417,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCou
                   lineHeight: 1,
                 }}
               >
-                {liveUnreadCount}
+                {unreadCount}
               </span>
             )}
           </Link>

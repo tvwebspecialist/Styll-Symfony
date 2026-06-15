@@ -1,9 +1,11 @@
 'use client'
 
+import * as React from 'react'
 import { Bell } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getDashboardSection } from '@/lib/dashboard-path'
+import { useNotificationCount } from '@/contexts/NotificationCountContext'
 
 const PAGE_NAMES: Record<string, string> = {
   calendario: 'Calendario',
@@ -22,11 +24,29 @@ const PAGE_NAMES: Record<string, string> = {
 interface TopBarSimpleProps {
   fullName: string
   avatarUrl: string | null
-  unreadCount?: number
 }
 
-export default function TopBarSimple({ fullName, avatarUrl, unreadCount = 0 }: TopBarSimpleProps) {
+export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
+  const { count: unreadCount, ring } = useNotificationCount()
+  const bellRef = React.useRef<HTMLAnchorElement>(null)
   const pathname = usePathname()
+
+  React.useEffect(() => {
+    if (ring && bellRef.current) {
+      bellRef.current.animate(
+        [
+          { transform: 'rotate(0deg)' },
+          { transform: 'rotate(18deg)' },
+          { transform: 'rotate(-15deg)' },
+          { transform: 'rotate(11deg)' },
+          { transform: 'rotate(-7deg)' },
+          { transform: 'rotate(3deg)' },
+          { transform: 'rotate(0deg)' },
+        ],
+        { duration: 600, easing: 'ease-out' }
+      )
+    }
+  }, [ring])
   const section = getDashboardSection(pathname)
   const pageTitle = section ? PAGE_NAMES[section] ?? 'Dashboard' : 'Dashboard'
 
@@ -121,6 +141,7 @@ export default function TopBarSimple({ fullName, avatarUrl, unreadCount = 0 }: T
 
         {/* BELL — right */}
         <Link
+          ref={bellRef}
           href="/notifiche"
           aria-label="Notifiche"
           style={{
