@@ -76,14 +76,12 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
-  const { data: client } = await db
-    .from('clients')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .is('deleted_at', null)
-    .maybeSingle()
-  if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+  // Accetta sia clienti sia staff attivi del tenant
+  const [{ data: clientRow }, { data: staffRow }] = await Promise.all([
+    db.from('clients').select('id').eq('tenant_id', tenantId).eq('profile_id', user.id).is('deleted_at', null).maybeSingle(),
+    db.from('staff_members').select('id').eq('tenant_id', tenantId).eq('profile_id', user.id).eq('is_active', true).is('deleted_at', null).maybeSingle(),
+  ])
+  if (!clientRow && !staffRow) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
 
   const userAgent = req.headers.get('user-agent') ?? null
 
