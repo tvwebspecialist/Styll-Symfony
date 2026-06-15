@@ -4,7 +4,7 @@ import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { checkEmailExists, sendEmailOtp, startGoogleOAuthPwa, verifyEmailOtp } from '@/lib/actions/pwa-auth'
+import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -210,17 +210,30 @@ export function EmailOtpForm({
     setError(null)
 
     try {
-      const result = await startGoogleOAuthPwa({
-        tenantSlug,
-        tenantId,
-        returnTo: returnTo ?? undefined,
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+      const callbackUrl = new URL(`https://${rootDomain}/auth/callback`)
+      callbackUrl.searchParams.set('next', 'pwa')
+      callbackUrl.searchParams.set('tenantSlug', tenantSlug)
+      callbackUrl.searchParams.set('tenantId', tenantId)
+      if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
+
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: callbackUrl.toString(),
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+          // skipBrowserRedirect: navigate manually AFTER document.cookie is committed
+          // — same iOS Safari ITP fix as google-button.tsx
+          skipBrowserRedirect: true,
+        },
       })
-      if ('error' in result) {
+      if (error || !data.url) {
         setError('Accesso con Google non disponibile. Prova con email.')
         setGoogleLoading(false)
         return
       }
-      window.location.href = result.url
+      window.location.href = data.url
     } catch {
       setGoogleLoading(false)
       setError('Accesso con Google non disponibile. Prova con email.')
