@@ -4,7 +4,6 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search, HelpCircle, Moon, Bell, User as UserIcon, Calendar, Scissors } from 'lucide-react'
-import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
 
@@ -16,6 +15,7 @@ interface TopBarProps {
     adminName: string
     tenantName: string
   } | null
+  unreadCount?: number
 }
 
 function computeInitials(fullName: string | null | undefined, fallback?: string): string {
@@ -39,7 +39,7 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
   service: 'Servizi',
 }
 
-export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarProps) {
+export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCount = 0 }: TopBarProps) {
   const router = useRouter()
   const [imgError, setImgError] = React.useState(false)
   const [aiutoHref, setAiutoHref] = React.useState('/aiuto')
@@ -376,7 +376,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
             }}
           >
             <Bell size={18} color="#222222" />
-            {MOCK_UNREAD_COUNT > 0 && (
+            {unreadCount > 0 && (
               <span
                 style={{
                   position: 'absolute',
@@ -397,7 +397,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation }: TopBarP
                   lineHeight: 1,
                 }}
               >
-                {MOCK_UNREAD_COUNT}
+                {unreadCount}
               </span>
             )}
           </Link>

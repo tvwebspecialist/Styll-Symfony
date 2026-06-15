@@ -80,7 +80,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     redirect(selectTenantUrl('error=access_denied'))
   }
 
-  const [{ data: ownerProfile }, { data: adminProfile }] = await Promise.all([
+  const [{ data: ownerProfile }, { data: adminProfile }, { count: unreadNotifCount }] = await Promise.all([
     db
       .from('profiles')
       .select('full_name, avatar_url, email')
@@ -89,6 +89,12 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     ctx.isShadow
       ? db.from('profiles').select('full_name, email').eq('id', ctx.realUserId).maybeSingle()
       : Promise.resolve({ data: null }),
+    db
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantBySlug.tenant_id)
+      .eq('is_read', false)
+      .or(`profile_id.is.null,profile_id.eq.${ctx.profileId}`),
   ])
 
   if (tenantBySlug.status === 'suspended' && !impersonation.active) {
@@ -147,11 +153,13 @@ export default async function TenantDashboardLayout({ params, children }: Props)
                 ? { adminName, tenantName: tenantBySlug.business_name }
                 : null
             }
+            unreadCount={unreadNotifCount ?? 0}
           />
           <Sidebar />
           <MobileTopBar
             fullName={displayName}
             avatarUrl={ownerProfile?.avatar_url ?? null}
+            unreadCount={unreadNotifCount ?? 0}
           />
           <BottomNav />
           <MainContent>{children}</MainContent>

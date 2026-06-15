@@ -8,14 +8,13 @@ import { Bell, Search, HelpCircle } from 'lucide-react'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
-import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
-
 interface TopBarHomeProps {
   fullName: string
   avatarUrl: string | null
+  unreadCount?: number
 }
 
-export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
+export default function TopBarHome({ fullName, avatarUrl, unreadCount = 0 }: TopBarHomeProps) {
   const { greeting, subtitle } = useDashboardHomeStore()
   const pathname = usePathname()
   const router = useRouter()
@@ -175,7 +174,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
               }}
             >
               <Bell size={21} color="#111111" strokeWidth={1.8} />
-              {MOCK_UNREAD_COUNT > 0 && (
+              {unreadCount > 0 && (
                 <span
                   style={{
                     position: 'absolute',
@@ -196,7 +195,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
                     lineHeight: 1,
                   }}
                 >
-                  {MOCK_UNREAD_COUNT}
+                  {unreadCount}
                 </span>
               )}
             </Link>

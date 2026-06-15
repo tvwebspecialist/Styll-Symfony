@@ -504,6 +504,24 @@
 | `computed_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
 
+### Calcolo (Silent Churn Detector)
+
+Aggiornata da cron giornaliero `/api/cron/recalculate-analytics` (06:00 UTC),
+che chiama RPC `recompute_all_client_analytics()` (loop su
+`recompute_client_analytics(p_client_id)` per ogni cliente non soft-deleted).
+
+- `total_visits`: COUNT appointments con `status='completed'` AND `deleted_at IS NULL`
+- `last_visit_date`: MAX(start_time) sui completed
+- `avg_frequency_days`: media dei delta in giorni tra completed consecutivi
+  (window function LAG); richiede `total_visits >= 2`, altrimenti NULL
+- `days_since_last_visit`: `CURRENT_DATE - last_visit_date::date` (≥ 0)
+
+Soglie semaforo churn (in `recompute_client_analytics`):
+- `unknown` — `avg_frequency_days IS NULL` o nessuna visita
+- `green`   — `days_since <= avg_frequency_days` (1.0x)
+- `yellow`  — `days_since <= avg_frequency_days * 1.5`
+- `red`     — oltre 1.5x
+
 ## Table `client_import_jobs`
 
 ### Columns

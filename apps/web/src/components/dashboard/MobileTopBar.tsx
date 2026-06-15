@@ -8,16 +8,17 @@ import TopBarSimple from './TopBarSimple'
 interface MobileTopBarProps {
   fullName?: string | null
   avatarUrl?: string | null
+  unreadCount?: number
 }
 
-export function MobileTopBar({ fullName, avatarUrl }: MobileTopBarProps) {
+export function MobileTopBar({ fullName, avatarUrl, unreadCount = 0 }: MobileTopBarProps) {
   const pathname = usePathname() ?? ''
   const name = fullName ?? 'Utente'
   const avatar = avatarUrl ?? null
 
   if (isDashboardHomePath(pathname)) {
-    return <TopBarHome fullName={name} avatarUrl={avatar} />
+    return <TopBarHome fullName={name} avatarUrl={avatar} unreadCount={unreadCount} />
   }
 
-  return <TopBarSimple fullName={name} avatarUrl={avatar} />
+  return <TopBarSimple fullName={name} avatarUrl={avatar} unreadCount={unreadCount} />
 }

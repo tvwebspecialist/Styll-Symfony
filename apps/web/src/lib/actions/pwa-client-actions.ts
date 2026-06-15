@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
+import { insertStaffNotification, abbrevName } from '@/lib/notifications'
 
 async function getAuthenticatedClientId(tenantId: string): Promise<{ clientId: string; userId: string } | null> {
   const supabase = await createClient()
@@ -36,7 +37,7 @@ export async function cancelClientAppointment(
     // Verify this appointment belongs to this client
     const { data: apt } = await db
       .from('appointments')
-      .select('id, status, start_time, client_id')
+      .select('id, status, start_time, client_id, clients(full_name)')
       .eq('id', appointmentId)
       .eq('tenant_id', tenantId)
       .eq('client_id', ctx.clientId)
@@ -58,6 +59,26 @@ export async function cancelClientAppointment(
       .eq('tenant_id', tenantId)
 
     if (error) return { ok: false, error: error.message }
+
+    // Fire-and-forget: notifica cancellazione per lo staff
+    const aptTyped = apt as unknown as {
+      start_time: string
+      client_id: string
+      clients: { full_name: string | null } | null
+    }
+    const cancelTime = new Date(aptTyped.start_time).toLocaleTimeString('it-IT', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+    })
+    const cancelDate = new Date(aptTyped.start_time).toLocaleDateString('it-IT', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+    })
+    insertStaffNotification({
+      tenantId,
+      type: 'cancellation',
+      title: 'Appuntamento cancellato',
+      body: `${aptTyped.clients?.full_name ?? 'Cliente'} ha cancellato — ${cancelDate} alle ${cancelTime}`,
+      meta: { appointment_id: appointmentId, client_id: aptTyped.client_id },
+    })
 
     revalidatePath(`/tenant/app`)
     return { ok: true }
@@ -81,7 +102,7 @@ export async function rescheduleClientAppointment(
     // Verify ownership, status, and that the appointment is in the future
     const { data: apt } = await db
       .from('appointments')
-      .select('id, status, start_time, staff_id, appointment_services(service_id)')
+      .select('id, status, start_time, staff_id, appointment_services(service_id), clients(full_name)')
       .eq('id', appointmentId)
       .eq('tenant_id', tenantId)
       .eq('client_id', ctx.clientId)
@@ -90,12 +111,13 @@ export async function rescheduleClientAppointment(
 
     if (!apt) return { ok: false, error: 'Appuntamento non trovato' }
 
-    const typedApt = apt as {
+    const typedApt = apt as unknown as {
       id: string
       status: string
       start_time: string
       staff_id: string
       appointment_services: Array<{ service_id: string }>
+      clients: { full_name: string | null } | null
     }
 
     if (!['confirmed', 'pending'].includes(typedApt.status)) {
@@ -158,6 +180,27 @@ export async function rescheduleClientAppointment(
       .eq('tenant_id', tenantId)
 
     if (error) return { ok: false, error: error.message }
+
+    // Fire-and-forget: notifica reschedule per lo staff
+    const oldTime = new Date(typedApt.start_time).toLocaleTimeString('it-IT', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+    })
+    const oldDate = new Date(typedApt.start_time).toLocaleDateString('it-IT', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+    })
+    const newTime = new Date(newStartTime).toLocaleTimeString('it-IT', {
+      hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+    })
+    const newDate = new Date(newStartTime).toLocaleDateString('it-IT', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+    })
+    insertStaffNotification({
+      tenantId,
+      type: 'reschedule',
+      title: 'Appuntamento spostato',
+      body: `${abbrevName(typedApt.clients?.full_name ?? 'Cliente')} — da ${oldDate} alle ${oldTime} → ${newDate} alle ${newTime}`,
+      meta: { appointment_id: appointmentId },
+    })
 
     revalidatePath(`/tenant/app`)
     return { ok: true, newStartTime }

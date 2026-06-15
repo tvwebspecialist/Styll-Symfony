@@ -34,6 +34,7 @@ interface Props {
   isLoggedIn?: boolean
   clientId?: string
   googleLogin?: boolean
+  rescheduleFromId?: string
 }
 
 function getInitials(name: string | null): string {
@@ -77,6 +78,7 @@ export default function BookingStep5Confirm({
   isLoggedIn = false,
   clientId,
   googleLogin = false,
+  rescheduleFromId,
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const { showToast } = useToast()
@@ -174,6 +176,7 @@ export default function BookingStep5Confirm({
       notes: '',
       marketingConsent: false,
       productIds: selectedProductIds,
+      rescheduleFromId,
     })
     if (!result.success || !result.appointmentId) {
       setSubmitError(result.error ?? 'Non siamo riusciti a confermare la prenotazione.')
