@@ -5,47 +5,83 @@ import {
   Calendar,
   X as XIcon,
   UserPlus,
-  Clock,
+  ArrowRightLeft,
   CreditCard,
   Settings,
   CheckCheck,
   BellOff,
   type LucideIcon,
 } from 'lucide-react'
+import { markNotificationRead, markAllNotificationsRead } from '@/lib/actions/notifiche'
+import type { NotifRow } from '@/lib/actions/notifiche'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type NotifType = 'appointment' | 'cancellation' | 'new_client' | 'reminder' | 'payment' | 'system'
+type UiType = 'appointment' | 'cancellation' | 'new_client' | 'reschedule' | 'payment' | 'system'
 type TabFilter = 'all' | 'unread' | 'appointments' | 'system'
 
 interface Notif {
   id: string
-  type: NotifType
+  uiType: UiType
   title: string
   subtitle: string
   time: string
   read: boolean
+  meta: Record<string, unknown>
+}
+
+interface NotificheClientProps {
+  initialNotifications: NotifRow[]
+  tenantId: string
+}
+
+function toUiType(dbType: string): UiType {
+  switch (dbType) {
+    case 'new_booking':  return 'appointment'
+    case 'cancellation': return 'cancellation'
+    case 'reschedule':   return 'reschedule'
+    case 'new_client':   return 'new_client'
+    case 'payment':      return 'payment'
+    default:             return 'system'
+  }
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const min  = Math.floor(diff / 60_000)
+  if (min < 1)  return 'Ora'
+  if (min < 60) return `${min} min fa`
+  const h = Math.floor(min / 60)
+  if (h < 24)   return `${h} or${h === 1 ? 'a' : 'e'} fa`
+  const d = Math.floor(h / 24)
+  if (d === 1)  return 'Ieri'
+  if (d < 7)    return `${d} giorni fa`
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+}
+
+function mapRow(row: NotifRow): Notif {
+  return {
+    id:       row.id,
+    uiType:   toUiType(row.type),
+    title:    row.title,
+    subtitle: row.body ?? '',
+    time:     relativeTime(row.created_at),
+    read:     row.is_read,
+    meta:     (row.meta ?? {}) as Record<string, unknown>,
+  }
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const TYPE_CONFIG: Record<NotifType, { icon: LucideIcon; bg: string; color: string }> = {
-  appointment: { icon: Calendar,  bg: '#E8F0FE', color: '#4285F4' },
-  cancellation: { icon: XIcon,    bg: '#FDE8E8', color: '#E53935' },
-  new_client:   { icon: UserPlus, bg: '#E8F5E9', color: '#43A047' },
-  reminder:     { icon: Clock,    bg: '#FEF3E8', color: '#FB8C00' },
-  payment:      { icon: CreditCard, bg: '#FFF8E1', color: '#F9A825' },
-  system:       { icon: Settings, bg: '#F3E8FE', color: '#8E24AA' },
+const TYPE_CONFIG: Record<UiType, { icon: LucideIcon; bg: string; color: string }> = {
+  appointment:  { icon: Calendar,       bg: '#E8F0FE', color: '#4285F4' },
+  cancellation: { icon: XIcon,          bg: '#FDE8E8', color: '#E53935' },
+  reschedule:   { icon: ArrowRightLeft, bg: '#FFF3E8', color: '#F57C00' },
+  new_client:   { icon: UserPlus,       bg: '#E8F5E9', color: '#43A047' },
+  payment:      { icon: CreditCard,     bg: '#FFF8E1', color: '#F9A825' },
+  system:       { icon: Settings,       bg: '#F3E8FE', color: '#8E24AA' },
 }
 
-const INITIAL_NOTIFICATIONS: Notif[] = [
-  { id: '1', type: 'appointment',  title: 'Nuovo appuntamento',        subtitle: 'Marco Rossi — Taglio + Barba, oggi 15:30',           time: '2 min fa',    read: false },
-  { id: '2', type: 'cancellation', title: 'Appuntamento cancellato',   subtitle: 'Luca Bianchi ha cancellato per domani 10:00',         time: '1 ora fa',    read: false },
-  { id: '3', type: 'new_client',   title: 'Nuovo cliente registrato',  subtitle: 'Gianni Ferrari si è iscritto alla tua app',           time: '3 ore fa',    read: true  },
-  { id: '4', type: 'reminder',     title: 'Promemoria',                subtitle: 'Hai 3 appuntamenti domani mattina',                   time: 'Ieri',        read: true  },
-  { id: '5', type: 'payment',      title: 'Pagamento ricevuto',        subtitle: '€25.00 da Sara Conti — Taglio classico',              time: 'Ieri',        read: true  },
-  { id: '6', type: 'system',       title: 'Aggiornamento completato',  subtitle: 'Styll v2.1 è ora attivo sul tuo account',             time: '3 giorni fa', read: true  },
-]
 
 const TABS: { id: TabFilter; label: string }[] = [
   { id: 'all',          label: 'Tutte'          },
@@ -57,8 +93,8 @@ const TABS: { id: TabFilter; label: string }[] = [
 function filterNotifs(notifs: Notif[], tab: TabFilter): Notif[] {
   switch (tab) {
     case 'unread':       return notifs.filter((n) => !n.read)
-    case 'appointments': return notifs.filter((n) => ['appointment', 'cancellation', 'reminder'].includes(n.type))
-    case 'system':       return notifs.filter((n) => ['system', 'payment', 'new_client'].includes(n.type))
+    case 'appointments': return notifs.filter((n) => ['appointment', 'cancellation', 'reschedule'].includes(n.uiType))
+    case 'system':       return notifs.filter((n) => ['system', 'payment', 'new_client'].includes(n.uiType))
     default:             return notifs
   }
 }
@@ -66,7 +102,7 @@ function filterNotifs(notifs: Notif[], tab: TabFilter): Notif[] {
 // ─── Notification Card (pill) ─────────────────────────────────────────────────
 
 function NotifCard({ notif, onMarkRead }: { notif: Notif; onMarkRead: (id: string) => void }) {
-  const config = TYPE_CONFIG[notif.type]
+  const config = TYPE_CONFIG[notif.uiType]
   const Icon = config.icon
   const [hovered, setHovered] = React.useState(false)
 
@@ -168,8 +204,8 @@ function NotifCard({ notif, onMarkRead }: { notif: Notif; onMarkRead: (id: strin
 
 // ─── NotificheClient ──────────────────────────────────────────────────────────
 
-export function NotificheClient() {
-  const [notifications, setNotifications] = React.useState<Notif[]>(INITIAL_NOTIFICATIONS)
+export function NotificheClient({ initialNotifications, tenantId }: NotificheClientProps) {
+  const [notifications, setNotifications] = React.useState<Notif[]>(() => initialNotifications.map(mapRow))
   const [activeTab, setActiveTab] = React.useState<TabFilter>('all')
 
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -177,10 +213,12 @@ export function NotificheClient() {
 
   function markRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+    markNotificationRead(tenantId, id).catch((err) => console.error('[notifiche] markRead failed:', err))
   }
 
   function markAllRead() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    markAllNotificationsRead(tenantId).catch((err) => console.error('[notifiche] markAllRead failed:', err))
   }
 
   return (
@@ -357,6 +395,3 @@ export function NotificheClient() {
   )
 }
 
-// ─── Exported mock unread count (for topbar badge) ────────────────────────────
-
-export const MOCK_UNREAD_COUNT = INITIAL_NOTIFICATIONS.filter((n) => !n.read).length

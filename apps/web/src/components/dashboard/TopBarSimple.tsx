@@ -4,7 +4,6 @@ import { Bell } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getDashboardSection } from '@/lib/dashboard-path'
-import { MOCK_UNREAD_COUNT } from '@/components/dashboard/notifiche/NotificheClient'
 
 const PAGE_NAMES: Record<string, string> = {
   calendario: 'Calendario',
@@ -23,9 +22,10 @@ const PAGE_NAMES: Record<string, string> = {
 interface TopBarSimpleProps {
   fullName: string
   avatarUrl: string | null
+  unreadCount?: number
 }
 
-export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps) {
+export default function TopBarSimple({ fullName, avatarUrl, unreadCount = 0 }: TopBarSimpleProps) {
   const pathname = usePathname()
   const section = getDashboardSection(pathname)
   const pageTitle = section ? PAGE_NAMES[section] ?? 'Dashboard' : 'Dashboard'
@@ -140,7 +140,7 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
           }}
         >
           <Bell size={20} color="#111111" strokeWidth={1.8} />
-          {MOCK_UNREAD_COUNT > 0 && (
+          {unreadCount > 0 && (
             <span
               style={{
                 position: 'absolute',
@@ -161,7 +161,7 @@ export default function TopBarSimple({ fullName, avatarUrl }: TopBarSimpleProps)
                 lineHeight: 1,
               }}
             >
-              {MOCK_UNREAD_COUNT}
+              {unreadCount}
             </span>
           )}
         </Link>

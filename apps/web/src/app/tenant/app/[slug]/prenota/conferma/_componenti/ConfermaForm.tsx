@@ -108,6 +108,7 @@ export function ConfermaForm({
         initialEmail={initialEmail}
         isLoggedIn={isLoggedIn}
         clientId={clientId}
+        rescheduleFromId={cancelAppointmentId}
       />
 
       {successAppointmentId !== null && (

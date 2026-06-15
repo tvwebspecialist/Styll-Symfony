@@ -8,6 +8,7 @@ import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { insertStaffNotification, abbrevName } from '@/lib/notifications'
 import type { TablesInsert } from '@/types'
 
 const createGuestBookingSchema = z.object({
@@ -31,6 +32,7 @@ const createGuestBookingSchema = z.object({
   notes: z.string().trim().max(500).optional().transform((value) => value ?? ''),
   marketingConsent: z.boolean().default(false),
   productIds: z.array(z.string().min(1)).optional().default([]),
+  rescheduleFromId: z.string().uuid().optional(),
 })
 
 export interface CreateGuestBookingResult {
@@ -42,6 +44,7 @@ export interface CreateGuestBookingResult {
 function sanitizePhone(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
+
 
 function buildAppointmentDate(date: string, time: string, timezone: string = 'Europe/Rome'): Date {
   return localDatetimeToUtc(date, time, timezone)
@@ -190,7 +193,7 @@ export async function createGuestBooking(
           .maybeSingle(),
     db
       .from('services')
-      .select('id, price, duration_minutes')
+      .select('id, name, price, duration_minutes')
       .eq('tenant_id', data.tenantId)
       .eq('is_active', true)
       .in('id', data.serviceIds),
@@ -198,6 +201,7 @@ export async function createGuestBooking(
 
   const services = (serviceRows ?? []) as Array<{
     id: string
+    name: string
     price: number
     duration_minutes: number
   }>
@@ -210,6 +214,7 @@ export async function createGuestBooking(
   }
 
   let clientId = (clientRow as { id: string } | null)?.id ?? null
+  const isNewClient = clientId === null
 
   if (!clientId) {
     const clientPayload: TablesInsert<'clients'> = {
@@ -336,6 +341,62 @@ export async function createGuestBooking(
   revalidatePath(`/tenant/app/${data.slug}`)
   revalidatePath(`/tenant/app/${data.slug}/prenota`)
   revalidatePath(`/tenant/app/${data.slug}/prenota/successo`)
+
+  // ── Fire-and-forget: notifiche in-app per lo staff ───────────────────────
+  const notifTime = startDate.toLocaleTimeString('it-IT', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+  })
+  const notifDate = startDate.toLocaleDateString('it-IT', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+  })
+
+  if (data.rescheduleFromId) {
+    // Path B reschedule: non è una nuova prenotazione, è uno spostamento.
+    // Fetch vecchio orario (ancora in DB, non ancora cancellato) e notifica reschedule.
+    const oldId = data.rescheduleFromId
+    ;(async () => {
+      const { data: oldAppt } = await db
+        .from('appointments')
+        .select('start_time')
+        .eq('id', oldId)
+        .eq('tenant_id', data.tenantId)
+        .maybeSingle()
+      const oldStart = (oldAppt as { start_time: string } | null)?.start_time
+      const oldTimeStr = oldStart
+        ? new Date(oldStart).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
+        : '??:??'
+      const oldDateStr = oldStart
+        ? new Date(oldStart).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
+        : ''
+      insertStaffNotification({
+        tenantId: data.tenantId,
+        type: 'reschedule',
+        title: 'Appuntamento spostato',
+        body: `${abbrevName(data.fullName)} — da ${oldDateStr} alle ${oldTimeStr} → ${notifDate} alle ${notifTime}`,
+        meta: { appointment_id: appointmentId, old_appointment_id: oldId, client_id: clientId },
+      })
+    })().catch((err) => {
+      console.error('[notifications] reschedule notification failed:', err)
+    })
+  } else {
+    if (isNewClient) {
+      insertStaffNotification({
+        tenantId: data.tenantId,
+        type: 'new_client',
+        title: 'Nuovo cliente',
+        body: `${data.fullName} si è appena registrato`,
+        meta: { client_id: clientId },
+      })
+    }
+
+    insertStaffNotification({
+      tenantId: data.tenantId,
+      type: 'new_booking',
+      title: 'Nuova prenotazione',
+      body: `${abbrevName(data.fullName)} — ${services.map((s) => s.name).join(' + ')}, ${notifDate} alle ${notifTime}`,
+      meta: { appointment_id: appointmentId, client_id: clientId },
+    })
+  }
 
   // ── Fire-and-forget: notifica push di conferma prenotazione ──────────────
   // Troviamo il profile_id del cliente (se ha account + subscription)
