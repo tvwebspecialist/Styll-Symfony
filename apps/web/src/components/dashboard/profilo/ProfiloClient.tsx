@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useTenantContext } from '@/lib/hooks/use-tenant-context'
 import type { ProfileData, SubscriptionInfo } from '@/lib/actions/profilo'
 import { DatiPersonali } from './sections/DatiPersonali'
 import { Abbonamento } from './sections/Abbonamento'
@@ -71,6 +72,7 @@ export function ProfiloClient({
   selectTenantHref?: string
 }) {
   const router = useRouter()
+  const { tenantId } = useTenantContext()
   const [active, setActive] = React.useState<SectionKey>('profilo')
   const [mobileSection, setMobileSection] = React.useState<SectionKey | null>(null)
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(profile.avatarUrl)
@@ -105,7 +107,7 @@ export function ProfiloClient({
       )
     }
     if (key === 'abbonamento') return <Abbonamento subscription={subscription} />
-    if (key === 'notifiche') return <Notifiche initial={profile.notificationPreferences} />
+    if (key === 'notifiche') return <Notifiche initial={profile.notificationPreferences} tenantId={tenantId} />
     return <PrivacySicurezza email={profile.email ?? ''} />
   }
 

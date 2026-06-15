@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { updateNotificationPreferences } from '@/lib/actions/profilo'
 import { primaryButtonStyle, Toast } from '../ui'
+import { StaffPushToggle } from './StaffPushToggle'
 
 interface ToggleItem {
   key: string
@@ -20,19 +21,24 @@ const GROUPS: Group[] = [
     title: 'Appuntamenti',
     items: [
       {
-        key: 'appt_confirmation',
-        label: 'Conferma prenotazione',
-        description: 'Email + push quando un cliente prenota.',
+        key: "appt_confirmation",
+        label: "Nuova prenotazione",
+        description: "Push quando un cliente prenota.",
       },
       {
-        key: 'appt_reminder',
-        label: 'Reminder 24h prima',
-        description: 'SMS + push 24 ore prima dell’appuntamento.',
+        key: "appt_cancellation",
+        label: "Cancellazione appuntamento",
+        description: "Push quando un cliente cancella.",
       },
       {
-        key: 'appt_cancellation',
-        label: 'Cancellazione appuntamento',
-        description: 'Email quando un cliente cancella.',
+        key: "appt_reschedule",
+        label: "Appuntamento spostato",
+        description: "Push quando un cliente sposta un appuntamento.",
+      },
+      {
+        key: "appt_reminder",
+        label: "Reminder 24h prima",
+        description: "Push 24 ore prima dell’appuntamento del cliente.",
       },
     ],
   },
@@ -76,7 +82,7 @@ const GROUPS: Group[] = [
 const DEFAULTS: Record<string, boolean> = GROUPS.flatMap((g) => g.items)
   .reduce<Record<string, boolean>>((acc, it) => ({ ...acc, [it.key]: true }), {})
 
-export function Notifiche({ initial }: { initial: Record<string, boolean> }) {
+export function Notifiche({ initial, tenantId }: { initial: Record<string, boolean>; tenantId: string }) {
   const [prefs, setPrefs] = React.useState<Record<string, boolean>>({ ...DEFAULTS, ...initial })
   const [saving, setSaving] = React.useState(false)
   const [msg, setMsg] = React.useState<{ kind: 'success' | 'error'; text: string } | null>(null)
@@ -100,6 +106,8 @@ export function Notifiche({ initial }: { initial: Record<string, boolean> }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {msg && <Toast message={msg.text} kind={msg.kind} />}
+
+      <StaffPushToggle tenantId={tenantId} />
 
       {GROUPS.map((g) => (
         <div key={g.title}>
