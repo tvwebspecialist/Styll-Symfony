@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
-import { signInWithGoogle } from '@/app/(auth)/register/actions'
+import { createClient } from '@/lib/supabase/client'
 
 interface GoogleButtonProps {
   label?: string
@@ -55,15 +55,28 @@ export function GoogleButton({
   function handleClick() {
     startTransition(async () => {
       try {
-        await signInWithGoogle()
-      } catch (err) {
-        if (
-          err instanceof Error &&
-          (err.message.includes('NEXT_REDIRECT') ||
-            err.message.includes('NEXT_HTTP_ERROR'))
-        ) {
+        const supabase = createClient()
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent',
+            },
+            // skipBrowserRedirect so we navigate manually AFTER document.cookie
+            // is committed — avoids iOS Safari ITP race condition where a Server
+            // Action Set-Cookie may not be persisted before the cross-site
+            // navigation to accounts.google.com starts.
+            skipBrowserRedirect: true,
+          },
+        })
+        if (error || !data.url) {
+          toast.error('Impossibile avviare il login con Google. Riprova.')
           return
         }
+        window.location.href = data.url
+      } catch {
         toast.error('Impossibile avviare il login con Google. Riprova.')
       }
     })

@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { cookies } from 'next/headers'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -22,20 +21,6 @@ export async function GET(request: NextRequest) {
   if (!code) {
     return redirect(`${origin}/login`)
   }
-
-  const cookieStore = await cookies()
-  const requestCookies = cookieStore.getAll()
-  const pkceCookieNames = requestCookies
-    .map(({ name }) => name)
-    .filter((name) => name.includes('code-verifier'))
-
-  // Diagnostic log for mobile OAuth debugging: names only, never cookie values.
-  console.log('[auth/callback] request diagnostics:', {
-    cookieNames: requestCookies.map(({ name }) => name),
-    hasPkceCodeVerifierCookie: pkceCookieNames.length > 0,
-    pkceCookieNames,
-    userAgent: request.headers.get('user-agent'),
-  })
 
   const supabase = await createClient()
   const { error } = await supabase.auth.exchangeCodeForSession(code)
