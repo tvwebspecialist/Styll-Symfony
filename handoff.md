@@ -1,38 +1,51 @@
 # Obiettivo della sessione
-Raffinare l'esperienza PWA cliente (booking flow, scheda prodotto, griglia prodotti) e correggere un bug critico di routing che rimandava i tenant esistenti all'onboarding ad ogni accesso.
+Costruire l'intero sistema notifiche di Styll: in-app (centro notifiche), push Web Push lato staff, e cron ricalcolo churn. Partendo da zero dati reali, arrivare a notifiche funzionanti su tutti e 5 gli eventi (new_booking, cancellation, reschedule, new_client, churn_alert).
 
 ## Stato attuale
-Quattro fix/feature chiusi in questa sessione. Il flusso PWA di prenotazione è stabile anche per tenant single-staff/single-location. La pagina dettaglio prodotto è fullscreen con glass panel. Il bug onboarding è risolto lato proxy + layout. Resta aperto tutto ciò che non era in scope: dashboard funzionalità, loyalty, admin.
+Sistema notifiche quasi completo. Chiuso: tabella `notifications` alimentata su tutti i 5 eventi, centro notifiche dashboard collegato ai dati reali, badge TopBar reale, cron `recalculate-analytics` (06:00 UTC), infrastruttura push staff (subscribe endpoint, StaffPushToggle, preferenze). Aperto: **verifica push staff su dispositivo reale** — ultimo fix (await diretto vs after()) ancora da testare con deploy su Vercel.
 
 ## In lavorazione
-Nessuna feature a metà — tutti i task di questa sessione sono stati completati e committati in `dev`. Prossimo punto su roadmap PWA da decidere con il team.
+Debug push staff non recapitata. Il problema era fire-and-forget in Vercel Lambda: `sendPushToStaff` veniva lanciata senza await e la Lambda veniva congelata prima che completasse. Fix applicato: `insertStaffNotification` ora `async/await` diretto in tutti i caller (create-booking.ts, pwa-client-actions.ts, recalculate-analytics/route.ts). I log diagnostici `[push/staff] start/done` sono ancora nel codice per verificare il primo run post-deploy.
 
 ## Cosa è cambiato in questa sessione
 
-**1. PWA Booking — Fix overlap navbar step Servizi (single-staff/single-location)**
-- `BottomCTA.tsx`: aggiunto prop `bottomOffset?: string` che solleva la barra fissa sopra la bottom nav
-- `BookingStep3Services.tsx`: prop `isFirstStep` — quando true aumenta `paddingBottom` contenuto e passa `bottomOffset` a BottomCTA
-- `ServiziSelector.tsx`: calcola `isFirstStep = skipLocationStep && skipStaffStep`
+**Sistema notifiche in-app:**
+- `src/lib/notifications.ts`: `insertStaffNotification` + `abbrevName` + mapping type→pref key + `sendPushToStaff`
+- `src/lib/actions/notifiche.ts` (nuovo): `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`
+- `NotificheClient.tsx`: dati reali, mock rimossi, tipi aggiornati (reschedule icon ArrowRightLeft)
+- `notifiche/page.tsx`: ora carica dati server-side e passa a client
+- `TopBar.tsx`, `TopBarHome.tsx`, `TopBarSimple.tsx`, `MobileTopBar.tsx`: badge reale da layout (admin client count query), `MOCK_UNREAD_COUNT` rimosso ovunque
 
-**2. PWA Prodotti — Refinement card, filtri, dettaglio**
-- `ProdottiClient.tsx`: freccia `ArrowRight` → `ArrowUpRight`; state `pressedCardId` per feedback tap (scale 0.965, CSS class, `prefers-reduced-motion` safe); redesign filtri: pill senza border, inactive `rgba(0,0,0,0.06)`, active brand-primary + `box-shadow`
-- `PwaTopBar.tsx`: aggiunto case `segment === 'prodotti' && subSegment` → topbar con back button standard (cerchio bianco + ChevronLeft) che punta a `/prodotti`
-- `PwaShell.tsx`: `isProductDetail` — nasconde bottom nav e azzera `paddingBottom` per `/prodotti/[id]`
-- `ProductDetailClient.tsx`: rimosso back button fluttuante custom + import `ArrowLeft`/`useRouter`; heart button riposizionato a `top: calc(75px + env(safe-area-inset-top) + 8px)`; glass panel: blur 40px saturate(180%), opacity 0.76, maxHeight 62dvh, padding ridotto
-- `page.tsx` (product detail): main → `position: fixed; inset: 0; zIndex: 2` (immagine truly 100dvh, topbar in overlay)
+**Push staff:**
+- `/api/push/subscribe`: validazione estesa a staff_members (non solo clienti)
+- `StaffPushToggle.tsx` (nuovo): toggle push nella sezione Notifiche del profilo
+- `Notifiche.tsx`: aggiunta voce `appt_reschedule`, embed `StaffPushToggle`, prop `tenantId`
+- `ProfiloClient.tsx`: legge `tenantId` da `useTenantContext()`, lo passa a Notifiche
+- `send-notification.ts`: error logging migliorato (statusCode + body FCM)
 
-**3. Bug fix — Onboarding redirect su tenant esistenti**
-- `proxy.ts`: rimossa guardia `!completed && isProtected` che bloccava `/dashboard` PRIMA del layout basandosi solo su `onboarding_completed` (flag può essere null/false per tenant storici); blocco `isOnboarding` esteso a controllare `staff_members` indipendentemente da `completed`
-- `(auth)/onboarding/layout.tsx`: aggiunto check `staff_members` — se utente ha tenant attivo → `redirect('/dashboard')`
-- `auth/callback/route.ts`: aggiunto fallback `staff_members` dopo il check `onboarding_completed` per OAuth login
+**Cron analytics + churn:**
+- `src/app/api/cron/recalculate-analytics/route.ts` (nuovo): riusa `recompute_all_client_analytics()` SQL esistente
+- `vercel.json`: aggiunto schedule `0 6 * * *` (prima del reminder alle 7:00)
+- `DATABASE.md`: sezione "Calcolo Silent Churn Detector" + soglie 1.0x/1.5x + nota scalabilità sendPushToStaff
+
+**Notifiche generate su eventi:**
+- `create-booking.ts`: new_booking, new_client, reschedule (Path B con IIFE await)
+- `pwa-client-actions.ts`: cancellation, reschedule (Path A in-place)
+- `recalculate-analytics/route.ts`: churn_alert su peggioramenti (green/unknown→yellow/red, yellow→red)
+
+**Fix fire-and-forget Lambda:**
+- `insertStaffNotification` ora `async` + `await sendPushToStaff()` in try/catch
+- `after()` da next/server tentato ma rimosso (log mostravano `[push/staff] start` senza `done` → Lambda congelata prima del completamento)
+- Tutti i caller aggiornati con `await`
 
 ## Strade scartate
-- **Modificare `dashboard/layout.tsx`** per il bug onboarding: non necessario, il layout era già corretto — il problema era a monte (proxy bloccava prima che il layout girasse)
-- **Topbar trasparente/fixed sovrapposta all'immagine prodotto**: valutata ma richiede z-index complesso e problemi di stacking context con heart button; scelto invece `main: position fixed` che permette al PwaTopBar sticky (z:60) di sovrapporsi naturalmente
-- **Segmented control con thumb animato** per filtri: scartato perché non si adatta bene a N categorie variabile su scroll orizzontale
+- **`after()` da `next/server`**: loggava `[push/staff] start` ma mai `done` — Vercel Lambda congelava prima che after() completasse il lavoro registrato. Rimosso.
+- **`@vercel/functions` waitUntil**: non installato, non percorso.
+- **`recalculate_client_analytics()` funzione custom**: creata per errore prima di scoprire `recompute_all_client_analytics()` già esistente con soglie 1.0x/1.5x. Droppata via migration.
+- **Loop riga-per-riga JS per churn analytics**: scartato in favore di RPC SQL esistente.
 
 ## Prossimo step
-Definire il prossimo blocco di feature PWA da lavorare (es. pagina Home PWA, notifiche push, oppure feedback post-prenotazione) — aprire la roadmap e scegliere priorità con il team.
+Deploya su Vercel, attiva il push toggle dalla dashboard staff, crea una prenotazione di test dalla PWA cliente, e verifica nei Function log di Vercel la sequenza completa: `[push/staff] start` → `[push/staff] done { sent: 1 }` → push ricevuta sul dispositivo. Se `sent: 0` → fare re-subscribe (il vecchio token FCM potrebbe essere scaduto).
 
 ---
 Per riprendere: nella prossima chat allega messaggio.md + handoff.md e scrivi "Continua da qui".
