@@ -154,12 +154,14 @@ export default async function TenantDashboardLayout({ params, children }: Props)
                 : null
             }
             unreadCount={unreadNotifCount ?? 0}
+            profileId={ctx.profileId}
           />
           <Sidebar />
           <MobileTopBar
             fullName={displayName}
             avatarUrl={ownerProfile?.avatar_url ?? null}
             unreadCount={unreadNotifCount ?? 0}
+            profileId={ctx.profileId}
           />
           <BottomNav />
           <MainContent>{children}</MainContent>
