@@ -18,7 +18,6 @@
  * La notifica in-app viene sempre inserita indipendentemente dalle preferenze;
  * la push segue la preferenza per tipo del destinatario (default true se non impostata).
  */
-import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 
@@ -157,12 +156,15 @@ async function sendPushToStaff(params: InsertParams): Promise<void> {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Fire-and-forget:
- *   1. Inserisce riga in `notifications` (sempre, indipendentemente dalle preferenze)
- *   2. Invia push Web agli staff del tenant con preferenza e subscription attiva
+ * Inserisce la notifica in-app e invia la push Web Push allo staff.
+ *
+ * L'insert in `notifications` è fire-and-forget (singola query rapida).
+ * L'invio push è awaited direttamente: after() non garantiva l'esecuzione
+ * in ambiente Vercel Lambda. La latenza aggiunta (200-500ms per 1-2 staff)
+ * è accettabile. Per tenant con 10+ staff rivalutare una coda asincrona vera.
  */
-export function insertStaffNotification(params: InsertParams): void {
-  // In-app notification (sempre)
+export async function insertStaffNotification(params: InsertParams): Promise<void> {
+  // In-app notification — fire-and-forget (non blocca, singola query)
   createAdminClient()
     .from('notifications')
     .insert({
@@ -182,15 +184,14 @@ export function insertStaffNotification(params: InsertParams): void {
       }
     })
 
-  // Push Web — after() garantisce che la promise completi dopo il return della
-  // server action, senza bloccare la risposta al cliente. Senza after(), Vercel
-  // può congelare la Lambda prima che sendPushToStaff completi.
-  after(
-    sendPushToStaff(params).catch((err: unknown) => {
-      console.error('[notifications] push to staff failed:', (err as Error).message ?? err, {
-        type: params.type,
-        tenantId: params.tenantId,
-      })
-    }),
-  )
+  // Push Web — awaited: garantisce completamento prima del return della server action
+  try {
+    await sendPushToStaff(params)
+  } catch (err: unknown) {
+    console.error('[notifications] push to staff failed:', (err as Error).message ?? err, {
+      type: params.type,
+      tenantId: params.tenantId,
+    })
+    // Non rilanciamo: fallimento push non deve far fallire booking/cancellazione/reschedule
+  }
 }

@@ -342,7 +342,7 @@ export async function createGuestBooking(
   revalidatePath(`/tenant/app/${data.slug}/prenota`)
   revalidatePath(`/tenant/app/${data.slug}/prenota/successo`)
 
-  // ── Fire-and-forget: notifiche in-app per lo staff ───────────────────────
+  // ── Notifiche staff (in-app + push) ──────────────────────────────────────
   const notifTime = startDate.toLocaleTimeString('it-IT', {
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
   })
@@ -351,10 +351,9 @@ export async function createGuestBooking(
   })
 
   if (data.rescheduleFromId) {
-    // Path B reschedule: non è una nuova prenotazione, è uno spostamento.
-    // Fetch vecchio orario (ancora in DB, non ancora cancellato) e notifica reschedule.
+    // Path B reschedule: fetch vecchio orario + notifica awaited
     const oldId = data.rescheduleFromId
-    ;(async () => {
+    await (async () => {
       const { data: oldAppt } = await db
         .from('appointments')
         .select('start_time')
@@ -368,7 +367,7 @@ export async function createGuestBooking(
       const oldDateStr = oldStart
         ? new Date(oldStart).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
         : ''
-      insertStaffNotification({
+      await insertStaffNotification({
         tenantId: data.tenantId,
         type: 'reschedule',
         title: 'Appuntamento spostato',
@@ -380,7 +379,7 @@ export async function createGuestBooking(
     })
   } else {
     if (isNewClient) {
-      insertStaffNotification({
+      await insertStaffNotification({
         tenantId: data.tenantId,
         type: 'new_client',
         title: 'Nuovo cliente',
@@ -389,7 +388,7 @@ export async function createGuestBooking(
       })
     }
 
-    insertStaffNotification({
+    await insertStaffNotification({
       tenantId: data.tenantId,
       type: 'new_booking',
       title: 'Nuova prenotazione',

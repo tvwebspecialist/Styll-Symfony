@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       ? `${abbrevName(fullName)} non viene da ${daysSince} giorni — di solito ogni ${avgFreq}`
       : `${abbrevName(fullName)} non viene da ${daysSince} giorni`
 
-    insertStaffNotification({
+    await insertStaffNotification({
       tenantId: row.tenant_id,
       type: 'churn_alert',
       title: row.churn_status === 'red' ? 'Cliente a rischio alto' : 'Cliente a rischio',
