@@ -18,6 +18,7 @@
  * La notifica in-app viene sempre inserita indipendentemente dalle preferenze;
  * la push segue la preferenza per tipo del destinatario (default true se non impostata).
  */
+import { after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 
@@ -84,8 +85,10 @@ async function sendPushToStaff(params: InsertParams): Promise<void> {
   const prefKey = TYPE_TO_PREF_KEY[type]
   const db = createAdminClient()
 
+  console.info('[push/staff] start', { tenantId, type, prefKey })
+
   // 1. Staff attivi del tenant con profile_id non null
-  const { data: staffRows } = await db
+  const { data: staffRows, error: staffErr } = await db
     .from('staff_members')
     .select('profile_id')
     .eq('tenant_id', tenantId)
@@ -93,15 +96,29 @@ async function sendPushToStaff(params: InsertParams): Promise<void> {
     .is('deleted_at', null)
     .not('profile_id', 'is', null)
 
-  if (!staffRows?.length) return
+  if (staffErr) {
+    console.error('[push/staff] staff_members query error:', staffErr.message)
+    return
+  }
+
+  if (!staffRows?.length) {
+    console.info('[push/staff] no active staff found for tenant', tenantId)
+    return
+  }
 
   const profileIds = (staffRows as Array<{ profile_id: string }>).map((r) => r.profile_id)
+  console.info('[push/staff] staff profiles found:', profileIds.length)
 
   // 2. Preferenze notifica di ciascun profilo
-  const { data: profileRows } = await db
+  const { data: profileRows, error: profErr } = await db
     .from('profiles')
     .select('id, notification_preferences')
     .in('id', profileIds)
+
+  if (profErr) {
+    console.error('[push/staff] profiles query error:', profErr.message)
+    return
+  }
 
   const actionUrl = await buildPushUrl(tenantId, meta)
   const tag = `${type}-${meta.appointment_id ?? meta.client_id ?? Date.now()}`
@@ -113,19 +130,28 @@ async function sendPushToStaff(params: InsertParams): Promise<void> {
     // Rispetta la preferenza per tipo (default true se non impostata)
     if (prefKey) {
       const prefs = (p.notification_preferences ?? {}) as Record<string, boolean>
-      if (prefs[prefKey] === false) continue
+      const prefValue = prefs[prefKey]
+      console.info('[push/staff] profile pref check', { profileId: p.id, prefKey, prefValue })
+      if (prefValue === false) {
+        console.info('[push/staff] skipping — pref disabled', { profileId: p.id, prefKey })
+        continue
+      }
     }
 
     const subs = await getSubscriptionsForProfile(tenantId, p.id)
+    console.info('[push/staff] subscriptions for profile', { profileId: p.id, count: subs.length })
     if (!subs.length) continue
 
-    await sendPushToSubscriptions(subs, {
+    const sent = await sendPushToSubscriptions(subs, {
       title,
       body:  body ?? '',
       url:   actionUrl,
       tag,
     })
+    console.info('[push/staff] push sent', { profileId: p.id, sent, tag })
   }
+
+  console.info('[push/staff] done', { tenantId, type })
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -156,11 +182,15 @@ export function insertStaffNotification(params: InsertParams): void {
       }
     })
 
-  // Push Web (fire-and-forget, rispetta preferenze)
-  sendPushToStaff(params).catch((err: unknown) => {
-    console.error('[notifications] push to staff failed:', (err as Error).message ?? err, {
-      type: params.type,
-      tenantId: params.tenantId,
-    })
-  })
+  // Push Web — after() garantisce che la promise completi dopo il return della
+  // server action, senza bloccare la risposta al cliente. Senza after(), Vercel
+  // può congelare la Lambda prima che sendPushToStaff completi.
+  after(
+    sendPushToStaff(params).catch((err: unknown) => {
+      console.error('[notifications] push to staff failed:', (err as Error).message ?? err, {
+        type: params.type,
+        tenantId: params.tenantId,
+      })
+    }),
+  )
 }

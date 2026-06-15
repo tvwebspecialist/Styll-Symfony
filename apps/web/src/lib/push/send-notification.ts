@@ -59,12 +59,16 @@ export async function sendPushToSubscriptions(
         await webpush.sendNotification(pushSub, JSON.stringify(payload))
         sent++
       } catch (err: unknown) {
-        const status = (err as { statusCode?: number }).statusCode
+        const e = err as { statusCode?: number; body?: string; headers?: Record<string, string> }
+        const status = e.statusCode
         if (status === 404 || status === 410) {
-          // Subscription scaduta o rimossa dal browser
           expiredIds.push(sub.id)
         } else {
-          console.error('[push] sendNotification error:', err)
+          console.error('[push] sendNotification error', {
+            statusCode: status,
+            body: e.body,
+            endpoint: sub.endpoint.slice(0, 60),
+          })
         }
       }
     })
