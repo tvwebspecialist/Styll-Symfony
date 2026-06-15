@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Search, HelpCircle, Moon, Bell, User as UserIcon, Calendar, Scissors } from 'lucide-react'
 import { dashboardSearch, getRecentClients } from '@/lib/actions/dashboard-search'
 import type { SearchResult } from '@/lib/actions/dashboard-search'
+import { useNotificationCount } from '@/hooks/useNotificationCount'
+import { useTenantContext } from '@/lib/hooks/use-tenant-context'
 
 interface TopBarProps {
   fullName?: string | null
@@ -16,6 +18,7 @@ interface TopBarProps {
     tenantName: string
   } | null
   unreadCount?: number
+  profileId?: string
 }
 
 function computeInitials(fullName: string | null | undefined, fallback?: string): string {
@@ -39,8 +42,10 @@ const TYPE_LABELS: Record<SearchResult['type'], string> = {
   service: 'Servizi',
 }
 
-export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCount = 0 }: TopBarProps) {
+export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCount = 0, profileId = '' }: TopBarProps) {
   const router = useRouter()
+  const { tenantId } = useTenantContext()
+  const liveUnreadCount = useNotificationCount(unreadCount, tenantId, profileId, 'desktop')
   const [imgError, setImgError] = React.useState(false)
   const [aiutoHref, setAiutoHref] = React.useState('/aiuto')
 
@@ -376,7 +381,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCou
             }}
           >
             <Bell size={18} color="#222222" />
-            {unreadCount > 0 && (
+            {liveUnreadCount > 0 && (
               <span
                 style={{
                   position: 'absolute',
@@ -397,7 +402,7 @@ export function TopBar({ fullName, avatarUrl, initials, impersonation, unreadCou
                   lineHeight: 1,
                 }}
               >
-                {unreadCount}
+                {liveUnreadCount}
               </span>
             )}
           </Link>
