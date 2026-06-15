@@ -522,6 +522,15 @@ Soglie semaforo churn (in `recompute_client_analytics`):
 - `yellow`  — `days_since <= avg_frequency_days * 1.5`
 - `red`     — oltre 1.5x
 
+### Nota tecnica — invio push churn_alert
+
+`insertStaffNotification` è **awaited** nelle server action/cron per garantire
+l'esecuzione in Vercel Lambda. La funzione itera sugli staff attivi del tenant
+con 2 SELECT + 1 chiamata web-push per membro.
+Latenza stimata: 200-500ms per 1-5 staff. Accettabile oggi.
+Con 10+ staff per tenant, considerare una coda asincrona vera (es. Vercel Queue,
+Upstash, o pg_notify + worker) per spostare l'invio push fuori dalla request.
+
 ## Table `client_import_jobs`
 
 ### Columns

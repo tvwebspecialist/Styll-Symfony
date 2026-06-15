@@ -60,7 +60,7 @@ export async function cancelClientAppointment(
 
     if (error) return { ok: false, error: error.message }
 
-    // Fire-and-forget: notifica cancellazione per lo staff
+    // Notifica cancellazione per lo staff (awaited)
     const aptTyped = apt as unknown as {
       start_time: string
       client_id: string
@@ -72,7 +72,7 @@ export async function cancelClientAppointment(
     const cancelDate = new Date(aptTyped.start_time).toLocaleDateString('it-IT', {
       weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
     })
-    insertStaffNotification({
+    await insertStaffNotification({
       tenantId,
       type: 'cancellation',
       title: 'Appuntamento cancellato',
@@ -181,7 +181,7 @@ export async function rescheduleClientAppointment(
 
     if (error) return { ok: false, error: error.message }
 
-    // Fire-and-forget: notifica reschedule per lo staff
+    // Notifica reschedule per lo staff (awaited)
     const oldTime = new Date(typedApt.start_time).toLocaleTimeString('it-IT', {
       hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
     })
@@ -194,7 +194,7 @@ export async function rescheduleClientAppointment(
     const newDate = new Date(newStartTime).toLocaleDateString('it-IT', {
       weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
     })
-    insertStaffNotification({
+    await insertStaffNotification({
       tenantId,
       type: 'reschedule',
       title: 'Appuntamento spostato',
