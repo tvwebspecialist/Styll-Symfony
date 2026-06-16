@@ -15,7 +15,7 @@ const IS_DEV =
   self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 const OFFLINE_URL = '/offline'
-const PRECACHE = 'styll-offline-v1'
+const PRECACHE = 'styll-offline-v2'
 const PAGES_CACHE = 'styll-pages'
 
 // Runtime caches (nomi allineati alle strategie richieste).
