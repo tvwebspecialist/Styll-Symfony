@@ -7,6 +7,7 @@ import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
 import { sendTemplatedEmail } from '@/lib/email'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
+import { getNotificationChannel } from '@/lib/notifications-channel'
 
 /**
  * Verifica che l'utente autenticato sia staff (o superadmin) del tenant indicato.
@@ -839,37 +840,44 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
 
   if (!client?.marketing_consent) return
 
-  const clientName    = client.full_name ?? 'Cliente'
-  const clientEmail   = client.email ?? null
-  const businessName  = tenant?.business_name ?? 'il tuo salone'
-  const primaryColor  = tenant?.primary_color ?? '#111111'
-  const tenantMeta    = { business_name: businessName, primary_color: primaryColor }
+  const clientName   = client.full_name ?? 'Cliente'
+  const clientEmail  = client.email ?? null
+  const profileId    = client.profile_id ?? null
+  const businessName = tenant?.business_name ?? 'il tuo salone'
+  const primaryColor = tenant?.primary_color ?? '#111111'
+  const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
 
-  // Push post-visita (solo se ha subscription PWA attiva)
-  if (postVisitEnabled && client.profile_id) {
-    getSubscriptionsForProfile(tenantId, client.profile_id).then((subs) => {
-      if (subs.length > 0) {
-        sendPushToSubscriptions(subs, {
-          title: '🙏 Grazie per la tua visita!',
-          body:  `Speriamo tu sia soddisfatto. A presto da ${businessName}!`,
-          tag:   `post-visit-${appointmentId}`,
-        }).catch(() => {})
-      }
-    }).catch(() => {})
-  }
+  // One channel determination covers both post_visit push and email
+  const channel = !profileId
+    ? (clientEmail ? 'email' : 'none')
+    : await getNotificationChannel(profileId, tenantId).catch(
+        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      )
 
-  if (!clientEmail) return
-
+  // Post-visit: push OR email (not both)
   if (postVisitEnabled) {
-    await sendTemplatedEmail({
-      to:           clientEmail,
-      templateSlug: 'post_visit_thanks',
-      variables:    { client_name: clientName, business_name: businessName },
-      tenant:       tenantMeta,
-    })
+    if (channel === 'push' && profileId) {
+      getSubscriptionsForProfile(tenantId, profileId).then((subs) => {
+        if (subs.length > 0) {
+          sendPushToSubscriptions(subs, {
+            title: '🙏 Grazie per la tua visita!',
+            body:  `Speriamo tu sia soddisfatto. A presto da ${businessName}!`,
+            tag:   `post-visit-${appointmentId}`,
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+    } else if (channel === 'email' && clientEmail) {
+      await sendTemplatedEmail({
+        to:           clientEmail,
+        templateSlug: 'post_visit_thanks',
+        variables:    { client_name: clientName, business_name: businessName },
+        tenant:       tenantMeta,
+      })
+    }
   }
 
-  if (reviewEnabled) {
+  // Review request: email-only (no push equivalent) — send regardless of push channel
+  if (reviewEnabled && clientEmail) {
     const socialLinks = tenant?.social_links as Record<string, string> | null
     const reviewUrl   = socialLinks?.google_reviews ?? ''
     if (reviewUrl) {

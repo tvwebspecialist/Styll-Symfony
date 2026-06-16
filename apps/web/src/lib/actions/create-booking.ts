@@ -10,6 +10,7 @@ import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
 import { sendTemplatedEmail } from '@/lib/email'
+import { getNotificationChannel } from '@/lib/notifications-channel'
 import type { TablesInsert } from '@/types'
 
 const createGuestBookingSchema = z.object({
@@ -398,25 +399,17 @@ export async function createGuestBooking(
     })
   }
 
-  // ── Fire-and-forget: push + email conferma prenotazione al cliente ────────
-  sendBookingConfirmedPush({
-    tenantId: data.tenantId,
-    slug: data.slug,
+  // ── Fire-and-forget: conferma prenotazione al cliente (push O email, mai entrambe)
+  sendBookingConfirmedNotification({
+    tenantId:     data.tenantId,
+    slug:         data.slug,
     appointmentId,
     clientId,
-    startTime: startDate.toISOString(),
-  }).catch((err) => {
-    console.error('[push] booking_confirmed error:', err)
-  })
-
-  sendBookingConfirmedEmail({
-    tenantId: data.tenantId,
-    clientId,
-    staffId: data.staffId,
-    startTime: startDate.toISOString(),
+    staffId:      data.staffId,
+    startTime:    startDate.toISOString(),
     serviceNames: services.map((s) => s.name),
   }).catch((err) => {
-    console.error('[email] booking_confirmed error:', err)
+    console.error('[booking-confirmed] notification error:', err)
   })
 
   return {
@@ -425,110 +418,59 @@ export async function createGuestBooking(
   }
 }
 
-/**
- * Invia la push di conferma prenotazione al cliente (fire-and-forget).
- * Non blocca la risposta della Server Action.
- */
-async function sendBookingConfirmedPush(params: {
-  tenantId: string
-  slug: string
+async function sendBookingConfirmedNotification(params: {
+  tenantId:      string
+  slug:          string
   appointmentId: string
-  clientId: string
-  startTime: string
-}): Promise<void> {
-  const db = createAdminClient()
-
-  // Ricava il profile_id del cliente
-  const { data: clientRow } = await db
-    .from('clients')
-    .select('profile_id')
-    .eq('id', params.clientId)
-    .maybeSingle()
-
-  const profileId = clientRow?.profile_id
-  if (!profileId) return
-
-  const subs = await getSubscriptionsForProfile(params.tenantId, profileId)
-  if (!subs.length) return
-
-  const time = new Date(params.startTime).toLocaleTimeString('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/Rome',
-  })
-  const date = new Date(params.startTime).toLocaleDateString('it-IT', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'Europe/Rome',
-  })
-
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('business_name')
-    .eq('id', params.tenantId)
-    .maybeSingle()
-
-  const businessName = tenant?.business_name ?? 'il tuo salone'
-
-  await sendPushToSubscriptions(subs, {
-    title: '✅ Prenotazione confermata!',
-    body:  `${date} alle ${time} da ${businessName}`,
-    url:   `/tenant/app/${params.slug}/prenota/successo?appointment=${params.appointmentId}`,
-    tag:   `booking-confirmed-${params.appointmentId}`,
-  })
-
-  await db.from('notification_log').upsert(
-    {
-      tenant_id:      params.tenantId,
-      profile_id:     profileId,
-      appointment_id: params.appointmentId,
-      type:           'booking_confirmed',
-    },
-    { onConflict: 'appointment_id,type' }
-  )
-}
-
-async function sendBookingConfirmedEmail(params: {
-  tenantId: string
-  clientId: string
-  staffId: string
-  startTime: string
-  serviceNames: string[]
+  clientId:      string
+  staffId:       string
+  startTime:     string
+  serviceNames:  string[]
 }): Promise<void> {
   const db = createAdminClient()
 
   const [{ data: clientRow }, { data: staffRow }, { data: tenantRow }] = await Promise.all([
-    db.from('clients').select('email, full_name').eq('id', params.clientId).maybeSingle(),
+    db.from('clients').select('profile_id, full_name, email').eq('id', params.clientId).maybeSingle(),
     db.from('staff_members').select('profiles(full_name)').eq('id', params.staffId).maybeSingle(),
     db.from('tenants').select('business_name, primary_color').eq('id', params.tenantId).maybeSingle(),
   ])
 
-  const clientEmail = clientRow?.email
-  if (!clientEmail) return
-
-  const clientName = clientRow?.full_name ?? 'Cliente'
-  const staffName = (staffRow?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'il tuo barbiere'
+  const profileId    = clientRow?.profile_id ?? null
+  const clientEmail  = clientRow?.email ?? null
+  const clientName   = clientRow?.full_name ?? 'Cliente'
+  const staffName    = (staffRow?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'il tuo barbiere'
   const businessName = tenantRow?.business_name ?? 'il tuo salone'
   const primaryColor = tenantRow?.primary_color ?? '#111111'
 
-  const date = new Date(params.startTime).toLocaleDateString('it-IT', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
-  })
-  const time = new Date(params.startTime).toLocaleTimeString('it-IT', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
-  })
+  const channel = !profileId
+    ? (clientEmail ? 'email' : 'none')
+    : await getNotificationChannel(profileId, params.tenantId).catch(
+        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      )
 
-  await sendTemplatedEmail({
-    to: clientEmail,
-    templateSlug: 'booking_confirmed',
-    variables: {
-      client_name: clientName,
-      staff_name:  staffName,
-      date,
-      time,
-      services:    params.serviceNames.join(', '),
-    },
-    tenant: { business_name: businessName, primary_color: primaryColor },
-  })
+  const date = new Date(params.startTime).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
+  const time = new Date(params.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
+
+  if (channel === 'push' && profileId) {
+    const subs = await getSubscriptionsForProfile(params.tenantId, profileId)
+    if (subs.length > 0) {
+      await sendPushToSubscriptions(subs, {
+        title: '✅ Prenotazione confermata!',
+        body:  `${date} alle ${time} da ${businessName}`,
+        url:   `/tenant/app/${params.slug}/prenota/successo?appointment=${params.appointmentId}`,
+        tag:   `booking-confirmed-${params.appointmentId}`,
+      })
+      await db.from('notification_log').upsert(
+        { tenant_id: params.tenantId, profile_id: profileId, appointment_id: params.appointmentId, type: 'booking_confirmed' },
+        { onConflict: 'appointment_id,type' }
+      )
+    }
+  } else if (channel === 'email' && clientEmail) {
+    await sendTemplatedEmail({
+      to:           clientEmail,
+      templateSlug: 'booking_confirmed',
+      variables:    { client_name: clientName, staff_name: staffName, date, time, services: params.serviceNames.join(', ') },
+      tenant:       { business_name: businessName, primary_color: primaryColor },
+    })
+  }
 }
