@@ -1,14 +1,9 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
+import { PwaOnboardingLoader } from '@/components/pwa/PwaOnboardingLoader'
 import { getTenantBySlug } from '@/lib/tenant'
-
-const PwaOnboarding = dynamic(
-  () => import('@/components/pwa/PwaOnboarding').then((m) => ({ default: m.PwaOnboarding })),
-  { ssr: false },
-)
 import { getClientProfile } from '@/lib/actions/pwa-auth'
 import {
   GOOGLE_FONT_URLS,
@@ -227,7 +222,7 @@ export default async function AppLayout({ params, children }: Props) {
         >
           {children}
         </PwaPreviewShell>
-        <PwaOnboarding
+        <PwaOnboardingLoader
           primaryColor={brandPrimary}
           logoUrl={tenant.logo_url}
           businessName={tenant.business_name}
