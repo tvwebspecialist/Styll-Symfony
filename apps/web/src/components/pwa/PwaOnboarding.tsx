@@ -83,6 +83,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         .eq('id', user.id)
         .maybeSingle() as unknown as { data: { notification_preferences: Record<string, boolean> } | null }
       const prefs = res.data?.notification_preferences ?? {}
+      alert('[PwaOnboarding] standalone:' + window.matchMedia('(display-mode: standalone)').matches + ' | prefs:' + JSON.stringify(prefs))
       if (prefs.onboarding_completed === true) return
       setShow(true)
     }
