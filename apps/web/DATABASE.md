@@ -100,6 +100,7 @@
 | `language` | `text` |  Nullable |
 | `timezone` | `text` |  Nullable |
 | `notification_preferences` | `jsonb` |  |
+| `email_verified` | `bool` |  |
 
 ## Table `staff_members`
 
@@ -456,37 +457,6 @@
 | `created_at` | `timestamptz` |  Nullable |
 | `updated_at` | `timestamptz` |  Nullable |
 
-### Pattern — sendTemplatedEmail
-
-Usare `sendTemplatedEmail()` in `src/lib/email.ts` per inviare qualsiasi email da template DB.
-Legge il template via admin client (bypassa RLS), interpola `{{variabile}}` con regex globale,
-wrappa in layout HTML brandizzato con `buildEmailHtml()`, invia via Resend.
-
-```typescript
-await sendTemplatedEmail({
-  to: client.email,
-  templateSlug: 'booking_confirmed',
-  variables: { client_name: 'Luca', staff_name: 'Tommaso', date: '17 giugno', time: '10:00', services: 'Taglio' },
-  tenant: { business_name: 'Tommy Barber', primary_color: '#1A1A2E' },
-})
-```
-
-Variabile non trovata nel dict → `{{variabile}}` resta visibile (fail-safe, no crash).
-
-### Template attivi in DB
-
-| slug | evento | variabili |
-|------|--------|-----------|
-| `reminder` | Promemoria appuntamento (esiste già) | client_name, date, time, staff_name |
-| `welcome` | Benvenuto cliente (esiste già) | client_name, business_name |
-| `win_back` | Win-back cliente silenzioso (esiste già) | client_name, business_name, days |
-| `booking_confirmed` | Prenotazione confermata | client_name, staff_name, date, time, services |
-| `post_visit_thanks` | Ringraziamento post-visita | client_name, business_name |
-| `review_request` | Richiesta recensione | client_name, business_name, review_url |
-| `loyalty_points` | Punti guadagnati | client_name, points, total_points, business_name |
-| `loyalty_streak` | Streak visite | client_name, streak, business_name |
-| `loyalty_reward` | Premio sbloccato | client_name, reward_name, business_name |
-
 ## Table `portfolio_photos`
 
 ### Columns
@@ -534,33 +504,6 @@ Variabile non trovata nel dict → `{{variabile}}` resta visibile (fail-safe, no
 | `churn_status` | `text` |  |
 | `computed_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
-
-### Calcolo (Silent Churn Detector)
-
-Aggiornata da cron giornaliero `/api/cron/recalculate-analytics` (06:00 UTC),
-che chiama RPC `recompute_all_client_analytics()` (loop su
-`recompute_client_analytics(p_client_id)` per ogni cliente non soft-deleted).
-
-- `total_visits`: COUNT appointments con `status='completed'` AND `deleted_at IS NULL`
-- `last_visit_date`: MAX(start_time) sui completed
-- `avg_frequency_days`: media dei delta in giorni tra completed consecutivi
-  (window function LAG); richiede `total_visits >= 2`, altrimenti NULL
-- `days_since_last_visit`: `CURRENT_DATE - last_visit_date::date` (≥ 0)
-
-Soglie semaforo churn (in `recompute_client_analytics`):
-- `unknown` — `avg_frequency_days IS NULL` o nessuna visita
-- `green`   — `days_since <= avg_frequency_days` (1.0x)
-- `yellow`  — `days_since <= avg_frequency_days * 1.5`
-- `red`     — oltre 1.5x
-
-### Nota tecnica — invio push churn_alert
-
-`insertStaffNotification` è **awaited** nelle server action/cron per garantire
-l'esecuzione in Vercel Lambda. La funzione itera sugli staff attivi del tenant
-con 2 SELECT + 1 chiamata web-push per membro.
-Latenza stimata: 200-500ms per 1-5 staff. Accettabile oggi.
-Con 10+ staff per tenant, considerare una coda asincrona vera (es. Vercel Queue,
-Upstash, o pg_notify + worker) per spostare l'invio push fuori dalla request.
 
 ## Table `client_import_jobs`
 
@@ -655,4 +598,58 @@ Upstash, o pg_notify + worker) per spostare l'invio push fuori dalla request.
 | `appointment_id` | `uuid` |  Nullable |
 | `type` | `text` |  |
 | `sent_at` | `timestamptz` |  |
+
+**Valori `type` usati:**
+- `reminder_3d` — promemoria appuntamento (push o email, cron)
+- `post_visit_thanks` — grazie post-visita (push o email)
+- `review_request` — richiesta recensione (email)
+- `loyalty_points` — punti guadagnati (push o email)
+- `loyalty_streak` — streak visite (push o email)
+- `loyalty_reward` — premio sbloccato (push o email)
+- `campaign` — messaggio mirato manuale da Marketing → Messaggi → Mirato (push o email, one-shot)
+
+## Table `email_verification_tokens`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email` | `text` |  |
+| `code` | `text` |  |
+| `expires_at` | `timestamptz` |  |
+| `used` | `bool` |  |
+| `attempts` | `int4` |  |
+| `locked_until` | `timestamptz` |  Nullable |
+| `last_sent_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `notifications`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `profile_id` | `uuid` |  Nullable |
+| `type` | `text` |  |
+| `title` | `text` |  |
+| `body` | `text` |  Nullable |
+| `is_read` | `bool` |  |
+| `meta` | `jsonb` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `message_automations`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `type` | `text` |  |
+| `enabled` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
 
