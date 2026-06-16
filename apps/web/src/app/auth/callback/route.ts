@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  const { data: { session: exchangedSession }, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
     console.error('[auth/callback] exchangeCodeForSession error:', error.message)
@@ -65,11 +65,11 @@ export async function GET(request: NextRequest) {
   if (isPwa && tenantSlug) {
     if (tenantId) await setupPwaGoogleClient(tenantId)
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
-      return redirect(`https://${tenantSlug}-app.styll.it/accesso?error=oauth_failed`)
+    // Use tokens from exchangeCodeForSession directly — calling getSession()
+    // separately can trigger an internal token refresh, rotating the refresh_token
+    // and making it stale by the time session-transfer calls setSession().
+    if (!exchangedSession?.access_token || !exchangedSession?.refresh_token) {
+      return redirect(`https://${tenantSlug}-app.styll.it/accesso?error=session_failed`)
     }
 
     const destination = (() => {
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
     })()
 
     const transferUrl = new URL(`https://${tenantSlug}-app.styll.it/auth/session-transfer`)
-    transferUrl.searchParams.set('access_token', session.access_token)
-    transferUrl.searchParams.set('refresh_token', session.refresh_token)
+    transferUrl.searchParams.set('access_token', exchangedSession.access_token)
+    transferUrl.searchParams.set('refresh_token', exchangedSession.refresh_token)
     transferUrl.searchParams.set('next', destination)
 
     return redirect(transferUrl.toString())
