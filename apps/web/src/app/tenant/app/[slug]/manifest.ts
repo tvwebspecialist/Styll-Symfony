@@ -1,3 +1,7 @@
+// Questo file serve /tenant/app/{slug}/manifest.webmanifest via Next.js metadata route.
+// Su subdomain ({slug}-app.styll.it), il layout referenzia invece /api/pwa-manifest?slug={slug}
+// che è escluso dal proxy e raggiungibile senza doppio-nesting.
+// La logica qui è il riferimento canonico — /api/pwa-manifest usa getTenantBySlug (allineato).
 import type { MetadataRoute } from 'next'
 import { headers } from 'next/headers'
 import { getTenantBySlug } from '@/lib/tenant'
