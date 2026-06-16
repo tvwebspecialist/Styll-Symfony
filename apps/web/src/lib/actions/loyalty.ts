@@ -6,6 +6,7 @@ import { getActiveTenantId } from '@/lib/tenant-context'
 import { sendTemplatedEmail } from '@/lib/email'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
+import { getNotificationChannel } from '@/lib/notifications-channel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -694,60 +695,57 @@ async function sendLoyaltyNotifications(params: {
 
   const clientName   = client.full_name ?? 'Cliente'
   const clientEmail  = client.email ?? null
+  const profileId    = client.profile_id ?? null
   const businessName = tenant?.business_name ?? 'il tuo salone'
   const primaryColor = tenant?.primary_color ?? '#111111'
   const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
 
-  // Resolve push subscriptions once (reused across all notifications)
-  const subs = client.profile_id
-    ? await getSubscriptionsForProfile(tenantId, client.profile_id)
+  // One channel determination — reused across all 3 loyalty events
+  const channel = !profileId
+    ? (clientEmail ? 'email' : 'none')
+    : await getNotificationChannel(profileId, tenantId).catch(
+        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      )
+
+  // Load subs once — only if push channel
+  const subs = channel === 'push' && profileId
+    ? await getSubscriptionsForProfile(tenantId, profileId)
     : []
 
   const hasPush = subs.length > 0
 
   // ── Punti guadagnati ─────────────────────────────────────────────────────
   if (pointsEnabled) {
-    if (hasPush) {
+    if (channel === 'push' && hasPush) {
       sendPushToSubscriptions(subs, {
         title: `+${pointsEarned} punti guadagnati!`,
         body:  `Totale: ${newTotal} punti · ${businessName}`,
         tag:   `loyalty-points-${clientId}`,
       }).catch(() => {})
-    }
-    if (clientEmail) {
+    } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
         templateSlug: 'loyalty_points',
-        variables:    {
-          client_name:  clientName,
-          business_name: businessName,
-          points:       String(pointsEarned),
-          total_points: String(newTotal),
-        },
-        tenant: tenantMeta,
+        variables:    { client_name: clientName, business_name: businessName, points: String(pointsEarned), total_points: String(newTotal) },
+        tenant:       tenantMeta,
       })
     }
   }
 
   // ── Streak (solo se cambiata e >= 3) ─────────────────────────────────────
   if (streakEnabled && newStreak >= 3 && newStreak !== oldStreak) {
-    if (hasPush) {
+    if (channel === 'push' && hasPush) {
       sendPushToSubscriptions(subs, {
         title: `Streak di ${newStreak} visite 🔥`,
         body:  `Stai andando alla grande da ${businessName}!`,
         tag:   `loyalty-streak-${clientId}`,
       }).catch(() => {})
-    }
-    if (clientEmail) {
+    } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
         templateSlug: 'loyalty_streak',
-        variables:    {
-          client_name:  clientName,
-          business_name: businessName,
-          streak:       String(newStreak),
-        },
-        tenant: tenantMeta,
+        variables:    { client_name: clientName, business_name: businessName, streak: String(newStreak) },
+        tenant:       tenantMeta,
       })
     }
   }
@@ -759,31 +757,26 @@ async function sendLoyaltyNotifications(params: {
       .select('name, points_cost')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
-      .gt('points_cost', oldTotal)   // non raggiunto prima
-      .lte('points_cost', newTotal)  // raggiunto ora
+      .gt('points_cost', oldTotal)
+      .lte('points_cost', newTotal)
       .order('points_cost', { ascending: false })
       .limit(1)
 
     const unlockedReward = (rewards ?? [])[0] as { name: string; points_cost: number } | undefined
 
     if (unlockedReward) {
-      if (hasPush) {
+      if (channel === 'push' && hasPush) {
         sendPushToSubscriptions(subs, {
           title: 'Premio sbloccato! 🎉',
           body:  `Hai sbloccato: ${unlockedReward.name} da ${businessName}`,
           tag:   `loyalty-reward-${clientId}`,
         }).catch(() => {})
-      }
-      if (clientEmail) {
+      } else if (channel === 'email' && clientEmail) {
         await sendTemplatedEmail({
           to:           clientEmail,
           templateSlug: 'loyalty_reward',
-          variables:    {
-            client_name:  clientName,
-            business_name: businessName,
-            reward_name:  unlockedReward.name,
-          },
-          tenant: tenantMeta,
+          variables:    { client_name: clientName, business_name: businessName, reward_name: unlockedReward.name },
+          tenant:       tenantMeta,
         })
       }
     }

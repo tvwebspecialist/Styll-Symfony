@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
+import { NotificationOnboarding } from '@/components/pwa/NotificationOnboarding'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
 import {
@@ -207,18 +208,27 @@ export default async function AppLayout({ params, children }: Props) {
         />
       ))}
 
-      <PwaPreviewShell
-        slug={slug}
-        businessName={tenant.business_name}
-        logoUrl={tenant.logo_url}
-        primaryColor={tenant.primary_color}
-        secondaryColor={tenant.secondary_color}
-        fontFamily={tenant.font_family}
-        clientName={clientProfile?.fullName ?? null}
-        clientAvatarUrl={clientProfile?.avatarUrl ?? null}
-      >
-        {children}
-      </PwaPreviewShell>
+      {/* position: relative wrapper allows NotificationOnboarding to use position: absolute overlay */}
+      <div style={{ position: 'relative', minHeight: '100dvh' }}>
+        <PwaPreviewShell
+          slug={slug}
+          businessName={tenant.business_name}
+          logoUrl={tenant.logo_url}
+          primaryColor={tenant.primary_color}
+          secondaryColor={tenant.secondary_color}
+          fontFamily={tenant.font_family}
+          clientName={clientProfile?.fullName ?? null}
+          clientAvatarUrl={clientProfile?.avatarUrl ?? null}
+        >
+          {children}
+        </PwaPreviewShell>
+        <NotificationOnboarding
+          primaryColor={brandPrimary}
+          logoUrl={tenant.logo_url}
+          businessName={tenant.business_name}
+          tenantId={tenant.tenant_id}
+        />
+      </div>
     </>
   )
 }

@@ -13,6 +13,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getImpersonationState, resolveActiveProfileForTenant } from '@/lib/tenant-context'
 import { getTenantBySlug } from '@/lib/tenant'
 import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
+import { NotificationOnboardingDashboard } from '@/components/dashboard/NotificationOnboardingDashboard'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -220,6 +221,12 @@ export default async function TenantDashboardLayout({ params, children }: Props)
             />
             <BottomNav />
             <MainContent>{children}</MainContent>
+            <NotificationOnboardingDashboard
+              primaryColor={tenantBySlug.primary_color ?? '#111111'}
+              logoUrl={tenantBySlug.logo_url}
+              businessName={tenantBySlug.business_name}
+              tenantId={tenantBySlug.tenant_id}
+            />
           </div>
         </NotificationCountProvider>
       </ShadowModeProvider>
