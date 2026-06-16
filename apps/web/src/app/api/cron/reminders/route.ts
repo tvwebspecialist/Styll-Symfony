@@ -20,8 +20,10 @@ import type { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from '@/lib/push/send-notification'
 import type { PushPayload } from '@/lib/push/send-notification'
+import { sendTemplatedEmail } from '@/lib/email'
 
 type ReminderType = 'reminder_3d' | 'reminder_1d' | 'reminder_day'
+type ReminderEmailType = 'reminder_3d_email' | 'reminder_1d_email' | 'reminder_day_email'
 
 interface RawAppointmentRow {
   id: string
@@ -34,6 +36,26 @@ interface RawAppointmentRow {
   tenants: {
     business_name: string
     slug: string
+  } | null
+}
+
+interface RawAppointmentEmailRow {
+  id: string
+  start_time: string
+  tenant_id: string
+  clients: {
+    profile_id: string | null
+    full_name: string | null
+    email: string | null
+  } | null
+  tenants: {
+    business_name: string
+    primary_color: string | null
+  } | null
+  staff_members: {
+    profiles: {
+      full_name: string | null
+    } | null
   } | null
 }
 
@@ -181,6 +203,77 @@ async function processReminders(type: ReminderType): Promise<{ processed: number
   return { processed: rows.length, sent: totalSent }
 }
 
+async function processReminderEmails(type: ReminderType): Promise<{ sent: number }> {
+  const emailType: ReminderEmailType = `${type}_email` as ReminderEmailType
+  const db = createAdminClient()
+  const range = getTimeRange(type)
+
+  const { data: appointments } = await db
+    .from('appointments')
+    .select(
+      `id, start_time, tenant_id,
+       clients(profile_id, full_name, email),
+       tenants(business_name, primary_color),
+       staff_members(profiles(full_name))`
+    )
+    .eq('status', 'confirmed')
+    .is('deleted_at', null)
+    .gte('start_time', range.from)
+    .lte('start_time', range.to)
+    .not(
+      'id',
+      'in',
+      `(SELECT appointment_id FROM notification_log WHERE type = '${emailType}' AND appointment_id IS NOT NULL)`
+    )
+
+  const rows = ((appointments ?? []) as unknown as RawAppointmentEmailRow[])
+  let totalSent = 0
+
+  for (const appt of rows) {
+    const clientEmail = appt.clients?.email
+    if (!clientEmail) continue
+
+    const clientName = appt.clients?.full_name ?? 'Cliente'
+    const staffName = appt.staff_members?.profiles?.full_name ?? 'il tuo barbiere'
+    const businessName = appt.tenants?.business_name ?? 'il tuo salone'
+    const primaryColor = appt.tenants?.primary_color ?? '#111111'
+
+    const date = new Date(appt.start_time).toLocaleDateString('it-IT', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Europe/Rome',
+    })
+    const time = new Date(appt.start_time).toLocaleTimeString('it-IT', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Rome',
+    })
+
+    const result = await sendTemplatedEmail({
+      to: clientEmail,
+      templateSlug: 'reminder',
+      variables: { client_name: clientName, date, time, staff_name: staffName },
+      tenant: { business_name: businessName, primary_color: primaryColor },
+    })
+
+    if (result.success) {
+      totalSent++
+      await db.from('notification_log').upsert(
+        {
+          tenant_id:      appt.tenant_id,
+          profile_id:     appt.clients?.profile_id ?? null,
+          appointment_id: appt.id,
+          type:           emailType,
+        },
+        { onConflict: 'appointment_id,type' }
+      )
+    }
+  }
+
+  return { sent: totalSent }
+}
+
 export async function POST(req: NextRequest) {
   // Auth: Bearer token
   const cronSecret = process.env.CRON_SECRET
@@ -193,17 +286,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const results = await Promise.all([
+  const [push3d, push1d, pushDay, email3d, email1d, emailDay] = await Promise.all([
     processReminders('reminder_3d'),
     processReminders('reminder_1d'),
     processReminders('reminder_day'),
+    processReminderEmails('reminder_3d'),
+    processReminderEmails('reminder_1d'),
+    processReminderEmails('reminder_day'),
   ])
 
   const summary = {
-    reminder_3d:  results[0],
-    reminder_1d:  results[1],
-    reminder_day: results[2],
-    totalSent: results.reduce((s, r) => s + r.sent, 0),
+    reminder_3d:  { ...push3d,  emailSent: email3d.sent },
+    reminder_1d:  { ...push1d,  emailSent: email1d.sent },
+    reminder_day: { ...pushDay, emailSent: emailDay.sent },
+    totalPushSent:  push3d.sent + push1d.sent + pushDay.sent,
+    totalEmailSent: email3d.sent + email1d.sent + emailDay.sent,
   }
 
   console.info('[cron/reminders]', JSON.stringify(summary))

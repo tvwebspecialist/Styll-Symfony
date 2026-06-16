@@ -3,6 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { sendTemplatedEmail } from '@/lib/email'
+import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -342,6 +345,18 @@ export async function assignPointsOnCompletion(
     checkAndUpdateTier(appt.client_id, tenantId, updatedState),
   ])
 
+  sendLoyaltyNotifications({
+    tenantId,
+    clientId:     appt.client_id,
+    pointsEarned,
+    newTotal,
+    oldTotal:     loyaltyRow.total_points ?? 0,
+    newStreak,
+    oldStreak:    loyaltyRow.current_streak ?? 0,
+  }).catch((err) => {
+    console.error('[loyalty] sendLoyaltyNotifications error:', err)
+  })
+
   return { success: true }
 }
 
@@ -645,4 +660,132 @@ export async function getPendingRedemptions(clientId: string): Promise<
     pointsSpent: r.points_spent,
     createdAt: r.created_at,
   }))
+}
+
+// ─── Loyalty notifications (fire-and-forget) ─────────────────────────────────
+
+async function sendLoyaltyNotifications(params: {
+  tenantId:     string
+  clientId:     string
+  pointsEarned: number
+  newTotal:     number
+  oldTotal:     number
+  newStreak:    number
+  oldStreak:    number
+}): Promise<void> {
+  const { tenantId, clientId, pointsEarned, newTotal, oldTotal, newStreak, oldStreak } = params
+  const db = createAdminClient()
+
+  const [
+    { data: client },
+    { data: tenant },
+    pointsEnabled,
+    streakEnabled,
+    rewardEnabled,
+  ] = await Promise.all([
+    db.from('clients').select('email, full_name, profile_id, marketing_consent').eq('id', clientId).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color').eq('id', tenantId).maybeSingle(),
+    getAutomationEnabled(tenantId, 'loyalty_points'),
+    getAutomationEnabled(tenantId, 'loyalty_streak'),
+    getAutomationEnabled(tenantId, 'loyalty_reward'),
+  ])
+
+  if (!client?.marketing_consent) return
+
+  const clientName   = client.full_name ?? 'Cliente'
+  const clientEmail  = client.email ?? null
+  const businessName = tenant?.business_name ?? 'il tuo salone'
+  const primaryColor = tenant?.primary_color ?? '#111111'
+  const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
+
+  // Resolve push subscriptions once (reused across all notifications)
+  const subs = client.profile_id
+    ? await getSubscriptionsForProfile(tenantId, client.profile_id)
+    : []
+
+  const hasPush = subs.length > 0
+
+  // ── Punti guadagnati ─────────────────────────────────────────────────────
+  if (pointsEnabled) {
+    if (hasPush) {
+      sendPushToSubscriptions(subs, {
+        title: `+${pointsEarned} punti guadagnati!`,
+        body:  `Totale: ${newTotal} punti · ${businessName}`,
+        tag:   `loyalty-points-${clientId}`,
+      }).catch(() => {})
+    }
+    if (clientEmail) {
+      await sendTemplatedEmail({
+        to:           clientEmail,
+        templateSlug: 'loyalty_points',
+        variables:    {
+          client_name:  clientName,
+          business_name: businessName,
+          points:       String(pointsEarned),
+          total_points: String(newTotal),
+        },
+        tenant: tenantMeta,
+      })
+    }
+  }
+
+  // ── Streak (solo se cambiata e >= 3) ─────────────────────────────────────
+  if (streakEnabled && newStreak >= 3 && newStreak !== oldStreak) {
+    if (hasPush) {
+      sendPushToSubscriptions(subs, {
+        title: `Streak di ${newStreak} visite 🔥`,
+        body:  `Stai andando alla grande da ${businessName}!`,
+        tag:   `loyalty-streak-${clientId}`,
+      }).catch(() => {})
+    }
+    if (clientEmail) {
+      await sendTemplatedEmail({
+        to:           clientEmail,
+        templateSlug: 'loyalty_streak',
+        variables:    {
+          client_name:  clientName,
+          business_name: businessName,
+          streak:       String(newStreak),
+        },
+        tenant: tenantMeta,
+      })
+    }
+  }
+
+  // ── Reward sbloccato (soglia più alta appena superata) ────────────────────
+  if (rewardEnabled) {
+    const { data: rewards } = await db
+      .from('rewards')
+      .select('name, points_cost')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .gt('points_cost', oldTotal)   // non raggiunto prima
+      .lte('points_cost', newTotal)  // raggiunto ora
+      .order('points_cost', { ascending: false })
+      .limit(1)
+
+    const unlockedReward = (rewards ?? [])[0] as { name: string; points_cost: number } | undefined
+
+    if (unlockedReward) {
+      if (hasPush) {
+        sendPushToSubscriptions(subs, {
+          title: 'Premio sbloccato! 🎉',
+          body:  `Hai sbloccato: ${unlockedReward.name} da ${businessName}`,
+          tag:   `loyalty-reward-${clientId}`,
+        }).catch(() => {})
+      }
+      if (clientEmail) {
+        await sendTemplatedEmail({
+          to:           clientEmail,
+          templateSlug: 'loyalty_reward',
+          variables:    {
+            client_name:  clientName,
+            business_name: businessName,
+            reward_name:  unlockedReward.name,
+          },
+          tenant: tenantMeta,
+        })
+      }
+    }
+  }
 }

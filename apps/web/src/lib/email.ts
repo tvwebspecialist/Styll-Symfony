@@ -1,7 +1,105 @@
 import { Resend } from 'resend'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // Initialize Resend client (requires RESEND_API_KEY env var)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
+export function buildEmailHtml(
+  body: string,
+  tenant?: { business_name: string; primary_color: string }
+): string {
+  const accentColor = tenant?.primary_color ?? '#111111'
+  const businessName = tenant?.business_name ?? 'Styll'
+
+  return `<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#333333;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="background-color:${accentColor};padding:24px 32px;">
+              <span style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">${businessName}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 24px;font-size:15px;line-height:1.7;color:#333333;">
+              ${body.replace(/\n/g, '<br>')}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 24px;border-top:1px solid #eeeeee;">
+              <p style="margin:0;font-size:12px;color:#aaaaaa;text-align:center;">
+                Powered by Styll &nbsp;&middot;&nbsp; <a href="https://styll.it/termini" style="color:#aaaaaa;text-decoration:none;">Termini</a> &nbsp;&middot;&nbsp; <a href="https://styll.it/privacy" style="color:#aaaaaa;text-decoration:none;">Privacy</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendTemplatedEmail({
+  to,
+  templateSlug,
+  variables,
+  tenant,
+}: {
+  to: string
+  templateSlug: string
+  variables: Record<string, string>
+  tenant?: { business_name: string; primary_color: string }
+}): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    console.error('[sendTemplatedEmail] Resend not configured')
+    return { success: false, error: 'Email service not configured' }
+  }
+
+  const admin = createAdminClient()
+  const { data: template, error: dbError } = await admin
+    .from('email_templates')
+    .select('subject, body')
+    .eq('slug', templateSlug)
+    .eq('is_active', true)
+    .single()
+
+  if (dbError || !template) {
+    console.error('[sendTemplatedEmail] Template not found:', templateSlug, dbError)
+    return { success: false, error: `Template "${templateSlug}" not found` }
+  }
+
+  const interpolate = (text: string) =>
+    text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => variables[key] ?? `{{${key}}}`)
+
+  const subject = interpolate(template.subject as string)
+  const bodyText = interpolate(template.body as string)
+  const html = buildEmailHtml(bodyText, tenant)
+
+  try {
+    const result = await resend.emails.send({
+      from: 'Styll <noreply@mail.styll.it>',
+      to,
+      subject,
+      html,
+      text: bodyText,
+    })
+
+    if (result.error) {
+      console.error('[sendTemplatedEmail] Resend error:', result.error)
+      return { success: false, error: result.error.message }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[sendTemplatedEmail] Exception:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
 
 export async function sendVerificationCodeEmail({
   email,

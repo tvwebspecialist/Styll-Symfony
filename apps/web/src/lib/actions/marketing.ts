@@ -246,21 +246,87 @@ export interface MessagesData {
 
 const EMPTY_MESSAGES: MessagesData = { automations: [], log: [] }
 
+// Static display metadata per automation type
+const AUTOMATION_META: Record<string, Pick<MessageAutomation, 'name' | 'timing' | 'channel'>> = {
+  reminder_1d:       { name: 'Promemoria appuntamento',  timing: '24h prima',               channel: 'Email' },
+  post_visit_thanks: { name: 'Grazie post-visita',        timing: 'Dopo il completamento',   channel: 'Email + Push' },
+  review_request:    { name: 'Richiesta recensione',       timing: '48h dopo',               channel: 'Email' },
+  loyalty_points:    { name: 'Punti guadagnati',           timing: 'Ad ogni visita',         channel: 'Email + Push' },
+  loyalty_streak:    { name: 'Streak visite (≥3)',         timing: 'Ad ogni visita',         channel: 'Email + Push' },
+  loyalty_reward:    { name: 'Premio sbloccato',           timing: 'Al raggiungimento soglia', channel: 'Email + Push' },
+}
+
 export async function getMessagesData(
-  _tenantId: string,
-  _days: number = 30,
+  tenantId: string,
+  days: number = 30,
 ): Promise<MessagesData> {
-  // TABELLA NON TROVATA: message_templates — verifica DATABASE.md
-  // TABELLA NON TROVATA: messages_log — verifica DATABASE.md
-  return EMPTY_MESSAGES
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) return EMPTY_MESSAGES
+
+  try {
+    const db = createAdminClient()
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+
+    const [{ data: autoRows }, { data: logRows }] = await Promise.all([
+      db
+        .from('message_automations')
+        .select('type, enabled')
+        .eq('tenant_id', tenantId),
+      db
+        .from('notification_log')
+        .select('id, type, sent_at, profiles(full_name)')
+        .eq('tenant_id', tenantId)
+        .gte('sent_at', since)
+        .order('sent_at', { ascending: false })
+        .limit(50),
+    ])
+
+    const enabledMap = new Map((autoRows ?? []).map((r) => [r.type as string, r.enabled as boolean]))
+
+    const automations: MessageAutomation[] = Object.entries(AUTOMATION_META).map(([type, meta]) => ({
+      id:          type,
+      triggerType: type,
+      isActive:    enabledMap.get(type) ?? true,
+      ...meta,
+    }))
+
+    type LogRow = { id: string; type: string; sent_at: string; profiles: { full_name: string | null } | null }
+    const log: MessageLogEntry[] = ((logRows ?? []) as unknown as LogRow[]).map((row) => ({
+      id:        row.id,
+      recipient: row.profiles?.full_name ?? '—',
+      type:      row.type,
+      status:    'sent',
+      sentAt:    row.sent_at,
+      costCents: null,
+    }))
+
+    return { automations, log }
+  } catch (err) {
+    console.error('[getMessagesData] error:', err)
+    return EMPTY_MESSAGES
+  }
 }
 
 export async function toggleAutomation(
-  _id: string,
-  _isActive: boolean,
+  type: string,
+  enabled: boolean,
 ): Promise<{ success: boolean }> {
-  // TABELLA NON TROVATA: message_templates — verifica DATABASE.md
-  return { success: false }
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { success: false }
+
+  const db = createAdminClient()
+  const { error } = await db
+    .from('message_automations')
+    .upsert(
+      { tenant_id: tenantId, type, enabled, updated_at: new Date().toISOString() },
+      { onConflict: 'tenant_id,type' }
+    )
+
+  if (error) {
+    console.error('[toggleAutomation]', error)
+    return { success: false }
+  }
+  return { success: true }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

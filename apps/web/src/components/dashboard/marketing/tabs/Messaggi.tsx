@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Bell, Heart, Star, Inbox } from 'lucide-react'
+import { Inbox } from 'lucide-react'
 import { Card } from '@/components/dashboard/vendite/ui'
 import { CustomSelect } from '@/components/ui/custom-select'
 import {
@@ -25,20 +25,6 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: 'cronologia', label: 'Cronologia'  },
 ]
 
-/* Default cards shown as fallback when no automations exist in DB */
-interface DefaultCard {
-  Icon:      React.ComponentType<{ size?: number; color?: string }>
-  iconBg:    string
-  iconColor: string
-  title:     string
-  subtitle:  string
-  defaultOn: boolean
-}
-const DEFAULT_CARDS: DefaultCard[] = [
-  { Icon: Bell,  iconBg: '#FFF7ED', iconColor: '#EA580C', title: 'Promemoria appuntamento', subtitle: '24h prima · WhatsApp/SMS',            defaultOn: true  },
-  { Icon: Heart, iconBg: '#FDF2F8', iconColor: '#DB2777', title: 'Grazie post-visita',       subtitle: '2h dopo l\'appuntamento',              defaultOn: true  },
-  { Icon: Star,  iconBg: '#F0FDF4', iconColor: '#16A34A', title: 'Richiesta recensione',     subtitle: '48h dopo · solo se nessuna risposta', defaultOn: false },
-]
 
 const LOG_DAYS_OPTIONS = [
   { value: '7',  label: 'Ultimi 7 giorni'  },
@@ -150,11 +136,6 @@ export function Messaggi({ tenantId }: MessaggiProps) {
       .catch((err) => console.error('[Messaggi] error:', err))
   }, [tenantId])
 
-  /* Default-card toggles (local-only — no DB table exists) */
-  const [defaultToggles, setDefaultToggles] = React.useState<boolean[]>(
-    DEFAULT_CARDS.map((c) => c.defaultOn)
-  )
-
   React.useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -187,8 +168,6 @@ export function Messaggi({ tenantId }: MessaggiProps) {
       })
       .catch((err) => console.error('[Messaggi] error:', err))
   }
-
-  const hasRealAutomations = (data?.automations.length ?? 0) > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -223,20 +202,13 @@ export function Messaggi({ tenantId }: MessaggiProps) {
       {subTab === 'automatici' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {loading ? (
-            /* Skeleton */
             [0, 1, 2].map((i) => (
               <div
                 key={i}
-                style={{
-                  background:   '#F4F4F4',
-                  borderRadius: 12,
-                  height:       72,
-                  marginBottom: i < 2 ? 0 : 0,
-                }}
+                style={{ background: '#F4F4F4', borderRadius: 12, height: 72 }}
               />
             ))
-          ) : hasRealAutomations ? (
-            /* Real automations */
+          ) : (
             (data?.automations ?? []).map((auto) => (
               <Card
                 key={auto.id}
@@ -251,42 +223,6 @@ export function Messaggi({ tenantId }: MessaggiProps) {
                   </p>
                 </div>
                 <Toggle on={auto.isActive} onToggle={() => handleToggle(auto)} />
-              </Card>
-            ))
-          ) : (
-            /* Default disabled fallback */
-            DEFAULT_CARDS.map((card, i) => (
-              <Card
-                key={i}
-                style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px' }}
-              >
-                <div
-                  style={{
-                    width: 40, height: 40, borderRadius: 100,
-                    background: card.iconBg,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <card.Icon size={20} color={card.iconColor} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#222222' }}>
-                    {card.title}
-                  </p>
-                  <p style={{ margin: '2px 0 0', fontSize: 12, color: '#B0B0B0' }}>
-                    {card.subtitle}
-                  </p>
-                </div>
-                <Toggle
-                  on={defaultToggles[i]}
-                  onToggle={() => {
-                    const next = [...defaultToggles]
-                    next[i] = !next[i]
-                    setDefaultToggles(next)
-                  }}
-                  disabled
-                />
               </Card>
             ))
           )}

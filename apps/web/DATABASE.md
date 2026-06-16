@@ -456,6 +456,37 @@
 | `created_at` | `timestamptz` |  Nullable |
 | `updated_at` | `timestamptz` |  Nullable |
 
+### Pattern — sendTemplatedEmail
+
+Usare `sendTemplatedEmail()` in `src/lib/email.ts` per inviare qualsiasi email da template DB.
+Legge il template via admin client (bypassa RLS), interpola `{{variabile}}` con regex globale,
+wrappa in layout HTML brandizzato con `buildEmailHtml()`, invia via Resend.
+
+```typescript
+await sendTemplatedEmail({
+  to: client.email,
+  templateSlug: 'booking_confirmed',
+  variables: { client_name: 'Luca', staff_name: 'Tommaso', date: '17 giugno', time: '10:00', services: 'Taglio' },
+  tenant: { business_name: 'Tommy Barber', primary_color: '#1A1A2E' },
+})
+```
+
+Variabile non trovata nel dict → `{{variabile}}` resta visibile (fail-safe, no crash).
+
+### Template attivi in DB
+
+| slug | evento | variabili |
+|------|--------|-----------|
+| `reminder` | Promemoria appuntamento (esiste già) | client_name, date, time, staff_name |
+| `welcome` | Benvenuto cliente (esiste già) | client_name, business_name |
+| `win_back` | Win-back cliente silenzioso (esiste già) | client_name, business_name, days |
+| `booking_confirmed` | Prenotazione confermata | client_name, staff_name, date, time, services |
+| `post_visit_thanks` | Ringraziamento post-visita | client_name, business_name |
+| `review_request` | Richiesta recensione | client_name, business_name, review_url |
+| `loyalty_points` | Punti guadagnati | client_name, points, total_points, business_name |
+| `loyalty_streak` | Streak visite | client_name, streak, business_name |
+| `loyalty_reward` | Premio sbloccato | client_name, reward_name, business_name |
+
 ## Table `portfolio_photos`
 
 ### Columns
