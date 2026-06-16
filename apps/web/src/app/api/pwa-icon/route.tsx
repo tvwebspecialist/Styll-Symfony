@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
   const logoUrl = safeImageUrl(data?.logo_url)
 
   const logo = logoUrl ? await fetchLogoBase64(logoUrl) : null
-  const logoSize = Math.round(size * 0.70)
 
   return new ImageResponse(
     logo ? (
@@ -66,7 +65,7 @@ export async function GET(request: NextRequest) {
         style={{
           width: size,
           height: size,
-          background: '#FFFFFF',
+          background: bgColor,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -75,8 +74,8 @@ export async function GET(request: NextRequest) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={logo.src}
-          width={logoSize}
-          height={logoSize}
+          width={size}
+          height={size}
           style={{ objectFit: 'contain' }}
         />
       </div>

@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
+import type { Metadata, Viewport } from 'next'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { TopBar } from '@/components/dashboard/TopBar'
 import { MobileTopBar } from '@/components/dashboard/MobileTopBar'
@@ -44,6 +45,58 @@ function selectTenantUrl(qs?: string) {
       ? '/select-tenant'
       : `https://${ROOT_DOMAIN}/select-tenant`
   return qs ? `${base}?${qs}` : base
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const tenant = await getTenantBySlug(slug)
+
+  if (!tenant || tenant.status !== 'active') {
+    return { title: 'Dashboard | Styll' }
+  }
+
+  const iconVersion = tenant.logo_url
+    ? encodeURIComponent(tenant.logo_url).slice(-8)
+    : '0'
+  const faviconUrl = `/api/favicon?slug=${encodeURIComponent(slug)}`
+  const appleTouchIcon = `/api/pwa-icon?slug=${encodeURIComponent(slug)}&v=${iconVersion}&size=180`
+
+  return {
+    title: `${tenant.business_name} | Dashboard`,
+    manifest: `/api/dashboard-manifest?slug=${encodeURIComponent(slug)}`,
+    icons: {
+      icon: [
+        { url: faviconUrl, type: 'image/svg+xml' },
+        { url: faviconUrl, sizes: '32x32' },
+        { url: faviconUrl, sizes: '64x64' },
+      ],
+      apple: [{ url: appleTouchIcon, sizes: '180x180', type: 'image/png' }],
+      shortcut: faviconUrl,
+    },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: tenant.business_name,
+    },
+  }
+}
+
+export async function generateViewport({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Viewport> {
+  const { slug } = await params
+  const tenant = await getTenantBySlug(slug)
+
+  return {
+    themeColor: tenant?.primary_color ?? '#222222',
+    viewportFit: 'cover',
+  }
 }
 
 export default async function TenantDashboardLayout({ params, children }: Props) {
