@@ -128,80 +128,83 @@ export async function sendCampaign({
   let failed  = 0
   let skipped = 0
 
-  const BATCH_SIZE = 10
+  // Sequential processing with 600ms delay between emails (~1.6/sec < Resend 2/sec limit).
+  // Push has no provider rate limit so it skips the delay.
+  // NOTE: ~80+ email recipients will approach Vercel's 60s action timeout — migrate to
+  // a background queue before targeting segments that large.
+  for (const client of clients) {
+    try {
+      // Determine channel
+      let channel: 'push' | 'email' | 'none'
+      if (!client.profile_id) {
+        channel = 'email'
+      } else {
+        channel = await getNotificationChannel(client.profile_id, tenantId)
+      }
 
-  for (let i = 0; i < clients.length; i += BATCH_SIZE) {
-    const batch = clients.slice(i, i + BATCH_SIZE)
+      if (channel === 'none') {
+        skipped++
+        continue
+      }
 
-    await Promise.all(
-      batch.map(async (client) => {
-        try {
-          // Determine channel
-          let channel: 'push' | 'email' | 'none'
-          if (!client.profile_id) {
-            channel = 'email'
-          } else {
-            channel = await getNotificationChannel(client.profile_id, tenantId)
-          }
+      let success     = false
+      let sentEmail   = false
 
-          if (channel === 'none') {
-            skipped++
-            return
-          }
-
-          let success = false
-
-          if (channel === 'push') {
-            // profile_id guaranteed non-null when channel === 'push'
-            const subs = await getSubscriptionsForProfile(tenantId, client.profile_id!)
-            if (subs.length === 0) {
-              // No live subscriptions — fall back to email
-              channel = 'email'
-            } else {
-              const pushSent = await sendPushToSubscriptions(subs, {
-                title: `Messaggio da ${tenantMeta?.business_name ?? 'il tuo barbiere'}`,
-                body:  trimmed,
-              })
-              success = pushSent > 0
-            }
-          }
-
-          if (channel === 'email') {
-            if (!client.email) {
-              skipped++
-              return
-            }
-            const result = await sendTemplatedEmail({
-              to:           client.email,
-              templateSlug: 'messaggio_mirato',
-              variables: {
-                client_name:   client.full_name,
-                business_name: tenantMeta?.business_name ?? 'il tuo barbiere',
-                message:       trimmed,
-              },
-              tenant: tenantMeta,
-            })
-            success = result.success
-          }
-
-          if (success) {
-            sent++
-            await db.from('notification_log').insert({
-              tenant_id:      tenantId,
-              profile_id:     client.profile_id ?? null,
-              appointment_id: null,
-              type:           'campaign',
-              sent_at:        new Date().toISOString(),
-            })
-          } else {
-            failed++
-          }
-        } catch (err) {
-          console.error('[sendCampaign] client error:', client.id, err)
-          failed++
+      if (channel === 'push') {
+        // profile_id guaranteed non-null when channel === 'push'
+        const subs = await getSubscriptionsForProfile(tenantId, client.profile_id!)
+        if (subs.length === 0) {
+          // No live subscriptions — fall back to email
+          channel = 'email'
+        } else {
+          const pushSent = await sendPushToSubscriptions(subs, {
+            title: `Messaggio da ${tenantMeta?.business_name ?? 'il tuo barbiere'}`,
+            body:  trimmed,
+          })
+          success = pushSent > 0
         }
-      })
-    )
+      }
+
+      if (channel === 'email') {
+        if (!client.email) {
+          skipped++
+          continue
+        }
+        const result = await sendTemplatedEmail({
+          to:           client.email,
+          templateSlug: 'messaggio_mirato',
+          variables: {
+            client_name:   client.full_name,
+            business_name: tenantMeta?.business_name ?? 'il tuo barbiere',
+            message:       trimmed,
+          },
+          tenant: tenantMeta,
+        })
+        success    = result.success
+        sentEmail  = true
+      }
+
+      if (success) {
+        sent++
+        await db.from('notification_log').insert({
+          tenant_id:      tenantId,
+          profile_id:     client.profile_id ?? null,
+          appointment_id: null,
+          type:           'campaign',
+          sent_at:        new Date().toISOString(),
+        })
+      } else {
+        failed++
+      }
+
+      // Throttle only email sends to stay within Resend rate limit
+      if (sentEmail) {
+        await new Promise((r) => setTimeout(r, 600))
+      }
+    } catch (err) {
+      console.error('[sendCampaign] client error:', client.id, err)
+      failed++
+    }
   }
 
   return { sent, failed, skipped }
