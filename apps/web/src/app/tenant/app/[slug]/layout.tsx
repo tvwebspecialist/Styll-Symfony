@@ -3,7 +3,6 @@ import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
 import { getTenantBySlug } from '@/lib/tenant'
-import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
 import {
   GOOGLE_FONT_URLS,
@@ -82,7 +81,6 @@ export async function generateMetadata({
     }
   }
 
-  const tp = await createTenantPaths(slug)
   const iconVersion = tenant.logo_url
     ? encodeURIComponent(tenant.logo_url).slice(-8)
     : '0'
@@ -91,7 +89,7 @@ export async function generateMetadata({
   return {
     title: `${tenant.business_name} | App cliente`,
     description: `Apri l'app di ${tenant.business_name} per prenotare, scoprire promozioni e gestire il tuo profilo.`,
-    manifest: tp('/manifest.webmanifest'),
+    manifest: `/api/pwa-manifest?slug=${encodeURIComponent(slug)}`,
     themeColor: tenant.primary_color ?? '#1a1a1a',
     icons: {
       apple: [
