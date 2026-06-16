@@ -1,47 +1,65 @@
 # Obiettivo della sessione
-Completare il sistema notifiche (badge realtime + churn title) e sistemare l'intera infrastruttura PWA: manifest per-tenant su app e dashboard, favicon per-tenant, icona senza bordo bianco. Audit completo del sistema messaggi/email per capire cosa esiste e cosa manca.
+Costruire l'intera infrastruttura email/push di Styll: dal building block `sendTemplatedEmail` fino al routing intelligente push-vs-email per ogni evento (reminder, booking, post-visita, loyalty), con popup onboarding notifiche e toggle UI funzionanti.
 
 ## Stato attuale
-Badge campanella realtime: chiuso. Manifest PWA app ({slug}-app): chiuso. Manifest dashboard ({slug}-dashboard): chiuso. Favicon/theme-color per-tenant nel dashboard: chiuso. Icona PWA senza bordo bianco: chiuso. Sistema messaggi/email/SMS: solo audit — niente implementato ancora.
+Tutto il sistema notifiche cliente è implementato lato codice. Mancano le SQL migration da eseguire manualmente (vedi sotto) e il test end-to-end su device reale. Win-back automatico e churn alert verso clienti (non staff) non toccati.
 
 ## In lavorazione
-Audit messaggi completato — risultato: push funzionano (staff e reminder cliente), email solo per verifica codice e inviti team, zero SMS/WA, marketing UI (toggle automatici + bottone Invia) sono mock completi senza backend. Prossimo passo naturale: scegliere quale canale aggiungere (email reminder cliente via Resend, o altro).
+Nessuna feature a metà — tutto ciò che è stato iniziato è stato chiuso. Le uniche cose "aperte" sono operative: eseguire le SQL, fare smoke test.
 
 ## Cosa è cambiato in questa sessione
 
-**Sistema notifiche badge:**
-- `NotificationCountContext.tsx` (nuovo): una sola subscription Realtime `notif-badge:{tenantId}`, stato `count + ring` condiviso
-- `TopBar`, `TopBarHome`, `TopBarSimple`: usano context, animazione campanella via Web Animations API su nuova notifica
-- `MobileTopBar`: semplificato, rimosse props `unreadCount`/`profileId`
-- `useNotificationCount.ts`: eliminato (sostituito da context)
-- `layout.tsx` dashboard tenant: aggiunto `<NotificationCountProvider>`
-- Migration `20260624000001_notifications_realtime.sql`: `REPLICA IDENTITY FULL` + RLS SELECT policy staff + publication (da applicare)
+**Infrastruttura email (`src/lib/email.ts`):**
+- `buildEmailHtml(body, tenant?)` — layout HTML email branded, email-safe, header gradient primary_color, footer Styll
+- `sendTemplatedEmail({ to, templateSlug, variables, tenant })` — legge template da DB, interpola `{{variabili}}`, invia via Resend. Subject interpolato. Fail-safe: variabile mancante → lascia `{{var}}` visibile.
 
-**Manifest PWA:**
-- `src/app/api/pwa-manifest/route.ts` (nuovo): manifest per-tenant per app subdomain, usa `getTenantBySlug`, bypassa problema proxy via API route
-- `src/app/api/dashboard-manifest/route.ts` (nuovo): stesso pattern per dashboard, `id: styll-dashboard-{slug}`, `background_color: #F5F5F5`
-- `tenant/app/[slug]/layout.tsx`: `manifest` ora punta a `/api/pwa-manifest?slug=`, rimosso import `createTenantPaths`
-- `tenant/dashboard/[slug]/layout.tsx`: aggiunti `generateMetadata` (manifest, favicon via `/api/favicon`, apple-touch-icon via `/api/pwa-icon`) e `generateViewport` (themeColor per-tenant)
-- `tenant/app/[slug]/manifest.ts`: aggiunto commento che spiega perché esiste ancora (fallback route, non più entry point principale)
+**SQL manuale (NON ancora eseguito — da fare come prossimo step):**
+- `CREATE TABLE message_automations (tenant_id, type, enabled, UNIQUE(tenant_id,type))` con RLS
+- INSERT 6 template in `email_templates`: `booking_confirmed`, `post_visit_thanks`, `review_request`, `loyalty_points`, `loyalty_streak`, `loyalty_reward`
 
-**PWA icon:**
-- `api/pwa-icon/route.tsx`: sfondo bianco → `bgColor` (primary_color), logo 70% → 100% width/height
+**Cron reminders (`/api/cron/reminders/route.ts`):**
+- Riscritto: 2 funzioni separate (push + email) → unica `processReminderWindow` per tipo
+- `getNotificationChannel` determina canale per ogni cliente — mai push + email per lo stesso evento
+- Per-tenant cache per `getAutomationEnabled('reminder_1d')` — rispetta toggle Marketing UI
+- Log unificato: type `'reminder_3d'` per entrambi i canali (NOT IN include `'reminder_3d_email'` per migration safety)
 
-**Audit messaggi (solo lettura, nessuna modifica):**
-- Provider email: Resend, funzioni `sendVerificationCodeEmail` + `sendInvitationEmail` in `src/lib/email.ts`
-- `email_templates` in DB: `reminder`/`welcome`/`win_back` esistono ma nessun codice li usa
-- `messages_log` e `message_templates`: non esistono nel DB (confermato SQL)
-- Cron reminders: solo push, zero email
-- Marketing UI: toggle automatici = mock locale (tabella non esiste), bottone Invia = zero handler, "AI" = array hardcoded
-- `clients.preferred_contact_channel`: esiste in DB ma non esposto né modificabile nella PWA cliente
+**Booking confermato (`create-booking.ts`):**
+- `sendBookingConfirmedPush` + `sendBookingConfirmedEmail` → unica `sendBookingConfirmedNotification`
+- Guest (profile_id null) → sempre email; utente PWA con push attiva → solo push
+
+**Post-visita + recensione (`calendario.ts`, `sendPostVisitNotifications`):**
+- `getNotificationChannel` una volta → `post_visit_thanks` push O email; `review_request` sempre email (nessun push equivalente), solo se `social_links.google_reviews` valorizzato
+
+**Loyalty (`loyalty.ts`, `sendLoyaltyNotifications`):**
+- Canale determinato una volta, subs caricati una volta, riusati per punti + streak + reward
+- Streak: soglia minima 3; Reward: `points_cost > oldTotal AND <= newTotal ORDER DESC LIMIT 1`
+
+**Marketing automations (`src/lib/actions/marketing-automations.ts` nuovo):**
+- `getAutomationEnabled(tenantId, type)` — default `true` se riga assente
+
+**Marketing UI (`marketing.ts` + `Messaggi.tsx`):**
+- `getMessagesData` legge da `message_automations` + `notification_log`; 6 toggle (3 messaggi + 3 loyalty)
+- `toggleAutomation` fa upsert reale; `Messaggi.tsx` rimosso DEFAULT_CARDS e defaultToggles
+
+**`getNotificationChannel` (`src/lib/notifications-channel.ts` nuovo):**
+- `'push'` se `push_accepted: true` + subscription attiva; `'none'` se esplicitamente rifiutato; `'email'` altrimenti
+- Usato in cron, booking, calendario, loyalty
+
+**Popup onboarding notifiche:**
+- `NotificationOnboarding.tsx` (PWA): standalone mode + `push_prompted !== true` + ≥1 appuntamento → popup GSAP, salva `push_prompted`/`push_accepted` in `profiles.notification_preferences`
+- `NotificationOnboardingDashboard.tsx` (dashboard): stesso pattern, contenuto per staff, senza check appuntamenti
+- PWA layout: wrapper `position: relative; min-height: 100dvh` → popup usa `position: absolute`
+- Dashboard layout: popup con `position: fixed`
+- GSAP da CDN con graceful degradation
 
 ## Strade scartate
-- **Opzione A (rimuovere manifest.webmanifest dall'exclusion del proxy)**: avrebbe causato 404 su `{slug}-dashboard.styll.it/manifest.webmanifest` (nessun manifest.ts nel dashboard route). Scartato.
-- **Opzione B letterale (`/tenant/app/{slug}/manifest.webmanifest` come href)**: proxy double-nesting → 404. Scartato.
-- **Due subscription Realtime separate per badge (desktop + mobile)**: stesso Supabase client singleton, potenziale interferenza tra listener. Sostituito con context condiviso.
+- **Due log separati per push/email (`reminder_3d` + `reminder_3d_email`)**: eliminati a favore di log unificato per tipo — evita doppio invio, più pulito
+- **`position: fixed` nel popup PWA**: evitato (rompe iframe height nel preview shell) — usato `position: absolute` dentro wrapper `relative`
+- **Tabler Icons**: non installato, usato lucide-react (già in codebase) per i bullet del popup
+- **Server action `updateNotificationPreferences` per dashboard popup**: usa session cookie che non è disponibile nel browser client dashboard — aggiornamento diretto via `createClient()` browser
 
 ## Prossimo step
-Implementare email reminder cliente usando Resend: aggiungere a `src/lib/email.ts` una funzione `sendReminderEmail({ appointmentId, clientEmail, ... })` che usa il template `reminder` già in DB, e chiamarla dal cron `/api/cron/reminders` in parallelo alla push esistente.
+Eseguire le due SQL migration pendenti (CREATE TABLE `message_automations` + INSERT 6 template in `email_templates`), poi fare smoke test: booking da PWA → verificare ricezione push O email (non entrambe) a seconda dello stato subscription del cliente.
 
 ---
 Per riprendere: nella prossima chat allega messaggio.md + handoff.md e scrivi "Continua da qui".

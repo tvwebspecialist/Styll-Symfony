@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Inbox } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card } from '@/components/dashboard/vendite/ui'
 import { CustomSelect } from '@/components/ui/custom-select'
 import {
@@ -12,6 +13,7 @@ import {
   type MessageAutomation,
   type SegmentCounts,
 } from '@/lib/actions/marketing'
+import { sendCampaign } from '@/lib/actions/send-campaign'
 
 interface MessaggiProps {
   tenantId: string
@@ -121,6 +123,24 @@ export function Messaggi({ tenantId }: MessaggiProps) {
   const [message,        setMessage]        = React.useState('')
   const [segmentCounts,  setSegmentCounts]  = React.useState<SegmentCounts | null>(null)
   const [aiLoading,      setAiLoading]      = React.useState(false)
+  const [sendLoading,    setSendLoading]    = React.useState(false)
+
+  async function handleSend() {
+    if (!message.trim() || sendLoading) return
+    setSendLoading(true)
+    try {
+      const result = await sendCampaign({ tenantId, segment: segment as 'all' | 'rischio' | 'vip' | 'winback', message })
+      toast.success(`Messaggio inviato a ${result.sent} client${result.sent === 1 ? 'e' : 'i'}`)
+      if (result.failed > 0) {
+        toast.warning(`${result.failed} invio${result.failed === 1 ? '' : 'i'} non riuscit${result.failed === 1 ? 'o' : 'i'}`)
+      }
+      setMessage('')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore durante l\'invio')
+    } finally {
+      setSendLoading(false)
+    }
+  }
 
   function handleAI() {
     setAiLoading(true)
@@ -315,12 +335,31 @@ export function Messaggi({ tenantId }: MessaggiProps) {
                   <>✦ Genera con AI</>
                 )}
               </button>
-              {/* TODO: send action */}
               <button
                 className="styll-btn-primary"
-                style={{ padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}
+                onClick={handleSend}
+                disabled={sendLoading || !message.trim()}
+                style={{
+                  padding:    '8px 20px',
+                  fontSize:   13,
+                  cursor:     sendLoading || !message.trim() ? 'default' : 'pointer',
+                  opacity:    sendLoading || !message.trim() ? 0.6 : 1,
+                  display:    'flex',
+                  alignItems: 'center',
+                  gap:        6,
+                  transition: 'opacity 150ms',
+                }}
               >
-                Invia
+                {sendLoading ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.7s linear infinite', flexShrink: 0 }}>
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    Invio…
+                  </>
+                ) : (
+                  'Invia'
+                )}
               </button>
             </div>
           </div>
