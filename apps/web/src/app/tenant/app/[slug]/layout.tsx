@@ -1,9 +1,14 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
-import { NotificationOnboarding } from '@/components/pwa/NotificationOnboarding'
 import { getTenantBySlug } from '@/lib/tenant'
+
+const PwaOnboarding = dynamic(
+  () => import('@/components/pwa/PwaOnboarding').then((m) => ({ default: m.PwaOnboarding })),
+  { ssr: false },
+)
 import { getClientProfile } from '@/lib/actions/pwa-auth'
 import {
   GOOGLE_FONT_URLS,
@@ -208,7 +213,7 @@ export default async function AppLayout({ params, children }: Props) {
         />
       ))}
 
-      {/* position: relative wrapper allows NotificationOnboarding to use position: absolute overlay */}
+      {/* position: relative wrapper allows PwaOnboarding to use position: absolute overlay */}
       <div style={{ position: 'relative', minHeight: '100dvh' }}>
         <PwaPreviewShell
           slug={slug}
@@ -222,7 +227,7 @@ export default async function AppLayout({ params, children }: Props) {
         >
           {children}
         </PwaPreviewShell>
-        <NotificationOnboarding
+        <PwaOnboarding
           primaryColor={brandPrimary}
           logoUrl={tenant.logo_url}
           businessName={tenant.business_name}
