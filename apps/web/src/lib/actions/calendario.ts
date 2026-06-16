@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
+import { sendTemplatedEmail } from '@/lib/email'
+import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 
 /**
  * Verifica che l'utente autenticato sia staff (o superadmin) del tenant indicato.
@@ -303,6 +306,9 @@ export async function updateAppointmentStatus(
     })
     decrementInventoryOnCompletion(appointmentId, tenantId, (appt as { location_id: string | null }).location_id).catch((err) => {
       console.error('[inventory] decrementInventoryOnCompletion error:', err)
+    })
+    sendPostVisitNotifications(appointmentId, tenantId).catch((err) => {
+      console.error('[post-visit] sendPostVisitNotifications error:', err)
     })
   }
 
@@ -811,3 +817,69 @@ async function decrementInventoryOnCompletion(
     }),
   )
 }
+
+async function sendPostVisitNotifications(appointmentId: string, tenantId: string): Promise<void> {
+  const db = createAdminClient()
+
+  const { data: appt } = await db
+    .from('appointments')
+    .select('client_id')
+    .eq('id', appointmentId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+
+  if (!appt?.client_id) return
+
+  const [{ data: client }, { data: tenant }, postVisitEnabled, reviewEnabled] = await Promise.all([
+    db.from('clients').select('email, full_name, profile_id, marketing_consent').eq('id', appt.client_id).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color, social_links').eq('id', tenantId).maybeSingle(),
+    getAutomationEnabled(tenantId, 'post_visit_thanks'),
+    getAutomationEnabled(tenantId, 'review_request'),
+  ])
+
+  if (!client?.marketing_consent) return
+
+  const clientName    = client.full_name ?? 'Cliente'
+  const clientEmail   = client.email ?? null
+  const businessName  = tenant?.business_name ?? 'il tuo salone'
+  const primaryColor  = tenant?.primary_color ?? '#111111'
+  const tenantMeta    = { business_name: businessName, primary_color: primaryColor }
+
+  // Push post-visita (solo se ha subscription PWA attiva)
+  if (postVisitEnabled && client.profile_id) {
+    getSubscriptionsForProfile(tenantId, client.profile_id).then((subs) => {
+      if (subs.length > 0) {
+        sendPushToSubscriptions(subs, {
+          title: '🙏 Grazie per la tua visita!',
+          body:  `Speriamo tu sia soddisfatto. A presto da ${businessName}!`,
+          tag:   `post-visit-${appointmentId}`,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }
+
+  if (!clientEmail) return
+
+  if (postVisitEnabled) {
+    await sendTemplatedEmail({
+      to:           clientEmail,
+      templateSlug: 'post_visit_thanks',
+      variables:    { client_name: clientName, business_name: businessName },
+      tenant:       tenantMeta,
+    })
+  }
+
+  if (reviewEnabled) {
+    const socialLinks = tenant?.social_links as Record<string, string> | null
+    const reviewUrl   = socialLinks?.google_reviews ?? ''
+    if (reviewUrl) {
+      await sendTemplatedEmail({
+        to:           clientEmail,
+        templateSlug: 'review_request',
+        variables:    { client_name: clientName, business_name: businessName, review_url: reviewUrl },
+        tenant:       tenantMeta,
+      })
+    }
+  }
+}
+

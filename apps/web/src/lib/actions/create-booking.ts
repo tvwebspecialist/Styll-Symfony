@@ -9,6 +9,7 @@ import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
+import { sendTemplatedEmail } from '@/lib/email'
 import type { TablesInsert } from '@/types'
 
 const createGuestBookingSchema = z.object({
@@ -397,8 +398,7 @@ export async function createGuestBooking(
     })
   }
 
-  // ── Fire-and-forget: notifica push di conferma prenotazione ──────────────
-  // Troviamo il profile_id del cliente (se ha account + subscription)
+  // ── Fire-and-forget: push + email conferma prenotazione al cliente ────────
   sendBookingConfirmedPush({
     tenantId: data.tenantId,
     slug: data.slug,
@@ -407,6 +407,16 @@ export async function createGuestBooking(
     startTime: startDate.toISOString(),
   }).catch((err) => {
     console.error('[push] booking_confirmed error:', err)
+  })
+
+  sendBookingConfirmedEmail({
+    tenantId: data.tenantId,
+    clientId,
+    staffId: data.staffId,
+    startTime: startDate.toISOString(),
+    serviceNames: services.map((s) => s.name),
+  }).catch((err) => {
+    console.error('[email] booking_confirmed error:', err)
   })
 
   return {
@@ -477,4 +487,48 @@ async function sendBookingConfirmedPush(params: {
     },
     { onConflict: 'appointment_id,type' }
   )
+}
+
+async function sendBookingConfirmedEmail(params: {
+  tenantId: string
+  clientId: string
+  staffId: string
+  startTime: string
+  serviceNames: string[]
+}): Promise<void> {
+  const db = createAdminClient()
+
+  const [{ data: clientRow }, { data: staffRow }, { data: tenantRow }] = await Promise.all([
+    db.from('clients').select('email, full_name').eq('id', params.clientId).maybeSingle(),
+    db.from('staff_members').select('profiles(full_name)').eq('id', params.staffId).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color').eq('id', params.tenantId).maybeSingle(),
+  ])
+
+  const clientEmail = clientRow?.email
+  if (!clientEmail) return
+
+  const clientName = clientRow?.full_name ?? 'Cliente'
+  const staffName = (staffRow?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? 'il tuo barbiere'
+  const businessName = tenantRow?.business_name ?? 'il tuo salone'
+  const primaryColor = tenantRow?.primary_color ?? '#111111'
+
+  const date = new Date(params.startTime).toLocaleDateString('it-IT', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+  })
+  const time = new Date(params.startTime).toLocaleTimeString('it-IT', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+  })
+
+  await sendTemplatedEmail({
+    to: clientEmail,
+    templateSlug: 'booking_confirmed',
+    variables: {
+      client_name: clientName,
+      staff_name:  staffName,
+      date,
+      time,
+      services:    params.serviceNames.join(', '),
+    },
+    tenant: { business_name: businessName, primary_color: primaryColor },
+  })
 }

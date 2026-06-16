@@ -1,51 +1,47 @@
 # Obiettivo della sessione
-Costruire l'intero sistema notifiche di Styll: in-app (centro notifiche), push Web Push lato staff, e cron ricalcolo churn. Partendo da zero dati reali, arrivare a notifiche funzionanti su tutti e 5 gli eventi (new_booking, cancellation, reschedule, new_client, churn_alert).
+Completare il sistema notifiche (badge realtime + churn title) e sistemare l'intera infrastruttura PWA: manifest per-tenant su app e dashboard, favicon per-tenant, icona senza bordo bianco. Audit completo del sistema messaggi/email per capire cosa esiste e cosa manca.
 
 ## Stato attuale
-Sistema notifiche quasi completo. Chiuso: tabella `notifications` alimentata su tutti i 5 eventi, centro notifiche dashboard collegato ai dati reali, badge TopBar reale, cron `recalculate-analytics` (06:00 UTC), infrastruttura push staff (subscribe endpoint, StaffPushToggle, preferenze). Aperto: **verifica push staff su dispositivo reale** — ultimo fix (await diretto vs after()) ancora da testare con deploy su Vercel.
+Badge campanella realtime: chiuso. Manifest PWA app ({slug}-app): chiuso. Manifest dashboard ({slug}-dashboard): chiuso. Favicon/theme-color per-tenant nel dashboard: chiuso. Icona PWA senza bordo bianco: chiuso. Sistema messaggi/email/SMS: solo audit — niente implementato ancora.
 
 ## In lavorazione
-Debug push staff non recapitata. Il problema era fire-and-forget in Vercel Lambda: `sendPushToStaff` veniva lanciata senza await e la Lambda veniva congelata prima che completasse. Fix applicato: `insertStaffNotification` ora `async/await` diretto in tutti i caller (create-booking.ts, pwa-client-actions.ts, recalculate-analytics/route.ts). I log diagnostici `[push/staff] start/done` sono ancora nel codice per verificare il primo run post-deploy.
+Audit messaggi completato — risultato: push funzionano (staff e reminder cliente), email solo per verifica codice e inviti team, zero SMS/WA, marketing UI (toggle automatici + bottone Invia) sono mock completi senza backend. Prossimo passo naturale: scegliere quale canale aggiungere (email reminder cliente via Resend, o altro).
 
 ## Cosa è cambiato in questa sessione
 
-**Sistema notifiche in-app:**
-- `src/lib/notifications.ts`: `insertStaffNotification` + `abbrevName` + mapping type→pref key + `sendPushToStaff`
-- `src/lib/actions/notifiche.ts` (nuovo): `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`
-- `NotificheClient.tsx`: dati reali, mock rimossi, tipi aggiornati (reschedule icon ArrowRightLeft)
-- `notifiche/page.tsx`: ora carica dati server-side e passa a client
-- `TopBar.tsx`, `TopBarHome.tsx`, `TopBarSimple.tsx`, `MobileTopBar.tsx`: badge reale da layout (admin client count query), `MOCK_UNREAD_COUNT` rimosso ovunque
+**Sistema notifiche badge:**
+- `NotificationCountContext.tsx` (nuovo): una sola subscription Realtime `notif-badge:{tenantId}`, stato `count + ring` condiviso
+- `TopBar`, `TopBarHome`, `TopBarSimple`: usano context, animazione campanella via Web Animations API su nuova notifica
+- `MobileTopBar`: semplificato, rimosse props `unreadCount`/`profileId`
+- `useNotificationCount.ts`: eliminato (sostituito da context)
+- `layout.tsx` dashboard tenant: aggiunto `<NotificationCountProvider>`
+- Migration `20260624000001_notifications_realtime.sql`: `REPLICA IDENTITY FULL` + RLS SELECT policy staff + publication (da applicare)
 
-**Push staff:**
-- `/api/push/subscribe`: validazione estesa a staff_members (non solo clienti)
-- `StaffPushToggle.tsx` (nuovo): toggle push nella sezione Notifiche del profilo
-- `Notifiche.tsx`: aggiunta voce `appt_reschedule`, embed `StaffPushToggle`, prop `tenantId`
-- `ProfiloClient.tsx`: legge `tenantId` da `useTenantContext()`, lo passa a Notifiche
-- `send-notification.ts`: error logging migliorato (statusCode + body FCM)
+**Manifest PWA:**
+- `src/app/api/pwa-manifest/route.ts` (nuovo): manifest per-tenant per app subdomain, usa `getTenantBySlug`, bypassa problema proxy via API route
+- `src/app/api/dashboard-manifest/route.ts` (nuovo): stesso pattern per dashboard, `id: styll-dashboard-{slug}`, `background_color: #F5F5F5`
+- `tenant/app/[slug]/layout.tsx`: `manifest` ora punta a `/api/pwa-manifest?slug=`, rimosso import `createTenantPaths`
+- `tenant/dashboard/[slug]/layout.tsx`: aggiunti `generateMetadata` (manifest, favicon via `/api/favicon`, apple-touch-icon via `/api/pwa-icon`) e `generateViewport` (themeColor per-tenant)
+- `tenant/app/[slug]/manifest.ts`: aggiunto commento che spiega perché esiste ancora (fallback route, non più entry point principale)
 
-**Cron analytics + churn:**
-- `src/app/api/cron/recalculate-analytics/route.ts` (nuovo): riusa `recompute_all_client_analytics()` SQL esistente
-- `vercel.json`: aggiunto schedule `0 6 * * *` (prima del reminder alle 7:00)
-- `DATABASE.md`: sezione "Calcolo Silent Churn Detector" + soglie 1.0x/1.5x + nota scalabilità sendPushToStaff
+**PWA icon:**
+- `api/pwa-icon/route.tsx`: sfondo bianco → `bgColor` (primary_color), logo 70% → 100% width/height
 
-**Notifiche generate su eventi:**
-- `create-booking.ts`: new_booking, new_client, reschedule (Path B con IIFE await)
-- `pwa-client-actions.ts`: cancellation, reschedule (Path A in-place)
-- `recalculate-analytics/route.ts`: churn_alert su peggioramenti (green/unknown→yellow/red, yellow→red)
-
-**Fix fire-and-forget Lambda:**
-- `insertStaffNotification` ora `async` + `await sendPushToStaff()` in try/catch
-- `after()` da next/server tentato ma rimosso (log mostravano `[push/staff] start` senza `done` → Lambda congelata prima del completamento)
-- Tutti i caller aggiornati con `await`
+**Audit messaggi (solo lettura, nessuna modifica):**
+- Provider email: Resend, funzioni `sendVerificationCodeEmail` + `sendInvitationEmail` in `src/lib/email.ts`
+- `email_templates` in DB: `reminder`/`welcome`/`win_back` esistono ma nessun codice li usa
+- `messages_log` e `message_templates`: non esistono nel DB (confermato SQL)
+- Cron reminders: solo push, zero email
+- Marketing UI: toggle automatici = mock locale (tabella non esiste), bottone Invia = zero handler, "AI" = array hardcoded
+- `clients.preferred_contact_channel`: esiste in DB ma non esposto né modificabile nella PWA cliente
 
 ## Strade scartate
-- **`after()` da `next/server`**: loggava `[push/staff] start` ma mai `done` — Vercel Lambda congelava prima che after() completasse il lavoro registrato. Rimosso.
-- **`@vercel/functions` waitUntil**: non installato, non percorso.
-- **`recalculate_client_analytics()` funzione custom**: creata per errore prima di scoprire `recompute_all_client_analytics()` già esistente con soglie 1.0x/1.5x. Droppata via migration.
-- **Loop riga-per-riga JS per churn analytics**: scartato in favore di RPC SQL esistente.
+- **Opzione A (rimuovere manifest.webmanifest dall'exclusion del proxy)**: avrebbe causato 404 su `{slug}-dashboard.styll.it/manifest.webmanifest` (nessun manifest.ts nel dashboard route). Scartato.
+- **Opzione B letterale (`/tenant/app/{slug}/manifest.webmanifest` come href)**: proxy double-nesting → 404. Scartato.
+- **Due subscription Realtime separate per badge (desktop + mobile)**: stesso Supabase client singleton, potenziale interferenza tra listener. Sostituito con context condiviso.
 
 ## Prossimo step
-Deploya su Vercel, attiva il push toggle dalla dashboard staff, crea una prenotazione di test dalla PWA cliente, e verifica nei Function log di Vercel la sequenza completa: `[push/staff] start` → `[push/staff] done { sent: 1 }` → push ricevuta sul dispositivo. Se `sent: 0` → fare re-subscribe (il vecchio token FCM potrebbe essere scaduto).
+Implementare email reminder cliente usando Resend: aggiungere a `src/lib/email.ts` una funzione `sendReminderEmail({ appointmentId, clientEmail, ... })` che usa il template `reminder` già in DB, e chiamarla dal cron `/api/cron/reminders` in parallelo alla push esistente.
 
 ---
 Per riprendere: nella prossima chat allega messaggio.md + handoff.md e scrivi "Continua da qui".
