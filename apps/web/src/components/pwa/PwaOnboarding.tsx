@@ -13,7 +13,21 @@ interface Props {
   tenantId:     string
 }
 
+interface Particle {
+  x: number; y: number; r: number
+  vx: number; vy: number; opacity: number
+}
+
 const LS_KEY = 'pwa_onboarding_done'
+
+// Orbit dots — 4 divs, each 240×240 container w/ dot inside.
+// Container fills system wrapper (240×240) so 50%/50% = (120,120) = logo center.
+const ORBIT_DOTS = [
+  { id: 's1-orbit-0', size: 8, top: 28,  left: 116, opacity: 0.55, dur: 8,  cw: true  },
+  { id: 's1-orbit-1', size: 5, top: 129, left: 184, opacity: 0.38, dur: 12, cw: false },
+  { id: 's1-orbit-2', size: 7, top: 206, left: 101, opacity: 0.45, dur: 10, cw: true  },
+  { id: 's1-orbit-3', size: 5, top: 98,  left: 42,  opacity: 0.30, dur: 15, cw: false },
+] as const
 
 function darken(hex: string, f: number): string {
   const c = hex.replace('#', '')
@@ -21,45 +35,78 @@ function darken(hex: string, f: number): string {
   return `#${n(0)}${n(2)}${n(4)}`
 }
 
-// ── Step 1: booking flow data ────────────────────────────────────────────────
-const BARBERS = ['M', 'L', 'A'] // Marco, Luca, Andrea — L (index 1) gets selected
+// Step 2 booking flow data
+const BARBERS = ['M', 'L', 'A']
 const DATES   = [
-  { dow: 'Mar', day: '16' },
-  { dow: 'Mer', day: '17' },
-  { dow: 'Gio', day: '18' }, // index 2 — gets selected
-  { dow: 'Ven', day: '19' },
-  { dow: 'Sab', day: '20' },
+  { dow: 'Mar', day: '16' }, { dow: 'Mer', day: '17' },
+  { dow: 'Gio', day: '18' }, { dow: 'Ven', day: '19' }, { dow: 'Sab', day: '20' },
 ]
 
-// ── Notifications ─────────────────────────────────────────────────────────────
+// Step 4 notification data
 const NOTIF_DATA = [
-  { text: 'Prenotazione confermata', sub: 'Giovedì 19 · 10:00',        time: '5m'     },
-  { text: 'Streak di 5 visite',      sub: 'Continua, sei in serie',    time: '1m'     },
-  { text: 'Premio sbloccato',        sub: 'Taglio gratis disponibile', time: 'adesso' },
+  { icon: 'gift',     text: 'Premio sbloccato',        sub: 'Taglio gratis disponibile' },
+  { icon: 'flame',    text: 'Streak di 5 visite',       sub: 'Continua così'             },
+  { icon: 'calendar', text: 'Prenotazione confermata',  sub: 'Giovedì · 10:00'           },
 ]
-const NOTIF_X = [18, -12, 8]
+
+// ── Inline SVG icons (step 4 notifications) ───────────────────────────────
+function NotifIcon({ name }: { name: string }) {
+  if (name === 'gift') return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5" rx="1"/>
+      <line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+    </svg>
+  )
+  if (name === 'flame') return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2c0 6-6 7-6 13a6 6 0 0 0 12 0c0-6-6-7-6-13z"/>
+      <path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z"/>
+    </svg>
+  )
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  )
+}
 
 export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }: Props) {
-  const [show,          setShow]          = React.useState(false)
-  const [step,          setStep]          = React.useState(0)
-  const [loading,       setLoading]       = React.useState(false)
-  const [transitioning, setTransitioning] = React.useState(false)
-  const [userLoggedIn,  setUserLoggedIn]  = React.useState(false)
+  // step: 0=welcome, 1=booking, 2=loyalty, 3=notif, 4=closing
+  const [show,         setShow]         = React.useState(false)
+  const [step,         setStep]         = React.useState(0)
+  const [loading,      setLoading]      = React.useState(false)
+  const [userLoggedIn, setUserLoggedIn] = React.useState(false)
 
-  const contentRef = React.useRef<HTMLDivElement>(null)
-  const cardRef    = React.useRef<HTMLDivElement>(null)
-  const pointsRef  = React.useRef<HTMLSpanElement>(null)
-  const tweensRef  = React.useRef<Array<{ kill: () => void }>>([])
+  const contentRef   = React.useRef<HTMLDivElement>(null)
+  const canvasRef    = React.useRef<HTMLCanvasElement>(null)
+  const rafRef       = React.useRef<number>(0)
+  const particlesRef = React.useRef<Particle[]>([])
+
+  // Step 0 element refs (for special exit animation)
+  const s1LogoRef = React.useRef<HTMLDivElement>(null)
+  const s1TextRef = React.useRef<HTMLDivElement>(null)
+
+  // Slider refs
+  const trackRef     = React.useRef<HTMLDivElement>(null)
+  const thumbRef     = React.useRef<HTMLDivElement>(null)
+  const fillRef      = React.useRef<HTMLDivElement>(null)
+  const labelRef     = React.useRef<HTMLDivElement>(null)
+  const thumbPosRef  = React.useRef(0)
+  const draggingRef  = React.useRef(false)
+  const dragStartRef = React.useRef(0)
+  const idleRef      = React.useRef<{ kill: () => void } | null>(null)
+  const goToRef      = React.useRef<(n: number) => void>(() => {})
+
+  // Shared animation refs
+  const tweensRef = React.useRef<Array<{ kill: () => void }>>([])
+  const pointsRef = React.useRef<HTMLSpanElement>(null)
 
   const { subscribe } = usePushSubscription(tenantId)
 
-  const accent      = primaryColor || '#1A1A2E'
-  const accentDark  = darken(accent, 0.45)
-  const accentDeep  = darken(accent, 0.68)
-  const bgGrad      = `linear-gradient(160deg, ${accentDark} 0%, ${accent} 55%, ${accentDeep} 100%)`
-  const initial     = businessName.charAt(0).toUpperCase()
-
-  const visualBg = [bgGrad, '#f0f4ff', '#fafafa', bgGrad]
+  const accent  = primaryColor || '#1A1A2E'
+  const initial = businessName.charAt(0).toUpperCase()
 
   const killTweens = React.useCallback(() => {
     tweensRef.current.forEach(t => { try { t.kill() } catch {/* */} })
@@ -70,7 +117,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     tweensRef.current.push(t); return t
   }
 
-  // ── Check show ───────────────────────────────────────────────────────────
+  // ── Check show ──────────────────────────────────────────────────────────
   React.useEffect(() => {
     async function check() {
       if (typeof window === 'undefined') return
@@ -99,196 +146,335 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     check().catch(console.error)
   }, [tenantId])
 
-  // ── Mount animation ──────────────────────────────────────────────────────
+  // ── Canvas particles (step 0, 3, 4) ─────────────────────────────────────
   React.useEffect(() => {
-    if (!show || !cardRef.current) return
-    gsap.fromTo(cardRef.current, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' })
-  }, [show])
+    if (!show || (step !== 0 && step !== 3 && step !== 4)) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-  // ── Step animations ──────────────────────────────────────────────────────
+    canvas.width  = canvas.offsetWidth
+    canvas.height = canvas.offsetHeight
+    const W = canvas.width, H = canvas.height
+    const count  = step === 4 ? 80 : step === 0 ? 60 : 50
+    const oScale = step === 4 ? 0.6 : step === 0 ? 1 : 0.4
+
+    particlesRef.current = Array.from({ length: count }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      r:  0.3 + Math.random() * 1.5,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: (Math.random() - 0.5) * 0.6,
+      opacity: (0.15 + Math.random() * 0.45) * oScale,
+    }))
+
+    function animate() {
+      if (!ctx) return
+      ctx.clearRect(0, 0, canvas!.width, canvas!.height)
+      for (const p of particlesRef.current) {
+        p.x += p.vx; p.y += p.vy
+        if (p.x < 0 || p.x > canvas!.width)  p.vx *= -1
+        if (p.y < 0 || p.y > canvas!.height) p.vy *= -1
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(180,160,255,${p.opacity})`
+        ctx.fill()
+      }
+      rafRef.current = requestAnimationFrame(animate)
+    }
+    rafRef.current = requestAnimationFrame(animate)
+    gsap.fromTo(canvas, { opacity: 0 }, { opacity: 1, duration: 1.2, ease: 'power2.out' })
+
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [show, step])
+
+  // ── Slider drag system (step 0 only) ────────────────────────────────────
+  React.useEffect(() => {
+    if (!show || step !== 0) return
+
+    function getMaxX(): number { return (trackRef.current?.offsetWidth ?? 320) - 60 }
+
+    function setPos(rawX: number) {
+      const maxX = getMaxX()
+      const x = Math.max(0, Math.min(rawX, maxX))
+      thumbPosRef.current = x
+      gsap.set(thumbRef.current,  { x })
+      if (fillRef.current)  fillRef.current.style.width  = `${x + 60}px`
+      if (labelRef.current) labelRef.current.style.opacity = String(Math.max(0, 1 - (x / maxX) * 2))
+    }
+
+    function startIdleHint() {
+      idleRef.current?.kill()
+      gsap.set(thumbRef.current, { x: 0 })
+      idleRef.current = gsap.to(thumbRef.current, { x: 8, duration: 1.2, yoyo: true, repeat: -1, ease: 'sine.inOut' })
+    }
+
+    function onDragEnd() {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      const maxX = getMaxX()
+
+      if (thumbPosRef.current / maxX >= 0.98) {
+        // Complete: snap to end → animate → goTo(1)
+        idleRef.current?.kill()
+        const proxy = { x: thumbPosRef.current }
+        gsap.to(proxy, {
+          x: maxX, duration: 0.15, ease: 'power2.out',
+          onUpdate: () => setPos(proxy.x),
+          onComplete: () => {
+            if (fillRef.current)  fillRef.current.style.width = '100%'
+            if (labelRef.current) labelRef.current.style.opacity = '0'
+            gsap.to(thumbRef.current, { scale: 0, opacity: 0, duration: 0.3, delay: 0.1, ease: 'back.in(2)' })
+            gsap.to(fillRef.current,  { backgroundColor: 'rgba(255,255,255,0.2)', duration: 0.2, delay: 0.1 })
+            setTimeout(() => goToRef.current(1), 420)
+          },
+        })
+      } else {
+        // Snap back elastic
+        const from = { x: thumbPosRef.current }
+        gsap.to(from, {
+          x: 0, duration: 0.65, ease: 'elastic.out(1, 0.6)',
+          onUpdate: () => setPos(from.x),
+          onComplete: () => { thumbPosRef.current = 0; startIdleHint() },
+        })
+      }
+    }
+
+    const onMouseMove = (e: MouseEvent) => { if (draggingRef.current) setPos(e.clientX - dragStartRef.current) }
+    const onTouchMove = (e: TouchEvent) => { if (draggingRef.current) { e.preventDefault(); setPos(e.touches[0].clientX - dragStartRef.current) } }
+    const onUp = () => onDragEnd()
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('mouseup',   onUp)
+    window.addEventListener('touchend',  onUp)
+
+    const t = setTimeout(startIdleHint, 900)
+    return () => {
+      clearTimeout(t)
+      idleRef.current?.kill()
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('mouseup',   onUp)
+      window.removeEventListener('touchend',  onUp)
+    }
+  }, [show, step])
+
+  // ── GSAP step animations ─────────────────────────────────────────────────
   React.useEffect(() => {
     if (!show) return
-    const d = step === 0 ? 0.25 : 0.05
 
+    // ── Step 0 — Welcome ─────────────────────────────────────────────────
     if (step === 0) {
-      // Spotlight glow expands first, then logo appears through it
-      gsap.set('#s0-glow', { scale: 0.2, opacity: 0 })
-      track(gsap.to('#s0-glow', { scale: 1, opacity: 1, duration: 0.85, delay: d, ease: 'power2.out' }))
-      track(gsap.to('#s0-glow', { scale: 1.14, opacity: 0.8, duration: 2.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 1.1 }))
+      const d = 0.25
 
-      // Logo: scale + y + slight rotation entrance, then gentle float loop
-      gsap.set('#s0-logo', { scale: 0.58, opacity: 0, y: 20, rotation: -6 })
-      track(gsap.to('#s0-logo', { scale: 1, opacity: 1, y: 0, rotation: 0, duration: 0.72, delay: d + 0.2, ease: 'back.out(1.9)' }))
-      track(gsap.to('#s0-logo', { y: -6, scale: 1.03, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 1.1 }))
+      // Logo entrance
+      gsap.set('#s1-logo', { scale: 0.6, opacity: 0 })
+      track(gsap.to('#s1-logo', { scale: 1, opacity: 1, duration: 0.65, delay: d, ease: 'back.out(1.8)' }))
+      // Logo levitate
+      track(gsap.to('#s1-logo', { y: -8, duration: 2.5, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.8 }))
 
-      // Subtle halo ring — expands and fades in loop (sonar but just 1 ring, understated)
-      track(gsap.fromTo('#s0-ring',
-        { scale: 1, opacity: 0.28 },
-        { scale: 1.9, opacity: 0, duration: 2.6, repeat: -1, ease: 'power1.out', transformOrigin: '50% 50%', delay: d + 0.5 },
-      ))
+      // Orbit dots
+      ORBIT_DOTS.forEach(({ id, dur, cw }) =>
+        track(gsap.to(`#${id}`, { rotation: cw ? '+=360' : '-=360', duration: dur, repeat: -1, ease: 'none', transformOrigin: '50% 50%', delay: d + 0.2 }))
+      )
 
-      // Swipe pill slides right, snaps back, repeats
-      gsap.set('#s0-swipe-pill', { x: 0 })
-      const swipeTl = gsap.timeline({ repeat: -1, delay: d + 1.0 })
-      swipeTl
-        .to('#s0-swipe-pill', { x: 144, duration: 1.55, ease: 'power2.inOut' })
-        .set('#s0-swipe-pill', { x: 0 })
-        .set({}, {}, '+=0.3')
-      track(swipeTl)
+      // Text entrance
+      gsap.set('#s1-text', { opacity: 0, y: 20 })
+      track(gsap.to('#s1-text', { opacity: 1, y: 0, duration: 0.6, delay: d + 0.4, ease: 'power3.out' }))
 
+    // ── Step 1 — Booking ─────────────────────────────────────────────────
     } else if (step === 1) {
-      // Init all 3 rows hidden
-      gsap.set(['#s1-step-salone', '#s1-step-barber', '#s1-step-date'], { y: 16, opacity: 0 })
-      gsap.set('#s1-salone-checkpath', { attr: { strokeDashoffset: 22 } })
-      gsap.set('#s1-barber-sel',      { backgroundColor: '#ebebeb' })
-      gsap.set('#s1-barber-sel-txt',  { color: '#999' })
-      gsap.set('#s1-date-sel',        { backgroundColor: '#dde5ff' })
-      gsap.set(['#s1-date-sel-dow','#s1-date-sel-num'], { color: '#4a5c9a' })
+      // Phone mockup entrance
+      gsap.set('#s2-booking-wrap', { scale: 0.85, opacity: 0 })
+      track(gsap.to('#s2-booking-wrap', { scale: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.4)', delay: 0.05 }))
 
-      const tl = gsap.timeline({ repeat: -1, delay: d + 0.3, repeatDelay: 0.5 })
+      gsap.set(['#s2-step-salone', '#s2-step-barber', '#s2-step-date'], { y: 16, opacity: 0 })
+      gsap.set('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } })
+      gsap.set('#s2-barber-sel', { backgroundColor: '#ebebeb' })
+      gsap.set('#s2-barber-sel-txt', { color: '#999' })
+      gsap.set('#s2-date-sel', { backgroundColor: '#dde5ff' })
+      gsap.set(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#4a5c9a' })
+
+      const tl = gsap.timeline({ repeat: -1, delay: 0.55, repeatDelay: 0.5 })
       tl
-        // ① Salone appears
-        .to('#s1-step-salone', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
+        .to('#s2-step-salone', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
+        .set({}, {}, '+=0.15')
+        .fromTo('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } }, { attr: { strokeDashoffset: 0 }, duration: 0.38, ease: 'power2.out' })
+        .set({}, {}, '+=0.15')
+        .to('#s2-step-barber', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
         .set({}, {}, '+=0.18')
-        // Checkmark draws
-        .fromTo('#s1-salone-checkpath',
-          { attr: { strokeDashoffset: 22 } },
-          { attr: { strokeDashoffset: 0 }, duration: 0.38, ease: 'power2.out' },
-        )
+        .to('#s2-barber-sel', { backgroundColor: accent, scale: 1.14, duration: 0.28, ease: 'back.out(2.2)' })
+        .to('#s2-barber-sel-txt', { color: '#fff', duration: 0.1 }, '<')
+        .to('#s2-barber-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
+        .set({}, {}, '+=0.15')
+        .to('#s2-step-date', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
         .set({}, {}, '+=0.18')
-
-        // ② Barber row appears
-        .to('#s1-step-barber', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.2')
-        // Middle avatar selected: fill + bounce
-        .to('#s1-barber-sel', { backgroundColor: accent, scale: 1.14, duration: 0.28, ease: 'back.out(2.2)' })
-        .to('#s1-barber-sel-txt', { color: '#fff', duration: 0.1 }, '<')
-        .to('#s1-barber-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
-        .set({}, {}, '+=0.18')
-
-        // ③ Date row appears
-        .to('#s1-step-date', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.2')
-        // "Gio" date selected: fill + bounce
-        .to('#s1-date-sel', { backgroundColor: accent, scale: 1.12, duration: 0.28, ease: 'back.out(2.2)' })
-        .to(['#s1-date-sel-dow', '#s1-date-sel-num'], { color: '#fff', duration: 0.1 }, '<')
-        .to('#s1-date-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
-
-        // Hold all 3 complete
-        .set({}, {}, '+=1.1')
-
-        // Fade all out
-        .to(['#s1-step-salone', '#s1-step-barber', '#s1-step-date'],
-          { opacity: 0, y: 10, duration: 0.28, ease: 'power2.in', stagger: 0.07 },
-        )
-        // Reset for next loop
+        .to('#s2-date-sel', { backgroundColor: accent, scale: 1.12, duration: 0.28, ease: 'back.out(2.2)' })
+        .to(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#fff', duration: 0.1 }, '<')
+        .to('#s2-date-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
+        .set({}, {}, '+=1.0')
+        .to(['#s2-step-salone','#s2-step-barber','#s2-step-date'], { opacity: 0, y: 10, duration: 0.28, ease: 'power2.in', stagger: 0.07 })
         .call(() => {
-          gsap.set(['#s1-step-salone', '#s1-step-barber', '#s1-step-date'], { y: 16, opacity: 0 })
-          gsap.set('#s1-salone-checkpath', { attr: { strokeDashoffset: 22 } })
-          gsap.set('#s1-barber-sel',     { backgroundColor: '#ebebeb', scale: 1 })
-          gsap.set('#s1-barber-sel-txt', { color: '#999' })
-          gsap.set('#s1-date-sel',       { backgroundColor: '#dde5ff', scale: 1 })
-          gsap.set(['#s1-date-sel-dow','#s1-date-sel-num'], { color: '#4a5c9a' })
+          gsap.set(['#s2-step-salone','#s2-step-barber','#s2-step-date'], { y: 16, opacity: 0 })
+          gsap.set('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } })
+          gsap.set('#s2-barber-sel', { backgroundColor: '#ebebeb', scale: 1 })
+          gsap.set('#s2-barber-sel-txt', { color: '#999' })
+          gsap.set('#s2-date-sel', { backgroundColor: '#dde5ff', scale: 1 })
+          gsap.set(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#4a5c9a' })
         })
       track(tl)
 
+    // ── Step 2 — Loyalty ─────────────────────────────────────────────────
     } else if (step === 2) {
+      const d = 0.05
       ;[0, 1, 2].forEach(i => {
         const rot = i === 0 ? -18 : i === 2 ? 14 : -8
-        gsap.set(`#s2-badge-${i}`, { scale: 0.35, opacity: 0, rotation: rot })
-        track(gsap.to(`#s2-badge-${i}`, { scale: 1, opacity: 1, rotation: 0, duration: 0.55, delay: d + i * 0.15, ease: 'back.out(2.2)' }))
-        track(gsap.to(`#s2-badge-${i}`, { y: -6, duration: 1.5 + i * 0.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.65 + i * 0.28 }))
+        gsap.set(`#s3-badge-${i}`, { scale: 0.3, opacity: 0, rotation: rot })
+        track(gsap.to(`#s3-badge-${i}`, { scale: 1, opacity: 1, rotation: 0, duration: 0.55, delay: d + i * 0.15, ease: 'back.out(2.2)' }))
+        track(gsap.to(`#s3-badge-${i}`, { y: -5, duration: 1.8 + i * 0.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.6 + i * 0.3 }))
       })
-      track(gsap.fromTo('#s2-bar',    { width: '0%' }, { width: '78%', duration: 1.25, delay: d + 0.55, ease: 'power2.out' }))
-      track(gsap.fromTo('#s2-cursor', { left: '0%'  }, { left: '78%', duration: 1.25, delay: d + 0.55, ease: 'power2.out' }))
-      gsap.set('#s2-shimmer', { x: -80 })
-      track(gsap.to('#s2-shimmer', { x: 260, duration: 0.7, delay: d + 1.9, ease: 'power2.inOut' }))
+      track(gsap.fromTo('#s3-bar', { width: '0%' }, { width: '78%', duration: 1.2, delay: d + 0.55, ease: 'power2.out' }))
+      track(gsap.fromTo('#s3-cursor', { left: '0%' }, { left: '78%', duration: 1.2, delay: d + 0.55, ease: 'power2.out' }))
+      gsap.set('#s3-shimmer', { x: -80 })
+      track(gsap.to('#s3-shimmer', { x: 260, duration: 0.7, delay: d + 1.85, ease: 'power2.inOut' }))
       const obj = { val: 0 }
       track(gsap.to(obj, {
-        val: 450, duration: 1.25, delay: d + 0.55, ease: 'power2.out',
+        val: 450, duration: 1.2, delay: d + 0.55, ease: 'power2.out',
         onUpdate: () => { if (pointsRef.current) pointsRef.current.textContent = `${Math.round(obj.val)} punti` },
-        onComplete: () => {
-          if (pointsRef.current) gsap.fromTo(pointsRef.current, { scale: 1 }, { scale: 1.22, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' })
-        },
+        onComplete: () => { if (pointsRef.current) gsap.fromTo(pointsRef.current, { scale: 1 }, { scale: 1.2, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.out' }) },
       }))
-      gsap.set('#s2-streak', { y: 16, x: -8, opacity: 0 })
-      track(gsap.to('#s2-streak', { y: 0, x: 0, opacity: 1, duration: 0.45, delay: d + 1.55, ease: 'power3.out' }))
-      track(gsap.to('#s2-streak', { boxShadow: `0 0 0 3px ${accent}55`, duration: 0.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 2.1 }))
+      gsap.set('#s3-streak', { y: 12, x: -8, opacity: 0 })
+      track(gsap.to('#s3-streak', { y: 0, x: 0, opacity: 1, duration: 0.45, delay: d + 1.4, ease: 'power3.out' }))
 
+    // ── Step 3 — Notifications ───────────────────────────────────────────
     } else if (step === 3) {
       NOTIF_DATA.forEach((_, i) => {
-        gsap.set(`#s3-notif-${i}`, { x: NOTIF_X[i], y: -22, opacity: 0 })
-        track(gsap.to(`#s3-notif-${i}`, { x: 0, y: 0, opacity: 1, duration: 0.45, delay: 0.18 + i * 0.18, ease: 'power3.out' }))
-        gsap.set(`#s3-icon-${i}`, { scale: 0.5 })
-        track(gsap.to(`#s3-icon-${i}`, { scale: 1, duration: 0.38, delay: 0.42 + i * 0.18, ease: 'back.out(2.5)' }))
-        track(gsap.to(`#s3-notif-${i}`, { y: -3 - i, duration: 2.5 + i * 0.45, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.85 + i * 0.38 }))
+        gsap.set(`#s4-notif-${i}`, { y: -25, opacity: 0, x: [14, -10, 8][i] })
+        track(gsap.to(`#s4-notif-${i}`, { y: 0, x: 0, opacity: 1, duration: 0.45, delay: 0.2 + i * 0.2, ease: 'power3.out' }))
+        gsap.set(`#s4-icon-${i}`, { scale: 0.5 })
+        track(gsap.to(`#s4-icon-${i}`, { scale: 1, duration: 0.38, delay: 0.45 + i * 0.2, ease: 'back.out(2.5)' }))
+        track(gsap.to(`#s4-notif-${i}`, { y: -4 - i, duration: 2.5 + i * 0.45, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.9 + i * 0.4 }))
       })
-      track(gsap.to('#s3-notif-2', { boxShadow: '0 0 0 2px rgba(255,255,255,0.25)', duration: 1.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 1.4 }))
+      track(gsap.to('#s4-notif-0', { boxShadow: '0 0 0 2px rgba(255,255,255,0.22)', duration: 1.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 1.5 }))
+
+    // ── Step 4 — Closing ─────────────────────────────────────────────────
+    } else if (step === 4) {
+      const tl = gsap.timeline()
+      // Logo explodes in
+      gsap.set('#s5-logo', { scale: 0.5, opacity: 0 })
+      tl.to('#s5-logo', { scale: 1, opacity: 1, duration: 0.8, ease: 'back.out(1.8)' })
+      // Text rises
+      gsap.set(['#s5-heading', '#s5-sub'], { opacity: 0, y: 20 })
+      tl.to('#s5-heading', { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, '-=0.2')
+      tl.to('#s5-sub',     { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, '-=0.3')
+      // Hold 1.5s then zoom logo out + fade all
+      tl.set({}, {}, '+=1.5')
+      tl.to('#s5-logo', { scale: 8, opacity: 0, duration: 0.6, ease: 'power2.in' })
+      tl.to(['#s5-heading', '#s5-sub'], { opacity: 0, duration: 0.4, ease: 'power2.in' }, '<')
+      tl.call(() => {
+        closeOnboarding().catch(console.error)
+      })
+      track(tl)
     }
 
     return killTweens
   }, [step, show, accent, killTweens])
 
   // ── Navigation ───────────────────────────────────────────────────────────
-  function goTo(n: number) {
-    if (transitioning || n < 0 || n > 3) return
+  const goTo = React.useCallback((n: number) => {
+    if (n < 0 || n > 4) return
     killTweens()
-    setTransitioning(true)
+
+    if (step === 0) {
+      // Step 0 special exit: fly elements up
+      const targets = [canvasRef.current, s1LogoRef.current, s1TextRef.current, trackRef.current].filter(Boolean)
+      gsap.to(targets, {
+        y: -30, opacity: 0, duration: 0.4, stagger: 0.05, ease: 'power2.in',
+        onComplete: () => {
+          setStep(n)
+          if (contentRef.current) gsap.fromTo(contentRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' })
+        },
+      })
+      return
+    }
+
+    // Standard: scale + fade
     gsap.to(contentRef.current, {
-      opacity: 0, duration: 0.18, ease: 'power2.in',
+      scale: 0.94, opacity: 0, duration: 0.22, ease: 'power2.in',
       onComplete: () => {
         setStep(n)
-        setTransitioning(false)
-        gsap.to(contentRef.current, { opacity: 1, duration: 0.25, ease: 'power2.out' })
+        gsap.fromTo(contentRef.current,
+          { scale: 1.04, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.28, ease: 'power2.out' },
+        )
       },
     })
-  }
+  }, [step, killTweens])
 
-  // ── Close ────────────────────────────────────────────────────────────────
+  // Keep goToRef in sync so slider closure can call latest version
+  React.useEffect(() => { goToRef.current = goTo }, [goTo])
+
+  // ── Notifications CTA ────────────────────────────────────────────────────
   async function handleActivate() {
     if (loading) return
     setLoading(true)
     try {
-      if (!('Notification' in window)) { await saveAndClose(false); return }
+      if (!('Notification' in window)) { goTo(4); return }
       const perm = await Notification.requestPermission()
-      if (perm === 'granted') { await subscribe(); await saveAndClose(true) }
-      else                    { await saveAndClose(false) }
-    } finally { setLoading(false) }
+      if (perm === 'granted') await subscribe()
+    } finally {
+      setLoading(false)
+      goTo(4)
+    }
   }
 
-  async function saveAndClose(accepted: boolean) {
+  // ── Close / cleanup ──────────────────────────────────────────────────────
+  async function closeOnboarding() {
     killTweens()
     localStorage.setItem(LS_KEY, 'true')
     setShow(false)
     if (userLoggedIn) {
-      updateNotificationPreferences({ onboarding_completed: true, push_prompted: true, push_accepted: accepted }).catch(console.error)
+      try {
+        const pwa = createPwaClient()
+        const { data: { user } } = await pwa.auth.getUser()
+        if (user) {
+          const res = await pwa.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle() as unknown as { data: { notification_preferences: Record<string, boolean> } | null }
+          const prev = res.data?.notification_preferences ?? {}
+          await pwa.from('profiles').update({ notification_preferences: { ...prev, onboarding_completed: true } }).eq('id', user.id)
+        }
+      } catch {/* ignore */}
     }
   }
 
+  // ── Global unmount cleanup ───────────────────────────────────────────────
+  React.useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      gsap.killTweensOf('*')
+    }
+  }, [])
+
   if (!show) return null
 
-  const tagSt: React.CSSProperties = {
-    margin: '0 0 8px', fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.5, color: accent,
-  }
+  // ── Visual backgrounds per step ──────────────────────────────────────────
+  const VISUAL_BG = ['', '#f0f4ff', '#fafafa', '#0a0a14', '']
+
+  // ── Card shared styles ───────────────────────────────────────────────────
   const headSt: React.CSSProperties = {
-    margin: '0 0 8px', fontSize: 28, fontWeight: 700,
-    lineHeight: 1.15, letterSpacing: '-0.02em', color: '#0a0a0a', whiteSpace: 'pre-line',
+    margin: '0 0 10px', fontSize: 28, fontWeight: 700,
+    lineHeight: 1.15, letterSpacing: '-0.02em', color: '#0a0a0a',
+    textAlign: 'center', whiteSpace: 'pre-line',
   }
   const subSt: React.CSSProperties = {
-    margin: '0 0 20px', fontSize: 15, lineHeight: 1.55, opacity: 0.6, color: '#1a1a2e',
+    margin: '0 0 24px', fontSize: 15, lineHeight: 1.55, opacity: 0.55,
+    color: '#1a1a2e', textAlign: 'center', whiteSpace: 'pre-line',
   }
   const btnSt: React.CSSProperties = {
     width: '100%', padding: '16px', borderRadius: 14, border: 'none',
-    background: accent, color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    background: accent, color: '#fff', fontSize: 16, fontWeight: 600,
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
   }
-  const skipSt: React.CSSProperties = {
-    marginTop: 10, width: '100%', border: 'none', background: 'transparent',
-    color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '8px 0',
-  }
-
-  // Step 1 helper styles
   const stepLabelSt: React.CSSProperties = {
     margin: '0 0 5px 2px', fontSize: 10, fontWeight: 700,
     letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9BA3AF',
@@ -299,306 +485,301 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     display: 'flex', alignItems: 'center', gap: 11,
   }
 
+  // Full-screen steps (0 and 4) — no card
+  const isFullScreen = step === 0 || step === 4
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      background: visualBg[step],
-      fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)',
-    }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0a14', fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)' }}>
       <div ref={contentRef} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
 
-        {/* ── Visual area ─────────────────────────────────────────────────── */}
-        <div style={{
-          flex: 1, overflow: 'hidden',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative',
-        }}>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* STEP 0 — Welcome, full-screen                                  */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {step === 0 && (
+          <>
+            {/* Particle canvas */}
+            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}/>
 
-          {/* ─── Step 0 — Hero logo + swipe ─────────────────────────────── */}
-          {step === 0 && (
-            <>
-              {/* Spotlight glow */}
-              <div id="s0-glow" style={{
-                position: 'absolute', width: 280, height: 280, borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(255,255,255,0.20) 0%, transparent 72%)',
-                filter: 'blur(18px)', pointerEvents: 'none',
-              }}/>
-
-              {/* Single halo ring (sonar) */}
-              <div id="s0-ring" style={{
-                position: 'absolute',
-                width: 160, height: 160, borderRadius: '50%',
-                border: '1.5px solid rgba(255,255,255,0.25)',
-                pointerEvents: 'none',
-              }}/>
-
-              {/* Logo — the full hero */}
-              <div id="s0-logo" style={{
-                position: 'relative', zIndex: 1,
-                width: 128, height: 128, borderRadius: 34,
-                background: '#fff', overflow: 'hidden',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 28px 70px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.10)',
+            {/* Logo orbit system — 240×240 centered */}
+            <div ref={s1LogoRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -62%)', width: 240, height: 240 }}>
+              {/* Orbit dot containers */}
+              {ORBIT_DOTS.map(({ id, size, top, left, opacity }) => (
+                <div key={id} id={id} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <div style={{ position: 'absolute', top, left, width: size, height: size, borderRadius: '50%', background: '#fff', opacity }}/>
+                </div>
+              ))}
+              {/* Logo box */}
+              <div id="s1-logo" style={{
+                position: 'absolute', top: 65, left: 65, width: 110, height: 110,
+                borderRadius: 28, background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
               }}>
                 {logoUrl
-                  ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                  : <span style={{ fontSize: 56, fontWeight: 800, color: accent, lineHeight: 1 }}>{initial}</span>
+                  ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                  : <span style={{ fontSize: 42, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
                 }
               </div>
+            </div>
 
-              {/* Swipe-to-continue pill — iOS lock-screen style */}
+            {/* Text block */}
+            <div id="s1-text" ref={s1TextRef} style={{
+              position: 'absolute', bottom: 108, left: 0, right: 0,
+              textAlign: 'center', padding: '0 32px',
+            }}>
+              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                Benvenuto<br/>
+                da <span style={{ color: 'rgba(255,255,255,0.4)' }}>{businessName}</span>
+              </h1>
+              <p style={{ margin: '12px 0 0', fontSize: 15, color: 'rgba(255,255,255,0.45)', lineHeight: 1.55 }}>
+                Il tuo barbiere di fiducia,<br/>ora sempre con te.
+              </p>
+            </div>
+
+            {/* Slider CTA */}
+            <div ref={trackRef} style={{
+              position: 'absolute', bottom: 28, left: 24, right: 24,
+              height: 60, borderRadius: 30, background: 'rgba(255,255,255,0.08)',
+              overflow: 'hidden', cursor: 'grab',
+            }}
+              onMouseDown={e => { idleRef.current?.kill(); draggingRef.current = true; dragStartRef.current = e.clientX - thumbPosRef.current }}
+              onTouchStart={e => { idleRef.current?.kill(); draggingRef.current = true; dragStartRef.current = e.touches[0].clientX - thumbPosRef.current }}
+            >
+              {/* Fill */}
+              <div ref={fillRef} style={{ position: 'absolute', inset: 0, width: 60, borderRadius: 30, background: 'rgba(255,255,255,0.12)', transition: 'none' }}/>
+              {/* Thumb */}
+              <div ref={thumbRef} style={{ position: 'absolute', left: 4, top: 4, width: 52, height: 52, borderRadius: 26, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 2 9 8 3 14"/>
+                  <polyline points="12 2 18 8 12 14"/>
+                </svg>
+              </div>
+              {/* Label */}
+              <div ref={labelRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.04em', pointerEvents: 'none' }}>
+                Scorri per iniziare
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* STEP 4 — Closing, full-screen                                  */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {step === 4 && (
+          <>
+            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}/>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '0 32px' }}>
+              {/* Logo */}
+              <div id="s5-logo" style={{ width: 100, height: 100, borderRadius: 26, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {logoUrl
+                  ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                  : <span style={{ fontSize: 38, fontWeight: 800, color: '#fff' }}>{initial}</span>
+                }
+              </div>
+              <div>
+                <p id="s5-heading" style={{ margin: 0, fontSize: 40, fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', textAlign: 'center', lineHeight: 1.1 }}>Sei pronto.</p>
+                <p id="s5-sub" style={{ margin: '14px 0 0', fontSize: 18, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 1.55 }}>
+                  Buona esperienza<br/>da {businessName}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* STEPS 1-3 — Visual area + card                                 */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {!isFullScreen && (
+          <>
+            {/* Visual area */}
+            <div style={{ flex: 1, overflow: 'hidden', background: VISUAL_BG[step], display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+
+              {/* Particle canvas (step 3 only) */}
+              {step === 3 && <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}/>}
+
+              {/* ── Step 1 — Booking flow (phone mockup) ───────────────── */}
+              {step === 1 && (
+                <div id="s2-booking-wrap" style={{ width: 256, background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 22px 64px rgba(0,0,0,0.16), 0 4px 16px rgba(0,0,0,0.08)' }}>
+                  {/* Branded app header */}
+                  <div style={{ background: accent, padding: '12px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>9:41</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{businessName}</span>
+                    {/* Signal bars */}
+                    <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                      {[5, 8, 11].map((h, i) => <div key={i} style={{ width: 3, height: h, borderRadius: 1.5, background: `rgba(255,255,255,${0.4 + i * 0.3})` }}/>)}
+                    </div>
+                  </div>
+
+                  {/* Screen content */}
+                  <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 10, background: '#f8f9fc' }}>
+                    {/* Sub-title row */}
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Nuova prenotazione</p>
+
+                    {/* ① Salone */}
+                    <div id="s2-step-salone">
+                      <p style={stepLabelSt}>Dove</p>
+                      <div style={{ ...bookCardSt, padding: '10px 12px' }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 9, background: accent, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                            <polyline points="9 22 9 12 15 12 15 22"/>
+                          </svg>
+                        </div>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{businessName}</span>
+                        <div style={{ width: 20, height: 20, borderRadius: 10, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                            <path id="s2-salone-checkpath" d="M2.5 7 L5.5 10 L11.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="22" strokeDashoffset="22"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ② Barbiere */}
+                    <div id="s2-step-barber">
+                      <p style={stepLabelSt}>Con chi</p>
+                      <div style={{ ...bookCardSt, padding: '10px 12px', gap: 8 }}>
+                        {BARBERS.map((b, i) => (
+                          <div key={i} id={i === 1 ? 's2-barber-sel' : undefined} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span id={i === 1 ? 's2-barber-sel-txt' : undefined} style={{ fontSize: 15, fontWeight: 700, color: '#999' }}>{b}</span>
+                          </div>
+                        ))}
+                        <span style={{ flex: 1, fontSize: 11, color: '#c0c0c0', paddingLeft: 2 }}>Scegli</span>
+                      </div>
+                    </div>
+
+                    {/* ③ Data */}
+                    <div id="s2-step-date">
+                      <p style={stepLabelSt}>Quando</p>
+                      <div style={{ ...bookCardSt, padding: '10px 10px', gap: 5 }}>
+                        {DATES.map((dt, i) => (
+                          <div key={i} id={i === 2 ? 's2-date-sel' : undefined} style={{ flex: 1, backgroundColor: '#e8edf8', borderRadius: 9, padding: '6px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                            <span id={i === 2 ? 's2-date-sel-dow' : undefined} style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', color: '#5a6fa0' }}>{dt.dow}</span>
+                            <span id={i === 2 ? 's2-date-sel-num' : undefined} style={{ fontSize: 14, fontWeight: 800, color: '#5a6fa0', lineHeight: 1 }}>{dt.day}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Step 2 — Loyalty ──────────────────────────────────── */}
+              {step === 2 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '0 24px', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+                    <div id="s3-badge-0" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#888' }}>Visite</span>
+                    </div>
+                    <div id="s3-badge-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <div style={{ width: 88, height: 88, borderRadius: 24, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}>
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 6-6 7-6 13a6 6 0 0 0 12 0c0-6-6-7-6-13z"/><path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z"/></svg>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#888' }}>Streak</span>
+                    </div>
+                    <div id="s3-badge-2" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="10"/><path d="M4 7h16"/><path d="M4 7c0-2.5 2-4 4-4h8c2 0 4 1.5 4 4"/><path d="M9 7v3a3 3 0 0 0 6 0V7"/></svg>
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#888' }}>Premi</span>
+                    </div>
+                  </div>
+                  <div style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Punti accumulati</span>
+                      <span ref={pointsRef} style={{ fontSize: 11, fontWeight: 700, color: accent, display: 'inline-block' }}>0 punti</span>
+                    </div>
+                    <div style={{ position: 'relative', height: 10, background: 'rgba(26,26,46,0.07)', borderRadius: 8 }}>
+                      <div id="s3-bar" style={{ height: '100%', background: accent, borderRadius: 8, width: '0%', position: 'relative', overflow: 'hidden' }}>
+                        <div id="s3-shimmer" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 70, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)', borderRadius: 8 }}/>
+                      </div>
+                      <div id="s3-cursor" style={{ position: 'absolute', top: -3, left: '0%', marginLeft: -8, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2.5px solid #fafafa' }}/>
+                    </div>
+                  </div>
+                  <div id="s3-streak" style={{ background: accent, borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, width: '100%' }}>
+                    <span style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>5</span>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>visite consecutive</p>
+                      <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Continua, sei in serie</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Step 3 — Notifications ────────────────────────────── */}
+              {step === 3 && (
+                <div style={{ width: '88%', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 260, height: 160, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 70%)', filter: 'blur(18px)', pointerEvents: 'none' }}/>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
+                    {NOTIF_DATA.map((notif, i) => (
+                      <div key={i} id={`s4-notif-${i}`} style={{ background: `rgba(255,255,255,${0.11 - i * 0.03})`, borderRadius: 14, border: i === 0 ? '0.5px solid rgba(255,255,255,0.18)' : 'none', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div id={`s4-icon-${i}`} style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <NotifIcon name={notif.icon}/>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.text}</p>
+                          <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.sub}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Bottom card ───────────────────────────────────────────── */}
+            <div style={{ padding: '0 12px', paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))' }}>
               <div style={{
-                position: 'absolute', bottom: 28,
-                width: 200, height: 42, borderRadius: 21,
-                background: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.13)',
-                overflow: 'hidden',
-                display: 'flex', alignItems: 'center', padding: '0 5px',
+                background: '#fff', borderRadius: '20px 20px 0 0', padding: '28px 24px 32px',
+                border: '0.5px solid rgba(0,0,0,0.08)', borderBottom: 'none',
               }}>
-                <div id="s0-swipe-pill" style={{
-                  width: 32, height: 32, borderRadius: 16, flexShrink: 0,
-                  background: 'rgba(255,255,255,0.88)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </div>
-                <span style={{
-                  flex: 1, textAlign: 'center', paddingRight: 6,
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
-                }}>Inizia</span>
-              </div>
-            </>
-          )}
-
-          {/* ─── Step 1 — 3-step booking flow ───────────────────────────── */}
-          {step === 1 && (
-            <div style={{ width: '88%', maxWidth: 310, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* ① Salone */}
-              <div id="s1-step-salone">
-                <p style={stepLabelSt}>Dove</p>
-                <div style={bookCardSt}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: accent, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                      <polyline points="9 22 9 12 15 12 15 22"/>
-                    </svg>
-                  </div>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{businessName}</span>
-                  {/* Animated checkmark */}
-                  <div style={{ width: 22, height: 22, borderRadius: 11, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path
-                        id="s1-salone-checkpath"
-                        d="M2.5 7 L5.5 10 L11.5 4"
-                        stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                        strokeDasharray="22" strokeDashoffset="22"
-                      />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* ② Barbiere */}
-              <div id="s1-step-barber">
-                <p style={stepLabelSt}>Con chi</p>
-                <div style={{ ...bookCardSt, gap: 8 }}>
-                  {BARBERS.map((b, i) => (
-                    <div
-                      key={i}
-                      id={i === 1 ? 's1-barber-sel' : undefined}
-                      style={{
-                        width: 46, height: 46, borderRadius: 23,
-                        backgroundColor: '#ebebeb',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        id={i === 1 ? 's1-barber-sel-txt' : undefined}
-                        style={{ fontSize: 16, fontWeight: 700, color: '#999' }}
-                      >{b}</span>
-                    </div>
-                  ))}
-                  <span style={{ flex: 1, fontSize: 12, color: '#bbb', paddingLeft: 4 }}>Scegli il tuo stylist</span>
-                </div>
-              </div>
-
-              {/* ③ Data */}
-              <div id="s1-step-date">
-                <p style={stepLabelSt}>Quando</p>
-                <div style={{ ...bookCardSt, gap: 6 }}>
-                  {DATES.map((d, i) => (
-                    <div
-                      key={i}
-                      id={i === 2 ? 's1-date-sel' : undefined}
-                      style={{
-                        flex: 1,
-                        backgroundColor: '#dde5ff',
-                        borderRadius: 10, padding: '7px 0',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-                      }}
-                    >
-                      <span
-                        id={i === 2 ? 's1-date-sel-dow' : undefined}
-                        style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: '#4a5c9a' }}
-                      >{d.dow}</span>
-                      <span
-                        id={i === 2 ? 's1-date-sel-num' : undefined}
-                        style={{ fontSize: 15, fontWeight: 800, color: '#4a5c9a', lineHeight: 1 }}
-                      >{d.day}</span>
-                    </div>
+                {/* Dots: steps 1-3 = positions 0-2 → 3 visible, active dot */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 22 }}>
+                  {[1, 2, 3].map(s => (
+                    <div key={s} style={{ height: 4, width: s === step ? 20 : 4, borderRadius: 100, background: '#000', opacity: s === step ? 1 : 0.15, transition: 'all 280ms ease' }}/>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* ─── Step 2 — Loyalty ───────────────────────────────────────── */}
-          {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, padding: '0 24px', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-                <div id="s2-badge-0" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                    </svg>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Visite</span>
-                </div>
-                <div id="s2-badge-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <div style={{ width: 88, height: 88, borderRadius: 24, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}>
-                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2c0 6-6 7-6 13a6 6 0 0 0 12 0c0-6-6-7-6-13z"/>
-                      <path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z"/>
-                    </svg>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Streak</span>
-                </div>
-                <div id="s2-badge-2" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="8 21 12 17 16 21"/>
-                      <line x1="12" y1="17" x2="12" y2="10"/>
-                      <path d="M4 7h16"/>
-                      <path d="M4 7c0-2.5 2-4 4-4h8c2 0 4 1.5 4 4"/>
-                      <path d="M9 7v3a3 3 0 0 0 6 0V7"/>
-                    </svg>
-                  </div>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Premi</span>
-                </div>
-              </div>
-              <div style={{ width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Punti accumulati</span>
-                  <span ref={pointsRef} style={{ fontSize: 11, fontWeight: 700, color: accent, display: 'inline-block' }}>0 punti</span>
-                </div>
-                <div style={{ position: 'relative', height: 10, background: 'rgba(26,26,46,0.06)', borderRadius: 8 }}>
-                  <div id="s2-bar" style={{ height: '100%', background: accent, borderRadius: 8, width: '0%', position: 'relative', overflow: 'hidden' }}>
-                    <div id="s2-shimmer" style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: 70, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)', borderRadius: 8 }}/>
-                  </div>
-                  <div id="s2-cursor" style={{ position: 'absolute', top: -3, left: '0%', marginLeft: -8, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2.5px solid #fafafa' }}/>
-                </div>
-              </div>
-              <div id="s2-streak" style={{ background: accent, borderRadius: 16, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 14, width: '100%' }}>
-                <span style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>5</span>
-                <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>visite consecutive</p>
-                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Sei in una serie perfetta</p>
-                </div>
-              </div>
-            </div>
-          )}
+                {step === 1 && (
+                  <>
+                    <p style={headSt}>{"Prenota in\n3 tap."}</p>
+                    <p style={subSt}>{"Scegli servizio, giorno e orario.\nConferma istantanea."}</p>
+                    <button onClick={() => goTo(2)} style={btnSt}>Avanti →</button>
+                  </>
+                )}
 
-          {/* ─── Step 3 — Notifications ─────────────────────────────────── */}
-          {step === 3 && (
-            <div style={{ width: '88%', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 260, height: 160, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(255,255,255,0.09) 0%, transparent 70%)', filter: 'blur(18px)', pointerEvents: 'none' }}/>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
-                {NOTIF_DATA.map((notif, i) => (
-                  <div key={i} id={`s3-notif-${i}`} style={{ background: `rgba(255,255,255,${0.06 + i * 0.03})`, borderRadius: 14, border: `0.5px solid rgba(255,255,255,${0.10 + i * 0.04})`, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div id={`s3-icon-${i}`} style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: 'rgba(255,255,255,0.13)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                      </svg>
+                {step === 2 && (
+                  <>
+                    <p style={headSt}>{"Ogni visita\nvale di più."}</p>
+                    <p style={subSt}>{"Accumula punti, scala i livelli,\nsblocca premi esclusivi."}</p>
+                    <button onClick={() => goTo(3)} style={btnSt}>Avanti →</button>
+                  </>
+                )}
+
+                {step === 3 && (
+                  <>
+                    <p style={headSt}>{"Non perderti\nnulla."}</p>
+                    <p style={subSt}>{"Promemoria, punti e offerte esclusive.\nSempre in tempo reale."}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button onClick={handleActivate} disabled={loading} style={{ ...btnSt, opacity: loading ? 0.75 : 1, cursor: loading ? 'default' : 'pointer' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                        {loading ? 'Attivazione…' : 'Attiva notifiche'}
+                      </button>
+                      <button onClick={() => goTo(4)} disabled={loading} style={{ width: '100%', border: 'none', background: 'transparent', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '10px 0', borderRadius: 14 }}>
+                        Adesso no
+                      </button>
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.text}</p>
-                      <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.sub}</p>
-                    </div>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{notif.time}</span>
-                  </div>
-                ))}
+                  </>
+                )}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* ── Card ──────────────────────────────────────────────────────────── */}
-        <div style={{ padding: '0 12px', paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))' }}>
-          <div ref={cardRef} style={{ background: '#fff', borderRadius: 24, padding: '20px 20px 16px', boxShadow: '0 -4px 40px rgba(0,0,0,0.12)' }}>
-            {/* Dots */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 20 }}>
-              {[0,1,2,3].map(i => (
-                <div key={i} style={{ height: 4, width: i === step ? 20 : 4, borderRadius: 100, background: '#000', opacity: i === step ? 1 : 0.15, transition: 'all 280ms ease' }}/>
-              ))}
-            </div>
-
-            {step === 0 && (
-              <>
-                <p style={tagSt}>Benvenuto</p>
-                <p style={headSt}>{"Il tuo barbiere,\nsempre con te."}</p>
-                <p style={subSt}>Prenota, guadagna punti, ricevi offerte esclusive. Tutto in un posto.</p>
-                <button onClick={() => goTo(1)} style={btnSt}>Inizia</button>
-                <button onClick={() => goTo(3)} style={skipSt}>Salta intro</button>
-              </>
-            )}
-
-            {step === 1 && (
-              <>
-                <p style={tagSt}>Prenotazioni</p>
-                <p style={headSt}>{"Prenota in\n3 tap."}</p>
-                <p style={subSt}>Scegli il salone, il tuo stylist e il giorno. Conferma istantanea.</p>
-                <button onClick={() => goTo(2)} style={btnSt}>Avanti →</button>
-                <button onClick={() => goTo(3)} style={skipSt}>Salta</button>
-              </>
-            )}
-
-            {step === 2 && (
-              <>
-                <p style={tagSt}>Fedeltà</p>
-                <p style={headSt}>{"Ogni visita\nvale di più."}</p>
-                <p style={subSt}>Accumula punti, scala i livelli, sblocca premi esclusivi riservati a te.</p>
-                <button onClick={() => goTo(3)} style={btnSt}>Avanti →</button>
-                <button onClick={() => goTo(3)} style={skipSt}>Salta</button>
-              </>
-            )}
-
-            {step === 3 && (
-              <>
-                <p style={tagSt}>Notifiche</p>
-                <p style={headSt}>{"Non perderti\nnulla."}</p>
-                <p style={subSt}>Promemoria, punti guadagnati e offerte esclusive. Sempre in tempo reale.</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <button onClick={handleActivate} disabled={loading} style={{ ...btnSt, opacity: loading ? 0.75 : 1, cursor: loading ? 'default' : 'pointer' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                    </svg>
-                    {loading ? 'Attivazione…' : 'Attiva notifiche'}
-                  </button>
-                  <button onClick={() => saveAndClose(false)} disabled={loading} style={{ width: '100%', border: 'none', background: 'transparent', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '10px 0', borderRadius: 14 }}>
-                    Adesso no
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
