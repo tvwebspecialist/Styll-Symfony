@@ -1,10 +1,11 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
 
-let _instance: ReturnType<typeof createClient> | null = null
+let _instance: SupabaseClient<Database> | null = null
 
 export function createPwaClient() {
   if (!_instance) {
-    _instance = createClient(
+    _instance = createClient<Database>(
       (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim(),
       (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '').trim(),
       {
