@@ -43,6 +43,8 @@ const NOTIF_DATA = [
   { text: 'Streak di 5 visite',      sub: 'Continua, sei in serie',    time: '1m'     },
   { text: 'Premio sbloccato',        sub: 'Taglio gratis disponibile', time: 'adesso' },
 ]
+// x-offset alternation for staggered entry feel
+const NOTIF_X = [18, -12, 8]
 
 export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }: Props) {
   const [show,          setShow]          = React.useState(false)
@@ -108,7 +110,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   // ── Mount animation ──────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!show || !cardRef.current) return
-    gsap.fromTo(cardRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' })
+    gsap.fromTo(cardRef.current, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' })
   }, [show])
 
   // ── Step animations ──────────────────────────────────────────────────────
@@ -117,62 +119,117 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     const d = step === 0 ? 0.3 : 0.05
 
     if (step === 0) {
-      gsap.set('#s0-logo', { scale: 0.8, opacity: 0 })
-      track(gsap.to('#s0-logo', { scale: 1, opacity: 1, duration: 0.5, delay: d, ease: 'back.out(1.5)' }))
+      // Logo: entrance with slight twist + breathe loop after
+      gsap.set('#s0-logo', { scale: 0.72, opacity: 0, rotation: -10 })
+      track(gsap.to('#s0-logo', { scale: 1, opacity: 1, rotation: 0, duration: 0.65, delay: d, ease: 'back.out(1.8)' }))
+      track(gsap.to('#s0-logo', { scale: 1.04, duration: 2.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.9 }))
+
+      // Glow disc behind logo: pulses opacity
+      gsap.set('#s0-glow', { scale: 1, opacity: 0 })
+      track(gsap.to('#s0-glow', { opacity: 1, duration: 0.6, delay: d + 0.2 }))
+      track(gsap.to('#s0-glow', { scale: 1.18, opacity: 0.55, duration: 2.2, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.9 }))
+
+      // Rings: sonar ripple — expand + fade, each staggered 0.7s
       ;[0, 1, 2].forEach(i =>
-        track(gsap.to(`#s0-ring-${i}`, {
-          scale: 1.045, duration: 1.4 + i * 0.35, yoyo: true, repeat: -1,
-          ease: 'sine.inOut', transformOrigin: '50% 50%', delay: d + 0.3 + i * 0.4,
-        }))
+        track(gsap.fromTo(`#s0-ring-${i}`,
+          { scale: 1, opacity: 0.4 - i * 0.1 },
+          { scale: 1.75 + i * 0.12, opacity: 0, duration: 2.1 + i * 0.35,
+            repeat: -1, ease: 'power1.out', transformOrigin: '50% 50%', delay: d + 0.35 + i * 0.7 },
+        ))
       )
-      track(gsap.to('#s0-orbit', {
-        rotation: 360, duration: 20, repeat: -1, ease: 'none',
-        transformOrigin: '50% 50%', delay: d + 0.2,
-      }))
-      gsap.set('#s0-label', { opacity: 0 })
-      track(gsap.to('#s0-label', { opacity: 1, duration: 0.4, delay: d + 0.55 }))
+
+      // Outer orbit: clockwise 18s
+      track(gsap.to('#s0-orbit', { rotation: 360, duration: 18, repeat: -1, ease: 'none', transformOrigin: '50% 50%', delay: d + 0.15 }))
+      // Inner orbit: counter-clockwise 11s, slightly faster
+      track(gsap.to('#s0-orbit-inner', { rotation: -360, duration: 11, repeat: -1, ease: 'none', transformOrigin: '50% 50%', delay: d + 0.15 }))
+
+      // Label: slide up + fade
+      gsap.set('#s0-label', { opacity: 0, y: 8 })
+      track(gsap.to('#s0-label', { opacity: 1, y: 0, duration: 0.45, delay: d + 0.65, ease: 'power2.out' }))
 
     } else if (step === 1) {
-      gsap.set('#s1-cal', { y: 16, opacity: 0 })
-      track(gsap.to('#s1-cal', { y: 0, opacity: 1, duration: 0.35, delay: d, ease: 'power2.out' }))
-      if (pillRef.current) gsap.set(pillRef.current, { opacity: 0, y: 8 })
+      // Calendar entrance: scale + slide
+      gsap.set('#s1-cal', { y: 24, scale: 0.95, opacity: 0 })
+      track(gsap.to('#s1-cal', { y: 0, scale: 1, opacity: 1, duration: 0.4, delay: d, ease: 'power2.out' }))
 
-      const tl = gsap.timeline({ repeat: -1, delay: d + 0.5 })
+      if (pillRef.current) gsap.set(pillRef.current, { scale: 0.7, opacity: 0, y: 8 })
+
+      // Booking loop timeline
+      const tl = gsap.timeline({ repeat: -1, delay: d + 0.55 })
       BOOKING_CELLS.forEach((cell, i) => {
         tl
-          .to(`#s1-rect-${i}`, { attr: { fill: accent }, duration: 0.25, ease: 'power2.out' })
+          // Cell: fill + scale bounce simultaneously
+          .to(`#s1-rect-${i}`, { attr: { fill: accent }, scale: 1.13, transformOrigin: 'center', duration: 0.28, ease: 'back.out(2.5)' })
           .to(`#s1-txt-${i}`,  { attr: { fill: '#ffffff' }, duration: 0.1 }, '<')
+          // Checkmark draw in
+          .fromTo(`#s1-check-${i}`,
+            { attr: { strokeDashoffset: 24 } },
+            { attr: { strokeDashoffset: 0 }, duration: 0.35, ease: 'power2.out' },
+          )
+          // Cell scale back to normal
+          .to(`#s1-rect-${i}`, { scale: 1, duration: 0.22, ease: 'power2.out' }, '<+=0.1')
+          // Pill bounces in
           .call(() => { if (pillRef.current) pillRef.current.textContent = `Prenotato per ${cell.label}` })
-          .to(pillRef.current, { opacity: 1, y: 0, duration: 0.22, ease: 'power2.out' })
-          .to(pillRef.current, { opacity: 0, y: 6, duration: 0.22, ease: 'power2.in', delay: 0.85 })
-          .to(`#s1-rect-${i}`, { attr: { fill: '#f0f4ff' }, duration: 0.25 }, '<+=0.05')
-          .to(`#s1-txt-${i}`,  { attr: { fill: '#606060' }, duration: 0.1 }, '<')
-          .set({}, {}, '+=0.35')
+          .to(pillRef.current, { scale: 1, opacity: 1, y: 0, duration: 0.32, ease: 'back.out(2.5)' })
+          // Hold, then dismiss
+          .to(pillRef.current, { opacity: 0, y: 6, scale: 0.88, duration: 0.22, ease: 'power2.in', delay: 0.8 })
+          // Checkmark erase + cell reset
+          .to(`#s1-check-${i}`, { attr: { strokeDashoffset: 24 }, duration: 0.2 }, '<+=0.05')
+          .to(`#s1-rect-${i}`,  { attr: { fill: '#f0f4ff' }, duration: 0.28 }, '<')
+          .to(`#s1-txt-${i}`,   { attr: { fill: '#606060' }, duration: 0.12 }, '<')
+          .set({}, {}, '+=0.32')
       })
       track(tl)
 
     } else if (step === 2) {
+      // Badges: bounce in with rotation
       ;[0, 1, 2].forEach(i => {
-        gsap.set(`#s2-badge-${i}`, { scale: 0.4, opacity: 0 })
-        track(gsap.to(`#s2-badge-${i}`, { scale: 1, opacity: 1, duration: 0.5, delay: d + i * 0.15, ease: 'back.out(2)' }))
-        track(gsap.to(`#s2-badge-${i}`, { y: -5, duration: 1.4 + i * 0.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.6 + i * 0.3 }))
+        const rot = i === 0 ? -18 : i === 2 ? 14 : -8
+        gsap.set(`#s2-badge-${i}`, { scale: 0.35, opacity: 0, rotation: rot })
+        track(gsap.to(`#s2-badge-${i}`, { scale: 1, opacity: 1, rotation: 0, duration: 0.55, delay: d + i * 0.15, ease: 'back.out(2.2)' }))
+        track(gsap.to(`#s2-badge-${i}`, { y: -6, duration: 1.5 + i * 0.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 0.65 + i * 0.28 }))
       })
-      track(gsap.fromTo('#s2-bar',    { width: '0%' }, { width: '78%', duration: 1.2, delay: d + 0.5, ease: 'power2.out' }))
-      track(gsap.fromTo('#s2-cursor', { left: '0%'  }, { left: '78%', duration: 1.2, delay: d + 0.5, ease: 'power2.out' }))
+
+      // Progress bar + cursor
+      track(gsap.fromTo('#s2-bar',    { width: '0%' }, { width: '78%', duration: 1.25, delay: d + 0.55, ease: 'power2.out' }))
+      track(gsap.fromTo('#s2-cursor', { left: '0%'  }, { left: '78%', duration: 1.25, delay: d + 0.55, ease: 'power2.out' }))
+
+      // Shimmer sweeps through after bar fills
+      gsap.set('#s2-shimmer', { x: -80 })
+      track(gsap.to('#s2-shimmer', { x: 260, duration: 0.7, delay: d + 1.9, ease: 'power2.inOut' }))
+
+      // Counter with end-pulse
       const obj = { val: 0 }
       track(gsap.to(obj, {
-        val: 450, duration: 1.2, delay: d + 0.5, ease: 'power2.out',
+        val: 450, duration: 1.25, delay: d + 0.55, ease: 'power2.out',
         onUpdate: () => { if (pointsRef.current) pointsRef.current.textContent = `${Math.round(obj.val)} punti` },
+        onComplete: () => {
+          if (pointsRef.current) gsap.fromTo(pointsRef.current, { scale: 1 }, { scale: 1.22, duration: 0.16, yoyo: true, repeat: 1, ease: 'power2.out' })
+        },
       }))
-      gsap.set('#s2-streak', { y: 12, opacity: 0 })
-      track(gsap.to('#s2-streak', { y: 0, opacity: 1, duration: 0.4, delay: d + 1.5, ease: 'power2.out' }))
+
+      // Streak card: slide up from slight left
+      gsap.set('#s2-streak', { y: 16, x: -8, opacity: 0 })
+      track(gsap.to('#s2-streak', { y: 0, x: 0, opacity: 1, duration: 0.45, delay: d + 1.55, ease: 'power3.out' }))
+      // Streak card glow pulse
+      track(gsap.to('#s2-streak', { boxShadow: `0 0 0 3px ${accent}55`, duration: 0.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: d + 2.1 }))
 
     } else if (step === 3) {
+      // Notifications: x+y staggered entry
       NOTIF_DATA.forEach((_, i) => {
-        gsap.set(`#s3-notif-${i}`, { y: -20, opacity: 0 })
-        track(gsap.to(`#s3-notif-${i}`, { y: 0, opacity: 1, duration: 0.4, delay: 0.2 + i * 0.18, ease: 'power2.out' }))
-        track(gsap.to(`#s3-notif-${i}`, { y: -3, duration: 2.4 + i * 0.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.8 + i * 0.4 }))
+        gsap.set(`#s3-notif-${i}`, { x: NOTIF_X[i], y: -22, opacity: 0 })
+        track(gsap.to(`#s3-notif-${i}`, { x: 0, y: 0, opacity: 1, duration: 0.45, delay: 0.18 + i * 0.18, ease: 'power3.out' }))
+        // Icon micro-bounce after card lands
+        gsap.set(`#s3-icon-${i}`, { scale: 0.5 })
+        track(gsap.to(`#s3-icon-${i}`, { scale: 1, duration: 0.38, delay: 0.42 + i * 0.18, ease: 'back.out(2.5)' }))
+        // Float loop (varied amplitude)
+        track(gsap.to(`#s3-notif-${i}`, { y: -3 - i, duration: 2.5 + i * 0.45, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.85 + i * 0.38 }))
       })
+      // Top notification: attention pulse loop after all appear
+      track(gsap.to('#s3-notif-2', {
+        boxShadow: '0 0 0 2px rgba(255,255,255,0.25)', duration: 1.1,
+        yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 1.4,
+      }))
     }
 
     return killTweens
@@ -219,13 +276,11 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   // ── Shared card styles ───────────────────────────────────────────────────
   const tagSt: React.CSSProperties = {
     margin: '0 0 8px', fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.5,
-    color: accent,
+    letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.5, color: accent,
   }
   const headSt: React.CSSProperties = {
     margin: '0 0 8px', fontSize: 28, fontWeight: 700,
-    lineHeight: 1.15, letterSpacing: '-0.02em',
-    color: '#0a0a0a', whiteSpace: 'pre-line',
+    lineHeight: 1.15, letterSpacing: '-0.02em', color: '#0a0a0a', whiteSpace: 'pre-line',
   }
   const subSt: React.CSSProperties = {
     margin: '0 0 20px', fontSize: 15, lineHeight: 1.55, opacity: 0.6, color: '#1a1a2e',
@@ -255,34 +310,52 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
           position: 'relative',
         }}>
 
-          {/* Step 0 — Brand splash (dark gradient bg) */}
+          {/* ─── Step 0 — Brand splash ───────────────────────────────────── */}
           {step === 0 && (
             <div style={{ position: 'relative', width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Glow disc behind logo */}
+              <div id="s0-glow" style={{
+                position: 'absolute', width: 100, height: 100, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.15)',
+                filter: 'blur(14px)',
+                pointerEvents: 'none',
+              }}/>
               <svg width="220" height="220" viewBox="0 0 220 220" fill="none" style={{ position: 'absolute', inset: 0 }}>
-                <circle id="s0-ring-0" cx="110" cy="110" r="52"  stroke="rgba(255,255,255,0.12)" strokeWidth="1.5"/>
-                <circle id="s0-ring-1" cx="110" cy="110" r="76"  stroke="rgba(255,255,255,0.07)" strokeWidth="1.5"/>
-                <circle id="s0-ring-2" cx="110" cy="110" r="100" stroke="rgba(255,255,255,0.04)" strokeWidth="1.5"/>
+                {/* Sonar ripple rings */}
+                <circle id="s0-ring-0" cx="110" cy="110" r="52"  stroke="rgba(255,255,255,0.4)"  strokeWidth="1.5"/>
+                <circle id="s0-ring-1" cx="110" cy="110" r="76"  stroke="rgba(255,255,255,0.28)" strokeWidth="1.5"/>
+                <circle id="s0-ring-2" cx="110" cy="110" r="100" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5"/>
+                {/* Outer orbit: 4 dots, N/E/S/W at r=101 */}
                 <g id="s0-orbit">
-                  <circle cx="110" cy="9"   r="3.5" fill="rgba(255,255,255,0.50)"/>
-                  <circle cx="211" cy="110" r="3"   fill="rgba(255,255,255,0.35)"/>
-                  <circle cx="110" cy="211" r="4"   fill="rgba(255,255,255,0.45)"/>
-                  <circle cx="9"   cy="110" r="3"   fill="rgba(255,255,255,0.30)"/>
+                  <circle cx="110" cy="9"   r="3.5" fill="rgba(255,255,255,0.55)"/>
+                  <circle cx="211" cy="110" r="3"   fill="rgba(255,255,255,0.38)"/>
+                  <circle cx="110" cy="211" r="4"   fill="rgba(255,255,255,0.48)"/>
+                  <circle cx="9"   cy="110" r="3"   fill="rgba(255,255,255,0.32)"/>
+                </g>
+                {/* Inner orbit: 3 dots at r=66, counter-clockwise */}
+                {/* Invisible anchor forces bounding-box = full SVG so 50%/50% = center */}
+                <g id="s0-orbit-inner">
+                  <rect x="0" y="0" width="220" height="220" fill="none"/>
+                  <circle cx="110" cy="44"  r="2.5" fill="rgba(255,255,255,0.30)"/>
+                  <circle cx="167" cy="143" r="2"   fill="rgba(255,255,255,0.22)"/>
+                  <circle cx="53"  cy="143" r="2.8" fill="rgba(255,255,255,0.26)"/>
                 </g>
               </svg>
+              {/* Logo box */}
               <div id="s0-logo" style={{
                 position: 'relative', zIndex: 1,
-                width: 64, height: 64, borderRadius: 18,
+                width: 66, height: 66, borderRadius: 19,
                 background: '#fff', overflow: 'hidden',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {logoUrl
                   ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-                  : <span style={{ fontSize: 26, fontWeight: 800, color: accent }}>{initial}</span>
+                  : <span style={{ fontSize: 27, fontWeight: 800, color: accent }}>{initial}</span>
                 }
               </div>
               <div id="s0-label" style={{
-                position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)',
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase',
+                position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase',
                 color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap',
               }}>
                 BENVENUTO
@@ -290,55 +363,64 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
             </div>
           )}
 
-          {/* Step 1 — Calendar (light blue bg) */}
+          {/* ─── Step 1 — Calendar ──────────────────────────────────────── */}
           {step === 1 && (
             <div id="s1-cal" style={{ position: 'relative' }}>
               <svg width="260" height="214" viewBox="0 0 260 214" fill="none">
-                {/* Month header bar */}
+                {/* Month header */}
                 <rect x="0" y="0" width="260" height="36" rx="10" fill={accent}/>
                 <text x="130" y="23" textAnchor="middle" fontSize={13} fontWeight={700} fill="white" fontFamily="system-ui,-apple-system,sans-serif">Giugno 2026</text>
-                {/* Day-of-week */}
+                {/* Day-of-week row */}
                 {CAL_HEADERS.map((h, col) => (
                   <text key={col} x={4 + col * 37 + 14} y={54} textAnchor="middle" fontSize={10} fontWeight={600} fill="#9BA3AF" fontFamily="system-ui,-apple-system,sans-serif">{h}</text>
                 ))}
-                {/* Cells */}
+                {/* Cells + checkmarks */}
                 {CAL_DAYS.map(([row, col, day]) => {
-                  const bi = BOOKING_CELLS.findIndex(b => b.row === row && b.col === col)
+                  const bi  = BOOKING_CELLS.findIndex(b => b.row === row && b.col === col)
+                  const rx  = 4 + col * 37
+                  const ry  = 62 + row * 30
                   return (
                     <React.Fragment key={`${row}-${col}`}>
                       <rect
                         id={bi >= 0 ? `s1-rect-${bi}` : undefined}
-                        x={4 + col * 37} y={62 + row * 30}
-                        width={33} height={24} rx={7}
+                        x={rx} y={ry} width={33} height={24} rx={7}
                         fill="#f0f4ff"
                       />
                       <text
                         id={bi >= 0 ? `s1-txt-${bi}` : undefined}
-                        x={4 + col * 37 + 16} y={62 + row * 30 + 16}
+                        x={rx + 16} y={ry + 16}
                         textAnchor="middle" fontSize={10} fontWeight={500}
                         fill="#606060" fontFamily="system-ui,-apple-system,sans-serif"
                       >{day}</text>
+                      {bi >= 0 && (
+                        <path
+                          id={`s1-check-${bi}`}
+                          d={`M ${rx+7},${ry+12} L ${rx+13},${ry+17} L ${rx+25},${ry+7}`}
+                          stroke="white" strokeWidth="2" fill="none"
+                          strokeLinecap="round" strokeLinejoin="round"
+                          strokeDasharray="24" strokeDashoffset="24"
+                        />
+                      )}
                     </React.Fragment>
                   )
                 })}
               </svg>
               {/* Booking confirm pill */}
               <div ref={pillRef} style={{
-                position: 'absolute', bottom: -6, left: '50%', transform: 'translateX(-50%)',
+                position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
                 background: accent, color: '#fff', fontSize: 11, fontWeight: 600,
-                padding: '6px 16px', borderRadius: 100, whiteSpace: 'nowrap',
-                opacity: 0,
+                padding: '6px 16px', borderRadius: 100, whiteSpace: 'nowrap', opacity: 0,
               }}/>
             </div>
           )}
 
-          {/* Step 2 — Loyalty (#fafafa bg) */}
+          {/* ─── Step 2 — Loyalty ───────────────────────────────────────── */}
           {step === 2 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, padding: '0 24px', width: '100%' }}>
               {/* Badges */}
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
                 <div id="s2-badge-0" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                     </svg>
@@ -346,7 +428,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Visite</span>
                 </div>
                 <div id="s2-badge-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <div style={{ width: 88, height: 88, borderRadius: 24, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 32px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: 88, height: 88, borderRadius: 24, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 32px rgba(0,0,0,0.18)' }}>
                     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 2c0 6-6 7-6 13a6 6 0 0 0 12 0c0-6-6-7-6-13z"/>
                       <path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z"/>
@@ -355,7 +437,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Streak</span>
                 </div>
                 <div id="s2-badge-2" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+                  <div style={{ width: 72, height: 72, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.14)' }}>
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="8 21 12 17 16 21"/>
                       <line x1="12" y1="17" x2="12" y2="10"/>
@@ -367,56 +449,78 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#888', letterSpacing: '0.04em' }}>Premi</span>
                 </div>
               </div>
+
               {/* Progress bar */}
               <div style={{ width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>Punti accumulati</span>
-                  <span ref={pointsRef} style={{ fontSize: 11, fontWeight: 700, color: accent }}>0 punti</span>
+                  <span ref={pointsRef} style={{ fontSize: 11, fontWeight: 700, color: accent, display: 'inline-block' }}>0 punti</span>
                 </div>
                 <div style={{ position: 'relative', height: 10, background: 'rgba(26,26,46,0.06)', borderRadius: 8 }}>
-                  <div id="s2-bar" style={{ height: '100%', background: accent, borderRadius: 8, width: '0%' }}/>
+                  <div id="s2-bar" style={{ height: '100%', background: accent, borderRadius: 8, width: '0%', position: 'relative', overflow: 'hidden' }}>
+                    {/* Shimmer overlay — only visible when bar has width */}
+                    <div id="s2-shimmer" style={{
+                      position: 'absolute', top: 0, left: 0, height: '100%', width: 70,
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
+                      borderRadius: 8,
+                    }}/>
+                  </div>
                   <div id="s2-cursor" style={{ position: 'absolute', top: -3, left: '0%', marginLeft: -8, width: 16, height: 16, borderRadius: '50%', background: accent, border: '2.5px solid #fafafa' }}/>
                 </div>
               </div>
+
               {/* Streak card */}
               <div id="s2-streak" style={{
                 background: accent, borderRadius: 16, padding: '12px 20px',
-                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                display: 'flex', alignItems: 'center', gap: 14, width: '100%',
               }}>
-                <span style={{ fontSize: 30, fontWeight: 800, color: '#fff', lineHeight: 1 }}>5</span>
-                <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35 }}>visite<br/>consecutive</span>
+                <span style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1 }}>5</span>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>visite consecutive</p>
+                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>Sei in una serie perfetta</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Step 3 — Notifications (dark gradient bg) */}
+          {/* ─── Step 3 — Notifications ─────────────────────────────────── */}
           {step === 3 && (
-            <div style={{ width: '88%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {NOTIF_DATA.map((notif, i) => (
-                <div key={i} id={`s3-notif-${i}`} style={{
-                  background: `rgba(255,255,255,${0.06 + i * 0.03})`,
-                  borderRadius: 14,
-                  border: `0.5px solid rgba(255,255,255,${0.10 + i * 0.04})`,
-                  padding: '12px 14px',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                    background: 'rgba(255,255,255,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+            <div style={{ width: '88%', position: 'relative' }}>
+              {/* Atmospheric glow behind stack */}
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 260, height: 160, borderRadius: '50%',
+                background: 'radial-gradient(ellipse, rgba(255,255,255,0.09) 0%, transparent 70%)',
+                filter: 'blur(18px)', pointerEvents: 'none',
+              }}/>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
+                {NOTIF_DATA.map((notif, i) => (
+                  <div key={i} id={`s3-notif-${i}`} style={{
+                    background: `rgba(255,255,255,${0.06 + i * 0.03})`,
+                    borderRadius: 14,
+                    border: `0.5px solid rgba(255,255,255,${0.10 + i * 0.04})`,
+                    padding: '12px 14px',
+                    display: 'flex', alignItems: 'center', gap: 12,
                   }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                    </svg>
+                    <div id={`s3-icon-${i}`} style={{
+                      width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                      background: 'rgba(255,255,255,0.13)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.text}</p>
+                      <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.sub}</p>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{notif.time}</span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.text}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{notif.sub}</p>
-                  </div>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{notif.time}</span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -432,9 +536,8 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
               {[0,1,2,3].map(i => (
                 <div key={i} style={{
                   height: 4, width: i === step ? 20 : 4, borderRadius: 100,
-                  background: '#000',
-                  opacity: i === step ? 1 : 0.15,
-                  transition: 'all 250ms ease',
+                  background: '#000', opacity: i === step ? 1 : 0.15,
+                  transition: 'all 280ms ease',
                 }}/>
               ))}
             </div>
