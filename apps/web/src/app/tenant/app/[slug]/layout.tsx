@@ -168,15 +168,24 @@ export default async function AppLayout({ params, children }: Props) {
         }}
       />
 
-      {/* Tenant font (persisted) — server-rendered so the web font downloads
-          before first paint; `display=swap` keeps the fallback visible meanwhile.
-          The :root variable mirrors the value PwaPreviewShell applies, so it is
-          ready at first paint even outside the React tree. */}
+      {/* Tenant font — loaded asynchronously via inline script so it never
+          blocks FCP. `display=swap` (already in the URL) means fallback text
+          is visible immediately; the web font swaps in once downloaded.
+          The :root variable is set synchronously so layout consumers that read
+          --font-active at paint time always get the correct font-family value. */}
       {tenantFontUrl && (
         <>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-          <link rel="stylesheet" href={tenantFontUrl} />
+          {/* Dynamic append: non-blocking — does not delay first paint */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href=${JSON.stringify(tenantFontUrl)};document.head.appendChild(l);})()`,
+            }}
+          />
+          <noscript>
+            <link rel="stylesheet" href={tenantFontUrl} />
+          </noscript>
           <style
             dangerouslySetInnerHTML={{
               __html: `:root{--font-active:${resolveFontFamily(tenantFontKey)};}`,
