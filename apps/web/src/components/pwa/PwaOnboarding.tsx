@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import gsap from 'gsap'
+import { Star, Flame, Trophy, Zap } from 'lucide-react'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 
@@ -103,8 +104,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   const idleRef      = React.useRef<{ kill: () => void } | null>(null)
   const goToRef      = React.useRef<(n: number) => void>(() => {})
 
-  const tweensRef = React.useRef<Array<{ kill: () => void }>>([])
-  const pointsRef = React.useRef<HTMLSpanElement>(null)
+  const tweensRef    = React.useRef<Array<{ kill: () => void }>>([])
+  const pointsRef    = React.useRef<HTMLSpanElement>(null)
+  const flowForceRef = React.useRef(0)
 
   const { subscribe } = usePushSubscription(tenantId)
 
@@ -175,7 +177,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
       if (!ctx) return
       ctx.clearRect(0, 0, canvas!.width, canvas!.height)
       for (const p of particlesRef.current) {
-        p.x += p.vx; p.y += p.vy
+        p.x += p.vx + flowForceRef.current * 0.8; p.y += p.vy
         if (p.x < 0 || p.x > canvas!.width)  p.vx *= -1
         if (p.y < 0 || p.y > canvas!.height) p.vy *= -1
         ctx.beginPath()
@@ -201,6 +203,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
       const maxX = getMaxX()
       const x = Math.max(0, Math.min(rawX, maxX))
       thumbPosRef.current = x
+      flowForceRef.current = x / maxX
       gsap.set(thumbRef.current,  { x })
       if (fillRef.current)  fillRef.current.style.width  = `${x + 62}px`
       if (labelRef.current) labelRef.current.style.opacity = String(Math.max(0, 1 - (x / maxX) * 2))
@@ -280,46 +283,56 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
       gsap.set('#s1-text', { opacity: 0, y: 16 })
       track(gsap.to('#s1-text', { opacity: 1, y: 0, duration: 0.6, delay: d + 0.6, ease: 'power3.out' }))
 
-    // ── Step 1 — Booking ─────────────────────────────────────────────────
+    // ── Step 1 — Booking (4-phase loop) ──────────────────────────────────
     } else if (step === 1) {
-      gsap.set('#s2-booking-wrap', { scale: 0.85, opacity: 0 })
-      track(gsap.to('#s2-booking-wrap', { scale: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.4)', delay: 0.05 }))
+      const phaseIn  = (id: string) => gsap.fromTo(id, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' })
+      const phaseOut = (id: string | string[]) => gsap.to(id, { y: -30, opacity: 0, duration: 0.3, ease: 'power2.in' })
 
-      gsap.set(['#s2-step-salone', '#s2-step-barber', '#s2-step-date'], { y: 16, opacity: 0 })
-      gsap.set('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } })
-      gsap.set('#s2-barber-sel', { backgroundColor: '#ebebeb' })
-      gsap.set('#s2-barber-sel-txt', { color: '#999' })
-      gsap.set('#s2-date-sel', { backgroundColor: '#dde5ff' })
-      gsap.set(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#4a5c9a' })
+      function runLoop() {
+        const tl = gsap.timeline({ onComplete: runLoop })
 
-      const tl = gsap.timeline({ repeat: -1, delay: 0.55, repeatDelay: 0.5 })
-      tl
-        .to('#s2-step-salone', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.15')
-        .fromTo('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } }, { attr: { strokeDashoffset: 0 }, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.15')
-        .to('#s2-step-barber', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.18')
-        .to('#s2-barber-sel', { backgroundColor: accent, scale: 1.14, duration: 0.28, ease: 'back.out(2.2)' })
-        .to('#s2-barber-sel-txt', { color: '#fff', duration: 0.1 }, '<')
-        .to('#s2-barber-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
-        .set({}, {}, '+=0.15')
-        .to('#s2-step-date', { y: 0, opacity: 1, duration: 0.38, ease: 'power2.out' })
-        .set({}, {}, '+=0.18')
-        .to('#s2-date-sel', { backgroundColor: accent, scale: 1.12, duration: 0.28, ease: 'back.out(2.2)' })
-        .to(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#fff', duration: 0.1 }, '<')
-        .to('#s2-date-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
-        .set({}, {}, '+=1.0')
-        .to(['#s2-step-salone','#s2-step-barber','#s2-step-date'], { opacity: 0, y: 10, duration: 0.28, ease: 'power2.in', stagger: 0.07 })
-        .call(() => {
-          gsap.set(['#s2-step-salone','#s2-step-barber','#s2-step-date'], { y: 16, opacity: 0 })
-          gsap.set('#s2-salone-checkpath', { attr: { strokeDashoffset: 22 } })
-          gsap.set('#s2-barber-sel', { backgroundColor: '#ebebeb', scale: 1 })
-          gsap.set('#s2-barber-sel-txt', { color: '#999' })
-          gsap.set('#s2-date-sel', { backgroundColor: '#dde5ff', scale: 1 })
-          gsap.set(['#s2-date-sel-dow','#s2-date-sel-num'], { color: '#4a5c9a' })
-        })
-      track(tl)
+        // ── PHASE A: location selection ────────────────────────────────
+        gsap.set(['#s2-loc-0', '#s2-loc-1'], { y: 40, opacity: 0 })
+        tl.add(phaseIn('#s2-loc-0'), 0)
+        tl.add(phaseIn('#s2-loc-1'), 0.1)
+        // pulse border on loc-0 to simulate selection
+        tl.to('#s2-loc-0', { boxShadow: '0 0 0 1.5px rgba(255,255,255,0.7)', duration: 0.3 }, 0.6)
+        tl.to('#s2-loc-0', { boxShadow: '0 0 0 1.5px rgba(255,255,255,0.3)', duration: 0.4 }, 0.9)
+        tl.set({}, {}, '+=0.8')
+        tl.add(phaseOut(['#s2-loc-0', '#s2-loc-1']))
+
+        // ── PHASE B: barber selection ──────────────────────────────────
+        tl.set(['#s2-barber-0', '#s2-barber-1', '#s2-barber-2'], { y: 40, opacity: 0, scale: 1 })
+        tl.add(phaseIn('#s2-barber-0'), '+=0.15')
+        tl.add(phaseIn('#s2-barber-1'), '<+0.1')
+        tl.add(phaseIn('#s2-barber-2'), '<+0.1')
+        tl.to('#s2-barber-1', { scale: 1.06, boxShadow: `0 0 0 1.5px ${accent}`, duration: 0.28, ease: 'back.out(2)' }, '+=0.5')
+        tl.set({}, {}, '+=0.8')
+        tl.add(phaseOut(['#s2-barber-0', '#s2-barber-1', '#s2-barber-2']))
+
+        // ── PHASE C: date + time ───────────────────────────────────────
+        gsap.set('#s2-cal-wrap', { y: 40, opacity: 0 })
+        tl.to('#s2-cal-wrap', { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' }, '+=0.15')
+        // highlight a calendar cell
+        tl.to('#s2-cal-sel', { backgroundColor: accent, scale: 1.15, duration: 0.28, ease: 'back.out(2)' }, '+=0.5')
+        tl.to('#s2-cal-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
+        // time pill pop-in
+        gsap.set('#s2-time-pill', { scale: 0, opacity: 0 })
+        tl.to('#s2-time-pill', { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2.5)' }, '+=0.2')
+        tl.set({}, {}, '+=0.7')
+        tl.add(phaseOut('#s2-cal-wrap'))
+
+        // ── PHASE D: confirmed ─────────────────────────────────────────
+        gsap.set('#s2-confirmed', { y: 40, opacity: 0 })
+        tl.to('#s2-confirmed', { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' }, '+=0.15')
+        tl.fromTo('#s2-check-path', { attr: { strokeDashoffset: 50 } }, { attr: { strokeDashoffset: 0 }, duration: 0.4, ease: 'power2.out' }, '+=0.1')
+        tl.set({}, {}, '+=1.2')
+        tl.add(phaseOut('#s2-confirmed'))
+        tl.set({}, {}, '+=0.2')
+
+        track(tl)
+      }
+      runLoop()
 
     // ── Step 2 — Loyalty ─────────────────────────────────────────────────
     } else if (step === 2) {
@@ -539,45 +552,37 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
             {/* Particle canvas */}
             <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}/>
 
-            {/* Logo orbit system — 240×240 centered */}
-            <div ref={s1LogoRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -62%)', width: 240, height: 240 }}>
-              {ORBIT_DOTS.map(({ id, size, top, left, opacity }) => (
-                <div key={id} id={id} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                  <div style={{ position: 'absolute', top, left, width: size, height: size, borderRadius: '50%', background: '#fff', opacity }}/>
+            {/* Centered content: logo + text */}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32, paddingBottom: 100 }}>
+              {/* Logo orbit system — 240×240 */}
+              <div ref={s1LogoRef} style={{ position: 'relative', width: 240, height: 240, flexShrink: 0 }}>
+                {ORBIT_DOTS.map(({ id, size, top, left, opacity }) => (
+                  <div key={id} id={id} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                    <div style={{ position: 'absolute', top, left, width: size, height: size, borderRadius: '50%', background: '#fff', opacity }}/>
+                  </div>
+                ))}
+                <div id="s1-logo" style={{
+                  position: 'absolute', top: 60, left: 60, width: 120, height: 120,
+                  borderRadius: 28, background: 'rgba(255,255,255,0.08)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                }}>
+                  {logoUrl
+                    ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                    : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
+                  }
                 </div>
-              ))}
-              {/* Logo box */}
-              <div id="s1-logo" style={{
-                position: 'absolute', top: 60, left: 60, width: 120, height: 120,
-                borderRadius: 28, background: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-              }}>
-                {logoUrl
-                  ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
-                  : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
-                }
               </div>
-              {/* Barber accessory */}
-              <div style={{
-                position: 'absolute', top: 188, left: 0, right: 0,
-                textAlign: 'center', fontSize: 24, color: 'rgba(255,255,255,0.3)',
-                pointerEvents: 'none', lineHeight: 1,
-              }}>✂</div>
-            </div>
 
-            {/* Text block */}
-            <div id="s1-text" ref={s1TextRef} style={{
-              position: 'absolute', bottom: 120, left: 0, right: 0,
-              textAlign: 'center', padding: '0 28px',
-            }}>
-              <h1 style={{ margin: 0, fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
-                Benvenuto<br/>
-                da <span style={{ color: 'rgba(255,255,255,0.6)' }}>{businessName}</span>
-              </h1>
-              <p style={{ margin: '10px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-                Il tuo barbiere di fiducia,<br/>ora sempre con te.
-              </p>
+              {/* Text block */}
+              <div id="s1-text" ref={s1TextRef} style={{ textAlign: 'center', padding: '0 28px' }}>
+                <h1 style={{ margin: 0, fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                  Benvenuto<br/>da {businessName}
+                </h1>
+                <p style={{ margin: '10px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+                  Il tuo barbiere di fiducia,<br/>ora sempre con te.
+                </p>
+              </div>
             </div>
 
             {/* Slider CTA */}
@@ -591,12 +596,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
             >
               <div ref={fillRef} style={{ position: 'absolute', inset: 0, width: 62, borderRadius: 31, background: 'rgba(255,255,255,0.15)', transition: 'none' }}/>
               <div ref={thumbRef} style={{ position: 'absolute', left: 4, top: 4, width: 54, height: 54, borderRadius: 27, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab' }}>
-                {/* Scissors SVG — barber themed */}
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
-                  <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-                  <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-                  <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
                 </svg>
               </div>
               <div ref={labelRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.04em', pointerEvents: 'none' }}>
@@ -636,59 +638,70 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         {/* ═══════════════════════════════════════════════════════════════ */}
         {!isFullScreen && (
           <>
-            {/* Visual area — full screen transparent, gradient shows through */}
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {/* Visual area — full screen transparent, padded to stay above bottom card */}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 260 }}>
 
-              {/* ── Step 1 — Booking flow (phone mockup) ───────────────── */}
+              {/* ── Step 1 — Booking 4-phase animation ─────────────────── */}
               {step === 1 && (
-                <div id="s2-booking-wrap" style={{ width: 256, background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 22px 64px rgba(0,0,0,0.22), 0 4px 16px rgba(0,0,0,0.1)' }}>
-                  <div style={{ background: accent, padding: '12px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>9:41</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>{businessName}</span>
-                    <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end' }}>
-                      {[5, 8, 11].map((h, i) => <div key={i} style={{ width: 3, height: h, borderRadius: 1.5, background: `rgba(255,255,255,${0.4 + i * 0.3})` }}/>)}
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, padding: '0 32px' }}>
+
+                  {/* PHASE A: location cards */}
+                  <div style={{ position: 'absolute', display: 'flex', gap: 12, justifyContent: 'center' }}>
+                    {[{ name: businessName, city: 'Principale' }, { name: 'Sede 2', city: 'Secondaria' }].map((loc, i) => (
+                      <div key={i} id={`s2-loc-${i}`} style={{
+                        background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.15)',
+                        borderRadius: 14, padding: '14px 16px', display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 6, minWidth: 120,
+                        boxShadow: i === 0 ? '0 0 0 1.5px rgba(255,255,255,0.1)' : 'none',
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', textAlign: 'center', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{loc.city}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* PHASE B: barber cards */}
+                  <div style={{ position: 'absolute', display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'flex-end' }}>
+                    {[{ init: 'M', name: 'Marco' }, { init: 'L', name: 'Luca' }, { init: 'A', name: 'Alex' }].map((b, i) => (
+                      <div key={i} id={`s2-barber-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 22, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{b.init}</span>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{b.name}</span>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>Barbiere</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* PHASE C: calendar + time pill */}
+                  <div id="s2-cal-wrap" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+                      {Array.from({ length: 28 }, (_, ci) => (
+                        <div key={ci} id={ci === 10 ? 's2-cal-sel' : undefined} style={{
+                          width: 24, height: 24, borderRadius: 6,
+                          background: ci === 10 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span style={{ fontSize: 9, color: ci === 10 ? '#fff' : 'rgba(255,255,255,0.4)', fontWeight: ci === 10 ? 700 : 400 }}>{ci + 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div id="s2-time-pill" style={{ background: accent, borderRadius: 20, padding: '6px 18px', fontSize: 14, fontWeight: 700, color: '#fff', opacity: 0 }}>
+                      10:00
                     </div>
                   </div>
-                  <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 10, background: '#f8f9fc' }}>
-                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Nuova prenotazione</p>
-                    <div id="s2-step-salone">
-                      <p style={stepLabelSt}>Dove</p>
-                      <div style={{ ...bookCardSt, padding: '10px 12px' }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 9, background: accent, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-                          </svg>
-                        </div>
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{businessName}</span>
-                        <div style={{ width: 20, height: 20, borderRadius: 10, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                            <path id="s2-salone-checkpath" d="M2.5 7 L5.5 10 L11.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="22" strokeDashoffset="22"/>
-                          </svg>
-                        </div>
-                      </div>
+
+                  {/* PHASE D: confirmed */}
+                  <div id="s2-confirmed" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: 32, background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path id="s2-check-path" d="M4 12 L9 17 L20 7" strokeDasharray="50" strokeDashoffset="50"/>
+                      </svg>
                     </div>
-                    <div id="s2-step-barber">
-                      <p style={stepLabelSt}>Con chi</p>
-                      <div style={{ ...bookCardSt, padding: '10px 12px', gap: 8 }}>
-                        {BARBERS.map((b, i) => (
-                          <div key={i} id={i === 1 ? 's2-barber-sel' : undefined} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <span id={i === 1 ? 's2-barber-sel-txt' : undefined} style={{ fontSize: 15, fontWeight: 700, color: '#999' }}>{b}</span>
-                          </div>
-                        ))}
-                        <span style={{ flex: 1, fontSize: 11, color: '#c0c0c0', paddingLeft: 2 }}>Scegli</span>
-                      </div>
-                    </div>
-                    <div id="s2-step-date">
-                      <p style={stepLabelSt}>Quando</p>
-                      <div style={{ ...bookCardSt, padding: '10px 10px', gap: 5 }}>
-                        {DATES.map((dt, i) => (
-                          <div key={i} id={i === 2 ? 's2-date-sel' : undefined} style={{ flex: 1, backgroundColor: '#e8edf8', borderRadius: 9, padding: '6px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                            <span id={i === 2 ? 's2-date-sel-dow' : undefined} style={{ fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', color: '#5a6fa0' }}>{dt.dow}</span>
-                            <span id={i === 2 ? 's2-date-sel-num' : undefined} style={{ fontSize: 14, fontWeight: 800, color: '#5a6fa0', lineHeight: 1 }}>{dt.day}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center', lineHeight: 1.4 }}>Prenotazione<br/>Confermata!</p>
                   </div>
                 </div>
               )}
@@ -701,19 +714,19 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, position: 'relative' }}>
                     <div id="s3-badge-0" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 70, height: 70, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px ${accent}55` }}>
-                        <svg className="badge-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <Star className="badge-icon" size={28} color="white" fill="white" />
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Visite</span>
                     </div>
                     <div id="s3-badge-1" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                       <div style={{ width: 90, height: 90, borderRadius: 24, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 12px 32px ${accent}66` }}>
-                        <svg className="badge-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 6-6 7-6 13a6 6 0 0 0 12 0c0-6-6-7-6-13z"/><path d="M12 12c0 3-2 4-2 6a2 2 0 0 0 4 0c0-2-2-3-2-6z"/></svg>
+                        <Flame className="badge-icon" size={34} color="white" />
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Streak</span>
                     </div>
                     <div id="s3-badge-2" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 70, height: 70, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px ${accent}55` }}>
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="10"/><path d="M4 7h16"/><path d="M4 7c0-2.5 2-4 4-4h8c2 0 4 1.5 4 4"/><path d="M9 7v3a3 3 0 0 0 6 0V7"/></svg>
+                        <Trophy size={28} color="white" />
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>Premi</span>
                     </div>
@@ -736,7 +749,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>visite consecutive</p>
                       <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>Continua, sei in serie</p>
                     </div>
-                    <div style={{ background: accent, borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#fff' }}>🔥 In serie</div>
+                    <div style={{ background: accent, borderRadius: 20, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 4 }}><Zap size={11} color="white" fill="white" /> In serie</div>
                   </div>
                 </div>
               )}
