@@ -85,6 +85,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   const [step,         setStep]         = React.useState(0)
   const [loading,      setLoading]      = React.useState(false)
   const [userLoggedIn, setUserLoggedIn] = React.useState(false)
+  const [tenantData,   setTenantData]   = React.useState<{
+    locations: Array<{ name: string; address: string | null; photo_url: string | null }>
+    staff:     Array<{ full_name: string; photo_url: string | null; specialization: string | null }>
+  } | null>(null)
 
   const contentRef   = React.useRef<HTMLDivElement>(null)
   const canvasRef    = React.useRef<HTMLCanvasElement>(null)
@@ -150,6 +154,27 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     }
     check().catch(console.error)
   }, [tenantId])
+
+  // ── Fetch tenant data for booking animation ──────────────────────────────
+  React.useEffect(() => {
+    if (!show) return
+    const pwa = createPwaClient()
+    const timer = setTimeout(() => setTenantData(d => d ?? { locations: [], staff: [] }), 3000)
+    Promise.all([
+      pwa.from('locations').select('name, address, photo_url').eq('tenant_id', tenantId).eq('is_active', true).limit(3),
+      pwa.from('staff_members').select('photo_url, specialization, profiles!profile_id(full_name)').eq('tenant_id', tenantId).eq('is_active', true).limit(4),
+    ]).then(([locRes, staffRes]) => {
+      clearTimeout(timer)
+      type StaffRow = { photo_url: string | null; specialization: string | null; profiles: { full_name: string } | null }
+      const staff = ((staffRes.data ?? []) as StaffRow[]).map(s => ({
+        full_name:     s.profiles?.full_name ?? 'Barbiere',
+        photo_url:     s.photo_url,
+        specialization: s.specialization,
+      }))
+      setTenantData({ locations: locRes.data ?? [], staff })
+    }).catch(() => { clearTimeout(timer); setTenantData({ locations: [], staff: [] }) })
+    return () => clearTimeout(timer)
+  }, [show, tenantId])
 
   // ── Canvas particles (step 0 and 4) ─────────────────────────────────────
   React.useEffect(() => {
@@ -283,56 +308,105 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
       gsap.set('#s1-text', { opacity: 0, y: 16 })
       track(gsap.to('#s1-text', { opacity: 1, y: 0, duration: 0.6, delay: d + 0.6, ease: 'power3.out' }))
 
-    // ── Step 1 — Booking (4-phase loop) ──────────────────────────────────
+    // ── Step 1 — Booking (cinematic 4-phase loop) ────────────────────────
     } else if (step === 1) {
-      const phaseIn  = (id: string) => gsap.fromTo(id, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' })
-      const phaseOut = (id: string | string[]) => gsap.to(id, { y: -30, opacity: 0, duration: 0.3, ease: 'power2.in' })
+      const locCount   = displayLocations.length
+      const staffCount = Math.min(displayStaff.length, 4)
 
-      function runLoop() {
-        const tl = gsap.timeline({ onComplete: runLoop })
+      gsap.set(['#bk-ph-loc', '#bk-ph-staff', '#bk-ph-cal', '#bk-ph-confirm'], { opacity: 0 })
 
-        // ── PHASE A: location selection ────────────────────────────────
-        gsap.set(['#s2-loc-0', '#s2-loc-1'], { y: 40, opacity: 0 })
-        tl.add(phaseIn('#s2-loc-0'), 0)
-        tl.add(phaseIn('#s2-loc-1'), 0.1)
-        // pulse border on loc-0 to simulate selection
-        tl.to('#s2-loc-0', { boxShadow: '0 0 0 1.5px rgba(255,255,255,0.7)', duration: 0.3 }, 0.6)
-        tl.to('#s2-loc-0', { boxShadow: '0 0 0 1.5px rgba(255,255,255,0.3)', duration: 0.4 }, 0.9)
-        tl.set({}, {}, '+=0.8')
-        tl.add(phaseOut(['#s2-loc-0', '#s2-loc-1']))
+      function runBookingLoop() {
+        const tl = gsap.timeline({ onComplete: runBookingLoop })
 
-        // ── PHASE B: barber selection ──────────────────────────────────
-        tl.set(['#s2-barber-0', '#s2-barber-1', '#s2-barber-2'], { y: 40, opacity: 0, scale: 1 })
-        tl.add(phaseIn('#s2-barber-0'), '+=0.15')
-        tl.add(phaseIn('#s2-barber-1'), '<+0.1')
-        tl.add(phaseIn('#s2-barber-2'), '<+0.1')
-        tl.to('#s2-barber-1', { scale: 1.06, boxShadow: `0 0 0 1.5px ${accent}`, duration: 0.28, ease: 'back.out(2)' }, '+=0.5')
-        tl.set({}, {}, '+=0.8')
-        tl.add(phaseOut(['#s2-barber-0', '#s2-barber-1', '#s2-barber-2']))
+        // ── PHASE 1: Location ──────────────────────────────────────────
+        tl.call(() => {
+          gsap.set('#bk-ph-loc',     { opacity: 1 })
+          gsap.set('#bk-ph-staff',   { opacity: 0 })
+          gsap.set('#bk-ph-cal',     { opacity: 0 })
+          gsap.set('#bk-ph-confirm', { opacity: 0 })
+        })
+        gsap.set('#bk-loc-glow', { scale: 0.2, opacity: 0 })
+        tl.to('#bk-loc-glow', { scale: 1.5, opacity: 1, duration: 1.1, ease: 'power2.out' }, 0.05)
 
-        // ── PHASE C: date + time ───────────────────────────────────────
-        gsap.set('#s2-cal-wrap', { y: 40, opacity: 0 })
-        tl.to('#s2-cal-wrap', { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' }, '+=0.15')
-        // highlight a calendar cell
-        tl.to('#s2-cal-sel', { backgroundColor: accent, scale: 1.15, duration: 0.28, ease: 'back.out(2)' }, '+=0.5')
-        tl.to('#s2-cal-sel', { scale: 1, duration: 0.2, ease: 'power2.out' })
-        // time pill pop-in
-        gsap.set('#s2-time-pill', { scale: 0, opacity: 0 })
-        tl.to('#s2-time-pill', { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2.5)' }, '+=0.2')
-        tl.set({}, {}, '+=0.7')
-        tl.add(phaseOut('#s2-cal-wrap'))
+        const locIds = Array.from({ length: locCount }, (_, i) => `#bk-loc-card-${i}`)
+        gsap.set(locIds, { y: 55, opacity: 0, scale: 0.9 })
+        tl.to(locIds, { y: 0, opacity: 1, scale: 1, duration: 0.58, stagger: 0.13, ease: 'power3.out' }, 0.15)
 
-        // ── PHASE D: confirmed ─────────────────────────────────────────
-        gsap.set('#s2-confirmed', { y: 40, opacity: 0 })
-        tl.to('#s2-confirmed', { y: 0, opacity: 1, duration: 0.45, ease: 'power3.out' }, '+=0.15')
-        tl.fromTo('#s2-check-path', { attr: { strokeDashoffset: 50 } }, { attr: { strokeDashoffset: 0 }, duration: 0.4, ease: 'power2.out' }, '+=0.1')
-        tl.set({}, {}, '+=1.2')
-        tl.add(phaseOut('#s2-confirmed'))
+        gsap.set('#bk-loc-ring',  { opacity: 0, scale: 0.88 })
+        gsap.set('#bk-loc-check', { scale: 0, opacity: 0 })
+        tl.to('#bk-loc-ring',  { opacity: 0.85, scale: 1,  duration: 0.32, ease: 'power2.out' }, 0.8)
+        tl.to('#bk-loc-ring',  { opacity: 0.38, duration: 0.45, ease: 'power2.in' }, 0.95)
+        tl.to('#bk-loc-check', { scale: 1, opacity: 1, duration: 0.38, ease: 'back.out(2.8)' }, 0.82)
+        tl.to('#bk-loc-glow',  { opacity: 0.25, duration: 0.6, ease: 'power2.in' }, 1.3)
+
+        tl.set({}, {}, '+=1.0')
+        tl.to('#bk-ph-loc', { opacity: 0, duration: 0.38, ease: 'power2.in' })
+
+        // ── PHASE 2: Staff ─────────────────────────────────────────────
+        tl.call(() => gsap.set('#bk-ph-staff', { opacity: 1 }))
+        const staffIds = Array.from({ length: staffCount }, (_, i) => `#bk-staff-${i}`)
+        gsap.set(staffIds, { filter: 'blur(12px)', scale: 0.82, opacity: 0, y: 20 })
+        gsap.set('#bk-staff-halo', { scale: 1.7, opacity: 0 })
+
+        tl.to(staffIds, { filter: 'blur(0px)', scale: 1, opacity: 1, y: 0, duration: 0.62, stagger: 0.11, ease: 'power3.out' }, '+=0.06')
+        tl.to('#bk-staff-halo', { scale: 1, opacity: 1, duration: 0.55, ease: 'power3.out' }, '+=0.32')
+        tl.to('#bk-staff-halo', { scale: 1.09, duration: 0.55, yoyo: true, repeat: 1, ease: 'sine.inOut' }, '+=0.18')
+
+        tl.set({}, {}, '+=0.85')
+        tl.to('#bk-ph-staff', { opacity: 0, duration: 0.38, ease: 'power2.in' })
+
+        // ── PHASE 3: Calendar ──────────────────────────────────────────
+        tl.call(() => gsap.set('#bk-ph-cal', { opacity: 1 }))
+        gsap.set('#bk-cal-strip',  { x: 110, opacity: 0 })
+        gsap.set('#bk-cal-inner',  { x: 0 })
+        gsap.set('#bk-time-row',   { y: 16, opacity: 0 })
+        gsap.set('#bk-time-pill',  { scale: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff' })
+        gsap.set('#bk-cal-day-sel', { backgroundColor: 'rgba(255,255,255,0.15)' })
+
+        tl.to('#bk-cal-strip',   { x: 0, opacity: 1, duration: 0.52, ease: 'power3.out' }, '+=0.06')
+        // strip scrolls past then settles on selected day
+        tl.to('#bk-cal-inner',  { x: -220, duration: 0.82, ease: 'power2.out' }, '+=0.12')
+        tl.to('#bk-cal-inner',  { x: -180, duration: 0.48, ease: 'power1.inOut' })
+        // select day
+        tl.to('#bk-cal-day-sel', { backgroundColor: accent, scale: 1.1, duration: 0.26, ease: 'back.out(2)' }, '+=0.12')
+        tl.to('#bk-cal-day-sel', { scale: 1, duration: 0.16, ease: 'power2.out' })
+        // time row emerges
+        tl.to('#bk-time-row',  { y: 0, opacity: 1, duration: 0.42, ease: 'power3.out' }, '+=0.2')
+        // time pill tap
+        tl.to('#bk-time-pill', { scale: 0.88, duration: 0.09 }, '+=0.38')
+        tl.to('#bk-time-pill', { scale: 1.08, backgroundColor: accent, duration: 0.22, ease: 'back.out(2)' })
+        tl.to('#bk-time-pill', { scale: 1, duration: 0.14, ease: 'power2.out' })
+
+        tl.set({}, {}, '+=1.0')
+        tl.to('#bk-ph-cal', { opacity: 0, duration: 0.38, ease: 'power2.in' })
+
+        // ── PHASE 4: Confirmed ─────────────────────────────────────────
+        tl.call(() => gsap.set('#bk-ph-confirm', { opacity: 1 }))
+        gsap.set('#bk-confirm-ring',  { scale: 0 })
+        gsap.set('#bk-confirm-ring2', { scale: 0.45, opacity: 0.7 })
+        gsap.set(['#bk-confirm-title', '#bk-confirm-sub'], { y: 16, opacity: 0 })
+
+        tl.to('#bk-confirm-ring',  { scale: 1, duration: 0.65, ease: 'back.out(1.6)' }, '+=0.05')
+        tl.to('#bk-confirm-ring2', { scale: 2.5, opacity: 0, duration: 1.05, ease: 'power2.out' }, '<+0.15')
+        tl.fromTo('#bk-confirm-path',
+          { attr: { strokeDashoffset: 60 } },
+          { attr: { strokeDashoffset: 0 }, duration: 0.52, ease: 'power2.out' },
+          '<+0.1')
+        tl.to('#bk-confirm-title', { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.22')
+        tl.to('#bk-confirm-sub',   { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.1')
+        tl.to('#bk-confirm-ring',  {
+          boxShadow: `0 0 0 14px ${accent}1a, 0 20px 56px ${accent}44`,
+          duration: 0.9, yoyo: true, repeat: 1, ease: 'sine.inOut',
+        }, '+=0.25')
+
+        tl.set({}, {}, '+=1.0')
+        tl.to('#bk-ph-confirm', { opacity: 0, scale: 1.06, duration: 0.5, ease: 'power2.in' })
+        tl.set('#bk-ph-confirm', { scale: 1 })
         tl.set({}, {}, '+=0.2')
 
         track(tl)
       }
-      runLoop()
+      runBookingLoop()
 
     // ── Step 2 — Loyalty ─────────────────────────────────────────────────
     } else if (step === 2) {
@@ -432,7 +506,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     }
 
     return killTweens
-  }, [step, show, accent, killTweens]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, show, accent, killTweens, tenantData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ───────────────────────────────────────────────────────────
   const goTo = React.useCallback((n: number) => {
@@ -531,6 +605,17 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     boxShadow: '0 2px 14px rgba(0,0,0,0.06)',
     display: 'flex', alignItems: 'center', gap: 11,
   }
+
+  const displayLocations = tenantData?.locations?.length
+    ? tenantData.locations
+    : [{ name: businessName, address: null, photo_url: null }]
+
+  const displayStaff = tenantData?.staff?.length
+    ? tenantData.staff
+    : [
+        { full_name: 'Il tuo barbiere', photo_url: null, specialization: 'Barbiere' },
+        { full_name: 'Staff',           photo_url: null, specialization: 'Barbiere' },
+      ]
 
   const isFullScreen = step === 0 || step === 4
   const gradientBg   = `linear-gradient(160deg, #0a0a14 0%, ${accent} 50%, ${darken(accent, 0.6)} 100%)`
@@ -641,68 +726,140 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
             {/* Visual area — full screen transparent, padded to stay above bottom card */}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 260 }}>
 
-              {/* ── Step 1 — Booking 4-phase animation ─────────────────── */}
+              {/* ── Step 1 — Booking cinematic animation ───────────────── */}
               {step === 1 && (
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, padding: '0 32px' }}>
+                <div style={{ position: 'absolute', inset: 0 }}>
 
-                  {/* PHASE A: location cards */}
-                  <div style={{ position: 'absolute', display: 'flex', gap: 12, justifyContent: 'center' }}>
-                    {[{ name: businessName, city: 'Principale' }, { name: 'Sede 2', city: 'Secondaria' }].map((loc, i) => (
-                      <div key={i} id={`s2-loc-${i}`} style={{
-                        background: 'rgba(255,255,255,0.1)', border: '0.5px solid rgba(255,255,255,0.15)',
-                        borderRadius: 14, padding: '14px 16px', display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', gap: 6, minWidth: 120,
-                        boxShadow: i === 0 ? '0 0 0 1.5px rgba(255,255,255,0.1)' : 'none',
-                      }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                        </svg>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', textAlign: 'center', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</span>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{loc.city}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* PHASE B: barber cards */}
-                  <div style={{ position: 'absolute', display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'flex-end' }}>
-                    {[{ init: 'M', name: 'Marco' }, { init: 'L', name: 'Luca' }, { init: 'A', name: 'Alex' }].map((b, i) => (
-                      <div key={i} id={`s2-barber-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 44, height: 44, borderRadius: 22, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{b.init}</span>
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{b.name}</span>
-                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>Barbiere</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* PHASE C: calendar + time pill */}
-                  <div id="s2-cal-wrap" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-                      {Array.from({ length: 28 }, (_, ci) => (
-                        <div key={ci} id={ci === 10 ? 's2-cal-sel' : undefined} style={{
-                          width: 24, height: 24, borderRadius: 6,
-                          background: ci === 10 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  {/* ── PHASE 1: Location ─────────────────────────────── */}
+                  <div id="bk-ph-loc" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
+                    <div id="bk-loc-glow" style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${accent}44 0%, transparent 68%)`, pointerEvents: 'none' }}/>
+                    <div style={{ display: 'flex', gap: 12, padding: '0 28px', justifyContent: 'center', width: '100%' }}>
+                      {displayLocations.map((loc, i) => (
+                        <div key={i} id={`bk-loc-card-${i}`} style={{
+                          position: 'relative', borderRadius: 20, overflow: 'hidden',
+                          background: 'rgba(255,255,255,0.09)', border: '0.5px solid rgba(255,255,255,0.16)',
+                          flex: displayLocations.length === 1 ? '0 0 220px' : '0 0 148px',
+                          boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
                         }}>
-                          <span style={{ fontSize: 9, color: ci === 10 ? '#fff' : 'rgba(255,255,255,0.4)', fontWeight: ci === 10 ? 700 : 400 }}>{ci + 1}</span>
+                          {loc.photo_url
+                            ? <img src={loc.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: 88, objectFit: 'cover', display: 'block' }}/>
+                            : <div style={{ width: '100%', height: 88, background: `linear-gradient(135deg, ${accent}88, ${darken(accent, 0.65)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                                </svg>
+                              </div>
+                          }
+                          <div style={{ padding: '10px 13px 12px' }}>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</p>
+                            {loc.address && <p style={{ margin: '2px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.address}</p>}
+                          </div>
+                          {i === 0 && <>
+                            <div id="bk-loc-ring" style={{ position: 'absolute', inset: 0, borderRadius: 20, border: `1.5px solid ${accent}`, opacity: 0, pointerEvents: 'none' }}/>
+                            <div id="bk-loc-check" style={{ position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 2px 8px ${accent}88`, opacity: 0 }}>
+                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M2.5 7 L5.5 10 L11.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                          </>}
                         </div>
                       ))}
                     </div>
-                    <div id="s2-time-pill" style={{ background: accent, borderRadius: 20, padding: '6px 18px', fontSize: 14, fontWeight: 700, color: '#fff', opacity: 0 }}>
-                      10:00
+                  </div>
+
+                  {/* ── PHASE 2: Staff ─────────────────────────────────── */}
+                  <div id="bk-ph-staff" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
+                    <div style={{ display: 'flex', gap: 18, alignItems: 'center', padding: '0 28px' }}>
+                      {displayStaff.slice(0, 4).map((s, i) => {
+                        const initials = s.full_name.split(' ').map((n: string) => n[0] ?? '').slice(0, 2).join('').toUpperCase()
+                        const size = i === 0 ? 72 : 54
+                        return (
+                          <div key={i} id={`bk-staff-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0 }}>
+                            <div style={{ position: 'relative' }}>
+                              {i === 0 && (
+                                <div id="bk-staff-halo" style={{
+                                  position: 'absolute', inset: -6, borderRadius: '50%',
+                                  border: `2px solid ${accent}`, opacity: 0,
+                                  boxShadow: `0 0 24px ${accent}55`,
+                                }}/>
+                              )}
+                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '1.5px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
+                                {s.photo_url
+                                  ? <img src={s.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+                                  : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.72)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <span style={{ fontSize: i === 0 ? 22 : 16, fontWeight: 800, color: '#fff' }}>{initials}</span>
+                                    </div>
+                                }
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                              <p style={{ margin: 0, fontSize: i === 0 ? 13 : 11, fontWeight: 700, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.55)', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {s.full_name.split(' ')[0]}
+                              </p>
+                              {s.specialization && <p style={{ margin: '1px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{s.specialization}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
-                  {/* PHASE D: confirmed */}
-                  <div id="s2-confirmed" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 64, height: 64, borderRadius: 32, background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path id="s2-check-path" d="M4 12 L9 17 L20 7" strokeDasharray="50" strokeDashoffset="50"/>
-                      </svg>
+                  {/* ── PHASE 3: Calendar ──────────────────────────────── */}
+                  <div id="bk-ph-cal" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, opacity: 0 }}>
+                    <div id="bk-cal-strip" style={{ width: '100%', overflow: 'hidden', padding: '0 24px' }}>
+                      <div id="bk-cal-inner" style={{ display: 'flex', gap: 8 }}>
+                        {Array.from({ length: 14 }, (_, di) => {
+                          const d = new Date(); d.setDate(d.getDate() - 3 + di)
+                          const isSelected = di === 7
+                          const isPast = di < 3
+                          const dow = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)
+                          return (
+                            <div key={di} id={isSelected ? 'bk-cal-day-sel' : undefined} style={{
+                              flexShrink: 0, width: 44, borderRadius: 14, padding: '10px 0',
+                              backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                              opacity: isPast ? 0.3 : 1,
+                            }}>
+                              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: isSelected ? '#fff' : 'rgba(255,255,255,0.45)' }}>{dow}</span>
+                              <span style={{ fontSize: 17, fontWeight: 800, lineHeight: 1, color: isSelected ? '#fff' : 'rgba(255,255,255,0.65)' }}>{d.getDate()}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff', textAlign: 'center', lineHeight: 1.4 }}>Prenotazione<br/>Confermata!</p>
+                    <div id="bk-time-row" style={{ display: 'flex', gap: 8, opacity: 0 }}>
+                      {['09:00', '10:00', '11:00', '15:00'].map((t, i) => (
+                        <div key={i} id={i === 1 ? 'bk-time-pill' : undefined} style={{
+                          borderRadius: 12, padding: '8px 16px',
+                          backgroundColor: i === 1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+                          border: `0.5px solid ${i === 1 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                          fontSize: 14, fontWeight: 700,
+                          color: i === 1 ? '#fff' : 'rgba(255,255,255,0.38)',
+                        }}>{t}</div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* ── PHASE 4: Confirmed ─────────────────────────────── */}
+                  <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, opacity: 0 }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 84, height: 84, borderRadius: '50%', border: `2px solid ${accent}`, opacity: 0 }}/>
+                      <div id="bk-confirm-ring" style={{
+                        width: 84, height: 84, borderRadius: '50%',
+                        background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.68)})`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: `0 20px 56px ${accent}44`,
+                      }}>
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path id="bk-confirm-path" d="M4 13 L9 18 L20 7" strokeDasharray="60" strokeDashoffset="60"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p id="bk-confirm-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', opacity: 0 }}>Sei nel calendario.</p>
+                      <p id="bk-confirm-sub" style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.52)', opacity: 0 }}>{businessName} ti aspetta.</p>
+                    </div>
+                  </div>
+
                 </div>
               )}
 
