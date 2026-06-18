@@ -10,6 +10,8 @@ interface PwaSplashProps {
 
 export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProps) {
   const [phase, setPhase] = React.useState<'visible' | 'exit' | 'gone'>('visible')
+  const [logoLoaded, setLogoLoaded] = React.useState(false)
+  const [useTextFallback, setUseTextFallback] = React.useState(!logoUrl)
 
   React.useEffect(() => {
     const isStandalone =
@@ -21,14 +23,21 @@ export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProp
       return
     }
 
-    const exitTimer = setTimeout(() => setPhase('exit'), 900)
-    const goneTimer = setTimeout(() => setPhase('gone'), 1500)
+    // If logo hasn't loaded within 400ms, fall back to initial letter so
+    // the splash never shows a blank box for extended periods.
+    const logoFallbackTimer = logoUrl
+      ? setTimeout(() => { if (!logoLoaded) setUseTextFallback(true) }, 400)
+      : undefined
+
+    const exitTimer = setTimeout(() => setPhase('exit'), 600)
+    const goneTimer = setTimeout(() => setPhase('gone'), 1000)
 
     return () => {
+      clearTimeout(logoFallbackTimer)
       clearTimeout(exitTimer)
       clearTimeout(goneTimer)
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (phase === 'gone') return null
 
@@ -65,11 +74,14 @@ export function PwaSplash({ businessName, primaryColor, logoUrl }: PwaSplashProp
           animation: 'splashEntry 500ms cubic-bezier(0.34,1.56,0.64,1) forwards',
         }}
       >
-        {logoUrl ? (
+        {logoUrl && !useTextFallback ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
             alt={businessName}
+            fetchPriority="high"
+            onLoad={() => setLogoLoaded(true)}
+            onError={() => setUseTextFallback(true)}
             style={{
               width: 120,
               height: 120,
