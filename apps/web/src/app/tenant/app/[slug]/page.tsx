@@ -111,9 +111,12 @@ export default async function AppHomePage({ params, searchParams }: Props) {
             }}
           >
             {displayLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={displayLogoUrl}
                 alt={displayBusinessName}
+                fetchPriority="high"
+                loading="eager"
                 style={{
                   width: 64,
                   height: 64,

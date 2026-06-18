@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -36,13 +37,14 @@ async function fetchTenantBySlug(slug: string): Promise<TenantBranding | null> {
   }
 }
 
-export function getTenantBySlug(slug: string): Promise<TenantBranding | null> {
-  return unstable_cache(
-    () => fetchTenantBySlug(slug),
-    [`tenant-slug-${slug}`],
-    {
-      revalidate: 60,
-      tags: [`tenant-${slug}`],
-    }
-  )()
-}
+// unstable_cache: deduplicates across requests (CDN/server cache, 60s TTL).
+// React cache(): deduplicates within the same render tree — the 3 callers in
+// the PWA layout (generateMetadata, generateViewport, AppLayout) share one hit.
+export const getTenantBySlug = cache(
+  (slug: string): Promise<TenantBranding | null> =>
+    unstable_cache(
+      () => fetchTenantBySlug(slug),
+      [`tenant-slug-${slug}`],
+      { revalidate: 60, tags: [`tenant-${slug}`] },
+    )(),
+)
