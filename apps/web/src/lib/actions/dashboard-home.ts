@@ -226,11 +226,6 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     }
   }
 
-  // This week stats (completed only)
-  const thisWeekCompleted = (weekRes.data ?? []).filter((a: any) => {
-    // Use all for heatmap, but filter completed for revenue
-    return true
-  })
   const weekRevenue = (weekRes.data ?? []).reduce((sum: number, appt: any) => {
     const svcs: any[] = appt.appointment_services ?? []
     return sum + svcs.reduce((s: number, sv: any) => s + (sv.price_at_booking ?? 0), 0)

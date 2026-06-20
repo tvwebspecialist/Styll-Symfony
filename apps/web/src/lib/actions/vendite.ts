@@ -29,9 +29,6 @@ function daysAgo(n: number): Date {
   return startOfDay(x)
 }
 
-export async function getCurrentTenantId(): Promise<string | null> {
-  return getActiveTenantId()
-}
 
 export interface RiepilogoData {
   revenueOggi: number

@@ -46,7 +46,7 @@ function clearPrompt(): void {
   }
 }
 
-// iOS Share icon — matches the actual Safari share button shape
+// iOS Share icon — matches Safari share button shape
 function IosShareIcon() {
   return (
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -57,13 +57,26 @@ function IosShareIcon() {
   )
 }
 
-// iOS "Add to Home Screen" icon — rounded app-icon shape with plus
+// iOS Add to Home Screen icon — rounded square with plus
 function IosAddToHomeIcon() {
   return (
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <rect x="4" y="4" width="16" height="16" rx="4"/>
       <line x1="12" y1="9" x2="12" y2="15"/>
       <line x1="9" y1="12" x2="15" y2="12"/>
+    </svg>
+  )
+}
+
+// iOS Confirm "Aggiungi" — top-right tap indicator
+function IosConfirmIcon() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      {/* Phone outline */}
+      <rect x="5" y="2" width="14" height="20" rx="3"/>
+      {/* Tap at top-right */}
+      <circle cx="16" cy="7" r="2.5" fill="white" stroke="none"/>
+      <path d="M14.5 5.5L16 7" strokeWidth="1.5"/>
     </svg>
   )
 }
@@ -79,6 +92,11 @@ function AndroidMenuIcon() {
   )
 }
 
+const DOT_ACTIVE_W   = 20
+const DOT_INACTIVE_W = 6
+const DOT_ACTIVE_O   = 1
+const DOT_INACTIVE_O = 0.35
+
 export function PwaInstallPopup({ primaryColor, businessName }: Props) {
   const [showA, setShowA] = React.useState(false)
   const [showB, setShowB] = React.useState(false)
@@ -91,11 +109,16 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
   const particlesRef = React.useRef<Particle[]>([])
   const tweensRef    = React.useRef<Array<{ kill: () => void }>>([])
 
-  // Phase refs for iOS animation
-  const phase1Ref     = React.useRef<HTMLDivElement>(null)
-  const phase2Ref     = React.useRef<HTMLDivElement>(null)
-  const phase3Ref     = React.useRef<HTMLDivElement>(null)
-  const shareIconRef  = React.useRef<HTMLDivElement>(null)
+  // Phase containers
+  const phase1Ref    = React.useRef<HTMLDivElement>(null)
+  const phase2Ref    = React.useRef<HTMLDivElement>(null)
+  const phase3Ref    = React.useRef<HTMLDivElement>(null)
+  // Share icon wrapper for pulse animation
+  const shareIconRef = React.useRef<HTMLDivElement>(null)
+  // Step dot indicators
+  const dot1Ref      = React.useRef<HTMLDivElement>(null)
+  const dot2Ref      = React.useRef<HTMLDivElement>(null)
+  const dot3Ref      = React.useRef<HTMLDivElement>(null)
 
   const accent = primaryColor || '#1A1A1A'
 
@@ -104,7 +127,7 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
     tweensRef.current = []
   }
 
-  // Mount: check non-standalone + detect platform
+  // Mount: detect non-standalone + platform
   React.useEffect(() => {
     if (typeof window === 'undefined') return
     if (window.matchMedia('(display-mode: standalone)').matches) return
@@ -175,49 +198,61 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [showB, accent])
 
-  // iOS animation loop (runs when Popup B opens and platform is iOS)
+  // iOS sequential animation loop
   React.useEffect(() => {
     if (!showB || platform !== 'ios') return
 
-    // Small delay — ensures refs are attached after render
-    const timer = setTimeout(() => {
-      const p1 = phase1Ref.current
-      const p2 = phase2Ref.current
-      const p3 = phase3Ref.current
-      const si = shareIconRef.current
-      if (!p1 || !p2 || !p3) return
+    const p1 = phase1Ref.current
+    const p2 = phase2Ref.current
+    const p3 = phase3Ref.current
+    const d1 = dot1Ref.current
+    const d2 = dot2Ref.current
+    const d3 = dot3Ref.current
+    const si = shareIconRef.current
+    if (!p1 || !p2 || !p3 || !d1 || !d2 || !d3) return
 
-      gsap.set([p1, p2, p3], { opacity: 0, y: 12 })
+    // Initial state — GSAP is sole authority (phases hidden, dot 1 active)
+    gsap.set([p1, p2, p3], { opacity: 0, scale: 0.85, y: 0 })
+    gsap.set(d1, { width: DOT_ACTIVE_W,   opacity: DOT_ACTIVE_O })
+    gsap.set(d2, { width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O })
+    gsap.set(d3, { width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O })
 
-      const tl = gsap.timeline({ repeat: -1 })
+    const tl = gsap.timeline({ repeat: -1 })
 
-      // Phase 1: Share icon + step 1 text
-      tl.to(p1, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' })
-      if (si) {
-        tl.to(si, { scale: 1.18, duration: 0.35, ease: 'sine.inOut', yoyo: true, repeat: 3 }, '<+0.3')
-      }
-      tl.set({}, {}, '+=1.2')
-
-      // Phase 2: Add to Home
-      tl.to(p1, { opacity: 0, y: -12, duration: 0.35, ease: 'power2.in' })
-      tl.to(p2, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' })
-      tl.set({}, {}, '+=1.8')
-
-      // Phase 3: Done
-      tl.to(p2, { opacity: 0, y: -12, duration: 0.35, ease: 'power2.in' })
-      tl.to(p3, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' })
-      tl.set({}, {}, '+=2.0')
-
-      // Reset for loop
-      tl.to(p3, { opacity: 0, y: -12, duration: 0.35, ease: 'power2.in' })
-
-      tweensRef.current.push(tl)
-    }, 80)
-
-    return () => {
-      clearTimeout(timer)
-      killTweens()
+    // ── Phase 1: Share ─────────────────────────────────────────────────────
+    tl.to(p1, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(1.4)' })
+    if (si) {
+      // Icon pulse while visible
+      tl.to(si, { scale: 1.12, duration: 0.38, yoyo: true, repeat: 1, ease: 'sine.inOut' }, '+=0.2')
     }
+    tl.set({}, {}, '+=0.9')   // hold
+
+    // ── Transition 1 → 2 ───────────────────────────────────────────────────
+    tl.to(p1, { opacity: 0, scale: 0.9, duration: 0.3, ease: 'power2.in' })
+    tl.to(d1, { width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O, duration: 0.25 }, '<')
+    tl.to(d2, { width: DOT_ACTIVE_W,   opacity: DOT_ACTIVE_O,   duration: 0.25 }, '<')
+
+    // ── Phase 2: Add to Home ────────────────────────────────────────────────
+    tl.to(p2, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(1.4)' })
+    tl.set({}, {}, '+=1.8')   // hold
+
+    // ── Transition 2 → 3 ───────────────────────────────────────────────────
+    tl.to(p2, { opacity: 0, scale: 0.9, duration: 0.3, ease: 'power2.in' })
+    tl.to(d2, { width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O, duration: 0.25 }, '<')
+    tl.to(d3, { width: DOT_ACTIVE_W,   opacity: DOT_ACTIVE_O,   duration: 0.25 }, '<')
+
+    // ── Phase 3: Confirm ───────────────────────────────────────────────────
+    tl.to(p3, { opacity: 1, scale: 1, duration: 0.45, ease: 'back.out(1.4)' })
+    tl.set({}, {}, '+=2.0')   // hold
+
+    // ── Reset for loop ─────────────────────────────────────────────────────
+    tl.to(p3, { opacity: 0, scale: 0.9, duration: 0.3, ease: 'power2.in' })
+    tl.to(d3, { width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O, duration: 0.25 }, '<')
+    tl.to(d1, { width: DOT_ACTIVE_W,   opacity: DOT_ACTIVE_O,   duration: 0.25 }, '<')
+
+    tweensRef.current.push(tl)
+
+    return () => killTweens()
   }, [showB, platform]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Global cleanup on unmount
@@ -248,7 +283,6 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
         } catch {/* prompt failed — fall through to manual */}
       }
     }
-    // iOS always, Android fallback: show instructions
     setShowA(false)
     setShowB(true)
   }
@@ -256,6 +290,15 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
   if (!showA && !showB) return null
 
   const gradientBg = `linear-gradient(160deg, #0a0a14 0%, ${accent} 50%, ${darken(accent, 0.6)} 100%)`
+
+  // Shared phase icon box style
+  const iconBox: React.CSSProperties = {
+    width: 76, height: 76, borderRadius: 20,
+    background: 'rgba(255,255,255,0.15)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  }
 
   return (
     <>
@@ -265,9 +308,7 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
           ref={popupARef}
           style={{
             position: 'fixed',
-            bottom: 20,
-            left: 16,
-            right: 16,
+            bottom: 20, left: 16, right: 16,
             background: '#fff',
             borderRadius: 20,
             border: '0.5px solid rgba(0,0,0,0.08)',
@@ -277,7 +318,6 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
             fontFamily: 'var(--font-tenant, var(--font-sans, system-ui, -apple-system, sans-serif))',
           }}
         >
-          {/* Confirm checkmark icon */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
             <div style={{
               width: 48, height: 48, borderRadius: '50%',
@@ -348,43 +388,35 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
             padding: '32px 28px',
+            gap: 0,
           }}>
             {platform === 'ios' ? (
-              /* iOS: guided animated sequence */
               <>
-                <p style={{ margin: '0 0 40px', fontSize: 18, fontWeight: 700, color: '#fff', textAlign: 'center', lineHeight: 1.3 }}>
-                  Installa l'app di<br/>{businessName}
+                {/* Title */}
+                <p style={{ margin: '0 0 36px', fontSize: 18, fontWeight: 700, color: '#fff', textAlign: 'center', lineHeight: 1.3 }}>
+                  Installa l'app di {businessName}
                 </p>
 
-                {/* Animation phases stacked */}
+                {/* Animation phases — stacked absolutely inside a fixed-height container */}
                 <div style={{ position: 'relative', width: '100%', height: 200 }}>
 
-                  {/* Phase 1 — Share icon */}
+                  {/* Phase 1 — Share */}
                   <div
                     ref={phase1Ref}
                     style={{
                       position: 'absolute', inset: 0,
                       display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center', gap: 20,
-                      opacity: 0,
+                      opacity: 0,                   // GSAP owns this
                     }}
                   >
-                    <div
-                      ref={shareIconRef}
-                      style={{
-                        width: 76, height: 76, borderRadius: 20,
-                        background: 'rgba(255,255,255,0.15)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transformOrigin: 'center',
-                      }}
-                    >
+                    <div ref={shareIconRef} style={{ ...iconBox, transformOrigin: 'center' }}>
                       <IosShareIcon />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: '0 0 5px', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Passo 1</p>
-                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>Tocca l'icona Condividi</p>
-                      <p style={{ margin: '5px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>In basso al centro nel browser Safari</p>
+                      <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.11em', textTransform: 'uppercase' }}>Passo 1</p>
+                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.25 }}>Tocca il tasto Condividi</p>
+                      <p style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.52)', lineHeight: 1.5 }}>L'icona con la freccia in alto,<br/>nella barra di Safari</p>
                     </div>
                   </div>
 
@@ -398,22 +430,17 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
                       opacity: 0,
                     }}
                   >
-                    <div style={{
-                      width: 76, height: 76, borderRadius: 20,
-                      background: 'rgba(255,255,255,0.15)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
+                    <div style={iconBox}>
                       <IosAddToHomeIcon />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: '0 0 5px', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Passo 2</p>
-                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>Aggiungi a Home</p>
-                      <p style={{ margin: '5px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Scorri il menu e tocca "Aggiungi a Home"</p>
+                      <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.11em', textTransform: 'uppercase' }}>Passo 2</p>
+                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.25 }}>Aggiungi alla schermata Home</p>
+                      <p style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.52)', lineHeight: 1.5 }}>Scorri il menu e tocca questa voce</p>
                     </div>
                   </div>
 
-                  {/* Phase 3 — Done */}
+                  {/* Phase 3 — Confirm */}
                   <div
                     ref={phase3Ref}
                     style={{
@@ -423,34 +450,29 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
                       opacity: 0,
                     }}
                   >
-                    <div style={{
-                      width: 76, height: 76, borderRadius: 20,
-                      background: 'rgba(255,255,255,0.15)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 6L9 17l-5-5"/>
-                      </svg>
+                    <div style={iconBox}>
+                      <IosConfirmIcon />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ margin: '0 0 5px', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Fatto!</p>
-                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>Trovi l'app sulla Home</p>
-                      <p style={{ margin: '5px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Aprila dalla schermata Home del tuo iPhone</p>
+                      <p style={{ margin: '0 0 5px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.11em', textTransform: 'uppercase' }}>Passo 3</p>
+                      <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1.25 }}>Aggiungi in alto a destra</p>
+                      <p style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.52)', lineHeight: 1.5 }}>L'app apparirà sulla tua schermata Home</p>
                     </div>
                   </div>
 
                 </div>
+
+                {/* Step dot indicator */}
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 28 }}>
+                  <div ref={dot1Ref} style={{ height: 6, borderRadius: 3, background: '#fff', width: DOT_ACTIVE_W, opacity: DOT_ACTIVE_O }}/>
+                  <div ref={dot2Ref} style={{ height: 6, borderRadius: 3, background: '#fff', width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O }}/>
+                  <div ref={dot3Ref} style={{ height: 6, borderRadius: 3, background: '#fff', width: DOT_INACTIVE_W, opacity: DOT_INACTIVE_O }}/>
+                </div>
               </>
             ) : (
-              /* Android: manual fallback instructions */
+              /* Android: static manual instructions */
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, textAlign: 'center' }}>
-                <div style={{
-                  width: 76, height: 76, borderRadius: 20,
-                  background: 'rgba(255,255,255,0.15)',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
+                <div style={iconBox}>
                   <AndroidMenuIcon />
                 </div>
                 <div>
@@ -476,8 +498,12 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
                 background: 'rgba(255,255,255,0.1)',
                 color: '#fff', fontSize: 16, fontWeight: 600,
                 cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
               Ho capito
             </button>
           </div>
