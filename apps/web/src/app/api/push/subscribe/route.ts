@@ -104,6 +104,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'DB error' }, { status: 500 })
   }
 
+  // Marca push_accepted: true così getNotificationChannel() usa 'push' e non 'email'
+  const { data: profileRow } = await db
+    .from('profiles')
+    .select('notification_preferences')
+    .eq('id', user.id)
+    .maybeSingle()
+  const currentPrefs = (profileRow?.notification_preferences as Record<string, boolean>) ?? {}
+  if (currentPrefs.push_accepted !== true) {
+    await db
+      .from('profiles')
+      .update({ notification_preferences: { ...currentPrefs, push_accepted: true, push_prompted: true } })
+      .eq('id', user.id)
+  }
+
   return NextResponse.json({ success: true })
 }
 
