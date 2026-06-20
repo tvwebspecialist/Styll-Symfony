@@ -130,6 +130,10 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
   // Mount: detect non-standalone + platform
   React.useEffect(() => {
     if (typeof window === 'undefined') return
+    console.log('[PwaInstallPopup] mount check', {
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      primaryColor, businessName
+    })
     if (window.matchMedia('(display-mode: standalone)').matches) return
 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) &&
