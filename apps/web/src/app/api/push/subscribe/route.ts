@@ -126,6 +126,14 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const rl = checkRateLimit(`push-unsubscribe:${user.id}`, 10, 60 * 60 * 1000)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+    )
+  }
+
   const body = await req.json()
   const parsed = PushUnsubscribeSchema.safeParse(body)
   if (!parsed.success) {

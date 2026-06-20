@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getCurrentTenantId } from './vendite'
+import { getActiveTenantId } from '@/lib/tenant-context'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
 
@@ -84,7 +84,7 @@ export async function getClienti(): Promise<{
   clienti: ClienteRow[]
   tenantId: string | null
 }> {
-  const tenantId = await getCurrentTenantId()
+  const tenantId = await getActiveTenantId()
   if (!tenantId) return { clienti: [], tenantId: null }
 
   const db = createAdminClient()
@@ -339,7 +339,7 @@ function computeTier(pts: number) {
 export async function getClienteDettaglio(
   clienteId: string,
 ): Promise<ClienteDettaglioData | null> {
-  const tenantId = await getCurrentTenantId()
+  const tenantId = await getActiveTenantId()
   if (!tenantId) return null
 
   const db = createAdminClient()
@@ -375,45 +375,41 @@ export async function getClienteDettaglio(
   const appts = (rawAppts ?? []) as { id: string; start_time: string; end_time: string; status: string; staff_id: string }[]
   const apptIds = appts.map((a) => a.id)
 
-  // ── 3. Services for appointments ────────────────────────────────────────────
-  const { data: rawSvcs } = apptIds.length
-    ? await db.from('appointment_services').select('appointment_id, service_id, price_at_booking').eq('tenant_id', tenantId).in('appointment_id', apptIds)
-    : { data: [] as { appointment_id: string; service_id: string; price_at_booking: number }[] }
+  // ── 3–5. Round A: appointment_services, appointment_products, staff_members in parallel ──
+  const staffIds = [...new Set(appts.map((a) => a.staff_id).filter(Boolean))]
+  const [{ data: rawSvcs }, { data: rawProds }, { data: rawStaff }] = await Promise.all([
+    apptIds.length
+      ? db.from('appointment_services').select('appointment_id, service_id, price_at_booking').eq('tenant_id', tenantId).in('appointment_id', apptIds)
+      : Promise.resolve({ data: [] as { appointment_id: string; service_id: string; price_at_booking: number }[] }),
+    apptIds.length
+      ? db.from('appointment_products').select('appointment_id, product_id, quantity, price_at_sale').eq('tenant_id', tenantId).in('appointment_id', apptIds)
+      : Promise.resolve({ data: [] as { appointment_id: string; product_id: string; quantity: number; price_at_sale: number }[] }),
+    staffIds.length
+      ? db.from('staff_members').select('id, profile_id').in('id', staffIds)
+      : Promise.resolve({ data: [] as { id: string; profile_id: string }[] }),
+  ])
 
   const svcRows = (rawSvcs ?? []) as { appointment_id: string; service_id: string; price_at_booking: number }[]
   const svcIds = [...new Set(svcRows.map((s) => s.service_id))]
-
-  const { data: rawSvcNames } = svcIds.length
-    ? await db.from('services').select('id, name').in('id', svcIds)
-    : { data: [] as { id: string; name: string }[] }
-
-  const svcNameMap = new Map((rawSvcNames ?? []).map((s) => [s.id, s.name]))
-
-  // ── 4. Products for appointments ────────────────────────────────────────────
-  const { data: rawProds } = apptIds.length
-    ? await db.from('appointment_products').select('appointment_id, product_id, quantity, price_at_sale').eq('tenant_id', tenantId).in('appointment_id', apptIds)
-    : { data: [] as { appointment_id: string; product_id: string; quantity: number; price_at_sale: number }[] }
-
   const prodRows = (rawProds ?? []) as { appointment_id: string; product_id: string; quantity: number; price_at_sale: number }[]
   const prodIds = [...new Set(prodRows.map((p) => p.product_id))]
-
-  const { data: rawProdDetails } = prodIds.length
-    ? await db.from('products').select('id, name, brand').in('id', prodIds)
-    : { data: [] as { id: string; name: string; brand: string | null }[] }
-
-  const prodDetailMap = new Map((rawProdDetails ?? []).map((p) => [p.id, { name: p.name, brand: p.brand }]))
-
-  // ── 5. Staff names ──────────────────────────────────────────────────────────
-  const staffIds = [...new Set(appts.map((a) => a.staff_id).filter(Boolean))]
-  const { data: rawStaff } = staffIds.length
-    ? await db.from('staff_members').select('id, profile_id').in('id', staffIds)
-    : { data: [] as { id: string; profile_id: string }[] }
-
   const profileIds = [...new Set((rawStaff ?? []).map((s) => s.profile_id).filter(Boolean))]
-  const { data: rawProfiles } = profileIds.length
-    ? await db.from('profiles').select('id, full_name').in('id', profileIds)
-    : { data: [] as { id: string; full_name: string | null }[] }
 
+  // ── Round B: service names, product details, profiles in parallel ────────────
+  const [{ data: rawSvcNames }, { data: rawProdDetails }, { data: rawProfiles }] = await Promise.all([
+    svcIds.length
+      ? db.from('services').select('id, name').in('id', svcIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    prodIds.length
+      ? db.from('products').select('id, name, brand').in('id', prodIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; brand: string | null }[] }),
+    profileIds.length
+      ? db.from('profiles').select('id, full_name').in('id', profileIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+  ])
+
+  const svcNameMap = new Map((rawSvcNames ?? []).map((s) => [s.id, s.name]))
+  const prodDetailMap = new Map((rawProdDetails ?? []).map((p) => [p.id, { name: p.name, brand: p.brand }]))
   const profileNameMap = new Map((rawProfiles ?? []).map((p) => [p.id, p.full_name ?? '—']))
   const staffToProfile = new Map((rawStaff ?? []).map((s) => [s.id, s.profile_id]))
 
@@ -696,7 +692,7 @@ export async function addClienteNota(
   const trimmed = noteText.trim()
   if (!trimmed) return { error: 'La nota non può essere vuota' }
 
-  const tenantId = await getCurrentTenantId()
+  const tenantId = await getActiveTenantId()
   if (!tenantId) return { error: 'Tenant non trovato' }
 
   const supabase = await createClient()
@@ -754,7 +750,7 @@ export async function createCliente(input: {
   const trimmed = input.fullName?.trim()
   if (!trimmed) return { success: false, error: 'Nome obbligatorio' }
 
-  const tenantId = await getCurrentTenantId()
+  const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
 
   const db = createAdminClient()
@@ -832,7 +828,7 @@ export {
 export async function importClients(
   input: ImportClientsInput,
 ): Promise<ImportClientsResult> {
-  const tenantId = await getCurrentTenantId()
+  const tenantId = await getActiveTenantId()
   if (!tenantId) {
     return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
   }
