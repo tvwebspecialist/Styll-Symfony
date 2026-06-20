@@ -136,6 +136,8 @@ async function processReminderWindow(
         templateSlug: 'reminder',
         variables:    { client_name: clientName, date, time, staff_name: staffName },
         tenant:       { business_name: businessName, primary_color: primaryColor },
+        category:     'Promemoria appuntamento',
+        details:      { Data: date, Orario: time, Con: staffName },
       })
       if (result.success) { emailSent++; notifSent = true }
     }

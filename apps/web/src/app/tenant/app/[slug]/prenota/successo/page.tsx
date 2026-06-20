@@ -9,6 +9,7 @@ import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { PostBookingProducts } from './_components/PostBookingProducts'
 import type { SuggestedProduct } from './_components/PostBookingProducts'
+import { PwaInstallPopup } from '@/components/pwa/PwaInstallPopup'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -396,6 +397,11 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
         </div>
 
       </div>
+
+      <PwaInstallPopup
+        primaryColor={brandColor}
+        businessName={tenant.business_name}
+      />
     </main>
   )
 }

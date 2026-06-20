@@ -471,6 +471,8 @@ async function sendBookingConfirmedNotification(params: {
       templateSlug: 'booking_confirmed',
       variables:    { client_name: clientName, staff_name: staffName, date, time, services: params.serviceNames.join(', ') },
       tenant:       { business_name: businessName, primary_color: primaryColor },
+      category:     'Prenotazione confermata',
+      details:      { Data: date, Orario: time, Servizi: params.serviceNames.join(', '), Con: staffName },
     })
   }
 }
