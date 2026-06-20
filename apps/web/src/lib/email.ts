@@ -4,34 +4,92 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // Initialize Resend client (requires RESEND_API_KEY env var)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
-export function buildEmailHtml(
-  body: string,
-  tenant?: { business_name: string; primary_color: string }
-): string {
-  const accentColor = tenant?.primary_color ?? '#111111'
+function darkenHex(hex: string): string {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return '#1a1a2e'
+  const r = Math.round(parseInt(h.slice(0, 2), 16) * 0.6)
+  const g = Math.round(parseInt(h.slice(2, 4), 16) * 0.6)
+  const b = Math.round(parseInt(h.slice(4, 6), 16) * 0.6)
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+}
+
+export function buildEmailHtml({
+  body,
+  tenant,
+  category,
+  title,
+  details,
+  ctaText,
+  ctaUrl,
+}: {
+  body: string
+  tenant?: { business_name: string; primary_color: string; logo_url?: string }
+  category?: string
+  title?: string
+  details?: Record<string, string>
+  ctaText?: string
+  ctaUrl?: string
+}): string {
+  const primaryColor = tenant?.primary_color ?? '#111111'
+  const darkColor = darkenHex(primaryColor)
   const businessName = tenant?.business_name ?? 'Styll'
+  const logoUrl = tenant?.logo_url
+  const initial = businessName.charAt(0).toUpperCase()
+
+  const logoHtml = logoUrl
+    ? `<img src="${logoUrl}" alt="${businessName}" width="56" height="56" style="width:56px;height:56px;border-radius:16px;display:block;margin:0 auto;">`
+    : `<div style="width:56px;height:56px;border-radius:16px;background:rgba(255,255,255,0.15);line-height:56px;text-align:center;font-size:24px;font-weight:700;color:#ffffff;margin:0 auto;font-family:system-ui,-apple-system,sans-serif;">${initial}</div>`
+
+  const categoryHtml = category
+    ? `<p style="margin:0 0 12px;font-size:13px;font-weight:700;color:${primaryColor};text-transform:uppercase;letter-spacing:0.08em;font-family:system-ui,-apple-system,sans-serif;">${category}</p>`
+    : ''
+
+  const titleHtml = title
+    ? `<h1 style="margin:0 0 20px;font-size:24px;font-weight:700;color:#111111;line-height:1.3;font-family:system-ui,-apple-system,sans-serif;">${title}</h1>`
+    : ''
+
+  const detailsHtml = details && Object.keys(details).length > 0
+    ? `<div style="background:#f8f8f9;border-radius:12px;padding:20px 24px;margin:20px 0 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${Object.entries(details).map(([label, value]) => `
+          <tr>
+            <td style="padding:6px 0;font-size:14px;color:#888888;font-family:system-ui,-apple-system,sans-serif;">${label}</td>
+            <td style="padding:6px 0;font-size:14px;font-weight:600;color:#111111;text-align:right;font-family:system-ui,-apple-system,sans-serif;">${value}</td>
+          </tr>`).join('')}
+        </table>
+      </div>`
+    : ''
+
+  const ctaHtml = ctaText && ctaUrl
+    ? `<div style="margin:24px 0 8px;"><a href="${ctaUrl}" style="display:block;background:${primaryColor};color:#ffffff;text-align:center;padding:14px 24px;border-radius:12px;text-decoration:none;font-size:15px;font-weight:600;font-family:system-ui,-apple-system,sans-serif;">${ctaText}</a></div>`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="it">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#333333;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f5f5;">
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;">
     <tr>
       <td align="center" style="padding:32px 16px;">
-        <table cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;">
+        <table cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:16px;border:1px solid #e5e5e5;overflow:hidden;">
           <tr>
-            <td style="background-color:${accentColor};padding:24px 32px;">
-              <span style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">${businessName}</span>
+            <td bgcolor="${primaryColor}" style="background-color:${primaryColor};background-image:linear-gradient(135deg,${primaryColor},${darkColor});padding:32px 32px 28px;text-align:center;">
+              ${logoHtml}
+              <p style="margin:12px 0 0;font-size:18px;font-weight:700;color:#ffffff;font-family:system-ui,-apple-system,sans-serif;">${businessName}</p>
             </td>
           </tr>
           <tr>
-            <td style="padding:32px 32px 24px;font-size:15px;line-height:1.7;color:#333333;">
-              ${body.replace(/\n/g, '<br>')}
+            <td style="padding:36px 32px 28px;">
+              ${categoryHtml}
+              ${titleHtml}
+              <div style="font-size:15px;line-height:1.6;color:#444444;font-family:system-ui,-apple-system,sans-serif;">${body.replace(/\n/g, '<br>')}</div>
+              ${detailsHtml}
+              ${ctaHtml}
             </td>
           </tr>
           <tr>
-            <td style="padding:16px 32px 24px;border-top:1px solid #eeeeee;">
-              <p style="margin:0;font-size:12px;color:#aaaaaa;text-align:center;">
+            <td style="padding:20px 32px;border-top:1px solid #eeeeee;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#aaaaaa;font-family:system-ui,-apple-system,sans-serif;">
                 Powered by Styll &nbsp;&middot;&nbsp; <a href="https://styll.it/termini" style="color:#aaaaaa;text-decoration:none;">Termini</a> &nbsp;&middot;&nbsp; <a href="https://styll.it/privacy" style="color:#aaaaaa;text-decoration:none;">Privacy</a>
               </p>
             </td>
@@ -49,11 +107,21 @@ export async function sendTemplatedEmail({
   templateSlug,
   variables,
   tenant,
+  category,
+  title,
+  details,
+  ctaText,
+  ctaUrl,
 }: {
   to: string
   templateSlug: string
   variables: Record<string, string>
-  tenant?: { business_name: string; primary_color: string }
+  tenant?: { business_name: string; primary_color: string; logo_url?: string }
+  category?: string
+  title?: string
+  details?: Record<string, string>
+  ctaText?: string
+  ctaUrl?: string
 }): Promise<{ success: boolean; error?: string }> {
   if (!resend) {
     console.error('[sendTemplatedEmail] Resend not configured')
@@ -78,7 +146,7 @@ export async function sendTemplatedEmail({
 
   const subject = interpolate(template.subject as string)
   const bodyText = interpolate(template.body as string)
-  const html = buildEmailHtml(bodyText, tenant)
+  const html = buildEmailHtml({ body: bodyText, tenant, category, title, details, ctaText, ctaUrl })
 
   try {
     const result = await resend.emails.send({

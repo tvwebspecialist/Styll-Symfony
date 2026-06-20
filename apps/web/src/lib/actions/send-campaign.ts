@@ -178,7 +178,8 @@ export async function sendCampaign({
             business_name: tenantMeta?.business_name ?? 'il tuo barbiere',
             message:       trimmed,
           },
-          tenant: tenantMeta,
+          tenant:   tenantMeta,
+          category: 'Messaggio dal tuo barbiere',
         })
         success    = result.success
         sentEmail  = true

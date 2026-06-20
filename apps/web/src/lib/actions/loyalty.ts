@@ -728,6 +728,8 @@ async function sendLoyaltyNotifications(params: {
         templateSlug: 'loyalty_points',
         variables:    { client_name: clientName, business_name: businessName, points: String(pointsEarned), total_points: String(newTotal) },
         tenant:       tenantMeta,
+        category:     'Punti guadagnati',
+        details:      { 'Punti guadagnati': String(pointsEarned), Totale: String(newTotal) },
       })
     }
   }
@@ -746,6 +748,8 @@ async function sendLoyaltyNotifications(params: {
         templateSlug: 'loyalty_streak',
         variables:    { client_name: clientName, business_name: businessName, streak: String(newStreak) },
         tenant:       tenantMeta,
+        category:     'Streak',
+        details:      { 'Visite consecutive': String(newStreak) },
       })
     }
   }
@@ -777,6 +781,8 @@ async function sendLoyaltyNotifications(params: {
           templateSlug: 'loyalty_reward',
           variables:    { client_name: clientName, business_name: businessName, reward_name: unlockedReward.name },
           tenant:       tenantMeta,
+          category:     'Premio sbloccato',
+          details:      { Premio: unlockedReward.name },
         })
       }
     }

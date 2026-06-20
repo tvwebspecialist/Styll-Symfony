@@ -872,6 +872,7 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
         templateSlug: 'post_visit_thanks',
         variables:    { client_name: clientName, business_name: businessName },
         tenant:       tenantMeta,
+        category:     'Grazie per la visita',
       })
     }
   }
@@ -886,6 +887,9 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
         templateSlug: 'review_request',
         variables:    { client_name: clientName, business_name: businessName, review_url: reviewUrl },
         tenant:       tenantMeta,
+        category:     'La tua opinione conta',
+        ctaText:      'Lascia una recensione',
+        ctaUrl:       reviewUrl,
       })
     }
   }
