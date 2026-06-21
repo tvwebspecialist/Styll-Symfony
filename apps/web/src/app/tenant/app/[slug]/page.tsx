@@ -5,6 +5,8 @@ import { getHomePageData } from '@/lib/actions/pwa-home'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { getActiveOffersForClient, type ActiveOfferForClient } from '@/lib/actions/offers'
+import { formatDiscount, formatExpiryLabel } from '@/lib/utils/offer-pricing'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -95,6 +97,13 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   const availablePoints = homeData.loyalty?.availablePoints ?? 0
   const nextReward = rewards.find((reward) => reward.pointsCost > availablePoints)
   const shouldRenderGuestState = isPreview || !homeData.isLoggedIn
+
+  let activeOffers: ActiveOfferForClient[] = []
+  if (!shouldRenderGuestState && homeData.clientId) {
+    try {
+      activeOffers = await getActiveOffersForClient(tenant.tenant_id, homeData.clientId)
+    } catch { /* graceful degradation */ }
+  }
 
   return (
     <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
@@ -460,6 +469,77 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               ) : null}
             </section>
           ) : null}
+
+          {activeOffers.length > 0 && (
+            <section
+              style={{
+                ...animated(90),
+                background: '#FFFFFF',
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 16,
+              }}
+            >
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', marginBottom: 14 }}>
+                🏷️ Offerte per te
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {activeOffers.map((offer) => (
+                  <div
+                    key={offer.id}
+                    style={{
+                      borderRadius: 14,
+                      border: '1.5px solid',
+                      borderColor: offer.offer_type === 'catalog' ? '#F0FDF4' : '#F5F5F5',
+                      background: offer.offer_type === 'catalog' ? '#F9FFF9' : '#FAFAFA',
+                      padding: '12px 14px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#222222', flex: 1 }}>
+                        {offer.title}
+                      </p>
+                      {offer.offer_type === 'catalog' && offer.discount_type && offer.discount_value != null && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A', background: '#DCFCE7', borderRadius: 100, padding: '2px 8px', flexShrink: 0 }}>
+                          {formatDiscount({ id: offer.id, title: offer.title, discount_type: offer.discount_type, discount_value: offer.discount_value, starts_at: '' })}
+                        </span>
+                      )}
+                    </div>
+                    {offer.description && (
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888888' }}>{offer.description}</p>
+                    )}
+                    {offer.service_names.length > 0 && (
+                      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#B0B0B0' }}>
+                        Su: {offer.service_names.join(', ')}
+                      </p>
+                    )}
+                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#B0B0B0' }}>
+                      {formatExpiryLabel(offer.ends_at)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <Link
+                href={tp('/prenota')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  minHeight: 44,
+                  borderRadius: 999,
+                  background: 'var(--brand-primary)',
+                  color: '#FFFFFF',
+                  textDecoration: 'none',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  marginTop: 14,
+                }}
+              >
+                Prenota con lo sconto →
+              </Link>
+            </section>
+          )}
 
           {rewards.length > 0 ? (
             <section

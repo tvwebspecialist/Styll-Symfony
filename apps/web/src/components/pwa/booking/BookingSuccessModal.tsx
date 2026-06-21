@@ -184,8 +184,8 @@ export default function BookingSuccessModal(props: Props) {
 
         <div className="px-6 pt-4 pb-7 flex flex-col items-center gap-5">
 
-          {/* Icon with pulse rings — dedicated child elements prevent will-change
-              stacking context issues on Safari/iOS for the fixed panel */}
+          {/* Icon with pulse rings — hidden during V2 instructions to free space */}
+          {!(showV2 && showInstructions) && (
           <div className="relative flex items-center justify-center w-[120px] h-[120px]">
             <span
               className="absolute inset-0 rounded-full"
@@ -205,6 +205,7 @@ export default function BookingSuccessModal(props: Props) {
               className="relative z-10 object-contain"
             />
           </div>
+          )}
 
           {/* Content — error / V2 invite / V2 instructions / V1 */}
           {isError ? (
