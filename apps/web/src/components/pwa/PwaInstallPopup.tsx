@@ -16,6 +16,7 @@ interface Particle {
 interface Props {
   primaryColor: string
   businessName: string
+  delayMs?: number
 }
 
 function darken(hex: string, f: number): string {
@@ -97,7 +98,7 @@ const DOT_INACTIVE_W = 6
 const DOT_ACTIVE_O   = 1
 const DOT_INACTIVE_O = 0.35
 
-export function PwaInstallPopup({ primaryColor, businessName }: Props) {
+export function PwaInstallPopup({ primaryColor, businessName, delayMs = 700 }: Props) {
   const [showA, setShowA] = React.useState(false)
   const [showB, setShowB] = React.useState(false)
   const [platform, setPlatform] = React.useState<'ios' | 'android'>('android')
@@ -140,7 +141,7 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
       !(window as unknown as { MSStream: unknown }).MSStream
     setPlatform(isIOS ? 'ios' : 'android')
 
-    const timer = setTimeout(() => setShowA(true), 700)
+    const timer = setTimeout(() => setShowA(true), delayMs)
     return () => clearTimeout(timer)
   }, [])
 
@@ -318,7 +319,7 @@ export function PwaInstallPopup({ primaryColor, businessName }: Props) {
             border: '0.5px solid rgba(0,0,0,0.08)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)',
             padding: '28px 24px',
-            zIndex: 200,
+            zIndex: 9997,
             fontFamily: 'var(--font-tenant, var(--font-sans, system-ui, -apple-system, sans-serif))',
           }}
         >

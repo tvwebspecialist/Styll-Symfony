@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { CalendarPlus, ArrowRight, RefreshCw, UserPlus } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { PwaInstallPopup } from '@/components/pwa/PwaInstallPopup'
 
 interface SuccessVariant {
   type?: 'success'
@@ -86,6 +87,14 @@ export default function BookingSuccessModal(props: Props) {
     <>
       {/* Non-dismissable overlay — covers header and everything (z-[200]) */}
       <div className="fixed inset-0 bg-black/55 z-[200]" aria-hidden="true" />
+
+      {!isError && (
+        <PwaInstallPopup
+          primaryColor={props.primaryColor}
+          businessName={props.businessName!}
+          delayMs={props.isLoggedIn ? 700 : 1500}
+        />
+      )}
 
       {/* Floating panel — slide-up + fade-in via framer-motion */}
       <motion.div
