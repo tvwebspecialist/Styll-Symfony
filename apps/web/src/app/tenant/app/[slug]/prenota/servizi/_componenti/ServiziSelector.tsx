@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import BookingStep3Services from '@/components/pwa/booking/BookingStep3Services'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import type { PublicStaffMember, ServiceForStaff } from '@/lib/actions/public-booking'
+import type { OfferForPricing } from '@/lib/utils/offer-pricing'
 
 interface ServiceGroup {
   category: string
@@ -20,9 +21,10 @@ interface Props {
   primaryColor?: string
   initialServiceIds?: string[]
   cancelAppointmentId?: string
+  offersByServiceId?: Record<string, OfferForPricing[]>
 }
 
-export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff, primaryColor, initialServiceIds, cancelAppointmentId }: Props) {
+export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff, primaryColor, initialServiceIds, cancelAppointmentId, offersByServiceId }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(slug)
 
@@ -62,6 +64,7 @@ export function ServiziSelector({ slug, locationId, staffId, skip, groups, staff
       skipLocationStep={skipLocationStep}
       isFirstStep={isFirstStep}
       initialSelectedIds={initialServiceIds}
+      offersByServiceId={offersByServiceId}
     />
   )
 }

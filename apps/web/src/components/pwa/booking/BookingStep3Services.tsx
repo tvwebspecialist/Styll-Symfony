@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react'
 import { BottomCTA } from '../ui/BottomCTA'
 import type { PublicStaffMember, ServiceForStaff } from '@/lib/actions/public-booking'
+import { applyBestOffer, formatDiscount, type OfferForPricing } from '@/lib/utils/offer-pricing'
 
 interface ServiceGroup {
   category: string
@@ -23,6 +24,8 @@ interface Props {
   initialSelectedIds?: string[]
   /** True when both sede and barbiere are skipped — this step is the first, so bottom nav is visible */
   isFirstStep?: boolean
+  /** Map of serviceId → eligible offers for this client (server-fetched) */
+  offersByServiceId?: Record<string, OfferForPricing[]>
 }
 
 function formatCurrency(value: number): string {
@@ -59,6 +62,7 @@ export default function BookingStep3Services({
   skipLocationStep = false,
   initialSelectedIds,
   isFirstStep = false,
+  offersByServiceId = {},
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds ?? [])
@@ -73,7 +77,11 @@ export default function BookingStep3Services({
     (total, service) => total + Number(service.duration_minutes ?? 0),
     0
   )
-  const totalPrice = selectedServices.reduce((total, service) => total + Number(service.price ?? 0), 0)
+  const totalPrice = selectedServices.reduce((total, service) => {
+    const offers = offersByServiceId[service.id] ?? []
+    const { discountedPrice } = applyBestOffer(Number(service.price ?? 0), offers)
+    return total + discountedPrice
+  }, 0)
   function toggleService(serviceId: string) {
     setSelectedIds((current) =>
       current.includes(serviceId)
@@ -363,18 +371,36 @@ export default function BookingStep3Services({
                     </div>
 
                     {/* Prezzo */}
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        fontSize: 17,
-                        fontWeight: 700,
-                        color: isSelected ? brandColor : '#111111',
-                        letterSpacing: '-0.3px',
-                        transition: 'color 150ms ease',
-                      }}
-                    >
-                      {formatCurrency(service.price)}
-                    </span>
+                    {(() => {
+                      const serviceOffers = offersByServiceId[service.id] ?? []
+                      const { discountedPrice, appliedOffer } = applyBestOffer(Number(service.price ?? 0), serviceOffers)
+                      const hasDiscount = appliedOffer !== null
+                      return (
+                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                          {hasDiscount && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', borderRadius: 100, padding: '1px 6px' }}>
+                              {formatDiscount(appliedOffer!)}
+                            </span>
+                          )}
+                          <span
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 700,
+                              color: hasDiscount ? '#16A34A' : (isSelected ? brandColor : '#111111'),
+                              letterSpacing: '-0.3px',
+                              transition: 'color 150ms ease',
+                            }}
+                          >
+                            {hasDiscount ? formatCurrency(discountedPrice) : formatCurrency(service.price)}
+                          </span>
+                          {hasDiscount && (
+                            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>
+                              {formatCurrency(service.price)}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </button>
                 )
               })}

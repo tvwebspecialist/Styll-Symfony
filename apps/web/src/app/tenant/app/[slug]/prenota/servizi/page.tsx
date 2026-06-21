@@ -7,6 +7,9 @@ import {
 } from '@/lib/actions/public-booking'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getActiveOffersForBooking } from '@/lib/actions/offers'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -73,6 +76,29 @@ export default async function ServiziPage({ params, searchParams }: Props) {
     getPublicStaffMemberById(tenant.tenant_id, staffId),
   ])
 
+  // Resolve logged-in client for offer pricing (graceful degradation on any error)
+  let clientId: string | null = null
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user?.id) {
+      const db = createAdminClient()
+      const { data: clientRow } = await db
+        .from('clients')
+        .select('id')
+        .eq('tenant_id', tenant.tenant_id)
+        .eq('profile_id', user.id)
+        .is('deleted_at', null)
+        .maybeSingle()
+      clientId = (clientRow as { id: string } | null)?.id ?? null
+    }
+  } catch { /* no offers without auth — harmless */ }
+
+  const allServiceIds = services.map((s) => s.id)
+  const offersByServiceId = allServiceIds.length > 0
+    ? await getActiveOffersForBooking(tenant.tenant_id, allServiceIds, clientId).catch(() => ({}))
+    : {}
+
   return (
     <ServiziSelector
       slug={slug}
@@ -84,6 +110,7 @@ export default async function ServiziPage({ params, searchParams }: Props) {
       primaryColor={tenant.primary_color}
       initialServiceIds={initialServiceIds}
       cancelAppointmentId={cancelAppointmentId}
+      offersByServiceId={offersByServiceId}
     />
   )
 }
