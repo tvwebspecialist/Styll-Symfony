@@ -1,12 +1,13 @@
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { getHomePageData } from '@/lib/actions/pwa-home'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getActiveOffersForClient, type ActivePromotionForClient } from '@/lib/actions/offers'
-import { formatExpiryLabel } from '@/lib/utils/offer-pricing'
+import { formatExpiryLabel, daysUntil } from '@/lib/utils/offer-pricing'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -471,69 +472,127 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ) : null}
 
           {activeOffers.length > 0 && (
-            <section
-              style={{
-                ...animated(90),
-                background: '#FFFFFF',
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', marginBottom: 14 }}>
-                🏷️ Offerte per te
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {activeOffers.map((offer) => (
-                  <div
-                    key={offer.id}
-                    style={{
-                      borderRadius: 14,
-                      border: '1.5px solid #F0FDF4',
-                      background: '#F9FFF9',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#222222' }}>
-                      {offer.title}
-                    </p>
-                    {offer.description && (
-                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888888' }}>{offer.description}</p>
-                    )}
-                    {offer.service_items.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                        {offer.service_items.map((item) => (
-                          <span key={item.serviceId} style={{ fontSize: 11, background: '#DCFCE7', color: '#16A34A', borderRadius: 100, padding: '2px 8px', fontWeight: 600 }}>
-                            {item.serviceName} {item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <p style={{ margin: '8px 0 0', fontSize: 11, color: '#B0B0B0' }}>
-                      {formatExpiryLabel(offer.valid_until)}
-                    </p>
-                  </div>
-                ))}
+            <section style={{ ...animated(90), marginBottom: 16 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 12px' }}>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
+                <Link
+                  href={tp('/offerte')}
+                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+                >
+                  Vedi tutte →
+                </Link>
               </div>
-              <Link
-                href={tp('/prenota')}
+
+              {/* Carousel — native horizontal scroll */}
+              <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '100%',
-                  minHeight: 44,
-                  borderRadius: 999,
-                  background: 'var(--brand-primary)',
-                  color: '#FFFFFF',
-                  textDecoration: 'none',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  marginTop: 14,
-                }}
+                  gap: 12,
+                  overflowX: 'auto',
+                  scrollSnapType: 'x mandatory',
+                  paddingLeft: 4,
+                  paddingRight: 4,
+                  paddingBottom: 8,
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
+                } as CSSProperties}
               >
-                Prenota con lo sconto →
-              </Link>
+                {activeOffers.map((offer) => {
+                  const allItems = [...offer.service_items, ...offer.product_items]
+                  const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
+                  const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
+                  let discountLabel = ''
+                  if (allItems.length === 1) {
+                    const item = allItems[0]
+                    discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
+                  } else if (pctMax > 0) {
+                    discountLabel = `Fino al ${pctMax}% Sconto`
+                  } else if (fixedMax > 0) {
+                    discountLabel = `Fino a €${fixedMax} Sconto`
+                  }
+
+                  const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
+                  const expiryText = offer.valid_until ? `Scade tra ${daysUntil(offer.valid_until)} gg` : ''
+
+                  return (
+                    <Link
+                      key={offer.id}
+                      href={tp(`/offerte/${offer.id}`)}
+                      style={{
+                        display: 'block',
+                        flexShrink: 0,
+                        width: '80vw',
+                        maxWidth: 340,
+                        aspectRatio: '4/5',
+                        borderRadius: 20,
+                        overflow: 'hidden',
+                        position: 'relative',
+                        scrollSnapAlign: 'start',
+                        textDecoration: 'none',
+                        background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
+                      } as CSSProperties}
+                    >
+                      {offer.cover_image_url && (
+                        <Image
+                          fill
+                          src={offer.cover_image_url}
+                          alt={offer.title}
+                          sizes="80vw"
+                          style={{ objectFit: 'cover' }}
+                          loading="lazy"
+                        />
+                      )}
+                      {/* Expiry pill */}
+                      {showExpiry && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 12,
+                          right: 12,
+                          background: 'rgba(0,0,0,0.50)',
+                          backdropFilter: 'blur(6px)',
+                          WebkitBackdropFilter: 'blur(6px)',
+                          color: '#FFFFFF',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          borderRadius: 999,
+                          padding: '3px 10px',
+                        } as CSSProperties}>
+                          {expiryText}
+                        </div>
+                      )}
+
+                      {/* Bottom white box */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                        background: '#FFFFFF',
+                        borderRadius: 16,
+                        padding: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {offer.title}
+                          </p>
+                          {discountLabel && (
+                            <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
+                              {discountLabel}
+                            </p>
+                          )}
+                        </div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
             </section>
           )}
 

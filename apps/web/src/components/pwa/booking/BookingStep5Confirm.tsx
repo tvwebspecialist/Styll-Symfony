@@ -10,6 +10,7 @@ import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
 import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
 import { useToast } from '@/components/pwa/ui/Toast'
+import { applyBestPromotion, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
 interface Props {
   slug: string
@@ -35,6 +36,7 @@ interface Props {
   clientId?: string
   googleLogin?: boolean
   rescheduleFromId?: string
+  offersByServiceId?: Record<string, PromotionServicePricing[]>
 }
 
 function getInitials(name: string | null): string {
@@ -64,6 +66,7 @@ export default function BookingStep5Confirm({
   staff,
   location,
   services,
+  offersByServiceId = {},
   date,
   time,
   onBack: _onBack,
@@ -139,8 +142,12 @@ export default function BookingStep5Confirm({
   }, [])
 
   const totalPrice = useMemo(
-    () => services.reduce((total, service) => total + Number(service.price ?? 0), 0),
-    [services],
+    () => services.reduce((total, service) => {
+      const items = offersByServiceId[service.id] ?? []
+      const { discountedPrice } = applyBestPromotion(Number(service.price ?? 0), items)
+      return total + discountedPrice
+    }, 0),
+    [services, offersByServiceId],
   )
   const totalDuration = useMemo(
     () => services.reduce((total, service) => total + Number(service.duration_minutes ?? 0), 0),
@@ -293,24 +300,36 @@ export default function BookingStep5Confirm({
             <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Servizi</p>
           </div>
           <div className="px-5 pb-4 flex flex-col">
-            {services.map((service, i) => (
-              <div
-                key={service.id}
-                className="flex items-center justify-between py-2.5"
-                style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: brandColor }}
-                  />
-                  <p className="text-[15px] font-medium text-gray-900 truncate">{service.name}</p>
+            {services.map((service, i) => {
+              const items = offersByServiceId[service.id] ?? []
+              const { discountedPrice, appliedPromotionId } = applyBestPromotion(Number(service.price ?? 0), items)
+              const hasDiscount = appliedPromotionId !== null
+              return (
+                <div
+                  key={service.id}
+                  className="flex items-center justify-between py-2.5"
+                  style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: brandColor }}
+                    />
+                    <p className="text-[15px] font-medium text-gray-900 truncate">{service.name}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-0.5 ml-3 shrink-0">
+                    <p className="text-[15px] font-bold" style={{ color: hasDiscount ? '#16A34A' : '#111827' }}>
+                      € {discountedPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                    </p>
+                    {hasDiscount && (
+                      <p className="text-[12px] text-gray-400 line-through">
+                        € {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-[15px] font-bold text-gray-900 ml-3 shrink-0">
-                  € {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

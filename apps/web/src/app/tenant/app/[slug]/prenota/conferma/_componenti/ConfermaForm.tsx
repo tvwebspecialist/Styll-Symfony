@@ -8,6 +8,7 @@ import { ToastProvider } from '@/components/pwa/ui/Toast'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { cancelAppointmentForReschedule } from '@/lib/actions/pwa-client-actions'
 import type { PublicLocation, PublicService, PublicStaffMember } from '@/lib/actions/public-booking'
+import type { PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
 interface Props {
   slug: string
@@ -20,6 +21,7 @@ interface Props {
   location: PublicLocation
   staff: PublicStaffMember
   services: PublicService[]
+  offersByServiceId?: Record<string, PromotionServicePricing[]>
   primaryColor?: string
   logoUrl?: string | null
   businessName?: string
@@ -43,7 +45,7 @@ function formatBookingDate(date: string): string {
 
 export function ConfermaForm({
   slug, tenantId, locationId, staffId, serviceIds, date, time,
-  location, staff, services, primaryColor, logoUrl, businessName = '',
+  location, staff, services, offersByServiceId = {}, primaryColor, logoUrl, businessName = '',
   initialFullName = '', initialPhone = '', initialEmail = '',
   isLoggedIn = false, clientId, googleLogin = false, cancelAppointmentId,
 }: Props) {
@@ -95,6 +97,7 @@ export function ConfermaForm({
         staff={staff}
         location={location}
         services={services}
+        offersByServiceId={offersByServiceId}
         date={date}
         time={time}
         onBack={handleBack}

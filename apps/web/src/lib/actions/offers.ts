@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { applyBestPromotion, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
+import { sendPromotionPush } from '@/lib/push/promotion-push'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,9 @@ export interface ActivePromotionForClient {
   title: string
   description: string | null
   valid_until: string | null
+  cover_image_url: string | null
   service_items: PromotionServiceItem[]
+  product_items: PromotionProductItem[]
 }
 
 export interface PromotionServiceDiscountInput {
@@ -225,7 +228,11 @@ export async function createOfferta(
     )
   }
 
-  // TODO: trigger push notification outbox when status = 'active' and show_in_app = true
+  if (input.status === 'active' && input.show_in_app) {
+    sendPromotionPush(promotionId, input.tenantId).catch((err) => {
+      console.error('[push] Errore notifica promozione:', err)
+    })
+  }
 
   return { success: true, id: promotionId }
 }
@@ -249,7 +256,11 @@ export async function updateOffertaStatus(
     .eq('id', promotionId)
     .eq('tenant_id', tenantId)
 
-  // TODO: trigger push notification outbox when status becomes 'active' and show_in_app = true
+  if (!error && status === 'active') {
+    sendPromotionPush(promotionId, tenantId).catch((err) => {
+      console.error('[push] Errore notifica promozione:', err)
+    })
+  }
 
   return { success: !error }
 }
@@ -323,7 +334,7 @@ export async function getActiveOffersForClient(
 
   const { data: rows } = await (db as any)
     .from('promotions')
-    .select('id, title, description, valid_until')
+    .select('id, title, description, valid_until, cover_image_url')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
     .eq('show_in_app', true)
@@ -334,11 +345,18 @@ export async function getActiveOffersForClient(
 
   const promotionIds = (rows as any[]).map((r: any) => r.id)
 
-  const { data: svcRows } = await (db as any)
-    .from('promotion_services')
-    .select('promotion_id, service_id, discount_type, discount_value, services(name)')
-    .eq('tenant_id', tenantId)
-    .in('promotion_id', promotionIds)
+  const [{ data: svcRows }, { data: prdRows }] = await Promise.all([
+    (db as any)
+      .from('promotion_services')
+      .select('promotion_id, service_id, discount_type, discount_value, services(name)')
+      .eq('tenant_id', tenantId)
+      .in('promotion_id', promotionIds),
+    (db as any)
+      .from('promotion_products')
+      .select('promotion_id, product_id, discount_type, discount_value, products(name)')
+      .eq('tenant_id', tenantId)
+      .in('promotion_id', promotionIds),
+  ])
 
   const svcByPromotion = new Map<string, PromotionServiceItem[]>()
   for (const row of (svcRows ?? []) as any[]) {
@@ -348,12 +366,22 @@ export async function getActiveOffersForClient(
     svcByPromotion.set(row.promotion_id, items)
   }
 
+  const prdByPromotion = new Map<string, PromotionProductItem[]>()
+  for (const row of (prdRows ?? []) as any[]) {
+    const prd = Array.isArray(row.products) ? row.products[0] : row.products
+    const items = prdByPromotion.get(row.promotion_id) ?? []
+    items.push({ productId: row.product_id, productName: prd?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    prdByPromotion.set(row.promotion_id, items)
+  }
+
   return (rows as any[]).map((r: any) => ({
     id: r.id,
     title: r.title,
     description: r.description,
     valid_until: r.valid_until,
+    cover_image_url: r.cover_image_url ?? null,
     service_items: svcByPromotion.get(r.id) ?? [],
+    product_items: prdByPromotion.get(r.id) ?? [],
   }))
 }
 
@@ -429,6 +457,15 @@ export async function getActiveOffersForBooking(
 
 // ── Dashboard: upload cover image ─────────────────────────────────────────────
 
+function detectImageMime(buf: ArrayBuffer): string | null {
+  const b = new Uint8Array(buf, 0, 12)
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg'
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png'
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  return null
+}
+
 export async function uploadPromozioneCopertina(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
@@ -438,21 +475,23 @@ export async function uploadPromozioneCopertina(
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
 
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'File troppo grande (max 5MB)' }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const detectedMime = detectImageMime(arrayBuffer)
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!detectedMime || !ALLOWED_TYPES.includes(detectedMime)) {
     return { ok: false, error: 'Formato non supportato (JPG, PNG, WebP)' }
   }
-  if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'File troppo grande (max 5MB)' }
 
   const db = createAdminClient()
   const extByType: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
-  const ext = extByType[file.type] ?? 'jpg'
+  const ext = extByType[detectedMime] ?? 'jpg'
   const path = `${tenantId}/promotions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const arrayBuffer = await file.arrayBuffer()
 
   const { error: uploadError } = await db.storage
     .from('promotions')
-    .upload(path, arrayBuffer, { contentType: file.type, upsert: false })
+    .upload(path, arrayBuffer, { contentType: detectedMime, upsert: false })
 
   if (uploadError) return { ok: false, error: uploadError.message }
 
