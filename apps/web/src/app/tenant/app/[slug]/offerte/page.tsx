@@ -52,7 +52,18 @@ export default async function OffertePage({ params }: Props) {
         )}
       </div>
 
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          overflowX: 'auto',
+          paddingLeft: 16,
+          paddingRight: 16,
+          scrollSnapType: 'x mandatory',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+        } as CSSProperties}
+      >
         {offers.map((offer) => {
           const allItems = [...offer.service_items, ...offer.product_items]
           const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
@@ -76,10 +87,13 @@ export default async function OffertePage({ params }: Props) {
               href={tp(`/offerte/${offer.id}`)}
               style={{
                 display: 'block',
-                borderRadius: 20,
+                width: 'calc(100% - 48px)',
+                flexShrink: 0,
+                scrollSnapAlign: 'start',
+                aspectRatio: '16/9',
+                borderRadius: 16,
                 overflow: 'hidden',
                 position: 'relative',
-                aspectRatio: '4/5',
                 textDecoration: 'none',
                 background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)`,
               } as CSSProperties}
