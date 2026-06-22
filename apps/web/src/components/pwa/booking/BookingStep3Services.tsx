@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react'
 import { BottomCTA } from '../ui/BottomCTA'
 import type { PublicStaffMember, ServiceForStaff } from '@/lib/actions/public-booking'
-import { applyBestOffer, formatDiscount, type OfferForPricing } from '@/lib/utils/offer-pricing'
+import { applyBestPromotion, formatDiscount, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
 interface ServiceGroup {
   category: string
@@ -24,8 +24,8 @@ interface Props {
   initialSelectedIds?: string[]
   /** True when both sede and barbiere are skipped — this step is the first, so bottom nav is visible */
   isFirstStep?: boolean
-  /** Map of serviceId → eligible offers for this client (server-fetched) */
-  offersByServiceId?: Record<string, OfferForPricing[]>
+  /** Map of serviceId → eligible promotions for this client (server-fetched) */
+  offersByServiceId?: Record<string, PromotionServicePricing[]>
 }
 
 function formatCurrency(value: number): string {
@@ -78,8 +78,8 @@ export default function BookingStep3Services({
     0
   )
   const totalPrice = selectedServices.reduce((total, service) => {
-    const offers = offersByServiceId[service.id] ?? []
-    const { discountedPrice } = applyBestOffer(Number(service.price ?? 0), offers)
+    const items = offersByServiceId[service.id] ?? []
+    const { discountedPrice } = applyBestPromotion(Number(service.price ?? 0), items)
     return total + discountedPrice
   }, 0)
   function toggleService(serviceId: string) {
@@ -372,14 +372,15 @@ export default function BookingStep3Services({
 
                     {/* Prezzo */}
                     {(() => {
-                      const serviceOffers = offersByServiceId[service.id] ?? []
-                      const { discountedPrice, appliedOffer } = applyBestOffer(Number(service.price ?? 0), serviceOffers)
-                      const hasDiscount = appliedOffer !== null
+                      const servicePromos = offersByServiceId[service.id] ?? []
+                      const { discountedPrice, appliedPromotionId } = applyBestPromotion(Number(service.price ?? 0), servicePromos)
+                      const hasDiscount = appliedPromotionId !== null
+                      const appliedPromo = servicePromos.find((p) => p.promotionId === appliedPromotionId) ?? null
                       return (
                         <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                          {hasDiscount && (
+                          {hasDiscount && appliedPromo && (
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', borderRadius: 100, padding: '1px 6px' }}>
-                              {formatDiscount(appliedOffer!)}
+                              {formatDiscount(appliedPromo)}
                             </span>
                           )}
                           <span

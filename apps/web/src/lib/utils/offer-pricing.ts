@@ -1,54 +1,58 @@
-// Centralized offer discount calculation.
+// Promotion discount calculation.
 // Rule: highest absolute € discount wins, non-cumulable.
-// Tiebreak: offer with most recent starts_at wins.
+// Tiebreak: promotion with most recent valid_from wins.
 
-export interface OfferForPricing {
-  id: string
-  title: string
-  discount_type: 'percentage' | 'fixed_amount'
+export type DiscountType = 'percent' | 'fixed'
+
+export interface PromotionServicePricing {
+  promotionId: string
+  promotionTitle: string
+  discount_type: DiscountType
   discount_value: number
-  starts_at: string
+  valid_from: string
 }
 
 export interface PricingResult {
   discountedPrice: number
-  appliedOffer: OfferForPricing | null
+  appliedPromotionId: string | null
   savingAmount: number
 }
 
-export function applyBestOffer(basePrice: number, offers: OfferForPricing[]): PricingResult {
-  if (!offers || offers.length === 0) {
-    return { discountedPrice: basePrice, appliedOffer: null, savingAmount: 0 }
+export function applyBestPromotion(basePrice: number, items: PromotionServicePricing[]): PricingResult {
+  if (!items || items.length === 0) {
+    return { discountedPrice: basePrice, appliedPromotionId: null, savingAmount: 0 }
   }
 
-  let bestOffer: OfferForPricing | null = null
+  let best: PromotionServicePricing | null = null
   let bestSaving = 0
 
-  for (const offer of offers) {
+  for (const item of items) {
     const saving =
-      offer.discount_type === 'percentage'
-        ? (basePrice * offer.discount_value) / 100
-        : offer.discount_value
+      item.discount_type === 'percent'
+        ? (basePrice * item.discount_value) / 100
+        : item.discount_value
 
     const isBetter =
       saving > bestSaving ||
-      (saving === bestSaving && bestOffer != null && offer.starts_at > bestOffer.starts_at)
+      (saving === bestSaving && best != null && item.valid_from > best.valid_from)
 
     if (isBetter) {
       bestSaving = saving
-      bestOffer = offer
+      best = item
     }
   }
 
   const discountedPrice = Math.max(0, Number((basePrice - bestSaving).toFixed(2)))
-  return { discountedPrice, appliedOffer: bestOffer, savingAmount: Number(bestSaving.toFixed(2)) }
+  return {
+    discountedPrice,
+    appliedPromotionId: best?.promotionId ?? null,
+    savingAmount: Number(bestSaving.toFixed(2)),
+  }
 }
 
-export function formatDiscount(offer: OfferForPricing): string {
-  if (offer.discount_type === 'percentage') {
-    return `-${offer.discount_value}%`
-  }
-  return `-€${offer.discount_value}`
+export function formatDiscount(item: PromotionServicePricing): string {
+  if (item.discount_type === 'percent') return `-${item.discount_value}%`
+  return `-€${item.discount_value}`
 }
 
 export function daysUntil(dateStr: string): number {
@@ -57,10 +61,11 @@ export function daysUntil(dateStr: string): number {
   return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
 }
 
-export function formatExpiryLabel(endsAt: string): string {
-  const days = daysUntil(endsAt)
+export function formatExpiryLabel(validUntil: string | null): string {
+  if (!validUntil) return 'Nessuna scadenza'
+  const days = daysUntil(validUntil)
   if (days === 0) return 'Scade oggi'
   if (days === 1) return 'Scade domani'
   if (days <= 7) return `Scade tra ${days} giorni`
-  return `Fino al ${new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' }).format(new Date(endsAt))}`
+  return `Fino al ${new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' }).format(new Date(validUntil))}`
 }

@@ -2,36 +2,40 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import { applyBestOffer, type OfferForPricing } from '@/lib/utils/offer-pricing'
+import { applyBestPromotion, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type OfferStatus = 'draft' | 'active' | 'expired' | 'archived'
-export type OfferType = 'catalog' | 'free_text'
-export type DiscountType = 'percentage' | 'fixed_amount'
-export type TargetType = 'all' | 'segment'
-export type TargetSegment = 'churn_red' | 'churn_yellow' | 'vip' | 'new'
+export type PromotionStatus = 'draft' | 'active' | 'expired' | 'archived'
+export type DiscountType = 'percent' | 'fixed'
 
-export interface OfferRow {
+export interface PromotionServiceItem {
+  serviceId: string
+  serviceName: string
+  discount_type: DiscountType
+  discount_value: number
+}
+
+export interface PromotionProductItem {
+  productId: string
+  productName: string
+  discount_type: DiscountType
+  discount_value: number
+}
+
+export interface PromotionRow {
   id: string
   tenant_id: string
   title: string
   description: string | null
-  offer_type: OfferType
-  discount_type: DiscountType | null
-  discount_value: number | null
-  target_type: TargetType
-  target_segment: TargetSegment | null
-  starts_at: string
-  ends_at: string
-  status: OfferStatus
+  valid_from: string
+  valid_until: string | null
+  show_in_app: boolean
+  show_on_landing: boolean
+  status: PromotionStatus
   created_at: string
-  // aggregates (joined)
-  service_names: string[]
-  product_names: string[]
-  recipients_notified: number
-  recipients_viewed: number
-  recipients_converted: number
+  service_items: PromotionServiceItem[]
+  product_items: PromotionProductItem[]
 }
 
 export interface CatalogoItem {
@@ -41,136 +45,104 @@ export interface CatalogoItem {
   type: 'service' | 'product'
 }
 
-export interface ActiveOfferForClient {
+export interface ActivePromotionForClient {
   id: string
   title: string
   description: string | null
-  offer_type: OfferType
-  discount_type: DiscountType | null
-  discount_value: number | null
-  ends_at: string
-  service_names: string[]
+  valid_until: string | null
+  service_items: PromotionServiceItem[]
 }
 
-export interface ServiceOffer {
+export interface PromotionServiceDiscountInput {
   serviceId: string
-  offers: OfferForPricing[]
+  discount_type: DiscountType
+  discount_value: number
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function requireTenantId(providedId?: string): Promise<string> {
-  const id = providedId ?? (await getActiveTenantId())
-  if (!id) throw new Error('Unauthorized')
-  return id
+export interface PromotionProductDiscountInput {
+  productId: string
+  discount_type: DiscountType
+  discount_value: number
 }
 
-function isClientEligibleForSegment(
-  analytics: { churn_status: string; total_visits: number } | null,
-  segment: TargetSegment | null,
-): boolean {
-  if (!segment) return true
-  if (!analytics) return false
-  if (segment === 'churn_red') return analytics.churn_status === 'red'
-  if (segment === 'churn_yellow') return analytics.churn_status === 'yellow'
-  if (segment === 'vip') return analytics.total_visits >= 10
-  if (segment === 'new') return analytics.total_visits <= 1
-  return false
+export interface CreatePromozionInput {
+  tenantId: string
+  title: string
+  description?: string
+  valid_from: string
+  valid_until?: string | null
+  show_in_app: boolean
+  show_on_landing: boolean
+  status: PromotionStatus
+  service_discounts: PromotionServiceDiscountInput[]
+  product_discounts: PromotionProductDiscountInput[]
 }
 
-// ── Dashboard: list offers ────────────────────────────────────────────────────
+// ── Dashboard: list promotions ────────────────────────────────────────────────
 
-export async function getOfferte(tenantId: string): Promise<OfferRow[]> {
+export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
   const activeTenantId = await getActiveTenantId()
   if (!activeTenantId || activeTenantId !== tenantId) return []
 
   const db = createAdminClient()
 
-  const { data: offers, error } = await (db as any)
-    .from('offers')
-    .select('*')
+  // status is a new column not in generated types — cast to any
+  const { data: rows } = await (db as any)
+    .from('promotions')
+    .select('id, tenant_id, title, description, valid_from, valid_until, show_in_app, show_on_landing, is_active, status, created_at')
     .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  if (error || !offers) return []
+  if (!rows || (rows as any[]).length === 0) return []
 
-  const offerIds = (offers as any[]).map((o: any) => o.id)
-  if (offerIds.length === 0) return []
+  const promotionIds = (rows as any[]).map((r: any) => r.id)
 
-  const [{ data: offerServices }, { data: offerProducts }, { data: recipientStats }] =
-    await Promise.all([
-      (db as any)
-        .from('offer_services')
-        .select('offer_id, services(name)')
-        .eq('tenant_id', tenantId)
-        .in('offer_id', offerIds),
-      (db as any)
-        .from('offer_products')
-        .select('offer_id, products(name)')
-        .eq('tenant_id', tenantId)
-        .in('offer_id', offerIds),
-      (db as any)
-        .from('offer_recipients')
-        .select('offer_id, status')
-        .eq('tenant_id', tenantId)
-        .in('offer_id', offerIds),
-    ])
+  const [{ data: svcRows }, { data: prdRows }] = await Promise.all([
+    (db as any)
+      .from('promotion_services')
+      .select('promotion_id, service_id, discount_type, discount_value, services(name)')
+      .eq('tenant_id', tenantId)
+      .in('promotion_id', promotionIds),
+    (db as any)
+      .from('promotion_products')
+      .select('promotion_id, product_id, discount_type, discount_value, products(name)')
+      .eq('tenant_id', tenantId)
+      .in('promotion_id', promotionIds),
+  ])
 
-  // Build lookup maps
-  const serviceNamesByOffer = new Map<string, string[]>()
-  for (const row of (offerServices ?? []) as any[]) {
-    const names = serviceNamesByOffer.get(row.offer_id) ?? []
+  const svcByPromotion = new Map<string, PromotionServiceItem[]>()
+  for (const row of (svcRows ?? []) as any[]) {
     const svc = Array.isArray(row.services) ? row.services[0] : row.services
-    if (svc?.name) names.push(svc.name)
-    serviceNamesByOffer.set(row.offer_id, names)
+    const items = svcByPromotion.get(row.promotion_id) ?? []
+    items.push({ serviceId: row.service_id, serviceName: svc?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    svcByPromotion.set(row.promotion_id, items)
   }
-  const productNamesByOffer = new Map<string, string[]>()
-  for (const row of (offerProducts ?? []) as any[]) {
-    const names = productNamesByOffer.get(row.offer_id) ?? []
+
+  const prdByPromotion = new Map<string, PromotionProductItem[]>()
+  for (const row of (prdRows ?? []) as any[]) {
     const prd = Array.isArray(row.products) ? row.products[0] : row.products
-    if (prd?.name) names.push(prd.name)
-    productNamesByOffer.set(row.offer_id, names)
+    const items = prdByPromotion.get(row.promotion_id) ?? []
+    items.push({ productId: row.product_id, productName: prd?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    prdByPromotion.set(row.promotion_id, items)
   }
 
-  const statsByOffer = new Map<
-    string,
-    { notified: number; viewed: number; converted: number }
-  >()
-  for (const row of (recipientStats ?? []) as any[]) {
-    const s = statsByOffer.get(row.offer_id) ?? { notified: 0, viewed: 0, converted: 0 }
-    s.notified++
-    if (row.status === 'viewed' || row.status === 'converted') s.viewed++
-    if (row.status === 'converted') s.converted++
-    statsByOffer.set(row.offer_id, s)
-  }
-
-  return (offers as any[]).map((o: any) => {
-    const stats = statsByOffer.get(o.id) ?? { notified: 0, viewed: 0, converted: 0 }
-    return {
-      id: o.id,
-      tenant_id: o.tenant_id,
-      title: o.title,
-      description: o.description,
-      offer_type: o.offer_type,
-      discount_type: o.discount_type,
-      discount_value: o.discount_value,
-      target_type: o.target_type,
-      target_segment: o.target_segment,
-      starts_at: o.starts_at,
-      ends_at: o.ends_at,
-      status: o.status,
-      created_at: o.created_at,
-      service_names: serviceNamesByOffer.get(o.id) ?? [],
-      product_names: productNamesByOffer.get(o.id) ?? [],
-      recipients_notified: stats.notified,
-      recipients_viewed: stats.viewed,
-      recipients_converted: stats.converted,
-    } satisfies OfferRow
-  })
+  return (rows as any[]).map((r: any) => ({
+    id: r.id,
+    tenant_id: r.tenant_id,
+    title: r.title,
+    description: r.description,
+    valid_from: r.valid_from,
+    valid_until: r.valid_until,
+    show_in_app: r.show_in_app,
+    show_on_landing: r.show_on_landing,
+    status: (r.status ?? (r.is_active ? 'active' : 'draft')) as PromotionStatus,
+    created_at: r.created_at,
+    service_items: svcByPromotion.get(r.id) ?? [],
+    product_items: prdByPromotion.get(r.id) ?? [],
+  } satisfies PromotionRow))
 }
 
-// ── Dashboard: catalog for offer form ────────────────────────────────────────
+// ── Dashboard: catalog for form ───────────────────────────────────────────────
 
 export async function getCatalogoPerOfferta(tenantId: string): Promise<CatalogoItem[]> {
   const activeTenantId = await getActiveTenantId()
@@ -188,72 +160,10 @@ export async function getCatalogoPerOfferta(tenantId: string): Promise<CatalogoI
   ]
 }
 
-// ── Dashboard: segment audience estimate ─────────────────────────────────────
-
-export async function getSegmentEstimate(
-  tenantId: string,
-  targetType: TargetType,
-  segment: TargetSegment | null,
-): Promise<{ count: number }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return { count: 0 }
-
-  const db = createAdminClient()
-
-  if (targetType === 'all') {
-    const { count } = await db
-      .from('clients')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .is('deleted_at', null)
-      .eq('marketing_consent', true)
-    return { count: count ?? 0 }
-  }
-
-  const { data: analyticsRows } = await db
-    .from('client_analytics')
-    .select('client_id, churn_status, total_visits')
-    .eq('tenant_id', tenantId)
-
-  if (!analyticsRows) return { count: 0 }
-
-  const eligible = (analyticsRows as any[]).filter((row: any) =>
-    isClientEligibleForSegment(row, segment),
-  )
-  const eligibleIds = eligible.map((r: any) => r.client_id)
-  if (eligibleIds.length === 0) return { count: 0 }
-
-  const { count } = await db
-    .from('clients')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .eq('marketing_consent', true)
-    .in('id', eligibleIds)
-  return { count: count ?? 0 }
-}
-
-// ── Dashboard: create offer ───────────────────────────────────────────────────
-
-export interface CreateOffertaInput {
-  tenantId: string
-  title: string
-  description?: string
-  offer_type: OfferType
-  discount_type?: DiscountType
-  discount_value?: number
-  target_type: TargetType
-  target_segment?: TargetSegment
-  starts_at: string
-  ends_at: string
-  status: OfferStatus
-  service_ids?: string[]
-  product_ids?: string[]
-  created_by?: string
-}
+// ── Dashboard: create promotion ───────────────────────────────────────────────
 
 export async function createOfferta(
-  input: CreateOffertaInput,
+  input: CreatePromozionInput,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   const activeTenantId = await getActiveTenantId()
   if (!activeTenantId || activeTenantId !== input.tenantId) {
@@ -261,87 +171,90 @@ export async function createOfferta(
   }
 
   const db = createAdminClient()
+  const isActive = input.status === 'active'
+  const now = new Date().toISOString()
 
-  const { data: offer, error } = await (db as any)
-    .from('offers')
+  const { data: promotion, error } = await (db as any)
+    .from('promotions')
     .insert({
       tenant_id: input.tenantId,
       title: input.title.trim(),
       description: input.description?.trim() || null,
-      offer_type: input.offer_type,
-      discount_type: input.offer_type === 'catalog' ? (input.discount_type ?? null) : null,
-      discount_value: input.offer_type === 'catalog' ? (input.discount_value ?? null) : null,
-      target_type: input.target_type,
-      target_segment: input.target_type === 'segment' ? (input.target_segment ?? null) : null,
-      starts_at: input.starts_at,
-      ends_at: input.ends_at,
+      valid_from: input.valid_from,
+      valid_until: input.valid_until ?? null,
+      show_in_app: input.show_in_app,
+      show_on_landing: input.show_on_landing,
+      is_active: isActive,
       status: input.status,
-      created_by: input.created_by ?? null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     })
     .select('id')
     .single()
 
-  if (error || !offer) {
-    return { success: false, error: error?.message ?? 'Errore creazione offerta' }
+  if (error || !promotion) {
+    return { success: false, error: error?.message ?? 'Errore creazione promozione' }
   }
 
-  const offerId = (offer as any).id
+  const promotionId = (promotion as any).id
 
-  // Insert offer_services
-  if (input.offer_type === 'catalog' && (input.service_ids ?? []).length > 0) {
-    await (db as any).from('offer_services').insert(
-      (input.service_ids ?? []).map((sid) => ({
+  if (input.service_discounts.length > 0) {
+    await (db as any).from('promotion_services').insert(
+      input.service_discounts.map((sd) => ({
         tenant_id: input.tenantId,
-        offer_id: offerId,
-        service_id: sid,
+        promotion_id: promotionId,
+        service_id: sd.serviceId,
+        discount_type: sd.discount_type,
+        discount_value: sd.discount_value,
       })),
     )
   }
 
-  // Insert offer_products
-  if (input.offer_type === 'catalog' && (input.product_ids ?? []).length > 0) {
-    await (db as any).from('offer_products').insert(
-      (input.product_ids ?? []).map((pid) => ({
+  if (input.product_discounts.length > 0) {
+    await (db as any).from('promotion_products').insert(
+      input.product_discounts.map((pd) => ({
         tenant_id: input.tenantId,
-        offer_id: offerId,
-        product_id: pid,
+        promotion_id: promotionId,
+        product_id: pd.productId,
+        discount_type: pd.discount_type,
+        discount_value: pd.discount_value,
       })),
     )
   }
 
-  // TODO: trigger invio notifica via outbox quando status = 'active'
+  // TODO: trigger push notification outbox when status = 'active' and show_in_app = true
 
-  return { success: true, id: offerId }
+  return { success: true, id: promotionId }
 }
 
 // ── Dashboard: update status ──────────────────────────────────────────────────
 
 export async function updateOffertaStatus(
-  offerId: string,
-  status: OfferStatus,
+  promotionId: string,
+  status: PromotionStatus,
   tenantId: string,
 ): Promise<{ success: boolean }> {
   const activeTenantId = await getActiveTenantId()
   if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
 
   const db = createAdminClient()
+
+  // Keep is_active in sync for legacy readers (public-booking.ts, LandingPromo.tsx)
   const { error } = await (db as any)
-    .from('offers')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', offerId)
+    .from('promotions')
+    .update({ status, is_active: status === 'active', updated_at: new Date().toISOString() })
+    .eq('id', promotionId)
     .eq('tenant_id', tenantId)
 
-  // TODO: quando status diventa 'active', trigger invio notifica via outbox
+  // TODO: trigger push notification outbox when status becomes 'active' and show_in_app = true
 
   return { success: !error }
 }
 
-// ── Dashboard: duplicate offer ────────────────────────────────────────────────
+// ── Dashboard: duplicate promotion ────────────────────────────────────────────
 
 export async function duplicateOfferta(
-  offerId: string,
+  promotionId: string,
   tenantId: string,
 ): Promise<{ success: boolean; id?: string }> {
   const activeTenantId = await getActiveTenantId()
@@ -350,44 +263,51 @@ export async function duplicateOfferta(
   const db = createAdminClient()
 
   const { data: original } = await (db as any)
-    .from('offers')
-    .select('*, offer_services(service_id), offer_products(product_id)')
-    .eq('id', offerId)
+    .from('promotions')
+    .select('title, description, valid_from, valid_until, show_in_app, show_on_landing')
+    .eq('id', promotionId)
     .eq('tenant_id', tenantId)
     .single()
 
   if (!original) return { success: false }
 
+  const [{ data: svcRows }, { data: prdRows }] = await Promise.all([
+    (db as any)
+      .from('promotion_services')
+      .select('service_id, discount_type, discount_value')
+      .eq('promotion_id', promotionId)
+      .eq('tenant_id', tenantId),
+    (db as any)
+      .from('promotion_products')
+      .select('product_id, discount_type, discount_value')
+      .eq('promotion_id', promotionId)
+      .eq('tenant_id', tenantId),
+  ])
+
   const o = original as any
-  const result = await createOfferta({
+  return createOfferta({
     tenantId,
     title: `${o.title} (copia)`,
     description: o.description,
-    offer_type: o.offer_type,
-    discount_type: o.discount_type,
-    discount_value: o.discount_value,
-    target_type: o.target_type,
-    target_segment: o.target_segment,
-    starts_at: new Date().toISOString(),
-    ends_at: o.ends_at,
+    valid_from: new Date().toISOString(),
+    valid_until: o.valid_until,
+    show_in_app: o.show_in_app,
+    show_on_landing: o.show_on_landing,
     status: 'draft',
-    service_ids: (o.offer_services ?? []).map((s: any) => s.service_id),
-    product_ids: (o.offer_products ?? []).map((p: any) => p.product_id),
+    service_discounts: ((svcRows ?? []) as any[]).map((r: any) => ({ serviceId: r.service_id, discount_type: r.discount_type, discount_value: r.discount_value })),
+    product_discounts: ((prdRows ?? []) as any[]).map((r: any) => ({ productId: r.product_id, discount_type: r.discount_type, discount_value: r.discount_value })),
   })
-
-  return result
 }
 
-// ── PWA: active offers for client (home section) ──────────────────────────────
+// ── PWA: active promotions for client (home section) ─────────────────────────
 
 export async function getActiveOffersForClient(
   tenantId: string,
   clientId: string,
-): Promise<ActiveOfferForClient[]> {
+): Promise<ActivePromotionForClient[]> {
   const db = createAdminClient()
   const now = new Date().toISOString()
 
-  // 1. Check marketing consent
   const { data: clientRow } = await db
     .from('clients')
     .select('marketing_consent')
@@ -398,77 +318,55 @@ export async function getActiveOffersForClient(
 
   if (!(clientRow as any)?.marketing_consent) return []
 
-  // 2. Get client analytics for segment check (don't expose to client)
-  const { data: analytics } = await db
-    .from('client_analytics')
-    .select('churn_status, total_visits')
-    .eq('tenant_id', tenantId)
-    .eq('client_id', clientId)
-    .maybeSingle()
-
-  // 3. Fetch active offers
-  const { data: offers } = await (db as any)
-    .from('offers')
-    .select('id, title, description, offer_type, discount_type, discount_value, target_type, target_segment, ends_at')
+  const { data: rows } = await (db as any)
+    .from('promotions')
+    .select('id, title, description, valid_until')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
-    .is('deleted_at', null)
-    .lte('starts_at', now)
-    .gte('ends_at', now)
+    .eq('show_in_app', true)
+    .lte('valid_from', now)
+    .or(`valid_until.is.null,valid_until.gte.${now}`)
 
-  if (!offers || (offers as any[]).length === 0) return []
+  if (!rows || (rows as any[]).length === 0) return []
 
-  // 4. Filter by client eligibility (segment check done server-side)
-  const eligible = (offers as any[]).filter((offer: any) => {
-    if (offer.target_type === 'all') return true
-    return isClientEligibleForSegment(analytics as any, offer.target_segment)
-  })
+  const promotionIds = (rows as any[]).map((r: any) => r.id)
 
-  if (eligible.length === 0) return []
+  const { data: svcRows } = await (db as any)
+    .from('promotion_services')
+    .select('promotion_id, service_id, discount_type, discount_value, services(name)')
+    .eq('tenant_id', tenantId)
+    .in('promotion_id', promotionIds)
 
-  // 5. Fetch service names for catalog offers (don't expose offer IDs as segment hints)
-  const catalogOfferIds = eligible.filter((o: any) => o.offer_type === 'catalog').map((o: any) => o.id)
-  let serviceNamesByOffer = new Map<string, string[]>()
-
-  if (catalogOfferIds.length > 0) {
-    const { data: offerSvcs } = await (db as any)
-      .from('offer_services')
-      .select('offer_id, services(name)')
-      .eq('tenant_id', tenantId)
-      .in('offer_id', catalogOfferIds)
-
-    for (const row of (offerSvcs ?? []) as any[]) {
-      const names = serviceNamesByOffer.get(row.offer_id) ?? []
-      const svc = Array.isArray(row.services) ? row.services[0] : row.services
-      if (svc?.name) names.push(svc.name)
-      serviceNamesByOffer.set(row.offer_id, names)
-    }
+  const svcByPromotion = new Map<string, PromotionServiceItem[]>()
+  for (const row of (svcRows ?? []) as any[]) {
+    const svc = Array.isArray(row.services) ? row.services[0] : row.services
+    const items = svcByPromotion.get(row.promotion_id) ?? []
+    items.push({ serviceId: row.service_id, serviceName: svc?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    svcByPromotion.set(row.promotion_id, items)
   }
 
-  return eligible.map((offer: any) => ({
-    id: offer.id,
-    title: offer.title,
-    description: offer.description,
-    offer_type: offer.offer_type,
-    discount_type: offer.discount_type,
-    discount_value: offer.discount_value,
-    ends_at: offer.ends_at,
-    service_names: serviceNamesByOffer.get(offer.id) ?? [],
+  return (rows as any[]).map((r: any) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    valid_until: r.valid_until,
+    service_items: svcByPromotion.get(r.id) ?? [],
   }))
 }
 
-// ── PWA: active offers per service for booking step ──────────────────────────
+// ── PWA: per-service pricing for booking step ─────────────────────────────────
 
 export async function getActiveOffersForBooking(
   tenantId: string,
   serviceIds: string[],
   clientId?: string | null,
-): Promise<Record<string, OfferForPricing[]>> {
+): Promise<Record<string, PromotionServicePricing[]>> {
   if (serviceIds.length === 0) return {}
+
   const db = createAdminClient()
   const now = new Date().toISOString()
 
-  // Check marketing consent if client is known
+  // Marketing consent gate
   if (clientId) {
     const { data: clientRow } = await db
       .from('clients')
@@ -478,69 +376,47 @@ export async function getActiveOffersForBooking(
       .is('deleted_at', null)
       .maybeSingle()
     if (!(clientRow as any)?.marketing_consent) return {}
+  } else {
+    return {} // guests don't see discounts in service selection UI
   }
 
-  // Get client analytics for segment eligibility
-  let analytics: { churn_status: string; total_visits: number } | null = null
-  if (clientId) {
-    const { data } = await db
-      .from('client_analytics')
-      .select('churn_status, total_visits')
-      .eq('tenant_id', tenantId)
-      .eq('client_id', clientId)
-      .maybeSingle()
-    analytics = data as any
-  }
-
-  // Fetch active catalog offers that have at least one of our services
-  const { data: offerSvcs } = await (db as any)
-    .from('offer_services')
-    .select('offer_id, service_id')
+  // Find promotion_services rows for the requested service IDs
+  const { data: psRows } = await (db as any)
+    .from('promotion_services')
+    .select('promotion_id, service_id, discount_type, discount_value')
     .eq('tenant_id', tenantId)
     .in('service_id', serviceIds)
 
-  if (!offerSvcs || (offerSvcs as any[]).length === 0) return {}
+  if (!psRows || (psRows as any[]).length === 0) return {}
 
-  const uniqueOfferIds = [...new Set((offerSvcs as any[]).map((r: any) => r.offer_id))]
+  const uniquePromotionIds = [...new Set((psRows as any[]).map((r: any) => r.promotion_id))]
 
-  const { data: offers } = await (db as any)
-    .from('offers')
-    .select('id, title, discount_type, discount_value, target_type, target_segment, starts_at, ends_at')
+  // Filter to active promotions within date range
+  const { data: promoRows } = await (db as any)
+    .from('promotions')
+    .select('id, title, valid_from')
     .eq('tenant_id', tenantId)
     .eq('status', 'active')
-    .eq('offer_type', 'catalog')
-    .is('deleted_at', null)
-    .lte('starts_at', now)
-    .gte('ends_at', now)
-    .in('id', uniqueOfferIds)
+    .eq('show_in_app', true)
+    .lte('valid_from', now)
+    .or(`valid_until.is.null,valid_until.gte.${now}`)
+    .in('id', uniquePromotionIds)
 
-  if (!offers || (offers as any[]).length === 0) return {}
+  if (!promoRows || (promoRows as any[]).length === 0) return {}
 
-  // Filter by eligibility
-  const eligibleOffers = (offers as any[]).filter((offer: any) => {
-    if (offer.target_type === 'all') return true
-    if (!clientId) return false // guests not eligible for segmented offers
-    return isClientEligibleForSegment(analytics, offer.target_segment)
-  })
+  const activePromoMap = new Map((promoRows as any[]).map((r: any) => [r.id, r]))
+  const result: Record<string, PromotionServicePricing[]> = {}
 
-  if (eligibleOffers.length === 0) return {}
-
-  // Build serviceId → offers map
-  const eligibleOfferIds = new Set(eligibleOffers.map((o: any) => o.id))
-  const offerById = new Map(eligibleOffers.map((o: any) => [o.id, o]))
-  const result: Record<string, OfferForPricing[]> = {}
-
-  for (const row of (offerSvcs as any[]) as any[]) {
-    if (!eligibleOfferIds.has(row.offer_id)) continue
-    const offer = offerById.get(row.offer_id)
-    if (!offer) continue
+  for (const row of (psRows as any[]) as any[]) {
+    const promo = activePromoMap.get(row.promotion_id)
+    if (!promo) continue
     const list = result[row.service_id] ?? []
     list.push({
-      id: offer.id,
-      title: offer.title,
-      discount_type: offer.discount_type,
-      discount_value: offer.discount_value,
-      starts_at: offer.starts_at,
+      promotionId: promo.id,
+      promotionTitle: promo.title,
+      discount_type: row.discount_type,
+      discount_value: Number(row.discount_value),
+      valid_from: promo.valid_from,
     })
     result[row.service_id] = list
   }
@@ -548,54 +424,16 @@ export async function getActiveOffersForBooking(
   return result
 }
 
-// ── Server-side: apply best offer when saving appointment_services ────────────
-// Called from create-booking.ts — resolves and returns the best offer per service.
+// ── Server-side: resolve best promotion when saving appointment_services ──────
 
 export async function resolveOfferForService(
   tenantId: string,
   serviceId: string,
   basePrice: number,
   clientId?: string | null,
-  marketingConsentGivenAtBooking?: boolean,
-): Promise<{ discountedPrice: number; appliedOfferId: string | null }> {
-  // For guests who gave consent during booking, treat them as eligible for 'all' offers
-  const hasConsent = !!marketingConsentGivenAtBooking
-
-  if (!clientId && !hasConsent) {
-    return { discountedPrice: basePrice, appliedOfferId: null }
-  }
-
+): Promise<{ discountedPrice: number; appliedPromotionId: string | null }> {
   const offersMap = await getActiveOffersForBooking(tenantId, [serviceId], clientId)
-  let offers = offersMap[serviceId] ?? []
-
-  // For guests with consent given at booking time, also consider 'all' targeted offers
-  if (!clientId && hasConsent && offers.length === 0) {
-    const db = createAdminClient()
-    const now = new Date().toISOString()
-    const { data: offerSvcs } = await (db as any)
-      .from('offer_services')
-      .select('offer_id')
-      .eq('tenant_id', tenantId)
-      .eq('service_id', serviceId)
-
-    if (offerSvcs && (offerSvcs as any[]).length > 0) {
-      const offerIds = (offerSvcs as any[]).map((r: any) => r.offer_id)
-      const { data: rawOffers } = await (db as any)
-        .from('offers')
-        .select('id, title, discount_type, discount_value, starts_at')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .eq('offer_type', 'catalog')
-        .eq('target_type', 'all')
-        .is('deleted_at', null)
-        .lte('starts_at', now)
-        .gte('ends_at', now)
-        .in('id', offerIds)
-
-      offers = (rawOffers ?? []) as OfferForPricing[]
-    }
-  }
-
-  const { discountedPrice, appliedOffer } = applyBestOffer(basePrice, offers)
-  return { discountedPrice, appliedOfferId: appliedOffer?.id ?? null }
+  const items = offersMap[serviceId] ?? []
+  const { discountedPrice, appliedPromotionId } = applyBestPromotion(basePrice, items)
+  return { discountedPrice, appliedPromotionId }
 }

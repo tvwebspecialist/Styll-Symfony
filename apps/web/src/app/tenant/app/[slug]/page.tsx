@@ -5,8 +5,8 @@ import { getHomePageData } from '@/lib/actions/pwa-home'
 import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
-import { getActiveOffersForClient, type ActiveOfferForClient } from '@/lib/actions/offers'
-import { formatDiscount, formatExpiryLabel } from '@/lib/utils/offer-pricing'
+import { getActiveOffersForClient, type ActivePromotionForClient } from '@/lib/actions/offers'
+import { formatExpiryLabel } from '@/lib/utils/offer-pricing'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -98,7 +98,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   const nextReward = rewards.find((reward) => reward.pointsCost > availablePoints)
   const shouldRenderGuestState = isPreview || !homeData.isLoggedIn
 
-  let activeOffers: ActiveOfferForClient[] = []
+  let activeOffers: ActivePromotionForClient[] = []
   if (!shouldRenderGuestState && homeData.clientId) {
     try {
       activeOffers = await getActiveOffersForClient(tenant.tenant_id, homeData.clientId)
@@ -489,32 +489,28 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                     key={offer.id}
                     style={{
                       borderRadius: 14,
-                      border: '1.5px solid',
-                      borderColor: offer.offer_type === 'catalog' ? '#F0FDF4' : '#F5F5F5',
-                      background: offer.offer_type === 'catalog' ? '#F9FFF9' : '#FAFAFA',
+                      border: '1.5px solid #F0FDF4',
+                      background: '#F9FFF9',
                       padding: '12px 14px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#222222', flex: 1 }}>
-                        {offer.title}
-                      </p>
-                      {offer.offer_type === 'catalog' && offer.discount_type && offer.discount_value != null && (
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#16A34A', background: '#DCFCE7', borderRadius: 100, padding: '2px 8px', flexShrink: 0 }}>
-                          {formatDiscount({ id: offer.id, title: offer.title, discount_type: offer.discount_type, discount_value: offer.discount_value, starts_at: '' })}
-                        </span>
-                      )}
-                    </div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#222222' }}>
+                      {offer.title}
+                    </p>
                     {offer.description && (
                       <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888888' }}>{offer.description}</p>
                     )}
-                    {offer.service_names.length > 0 && (
-                      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#B0B0B0' }}>
-                        Su: {offer.service_names.join(', ')}
-                      </p>
+                    {offer.service_items.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                        {offer.service_items.map((item) => (
+                          <span key={item.serviceId} style={{ fontSize: 11, background: '#DCFCE7', color: '#16A34A', borderRadius: 100, padding: '2px 8px', fontWeight: 600 }}>
+                            {item.serviceName} {item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`}
+                          </span>
+                        ))}
+                      </div>
                     )}
-                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#B0B0B0' }}>
-                      {formatExpiryLabel(offer.ends_at)}
+                    <p style={{ margin: '8px 0 0', fontSize: 11, color: '#B0B0B0' }}>
+                      {formatExpiryLabel(offer.valid_until)}
                     </p>
                   </div>
                 ))}

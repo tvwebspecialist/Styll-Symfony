@@ -1,25 +1,17 @@
 'use client'
 
 import * as React from 'react'
-import { X, Tag, FileText, ChevronDown } from 'lucide-react'
+import { X, ChevronDown } from 'lucide-react'
 import {
   createOfferta,
   getCatalogoPerOfferta,
-  getSegmentEstimate,
-  type OfferType,
   type DiscountType,
-  type TargetType,
-  type TargetSegment,
+  type PromotionStatus,
   type CatalogoItem,
+  type PromotionServiceDiscountInput,
+  type PromotionProductDiscountInput,
 } from '@/lib/actions/offers'
-import { applyBestOffer } from '@/lib/utils/offer-pricing'
-
-const SEGMENT_LABELS: Record<TargetSegment, string> = {
-  churn_red: 'Da recuperare (assenti > 2× la loro media)',
-  churn_yellow: 'A rischio (assenti > 1,4× la loro media)',
-  vip: 'VIP (≥ 10 visite)',
-  new: 'Nuovi (≤ 1 visita)',
-}
+import { applyBestPromotion } from '@/lib/utils/offer-pricing'
 
 function formatEur(val: number) {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val)
@@ -37,8 +29,16 @@ function labelStyle(): React.CSSProperties {
   return { fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4, display: 'block' }
 }
 
-function fieldset(children: React.ReactNode, style?: React.CSSProperties) {
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>{children}</div>
+interface ServiceDiscount {
+  serviceId: string
+  discount_type: DiscountType
+  discount_value: string
+}
+
+interface ProductDiscount {
+  productId: string
+  discount_type: DiscountType
+  discount_value: string
 }
 
 interface Props {
@@ -48,33 +48,23 @@ interface Props {
 }
 
 export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
-  // Offer type
-  const [offerType, setOfferType] = React.useState<OfferType>('catalog')
-
-  // Common fields
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
-  const [targetType, setTargetType] = React.useState<TargetType>('all')
-  const [targetSegment, setTargetSegment] = React.useState<TargetSegment>('churn_red')
-  const [startsAt, setStartsAt] = React.useState(() => {
+  const [validFrom, setValidFrom] = React.useState(() => {
     const d = new Date(); d.setMinutes(0, 0, 0); return d.toISOString().slice(0, 16)
   })
-  const [endsAt, setEndsAt] = React.useState(() => {
+  const [validUntil, setValidUntil] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 30); d.setHours(23, 59, 0, 0)
     return d.toISOString().slice(0, 16)
   })
+  const [noExpiry, setNoExpiry] = React.useState(false)
+  const [showInApp, setShowInApp] = React.useState(true)
+  const [showOnLanding, setShowOnLanding] = React.useState(false)
 
-  // Catalog-specific
-  const [discountType, setDiscountType] = React.useState<DiscountType>('percentage')
-  const [discountValue, setDiscountValue] = React.useState('')
-  const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([])
-  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([])
+  const [serviceDiscounts, setServiceDiscounts] = React.useState<ServiceDiscount[]>([])
+  const [productDiscounts, setProductDiscounts] = React.useState<ProductDiscount[]>([])
 
-  // Catalog data
   const [catalogo, setCatalogo] = React.useState<CatalogoItem[] | null>(null)
-  const [segmentCount, setSegmentCount] = React.useState<number | null>(null)
-
-  // UI state
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -82,52 +72,65 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     getCatalogoPerOfferta(tenantId).then(setCatalogo)
   }, [tenantId])
 
-  // Estimate audience
-  React.useEffect(() => {
-    let cancelled = false
-    setSegmentCount(null)
-    getSegmentEstimate(tenantId, targetType, targetType === 'segment' ? targetSegment : null)
-      .then((r) => { if (!cancelled) setSegmentCount(r.count) })
-    return () => { cancelled = true }
-  }, [tenantId, targetType, targetSegment])
-
   const services = catalogo?.filter((i) => i.type === 'service') ?? []
   const products = catalogo?.filter((i) => i.type === 'product') ?? []
 
-  // Price previews
+  function toggleService(svc: CatalogoItem) {
+    setServiceDiscounts((prev) => {
+      if (prev.find((s) => s.serviceId === svc.id)) return prev.filter((s) => s.serviceId !== svc.id)
+      return [...prev, { serviceId: svc.id, discount_type: 'percent', discount_value: '' }]
+    })
+  }
+
+  function toggleProduct(prd: CatalogoItem) {
+    setProductDiscounts((prev) => {
+      if (prev.find((p) => p.productId === prd.id)) return prev.filter((p) => p.productId !== prd.id)
+      return [...prev, { productId: prd.id, discount_type: 'percent', discount_value: '' }]
+    })
+  }
+
+  function updateServiceDiscount(serviceId: string, field: 'discount_type' | 'discount_value', value: string) {
+    setServiceDiscounts((prev) => prev.map((s) => s.serviceId === serviceId ? { ...s, [field]: value } : s))
+  }
+
+  function updateProductDiscount(productId: string, field: 'discount_type' | 'discount_value', value: string) {
+    setProductDiscounts((prev) => prev.map((p) => p.productId === productId ? { ...p, [field]: value } : p))
+  }
+
   const pricePreview = React.useMemo(() => {
-    const val = parseFloat(discountValue)
-    if (isNaN(val) || val <= 0) return []
-    const allSelected = [...selectedServiceIds, ...selectedProductIds]
-    return (catalogo ?? [])
-      .filter((item) => allSelected.includes(item.id))
-      .map((item) => {
-        const { discountedPrice } = applyBestOffer(item.price, [{
-          id: 'preview', title: '', discount_type: discountType, discount_value: val, starts_at: '',
+    return serviceDiscounts
+      .map((sd) => {
+        const item = catalogo?.find((c) => c.id === sd.serviceId)
+        if (!item) return null
+        const val = parseFloat(sd.discount_value)
+        if (isNaN(val) || val <= 0) return null
+        const { discountedPrice } = applyBestPromotion(item.price, [{
+          promotionId: 'preview', promotionTitle: '', discount_type: sd.discount_type, discount_value: val, valid_from: '',
         }])
         return { name: item.name, originalPrice: item.price, discountedPrice }
       })
-  }, [catalogo, selectedServiceIds, selectedProductIds, discountType, discountValue])
+      .filter(Boolean) as { name: string; originalPrice: number; discountedPrice: number }[]
+  }, [catalogo, serviceDiscounts])
 
-  function toggleSelection(id: string, type: 'service' | 'product') {
-    if (type === 'service') {
-      setSelectedServiceIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
-    } else {
-      setSelectedProductIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
-    }
-  }
-
-  async function handleSubmit(status: 'draft' | 'active') {
+  async function handleSubmit(status: PromotionStatus) {
     setError(null)
-    if (!title.trim()) { setError('Inserisci un titolo per l\'offerta.'); return }
-    if (offerType === 'catalog') {
-      if (!discountValue || parseFloat(discountValue) <= 0) { setError('Inserisci uno sconto valido.'); return }
-      if (discountType === 'percentage' && parseFloat(discountValue) > 100) { setError('La percentuale non può superare 100%.'); return }
-      if (selectedServiceIds.length === 0 && selectedProductIds.length === 0) {
-        setError('Seleziona almeno un servizio o prodotto.'); return
-      }
+    if (!title.trim()) { setError("Inserisci un titolo per la promozione."); return }
+    if (serviceDiscounts.length === 0 && productDiscounts.length === 0) {
+      setError("Seleziona almeno un servizio o prodotto."); return
     }
-    if (new Date(endsAt) <= new Date(startsAt)) { setError('La data di fine deve essere successiva alla data di inizio.'); return }
+    for (const sd of serviceDiscounts) {
+      const val = parseFloat(sd.discount_value)
+      if (isNaN(val) || val <= 0) { setError("Inserisci uno sconto valido per tutti i servizi selezionati."); return }
+      if (sd.discount_type === 'percent' && val > 100) { setError("La percentuale non può superare 100%."); return }
+    }
+    for (const pd of productDiscounts) {
+      const val = parseFloat(pd.discount_value)
+      if (isNaN(val) || val <= 0) { setError("Inserisci uno sconto valido per tutti i prodotti selezionati."); return }
+      if (pd.discount_type === 'percent' && val > 100) { setError("La percentuale non può superare 100%."); return }
+    }
+    if (!noExpiry && new Date(validUntil) <= new Date(validFrom)) {
+      setError("La data di fine deve essere successiva alla data di inizio."); return
+    }
 
     setSaving(true)
     try {
@@ -135,16 +138,21 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
         tenantId,
         title: title.trim(),
         description: description.trim() || undefined,
-        offer_type: offerType,
-        discount_type: offerType === 'catalog' ? discountType : undefined,
-        discount_value: offerType === 'catalog' ? parseFloat(discountValue) : undefined,
-        target_type: targetType,
-        target_segment: targetType === 'segment' ? targetSegment : undefined,
-        starts_at: new Date(startsAt).toISOString(),
-        ends_at: new Date(endsAt).toISOString(),
+        valid_from: new Date(validFrom).toISOString(),
+        valid_until: noExpiry ? null : new Date(validUntil).toISOString(),
+        show_in_app: showInApp,
+        show_on_landing: showOnLanding,
         status,
-        service_ids: offerType === 'catalog' ? selectedServiceIds : undefined,
-        product_ids: offerType === 'catalog' ? selectedProductIds : undefined,
+        service_discounts: serviceDiscounts.map((sd): PromotionServiceDiscountInput => ({
+          serviceId: sd.serviceId,
+          discount_type: sd.discount_type,
+          discount_value: parseFloat(sd.discount_value),
+        })),
+        product_discounts: productDiscounts.map((pd): PromotionProductDiscountInput => ({
+          productId: pd.productId,
+          discount_type: pd.discount_type,
+          discount_value: parseFloat(pd.discount_value),
+        })),
       })
       if (!result.success) { setError(result.error ?? 'Errore durante il salvataggio.'); return }
       onSuccess()
@@ -154,6 +162,15 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
       setSaving(false)
     }
   }
+
+  const toggleStyle = (active: boolean): React.CSSProperties => ({
+    width: 40, height: 22, borderRadius: 11, background: active ? '#222' : '#D0D0D0',
+    position: 'relative', cursor: 'pointer', border: 'none', transition: 'background 150ms', flexShrink: 0,
+  })
+  const thumbStyle = (active: boolean): React.CSSProperties => ({
+    position: 'absolute', top: 2, left: active ? 20 : 2, width: 18, height: 18,
+    borderRadius: 9, background: '#FFF', transition: 'left 150ms', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+  })
 
   return (
     <div style={{
@@ -165,9 +182,8 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
         maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,0.16)',
       }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 0' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#222', margin: 0 }}>Nuova offerta</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#222', margin: 0 }}>Nuova promozione</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
             <X size={20} color="#888" />
           </button>
@@ -175,263 +191,162 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
 
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Offer type switch */}
-          <div>
-            <span style={labelStyle()}>Tipo di offerta</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['catalog', 'free_text'] as OfferType[]).map((type) => {
-                const active = offerType === type
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setOfferType(type)}
-                    style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      gap: 8, padding: '10px 14px', borderRadius: 12, border: '1.5px solid',
-                      borderColor: active ? '#222' : '#E5E5E5', background: active ? '#222' : '#FFF',
-                      color: active ? '#FFF' : '#444', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      transition: 'all 120ms',
-                    }}
-                  >
-                    {type === 'catalog' ? <Tag size={15} /> : <FileText size={15} />}
-                    {type === 'catalog' ? 'Su catalogo' : 'Testo libero'}
-                  </button>
-                )
-              })}
-            </div>
-            <p style={{ fontSize: 12, color: '#B0B0B0', marginTop: 6 }}>
-              {offerType === 'catalog'
-                ? 'Lo sconto si applica in automatico al prezzo al momento della prenotazione.'
-                : 'Comunicativa pura: nessuno sconto automatico.'}
-            </p>
-          </div>
-
           {/* Title */}
-          {fieldset(
-            <>
-              <label style={labelStyle()}>Titolo *</label>
-              <input
-                style={inputStyle()}
-                placeholder={offerType === 'catalog' ? 'Es. "Sconto estate sui tagli"' : 'Es. "Porta un amico e ricevi un omaggio"'}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={100}
-              />
-            </>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle()}>Titolo *</label>
+            <input style={inputStyle()} placeholder='Es. "Sconto estate sui tagli"' value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} />
+          </div>
 
           {/* Description */}
-          {fieldset(
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle()}>Descrizione <span style={{ color: '#B0B0B0' }}>(facoltativa)</span></label>
+            <textarea style={{ ...inputStyle(), resize: 'vertical', minHeight: 64 }} placeholder="Dettagli visibili ai clienti nella PWA…" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
+          </div>
+
+          {/* Services with per-row discounts */}
+          {catalogo === null ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[0, 1, 2].map((i) => <div key={i} style={{ height: 44, background: '#F4F4F4', borderRadius: 10 }} />)}
+            </div>
+          ) : (
             <>
-              <label style={labelStyle()}>Descrizione <span style={{ color: '#B0B0B0' }}>(facoltativa)</span></label>
-              <textarea
-                style={{ ...inputStyle(), resize: 'vertical', minHeight: 72 }}
-                placeholder="Dettagli aggiuntivi visibili nella PWA cliente…"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={500}
-              />
-            </>
-          )}
-
-          {/* CATALOG BRANCH */}
-          {offerType === 'catalog' && (
-            <>
-              {/* Discount */}
-              <div>
-                <span style={labelStyle()}>Tipo sconto *</span>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  {(['percentage', 'fixed_amount'] as DiscountType[]).map((dt) => {
-                    const active = discountType === dt
-                    return (
-                      <button
-                        key={dt}
-                        type="button"
-                        onClick={() => setDiscountType(dt)}
-                        style={{
-                          flex: 1, padding: '8px 12px', borderRadius: 10, border: '1.5px solid',
-                          borderColor: active ? '#222' : '#E5E5E5', background: active ? '#222' : '#FFF',
-                          color: active ? '#FFF' : '#444', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                          transition: 'all 120ms',
-                        }}
-                      >
-                        {dt === 'percentage' ? 'Percentuale (%)' : 'Importo fisso (€)'}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    max={discountType === 'percentage' ? '100' : undefined}
-                    step="0.01"
-                    style={{ ...inputStyle(), flex: 1 }}
-                    placeholder={discountType === 'percentage' ? 'Es. 20' : 'Es. 5'}
-                    value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                  />
-                  <span style={{ fontSize: 16, fontWeight: 600, color: '#555', flexShrink: 0 }}>
-                    {discountType === 'percentage' ? '%' : '€'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Service selection */}
-              {catalogo === null ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[0, 1, 2].map((i) => <div key={i} style={{ height: 36, background: '#F4F4F4', borderRadius: 8 }} />)}
-                </div>
-              ) : (
-                <>
-                  {services.length > 0 && (
-                    <div>
-                      <span style={labelStyle()}>Servizi inclusi nell'offerta</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {services.map((svc) => {
-                          const checked = selectedServiceIds.includes(svc.id)
-                          return (
-                            <label key={svc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${checked ? '#222' : '#E9E9E9'}`, background: checked ? '#F5F5F5' : '#FFF', transition: 'all 120ms' }}>
-                              <input type="checkbox" checked={checked} onChange={() => toggleSelection(svc.id, 'service')} style={{ width: 16, height: 16, accentColor: '#222' }} />
-                              <span style={{ flex: 1, fontSize: 14, color: '#222' }}>{svc.name}</span>
-                              <span style={{ fontSize: 13, color: '#888' }}>{formatEur(svc.price)}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {products.length > 0 && (
-                    <div>
-                      <span style={labelStyle()}>Prodotti inclusi nell'offerta</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {products.map((prd) => {
-                          const checked = selectedProductIds.includes(prd.id)
-                          return (
-                            <label key={prd.id} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${checked ? '#222' : '#E9E9E9'}`, background: checked ? '#F5F5F5' : '#FFF', transition: 'all 120ms' }}>
-                              <input type="checkbox" checked={checked} onChange={() => toggleSelection(prd.id, 'product')} style={{ width: 16, height: 16, accentColor: '#222' }} />
-                              <span style={{ flex: 1, fontSize: 14, color: '#222' }}>{prd.name}</span>
-                              <span style={{ fontSize: 13, color: '#888' }}>{formatEur(prd.price)}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Price preview */}
-                  {pricePreview.length > 0 && (
-                    <div style={{ background: '#F9F9F9', borderRadius: 12, padding: '12px 16px' }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Anteprima prezzi</p>
-                      {pricePreview.map((item) => (
-                        <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, color: '#444' }}>{item.name}</span>
-                          <span style={{ fontSize: 13 }}>
-                            <span style={{ textDecoration: 'line-through', color: '#B0B0B0', marginRight: 6 }}>{formatEur(item.originalPrice)}</span>
-                            <span style={{ fontWeight: 700, color: '#16A34A' }}>{formatEur(item.discountedPrice)}</span>
-                          </span>
+              {services.length > 0 && (
+                <div>
+                  <span style={labelStyle()}>Servizi con sconto</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {services.map((svc) => {
+                      const sd = serviceDiscounts.find((s) => s.serviceId === svc.id)
+                      const checked = !!sd
+                      return (
+                        <div key={svc.id} style={{ borderRadius: 12, border: `1.5px solid ${checked ? '#222' : '#E9E9E9'}`, overflow: 'hidden', transition: 'border-color 120ms' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', background: checked ? '#F5F5F5' : '#FFF' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleService(svc)} style={{ width: 16, height: 16, accentColor: '#222', flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: 14, color: '#222' }}>{svc.name}</span>
+                            <span style={{ fontSize: 13, color: '#888' }}>{formatEur(svc.price)}</span>
+                          </label>
+                          {checked && sd && (
+                            <div style={{ padding: '8px 12px 12px', background: '#FAFAFA', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <div style={{ position: 'relative', flex: '0 0 150px' }}>
+                                <select style={{ ...inputStyle(), appearance: 'none', paddingRight: 28, fontSize: 13 }} value={sd.discount_type} onChange={(e) => updateServiceDiscount(svc.id, 'discount_type', e.target.value)}>
+                                  <option value="percent">Percentuale (%)</option>
+                                  <option value="fixed">Importo fisso (€)</option>
+                                </select>
+                                <ChevronDown size={13} color="#888" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                              </div>
+                              <input type="number" min="0" max={sd.discount_type === 'percent' ? '100' : undefined} step="0.01" style={{ ...inputStyle(), flex: 1, fontSize: 13 }} placeholder={sd.discount_type === 'percent' ? 'Es. 20' : 'Es. 5'} value={sd.discount_value} onChange={(e) => updateServiceDiscount(svc.id, 'discount_value', e.target.value)} />
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#555', flexShrink: 0 }}>{sd.discount_type === 'percent' ? '%' : '€'}</span>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {products.length > 0 && (
+                <div>
+                  <span style={labelStyle()}>Prodotti con sconto</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {products.map((prd) => {
+                      const pd = productDiscounts.find((p) => p.productId === prd.id)
+                      const checked = !!pd
+                      return (
+                        <div key={prd.id} style={{ borderRadius: 12, border: `1.5px solid ${checked ? '#222' : '#E9E9E9'}`, overflow: 'hidden', transition: 'border-color 120ms' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', background: checked ? '#F5F5F5' : '#FFF' }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleProduct(prd)} style={{ width: 16, height: 16, accentColor: '#222', flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: 14, color: '#222' }}>{prd.name}</span>
+                            <span style={{ fontSize: 13, color: '#888' }}>{formatEur(prd.price)}</span>
+                          </label>
+                          {checked && pd && (
+                            <div style={{ padding: '8px 12px 12px', background: '#FAFAFA', borderTop: '1px solid #F0F0F0', display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <div style={{ position: 'relative', flex: '0 0 150px' }}>
+                                <select style={{ ...inputStyle(), appearance: 'none', paddingRight: 28, fontSize: 13 }} value={pd.discount_type} onChange={(e) => updateProductDiscount(prd.id, 'discount_type', e.target.value)}>
+                                  <option value="percent">Percentuale (%)</option>
+                                  <option value="fixed">Importo fisso (€)</option>
+                                </select>
+                                <ChevronDown size={13} color="#888" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                              </div>
+                              <input type="number" min="0" max={pd.discount_type === 'percent' ? '100' : undefined} step="0.01" style={{ ...inputStyle(), flex: 1, fontSize: 13 }} placeholder={pd.discount_type === 'percent' ? 'Es. 20' : 'Es. 5'} value={pd.discount_value} onChange={(e) => updateProductDiscount(prd.id, 'discount_value', e.target.value)} />
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#555', flexShrink: 0 }}>{pd.discount_type === 'percent' ? '%' : '€'}</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {pricePreview.length > 0 && (
+                <div style={{ background: '#F9F9F9', borderRadius: 12, padding: '12px 16px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Anteprima prezzi scontati</p>
+                  {pricePreview.map((item) => (
+                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, color: '#444' }}>{item.name}</span>
+                      <span>
+                        <span style={{ textDecoration: 'line-through', color: '#B0B0B0', marginRight: 6, fontSize: 13 }}>{formatEur(item.originalPrice)}</span>
+                        <span style={{ fontWeight: 700, color: '#16A34A', fontSize: 13 }}>{formatEur(item.discountedPrice)}</span>
+                      </span>
                     </div>
-                  )}
-                </>
+                  ))}
+                </div>
               )}
             </>
           )}
 
-          {/* Targeting */}
+          {/* Dates */}
           <div>
-            <span style={labelStyle()}>Target</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['all', 'segment'] as TargetType[]).map((tt) => {
-                  const active = targetType === tt
-                  return (
-                    <button
-                      key={tt}
-                      type="button"
-                      onClick={() => setTargetType(tt)}
-                      style={{
-                        flex: 1, padding: '8px 12px', borderRadius: 10, border: '1.5px solid',
-                        borderColor: active ? '#222' : '#E5E5E5', background: active ? '#222' : '#FFF',
-                        color: active ? '#FFF' : '#444', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                      }}
-                    >
-                      {tt === 'all' ? 'Tutti i clienti' : 'Segmento specifico'}
-                    </button>
-                  )
-                })}
+            <span style={labelStyle()}>Periodo di validità</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ ...labelStyle(), fontSize: 11 }}>Inizia il *</label>
+                <input type="datetime-local" style={inputStyle()} value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ ...labelStyle(), fontSize: 11 }}>Scade il</label>
+                <input type="datetime-local" style={inputStyle(noExpiry)} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} min={validFrom} disabled={noExpiry} />
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#555' }}>
+              <input type="checkbox" checked={noExpiry} onChange={(e) => setNoExpiry(e.target.checked)} style={{ accentColor: '#222' }} />
+              Nessuna scadenza
+            </label>
+          </div>
 
-              {targetType === 'segment' && (
-                <div style={{ position: 'relative' }}>
-                  <select
-                    style={{ ...inputStyle(), appearance: 'none', paddingRight: 36, cursor: 'pointer' }}
-                    value={targetSegment}
-                    onChange={(e) => setTargetSegment(e.target.value as TargetSegment)}
-                  >
-                    {(Object.entries(SEGMENT_LABELS) as [TargetSegment, string][]).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={16} color="#888" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+          {/* Visibility toggles */}
+          <div>
+            <span style={labelStyle()}>Visibilità</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { label: 'App clienti (PWA)', desc: 'Sezione "Offerte per te" con sconto al booking', value: showInApp, set: setShowInApp },
+                { label: 'Landing page', desc: 'Pagina pubblica del salone', value: showOnLanding, set: setShowOnLanding },
+              ].map((item) => (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>{item.label}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#B0B0B0' }}>{item.desc}</p>
+                  </div>
+                  <button type="button" onClick={() => item.set((v) => !v)} style={toggleStyle(item.value)}>
+                    <span style={thumbStyle(item.value)} />
+                  </button>
                 </div>
-              )}
-
-              {segmentCount !== null && (
-                <p style={{ fontSize: 12, color: '#888', margin: 0 }}>
-                  Stima clienti raggiunti: <strong style={{ color: '#222' }}>{segmentCount}</strong> con consenso marketing attivo
-                </p>
-              )}
+              ))}
             </div>
           </div>
 
-          {/* Dates */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {fieldset(
-              <>
-                <label style={labelStyle()}>Inizia il *</label>
-                <input type="datetime-local" style={inputStyle()} value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-              </>
-            )}
-            {fieldset(
-              <>
-                <label style={labelStyle()}>Scade il *</label>
-                <input type="datetime-local" style={inputStyle()} value={endsAt} onChange={(e) => setEndsAt(e.target.value)} min={startsAt} />
-              </>
-            )}
-          </div>
-
-          {/* Error */}
           {error && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#B91C1C' }}>
               {error}
             </div>
           )}
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 10, paddingTop: 4, paddingBottom: 8 }}>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => handleSubmit('draft')}
-              style={{
-                flex: 1, padding: '11px 16px', borderRadius: 12, border: '1.5px solid #E5E5E5',
-                background: '#FFF', color: '#222', fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer',
-              }}
-            >
+            <button type="button" disabled={saving} onClick={() => handleSubmit('draft')} style={{ flex: 1, padding: '11px 16px', borderRadius: 12, border: '1.5px solid #E5E5E5', background: '#FFF', color: '#222', fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
               Salva bozza
             </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => handleSubmit('active')}
-              className="styll-btn-primary"
-              style={{ flex: 1, padding: '11px 16px', fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer' }}
-            >
-              {saving ? 'Pubblicazione…' : 'Pubblica ora'}
+            <button type="button" disabled={saving} onClick={() => handleSubmit('active')} className="styll-btn-primary" style={{ flex: 1, padding: '11px 16px', fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? 'Salvataggio…' : 'Pubblica ora'}
             </button>
           </div>
         </div>
