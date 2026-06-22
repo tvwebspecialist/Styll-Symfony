@@ -724,7 +724,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         {!isFullScreen && (
           <>
             {/* Visual area — full screen transparent, padded to stay above bottom card */}
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 260 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 320 }}>
 
               {/* ── Step 1 — Booking cinematic animation ───────────────── */}
               {step === 1 && (
@@ -736,14 +736,14 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div style={{ display: 'flex', gap: 12, padding: '0 28px', justifyContent: 'center', width: '100%' }}>
                       {displayLocations.map((loc, i) => (
                         <div key={i} id={`bk-loc-card-${i}`} style={{
-                          position: 'relative', borderRadius: 20, overflow: 'hidden',
+                          position: 'relative', borderRadius: 24, overflow: 'hidden',
                           background: 'rgba(255,255,255,0.09)', border: '0.5px solid rgba(255,255,255,0.16)',
-                          flex: displayLocations.length === 1 ? '0 0 220px' : '0 0 148px',
+                          flex: displayLocations.length === 1 ? '0 0 200px' : '0 0 160px',
                           boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
                         }}>
                           {loc.photo_url
-                            ? <img src={loc.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: 88, objectFit: 'cover', display: 'block' }}/>
-                            : <div style={{ width: '100%', height: 88, background: `linear-gradient(135deg, ${accent}88, ${darken(accent, 0.65)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            ? <img src={loc.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', borderRadius: '24px 24px 0 0' }}/>
+                            : <div style={{ width: '100%', height: 120, background: `linear-gradient(135deg, ${accent}88, ${darken(accent, 0.65)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
                                 </svg>
@@ -771,7 +771,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div style={{ display: 'flex', gap: 18, alignItems: 'center', padding: '0 28px' }}>
                       {displayStaff.slice(0, 4).map((s, i) => {
                         const initials = s.full_name.split(' ').map((n: string) => n[0] ?? '').slice(0, 2).join('').toUpperCase()
-                        const size = i === 0 ? 72 : 54
+                        const size = i === 0 ? 88 : 64
                         return (
                           <div key={i} id={`bk-staff-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0 }}>
                             <div style={{ position: 'relative' }}>
@@ -782,17 +782,17 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                                   boxShadow: `0 0 24px ${accent}55`,
                                 }}/>
                               )}
-                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '1.5px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
+                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.30)', flexShrink: 0 }}>
                                 {s.photo_url
                                   ? <img src={s.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                                   : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.72)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      <span style={{ fontSize: i === 0 ? 22 : 16, fontWeight: 800, color: '#fff' }}>{initials}</span>
+                                      <span style={{ fontSize: i === 0 ? 26 : 20, fontWeight: 800, color: '#fff' }}>{initials}</span>
                                     </div>
                                 }
                               </div>
                             </div>
                             <div style={{ textAlign: 'center' }}>
-                              <p style={{ margin: 0, fontSize: i === 0 ? 13 : 11, fontWeight: 700, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.55)', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p style={{ margin: 0, fontSize: i === 0 ? 14 : 12, fontWeight: i === 0 ? 700 : 600, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.85)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {s.full_name.split(' ')[0]}
                               </p>
                               {s.specialization && <p style={{ margin: '1px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{s.specialization}</p>}
@@ -814,7 +814,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                           const dow = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)
                           return (
                             <div key={di} id={isSelected ? 'bk-cal-day-sel' : undefined} style={{
-                              flexShrink: 0, width: 44, borderRadius: 14, padding: '10px 0',
+                              flexShrink: 0, width: 52, borderRadius: 16, padding: '12px 0',
                               backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                               opacity: isPast ? 0.3 : 1,
@@ -829,7 +829,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div id="bk-time-row" style={{ display: 'flex', gap: 8, opacity: 0 }}>
                       {['09:00', '10:00', '11:00', '15:00'].map((t, i) => (
                         <div key={i} id={i === 1 ? 'bk-time-pill' : undefined} style={{
-                          borderRadius: 12, padding: '8px 16px',
+                          borderRadius: 20, padding: '10px 20px',
                           backgroundColor: i === 1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
                           border: `0.5px solid ${i === 1 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}`,
                           fontSize: 14, fontWeight: 700,
@@ -842,21 +842,21 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   {/* ── PHASE 4: Confirmed ─────────────────────────────── */}
                   <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, opacity: 0 }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 84, height: 84, borderRadius: '50%', border: `2px solid ${accent}`, opacity: 0 }}/>
+                      <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', opacity: 0 }}/>
                       <div id="bk-confirm-ring" style={{
-                        width: 84, height: 84, borderRadius: '50%',
+                        width: 96, height: 96, borderRadius: '50%',
                         background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.68)})`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         boxShadow: `0 20px 56px ${accent}44`,
                       }}>
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <path id="bk-confirm-path" d="M4 13 L9 18 L20 7" strokeDasharray="60" strokeDashoffset="60"/>
                         </svg>
                       </div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
                       <p id="bk-confirm-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', opacity: 0 }}>Sei nel calendario.</p>
-                      <p id="bk-confirm-sub" style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.52)', opacity: 0 }}>{businessName} ti aspetta.</p>
+                      <p id="bk-confirm-sub" style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.95)', opacity: 0 }}>{businessName} ti aspetta.</p>
                     </div>
                   </div>
 
