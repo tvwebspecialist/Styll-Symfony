@@ -64,7 +64,7 @@ export default async function OffertePage({ params }: Props) {
           WebkitOverflowScrolling: 'touch',
         } as CSSProperties}
       >
-        {offers.map((offer) => {
+        {offers.map((offer, index) => {
           const allItems = [...offer.service_items, ...offer.product_items]
           const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
           const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
@@ -87,44 +87,53 @@ export default async function OffertePage({ params }: Props) {
               href={tp(`/offerte/${offer.id}`)}
               style={{
                 display: 'block',
-                width: 'calc(100% - 48px)',
+                width: 'calc(100% - 40px)',
                 flexShrink: 0,
                 scrollSnapAlign: 'start',
-                aspectRatio: '16/9',
+                aspectRatio: '16 / 9',
                 borderRadius: 16,
                 overflow: 'hidden',
                 position: 'relative',
                 textDecoration: 'none',
-                background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)`,
               } as CSSProperties}
             >
-              {offer.cover_image_url && (
+              {/* Background: immagine se presente, gradient brand come fallback */}
+              {offer.cover_image_url ? (
                 <Image
                   fill
                   src={offer.cover_image_url}
                   alt={offer.title}
-                  sizes="(max-width: 640px) 100vw, 640px"
+                  sizes="(max-width: 768px) calc(100vw - 40px), 400px"
                   style={{ objectFit: 'cover' }}
-                  loading="lazy"
+                  priority={index === 0}
                 />
+              ) : (
+                <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)` }} />
               )}
+
+              {/* Overlay scuro per leggibilità testo */}
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 55%)' }} />
+
+              {/* Badge scadenza */}
               {showExpiry && (
-                <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.50)', backdropFilter: 'blur(6px)', color: '#FFF', fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 10px' }}>
+                <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', color: '#FFF', fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 10px' }}>
                   {expiryText}
                 </div>
               )}
-              <div style={{ position: 'absolute', bottom: 12, left: 12, right: 12, background: '#FFF', borderRadius: 16, padding: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+
+              {/* Box info */}
+              <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, background: '#FFF', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {offer.title}
                   </p>
                   {discountLabel && (
-                    <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
+                    <p style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
                       {discountLabel}
                     </p>
                   )}
                 </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </div>

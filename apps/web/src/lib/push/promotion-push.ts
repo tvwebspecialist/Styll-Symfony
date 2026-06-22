@@ -69,7 +69,7 @@ export async function sendPromotionPush(
     body:   (promo as any).title as string,
     icon,
     badge: '/icon-192.png',
-    url:   `/${slug}/offerte`,
+    url:   `/${slug}/offerte/${promotionId}`,
     tag:   `promotion-${promotionId}`,
   }
 
