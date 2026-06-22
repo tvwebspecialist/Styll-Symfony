@@ -4,11 +4,13 @@ import * as React from 'react'
 import { X, Check, ChevronLeft, ImagePlus, Trash2 } from 'lucide-react'
 import {
   createOfferta,
+  updateOfferta,
   getCatalogoPerOfferta,
   uploadPromozioneCopertina,
   type DiscountType,
   type PromotionStatus,
   type CatalogoItem,
+  type PromotionRow,
 } from '@/lib/actions/offers'
 import { applyBestPromotion } from '@/lib/utils/offer-pricing'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -33,6 +35,15 @@ function daysFromNow(days: number): string {
 
 function combineDateTime(date: string, hh: string, mm: string): string {
   return new Date(`${date}T${hh}:${mm}`).toISOString()
+}
+
+function parseISOParts(iso: string): { date: string; hh: string; mm: string } {
+  const d = new Date(iso)
+  return {
+    date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    hh: String(d.getHours()).padStart(2, '0'),
+    mm: String(d.getMinutes()).padStart(2, '0'),
+  }
 }
 
 function fmtDatetime(date: string, hh: string, mm: string): string {
@@ -148,32 +159,58 @@ interface Props {
   tenantId: string
   onSuccess: () => void
   onClose: () => void
+  initialData?: PromotionRow
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
+export function OfferForm({ tenantId, onSuccess, onClose, initialData }: Props) {
   const [step, setStep] = React.useState(1)
 
   // Step 1
-  const [title, setTitle] = React.useState('')
-  const [description, setDescription] = React.useState('')
+  const [title, setTitle] = React.useState(() => initialData?.title ?? '')
+  const [description, setDescription] = React.useState(() => initialData?.description ?? '')
   const [coverFile, setCoverFile] = React.useState<File | null>(null)
   const [coverPreviewUrl, setCoverPreviewUrl] = React.useState<string | null>(null)
+  const [existingCoverUrl, setExistingCoverUrl] = React.useState<string | null>(() => initialData?.cover_image_url ?? null)
   const coverInputRef = React.useRef<HTMLInputElement>(null)
 
   // Step 2 & 3
-  const [serviceDiscounts, setServiceDiscounts] = React.useState<ServiceDiscount[]>([])
-  const [productDiscounts, setProductDiscounts] = React.useState<ProductDiscount[]>([])
+  const [serviceDiscounts, setServiceDiscounts] = React.useState<ServiceDiscount[]>(() =>
+    initialData?.service_items.map((si) => ({
+      serviceId: si.serviceId,
+      discount_type: si.discount_type,
+      discount_value: String(si.discount_value),
+    })) ?? [],
+  )
+  const [productDiscounts, setProductDiscounts] = React.useState<ProductDiscount[]>(() =>
+    initialData?.product_items.map((pi) => ({
+      productId: pi.productId,
+      discount_type: pi.discount_type,
+      discount_value: String(pi.discount_value),
+    })) ?? [],
+  )
 
   // Step 4
-  const [validFromDate, setValidFromDate] = React.useState(todayStr)
-  const [validFromHH, setValidFromHH] = React.useState('09')
-  const [validFromMM, setValidFromMM] = React.useState('00')
-  const [noExpiry, setNoExpiry] = React.useState(false)
-  const [validUntilDate, setValidUntilDate] = React.useState(() => daysFromNow(30))
-  const [validUntilHH, setValidUntilHH] = React.useState('23')
-  const [validUntilMM, setValidUntilMM] = React.useState('00')
+  const [validFromDate, setValidFromDate] = React.useState(() =>
+    initialData?.valid_from ? parseISOParts(initialData.valid_from).date : todayStr(),
+  )
+  const [validFromHH, setValidFromHH] = React.useState(() =>
+    initialData?.valid_from ? parseISOParts(initialData.valid_from).hh : '09',
+  )
+  const [validFromMM, setValidFromMM] = React.useState(() =>
+    initialData?.valid_from ? parseISOParts(initialData.valid_from).mm : '00',
+  )
+  const [noExpiry, setNoExpiry] = React.useState(() => !!initialData && initialData.valid_until === null)
+  const [validUntilDate, setValidUntilDate] = React.useState(() =>
+    initialData?.valid_until ? parseISOParts(initialData.valid_until).date : daysFromNow(30),
+  )
+  const [validUntilHH, setValidUntilHH] = React.useState(() =>
+    initialData?.valid_until ? parseISOParts(initialData.valid_until).hh : '23',
+  )
+  const [validUntilMM, setValidUntilMM] = React.useState(() =>
+    initialData?.valid_until ? parseISOParts(initialData.valid_until).mm : '00',
+  )
 
   // Shared
   const [catalogo, setCatalogo] = React.useState<CatalogoItem[] | null>(null)
@@ -218,6 +255,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl)
     setCoverFile(null)
     setCoverPreviewUrl(null)
+    setExistingCoverUrl(null)
   }
 
   // ── catalog selection ──────────────────────────────────────────────────────
@@ -306,8 +344,8 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     setError(null)
     setSaving(true)
     try {
-      // Upload cover image if present — non-blocking on failure
-      let coverImageUrl: string | null = null
+      // If a new file was selected, upload it; otherwise keep existing URL
+      let coverImageUrl: string | null = existingCoverUrl
       if (coverFile) {
         try {
           const fd = new FormData()
@@ -315,16 +353,16 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
           const res = await uploadPromozioneCopertina(fd)
           if (res.ok && res.url) coverImageUrl = res.url
         } catch {
-          // fall through — save with null cover
+          // fall through — keep existing or null
         }
       }
 
-      const result = await createOfferta({
+      const input = {
         tenantId,
         title: title.trim(),
         description: description.trim() || undefined,
         cover_image_url: coverImageUrl,
-        valid_from:  combineDateTime(validFromDate, validFromHH, validFromMM),
+        valid_from: combineDateTime(validFromDate, validFromHH, validFromMM),
         valid_until: noExpiry ? null : combineDateTime(validUntilDate, validUntilHH, validUntilMM),
         show_in_app: true,
         show_on_landing: false,
@@ -339,8 +377,13 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
           discount_type: pd.discount_type,
           discount_value: parseFloat(pd.discount_value),
         })),
-      })
-      if (!result.success) { setError(result.error ?? 'Errore durante il salvataggio.'); return }
+      }
+
+      const result = initialData
+        ? await updateOfferta(initialData.id, input)
+        : await createOfferta(input)
+
+      if (!result.success) { setError((result as { error?: string }).error ?? 'Errore durante il salvataggio.'); return }
       onSuccess()
     } catch {
       setError('Errore imprevisto. Riprova.')
@@ -391,7 +434,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
             style={{ display: 'none' }}
             onChange={handleCoverChange}
           />
-          {!coverPreviewUrl ? (
+          {!(coverPreviewUrl ?? existingCoverUrl) ? (
             <button
               type="button"
               onClick={() => coverInputRef.current?.click()}
@@ -419,7 +462,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
             <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={coverPreviewUrl}
+                src={(coverPreviewUrl ?? existingCoverUrl)!}
                 alt="Anteprima copertina"
                 style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
               />
@@ -623,10 +666,10 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Cover */}
-        {coverPreviewUrl && (
+        {(coverPreviewUrl ?? existingCoverUrl) && (
           <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={coverPreviewUrl} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+            <img src={(coverPreviewUrl ?? existingCoverUrl)!} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
           </div>
         )}
 
@@ -754,7 +797,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 0', flexShrink: 0 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#222', margin: 0 }}>Nuova promozione</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#222', margin: 0 }}>{initialData ? 'Modifica promozione' : 'Nuova promozione'}</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
             <X size={20} color="#888" />
           </button>

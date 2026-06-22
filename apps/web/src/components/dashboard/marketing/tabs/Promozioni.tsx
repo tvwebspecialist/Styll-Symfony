@@ -10,6 +10,7 @@ import {
   type PromotionStatus,
 } from '@/lib/actions/offers'
 import { OfferForm } from '@/components/dashboard/marketing/OfferForm'
+import { OfferDetailPanel } from '@/components/dashboard/marketing/OfferDetailPanel'
 
 interface PromozioniProps {
   tenantId: string
@@ -102,10 +103,12 @@ function PromotionCard({
   row,
   tenantId,
   onMutate,
+  onOpenDetail,
 }: {
   row: PromotionRow
   tenantId: string
   onMutate: () => void
+  onOpenDetail: (row: PromotionRow) => void
 }) {
   const [busy, setBusy] = React.useState(false)
   const st = STATUS_STYLES[row.status]
@@ -130,7 +133,13 @@ function PromotionCard({
   }
 
   return (
-    <div style={{ background: '#FFFFFF', border: '1px solid #F0F0F0', borderRadius: 14, padding: 16, opacity: busy ? 0.6 : 1, transition: 'opacity 150ms', boxShadow: '0 1px 3px rgba(10,13,18,0.04)' }}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(row)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(row) }}
+      style={{ background: '#FFFFFF', border: '1px solid #F0F0F0', borderRadius: 14, padding: 16, opacity: busy ? 0.6 : 1, transition: 'opacity 150ms', boxShadow: '0 1px 3px rgba(10,13,18,0.04)', cursor: 'pointer' }}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 600, background: st.bg, color: st.color, borderRadius: 100, padding: '2px 8px' }}>
@@ -179,6 +188,8 @@ export function Promozioni({ tenantId }: PromozioniProps) {
   const [promotions, setPromotions] = React.useState<PromotionRow[] | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [showForm, setShowForm] = React.useState(false)
+  const [editOffer, setEditOffer] = React.useState<PromotionRow | null>(null)
+  const [detailOffer, setDetailOffer] = React.useState<PromotionRow | null>(null)
   const [filterStatus, setFilterStatus] = React.useState<PromotionStatus | 'all'>('all')
 
   function load() {
@@ -261,7 +272,7 @@ export function Promozioni({ tenantId }: PromozioniProps) {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
               {filtered.map((p) => (
-                <PromotionCard key={p.id} row={p} tenantId={tenantId} onMutate={load} />
+                <PromotionCard key={p.id} row={p} tenantId={tenantId} onMutate={load} onOpenDetail={setDetailOffer} />
               ))}
             </div>
           )}
@@ -282,6 +293,24 @@ export function Promozioni({ tenantId }: PromozioniProps) {
           tenantId={tenantId}
           onClose={() => setShowForm(false)}
           onSuccess={() => { setShowForm(false); load() }}
+        />
+      )}
+
+      {editOffer && (
+        <OfferForm
+          tenantId={tenantId}
+          initialData={editOffer}
+          onClose={() => setEditOffer(null)}
+          onSuccess={() => { setEditOffer(null); load() }}
+        />
+      )}
+
+      {detailOffer && (
+        <OfferDetailPanel
+          row={detailOffer}
+          onClose={() => setDetailOffer(null)}
+          onModifica={(row) => { setDetailOffer(null); setEditOffer(row) }}
+          onMutate={() => { setDetailOffer(null); load() }}
         />
       )}
     </div>

@@ -45,11 +45,14 @@ export async function sendPromotionPush(
   const icon = (tenant as any)?.logo_url ?? '/icon-192.png'
   const slug = (tenant as any)?.slug ?? ''
 
-  // 4. Leggi tutte le subscription del tenant
+  // 4. Leggi le subscription del tenant — solo clienti (user_type = 'client')
+  //    Il barbiere ha spesso una propria subscription per le notifiche dashboard;
+  //    il join con profiles esclude staff/owner/manager dall'invio.
   const { data: allSubs } = await (db as any)
     .from('push_subscriptions')
-    .select('id, profile_id, endpoint, p256dh, auth')
+    .select('id, profile_id, endpoint, p256dh, auth, profiles!inner(user_type)')
     .eq('tenant_id', tenantId)
+    .eq('profiles.user_type', 'client')
 
   if (!allSubs || (allSubs as any[]).length === 0) return { sent: 0, failed: 0 }
 

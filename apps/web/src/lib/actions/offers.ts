@@ -29,6 +29,7 @@ export interface PromotionRow {
   tenant_id: string
   title: string
   description: string | null
+  cover_image_url: string | null
   valid_from: string
   valid_until: string | null
   show_in_app: boolean
@@ -37,6 +38,12 @@ export interface PromotionRow {
   created_at: string
   service_items: PromotionServiceItem[]
   product_items: PromotionProductItem[]
+}
+
+export interface OffertaAnalytics {
+  notificheInviate: number
+  prenotazioniGenerate: number
+  revenueGenerato: number
 }
 
 export interface CatalogoItem {
@@ -94,8 +101,9 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
   // status is a new column not in generated types — cast to any
   const { data: rows } = await (db as any)
     .from('promotions')
-    .select('id, tenant_id, title, description, valid_from, valid_until, show_in_app, show_on_landing, is_active, status, created_at')
+    .select('id, tenant_id, title, description, cover_image_url, valid_from, valid_until, show_in_app, show_on_landing, is_active, status, created_at')
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   if (!rows || (rows as any[]).length === 0) return []
@@ -136,6 +144,7 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
     tenant_id: r.tenant_id,
     title: r.title,
     description: r.description,
+    cover_image_url: r.cover_image_url ?? null,
     valid_from: r.valid_from,
     valid_until: r.valid_until,
     show_in_app: r.show_in_app,
@@ -497,6 +506,151 @@ export async function uploadPromozioneCopertina(
 
   const { data: urlData } = db.storage.from('promotions').getPublicUrl(path)
   return { ok: true, url: urlData.publicUrl }
+}
+
+// ── Dashboard: update promotion ───────────────────────────────────────────────
+
+export async function updateOfferta(
+  promotionId: string,
+  input: CreatePromozionInput,
+): Promise<{ success: boolean; error?: string }> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== input.tenantId) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const db = createAdminClient()
+  const isActive = input.status === 'active'
+  const now = new Date().toISOString()
+
+  const { error } = await (db as any)
+    .from('promotions')
+    .update({
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      cover_image_url: input.cover_image_url ?? null,
+      valid_from: input.valid_from,
+      valid_until: input.valid_until ?? null,
+      show_in_app: input.show_in_app,
+      show_on_landing: input.show_on_landing,
+      is_active: isActive,
+      status: input.status,
+      updated_at: now,
+    })
+    .eq('id', promotionId)
+    .eq('tenant_id', input.tenantId)
+
+  if (error) return { success: false, error: error.message }
+
+  await (db as any).from('promotion_services').delete().eq('promotion_id', promotionId).eq('tenant_id', input.tenantId)
+  if (input.service_discounts.length > 0) {
+    await (db as any).from('promotion_services').insert(
+      input.service_discounts.map((sd) => ({
+        tenant_id: input.tenantId,
+        promotion_id: promotionId,
+        service_id: sd.serviceId,
+        discount_type: sd.discount_type,
+        discount_value: sd.discount_value,
+      })),
+    )
+  }
+
+  await (db as any).from('promotion_products').delete().eq('promotion_id', promotionId).eq('tenant_id', input.tenantId)
+  if (input.product_discounts.length > 0) {
+    await (db as any).from('promotion_products').insert(
+      input.product_discounts.map((pd) => ({
+        tenant_id: input.tenantId,
+        promotion_id: promotionId,
+        product_id: pd.productId,
+        discount_type: pd.discount_type,
+        discount_value: pd.discount_value,
+      })),
+    )
+  }
+
+  return { success: true }
+}
+
+// ── Dashboard: analytics per offerta ─────────────────────────────────────────
+
+export async function getOffertaAnalytics(
+  promotionId: string,
+  tenantId: string,
+): Promise<OffertaAnalytics> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) {
+    return { notificheInviate: 0, prenotazioniGenerate: 0, revenueGenerato: 0 }
+  }
+
+  const db = createAdminClient()
+
+  const [notifResult, prenResult, revenueResult] = await Promise.all([
+    (db as any)
+      .from('notification_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('promotion_id', promotionId)
+      .eq('type', 'promotion_published'),
+    (db as any)
+      .from('appointment_services')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('applied_promotion_id', promotionId),
+    (db as any)
+      .from('appointment_services')
+      .select('price_at_booking')
+      .eq('tenant_id', tenantId)
+      .eq('applied_promotion_id', promotionId),
+  ])
+
+  const revenueGenerato = ((revenueResult.data ?? []) as { price_at_booking: number }[])
+    .reduce((sum, r) => sum + Number(r.price_at_booking), 0)
+
+  return {
+    notificheInviate: notifResult.count ?? 0,
+    prenotazioniGenerate: prenResult.count ?? 0,
+    revenueGenerato,
+  }
+}
+
+// ── Dashboard: reset idempotenza notifica promozione ─────────────────────────
+
+export async function resetNotificationIdempotenza(
+  promotionId: string,
+  tenantId: string,
+): Promise<{ success: boolean }> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
+
+  const db = createAdminClient()
+  await (db as any)
+    .from('notification_log')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('promotion_id', promotionId)
+    .eq('type', 'promotion_published')
+
+  return { success: true }
+}
+
+// ── Dashboard: soft delete promozione (solo draft) ────────────────────────────
+
+export async function deleteOfferta(
+  promotionId: string,
+  tenantId: string,
+): Promise<{ success: boolean }> {
+  const activeTenantId = await getActiveTenantId()
+  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
+
+  const db = createAdminClient()
+  await (db as any)
+    .from('promotions')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', promotionId)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'draft')
+
+  return { success: true }
 }
 
 // ── Server-side: resolve best promotion when saving appointment_services ──────
