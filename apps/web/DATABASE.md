@@ -299,6 +299,7 @@
 | `service_id` | `uuid` |  |
 | `price_at_booking` | `numeric` |  |
 | `created_at` | `timestamptz` |  |
+| `applied_promotion_id` | `uuid` |  Nullable |
 
 ## Table `appointment_products`
 
@@ -313,6 +314,7 @@
 | `quantity` | `int4` |  |
 | `price_at_sale` | `numeric` |  |
 | `created_at` | `timestamptz` |  |
+| `applied_promotion_id` | `uuid` |  Nullable |
 
 ## Table `payments`
 
@@ -545,6 +547,7 @@
 | `display_order` | `int4` |  |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `status` | `text` |  |
 
 ## Table `website_photos`
 
@@ -599,15 +602,6 @@
 | `type` | `text` |  |
 | `sent_at` | `timestamptz` |  |
 
-**Valori `type` usati:**
-- `reminder_3d` — promemoria appuntamento (push o email, cron)
-- `post_visit_thanks` — grazie post-visita (push o email)
-- `review_request` — richiesta recensione (email)
-- `loyalty_points` — punti guadagnati (push o email)
-- `loyalty_streak` — streak visite (push o email)
-- `loyalty_reward` — premio sbloccato (push o email)
-- `campaign` — messaggio mirato manuale da Marketing → Messaggi → Mirato (push o email, one-shot)
-
 ## Table `email_verification_tokens`
 
 ### Columns
@@ -652,4 +646,32 @@
 | `enabled` | `bool` |  |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+
+## Table `promotion_services`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `promotion_id` | `uuid` |  |
+| `service_id` | `uuid` |  |
+| `discount_type` | `text` |  |
+| `discount_value` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `promotion_products`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `promotion_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `discount_type` | `text` |  |
+| `discount_value` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
 

@@ -13,7 +13,7 @@ import { sendTemplatedEmail } from '@/lib/email'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import type { TablesInsert } from '@/types'
 import { getActiveOffersForBooking } from '@/lib/actions/offers'
-import { applyBestOffer } from '@/lib/utils/offer-pricing'
+import { applyBestPromotion } from '@/lib/utils/offer-pricing'
 
 const createGuestBookingSchema = z.object({
   slug: z.string().min(1),
@@ -297,24 +297,23 @@ export async function createGuestBooking(
 
   const appointmentId = (appointmentRow as { id: string }).id
 
-  // Resolve best offer per service — uses existing clientId (may be freshly inserted for new clients)
-  const offersMap = await getActiveOffersForBooking(
+  // Resolve best promotion per service — uses existing clientId (may be freshly inserted for new clients)
+  const promotionsMap: Record<string, import('@/lib/utils/offer-pricing').PromotionServicePricing[]> = await getActiveOffersForBooking(
     data.tenantId,
     services.map((s) => s.id),
     clientId,
-  ).catch(() => ({} as Record<string, ReturnType<typeof applyBestOffer>['appliedOffer'][]>))
+  ).catch(() => ({}))
 
   const appointmentServicePayload = services.map((service) => {
     const basePrice = Number(service.price ?? 0)
-    const offers = (offersMap as Record<string, Parameters<typeof applyBestOffer>[1]>)[service.id] ?? []
-    const { discountedPrice, appliedOffer } = applyBestOffer(basePrice, offers)
+    const items = promotionsMap[service.id] ?? []
+    const { discountedPrice, appliedPromotionId } = applyBestPromotion(basePrice, items)
     return {
       tenant_id: data.tenantId,
       appointment_id: appointmentId,
       service_id: service.id,
       price_at_booking: discountedPrice,
-      // applied_offer_id will be persisted once migration adds the column
-      ...(appliedOffer ? { applied_offer_id: appliedOffer.id } : {}),
+      ...(appliedPromotionId ? { applied_promotion_id: appliedPromotionId } : {}),
     }
   })
 
