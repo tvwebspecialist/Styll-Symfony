@@ -33,11 +33,12 @@ export default async function OffertaDetailPage({ params }: Props) {
     .eq('tenant_id', tenant.tenant_id)
     .maybeSingle()
 
-  if (!promo || (promo as any).status !== 'active' || !(promo as any).show_in_app) notFound()
+  if (!promo || !(promo as any).show_in_app) notFound()
 
-  // Check not expired
   const validUntil = (promo as any).valid_until as string | null
-  if (validUntil && validUntil < now) notFound()
+  const validFrom = (promo as any).valid_from as string
+  const isExpired = (promo as any).status !== 'active' || (validUntil !== null && validUntil < now)
+  const daysLeft = validUntil ? Math.ceil((new Date(validUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
 
   const [{ data: svcRows }, { data: prdRows }] = await Promise.all([
     (db as any)
@@ -110,12 +111,14 @@ export default async function OffertaDetailPage({ params }: Props) {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </Link>
-        {validUntil && (
-          <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', right: 16, background: 'rgba(0,0,0,0.50)', backdropFilter: 'blur(6px)', color: '#FFF', fontSize: 12, fontWeight: 600, borderRadius: 999, padding: '4px 12px' }}>
-            Valida fino al {formatDate(validUntil)}
-          </div>
-        )}
       </div>
+
+      {isExpired && (
+        <div style={{ margin: '16px 16px 0', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <p style={{ margin: 0, fontSize: 14, color: '#DC2626', fontWeight: 600 }}>Questa offerta non è più disponibile</p>
+        </div>
+      )}
 
       <div style={{ padding: '20px 16px 0' }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: '#18181B', margin: 0, lineHeight: 1.2 }}>
@@ -126,8 +129,28 @@ export default async function OffertaDetailPage({ params }: Props) {
             {(promo as any).description}
           </p>
         )}
-        {!validUntil && (
-          <p style={{ fontSize: 13, color: '#A1A1AA', marginTop: 8 }}>Senza scadenza</p>
+
+        {/* Validity period pills */}
+        {!isExpired && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#F4F4F5', borderRadius: 999, padding: '5px 12px' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span style={{ fontSize: 12, color: '#52525B' }}>
+                {validUntil
+                  ? `${formatDate(validFrom)} – ${formatDate(validUntil)}`
+                  : `Dal ${formatDate(validFrom)} · Senza scadenza`}
+              </span>
+            </div>
+            {daysLeft !== null && daysLeft <= 7 && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: daysLeft <= 3 ? '#FEF2F2' : '#FFF7ED', borderRadius: 999, padding: '5px 12px' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: daysLeft <= 3 ? '#DC2626' : '#EA580C' }}>
+                  ⚡ {daysLeft <= 0 ? 'Scade oggi' : daysLeft === 1 ? 'Scade domani' : `Scade tra ${daysLeft} giorni`}
+                </span>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -163,27 +186,29 @@ export default async function OffertaDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* CTA fixed bottom */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 'max(16px, env(safe-area-inset-bottom)) 16px 24px', background: 'rgba(242,242,247,0.96)', backdropFilter: 'blur(12px)' } as CSSProperties}>
-        <Link
-          href={ctaUrl}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            minHeight: 56,
-            borderRadius: 999,
-            background: brandColor,
-            color: '#FFFFFF',
-            fontSize: 16,
-            fontWeight: 700,
-            textDecoration: 'none',
-          }}
-        >
-          Prenota ora →
-        </Link>
-      </div>
+      {/* CTA fixed bottom — only for active offers */}
+      {!isExpired && (
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 'max(16px, env(safe-area-inset-bottom)) 16px 24px', background: 'rgba(242,242,247,0.96)', backdropFilter: 'blur(12px)' } as CSSProperties}>
+          <Link
+            href={ctaUrl}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              minHeight: 56,
+              borderRadius: 999,
+              background: brandColor,
+              color: '#FFFFFF',
+              fontSize: 16,
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            Prenota ora →
+          </Link>
+        </div>
+      )}
     </main>
   )
 }

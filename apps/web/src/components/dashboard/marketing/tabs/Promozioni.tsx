@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { Zap, Tag, Plus, MoreHorizontal, Copy, Archive, Play, Pause } from 'lucide-react'
 import {
   getOfferte,
@@ -140,28 +141,41 @@ function PromotionCard({
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(row) }}
       style={{ background: '#FFFFFF', border: '1px solid #F0F0F0', borderRadius: 14, padding: 16, opacity: busy ? 0.6 : 1, transition: 'opacity 150ms', boxShadow: '0 1px 3px rgba(10,13,18,0.04)', cursor: 'pointer' }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, background: st.bg, color: st.color, borderRadius: 100, padding: '2px 8px' }}>
-            {st.label}
-          </span>
-          {discountSummary && (
-            <span style={{ fontSize: 11, fontWeight: 700, background: '#FFF7ED', color: '#EA580C', borderRadius: 100, padding: '2px 8px' }}>
-              {discountSummary}
-            </span>
-          )}
-          {row.show_in_app && (
-            <span style={{ fontSize: 10, background: '#F0F9FF', color: '#0369A1', borderRadius: 100, padding: '2px 6px', fontWeight: 600 }}>PWA</span>
-          )}
-          {row.show_on_landing && (
-            <span style={{ fontSize: 10, background: '#FDF4FF', color: '#7E22CE', borderRadius: 100, padding: '2px 6px', fontWeight: 600 }}>Landing</span>
+      <div style={{ display: 'flex', gap: 12 }}>
+        {/* Thumbnail */}
+        <div style={{ width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0, position: 'relative', background: '#E5E7EB' }}>
+          {row.cover_image_url ? (
+            <Image fill src={row.cover_image_url} alt="" sizes="40px" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #D1D5DB 0%, #9CA3AF 100%)' }} />
           )}
         </div>
-        <ActionMenu row={row} onAction={handleAction} />
-      </div>
 
-      <p style={{ margin: '10px 0 4px', fontSize: 15, fontWeight: 700, color: '#222' }}>{row.title}</p>
-      <p style={{ margin: 0, fontSize: 12, color: '#B0B0B0' }}>{formatDateRange(row.valid_from, row.valid_until)}</p>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, background: st.bg, color: st.color, borderRadius: 100, padding: '2px 8px' }}>
+                {st.label}
+              </span>
+              {discountSummary && (
+                <span style={{ fontSize: 11, fontWeight: 700, background: '#FFF7ED', color: '#EA580C', borderRadius: 100, padding: '2px 8px' }}>
+                  {discountSummary}
+                </span>
+              )}
+              {row.show_in_app && (
+                <span style={{ fontSize: 10, background: '#F0F9FF', color: '#0369A1', borderRadius: 100, padding: '2px 6px', fontWeight: 600 }}>PWA</span>
+              )}
+              {row.show_on_landing && (
+                <span style={{ fontSize: 10, background: '#FDF4FF', color: '#7E22CE', borderRadius: 100, padding: '2px 6px', fontWeight: 600 }}>Landing</span>
+              )}
+            </div>
+            <ActionMenu row={row} onAction={handleAction} />
+          </div>
+
+          <p style={{ margin: '6px 0 2px', fontSize: 15, fontWeight: 700, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#B0B0B0' }}>{formatDateRange(row.valid_from, row.valid_until)}</p>
+        </div>
+      </div>
 
       {allItems.length > 0 && (
         <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>

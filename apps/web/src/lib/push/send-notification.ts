@@ -15,6 +15,8 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 }
 
+const PUSH_TIMEOUT_MS = 5000
+
 export interface PushPayload {
   title: string
   body:  string
@@ -56,16 +58,25 @@ export async function sendPushToSubscriptions(
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       }
       try {
-        await webpush.sendNotification(pushSub, JSON.stringify(payload))
+        await Promise.race([
+          webpush.sendNotification(pushSub, JSON.stringify(payload)),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(Object.assign(new Error('push timeout'), { _timeout: true })),
+              PUSH_TIMEOUT_MS,
+            )
+          ),
+        ])
         sent++
       } catch (err: unknown) {
-        const e = err as { statusCode?: number; body?: string; headers?: Record<string, string> }
-        const status = e.statusCode
-        if (status === 404 || status === 410) {
+        const e = err as { statusCode?: number; body?: string; headers?: Record<string, string>; _timeout?: boolean }
+        if (e._timeout) {
+          console.warn('[push] sendNotification timeout', sub.endpoint.slice(0, 60))
+        } else if (e.statusCode === 404 || e.statusCode === 410) {
           expiredIds.push(sub.id)
         } else {
           console.error('[push] sendNotification error', {
-            statusCode: status,
+            statusCode: e.statusCode,
             body: e.body,
             endpoint: sub.endpoint.slice(0, 60),
           })
