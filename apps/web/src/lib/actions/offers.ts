@@ -43,6 +43,7 @@ export interface CatalogoItem {
   name: string
   price: number
   type: 'service' | 'product'
+  category?: string | null
 }
 
 export interface ActivePromotionForClient {
@@ -150,13 +151,13 @@ export async function getCatalogoPerOfferta(tenantId: string): Promise<CatalogoI
 
   const db = createAdminClient()
   const [{ data: services }, { data: products }] = await Promise.all([
-    db.from('services').select('id, name, price').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
-    db.from('products').select('id, name, price_sell').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
+    db.from('services').select('id, name, price, category').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
+    db.from('products').select('id, name, price_sell, category').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
   ])
 
   return [
-    ...((services ?? []) as any[]).map((s: any) => ({ id: s.id, name: s.name, price: Number(s.price), type: 'service' as const })),
-    ...((products ?? []) as any[]).map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price_sell), type: 'product' as const })),
+    ...((services ?? []) as any[]).map((s: any) => ({ id: s.id, name: s.name, price: Number(s.price), type: 'service' as const, category: s.category ?? null })),
+    ...((products ?? []) as any[]).map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price_sell), type: 'product' as const, category: p.category ?? null })),
   ]
 }
 
