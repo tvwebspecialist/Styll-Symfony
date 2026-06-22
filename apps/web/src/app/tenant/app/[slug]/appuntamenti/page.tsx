@@ -19,7 +19,9 @@ type RawApt = {
   appointment_services: Array<{
     service_id: string | null
     price_at_booking: number | null
-    services: { name: string | null } | Array<{ name: string | null }> | null
+    applied_promotion_id: string | null
+    services: { name: string | null; price: number | null } | Array<{ name: string | null; price: number | null }> | null
+    promotions: { title: string | null } | Array<{ title: string | null }> | null
   }> | null
   staff: {
     profile: { full_name: string | null } | Array<{ full_name: string | null }> | null
@@ -53,6 +55,19 @@ function parseApt(raw: RawApt): AppointmentItem {
   const locationName = locationRel?.name ?? null
   const locationAddress = locationRel?.address ?? null
 
+  const serviceDetails = services.map((s) => {
+    const svc = readRel(s.services)
+    const promo = readRel(s.promotions)
+    return {
+      serviceId: s.service_id ?? '',
+      name: svc?.name ?? '',
+      priceAtBooking: s.price_at_booking ?? 0,
+      originalPrice: (svc as any)?.price ?? null,
+      appliedPromotionId: s.applied_promotion_id ?? null,
+      promotionTitle: promo?.title ?? null,
+    }
+  })
+
   return {
     id: raw.id,
     start_time: raw.start_time,
@@ -65,6 +80,7 @@ function parseApt(raw: RawApt): AppointmentItem {
     staffId: raw.staff_id,
     locationId: raw.location_id,
     serviceIds,
+    serviceDetails,
   }
 }
 
@@ -102,7 +118,7 @@ export default async function AppuntamentiPage({ params }: Props) {
     )
   }
 
-  const SELECT = 'id, start_time, status, staff_id, location_id, appointment_services(service_id, price_at_booking, services(name)), staff:staff_members(profile:profiles(full_name)), locations(name, address)'
+  const SELECT = 'id, start_time, status, staff_id, location_id, appointment_services(service_id, price_at_booking, applied_promotion_id, services(name, price), promotions(title)), staff:staff_members(profile:profiles(full_name)), locations(name, address)'
   const now = new Date().toISOString()
 
   const [upcomingRes, pastRes] = await Promise.all([

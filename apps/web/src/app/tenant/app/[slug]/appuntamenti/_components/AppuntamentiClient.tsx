@@ -7,6 +7,15 @@ import { cancelClientAppointment } from '@/lib/actions/pwa-client-actions'
 
 export type AppStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show'
 
+export interface ServiceDetail {
+  serviceId: string
+  name: string
+  priceAtBooking: number
+  originalPrice: number | null
+  appliedPromotionId: string | null
+  promotionTitle: string | null
+}
+
 export interface AppointmentItem {
   id: string
   start_time: string
@@ -19,6 +28,7 @@ export interface AppointmentItem {
   staffId: string | null
   locationId: string | null
   serviceIds: string[]
+  serviceDetails?: ServiceDetail[]
 }
 
 interface Props {
@@ -343,6 +353,38 @@ function DetailSheet({
             </h2>
             <StatusBadge status={apt.status} size="lg" />
           </div>
+
+          {/* Per-service breakdown with optional promo badge */}
+          {apt.serviceDetails && apt.serviceDetails.length > 0 && (
+            <div style={{ marginBottom: 4 }}>
+              {apt.serviceDetails.map((s) => {
+                const hasPromo = s.appliedPromotionId !== null
+                const showStrike = hasPromo && s.originalPrice !== null && s.originalPrice > s.priceAtBooking
+                return (
+                  <div key={s.serviceId} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
+                    <div>
+                      <span style={{ fontSize: 15, color: '#111111' }}>{s.name}</span>
+                      {hasPromo && (
+                        <span style={{ display: 'inline-block', marginLeft: 8, background: 'color-mix(in srgb, var(--brand-primary, #1a1a1a) 12%, transparent)', color: 'var(--brand-primary, #1a1a1a)', borderRadius: 999, padding: '1px 8px', fontSize: 11, fontWeight: 600 }}>
+                          Offerta applicata
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: hasPromo ? '#16a34a' : '#111111' }}>
+                        {formatPrice(s.priceAtBooking)}
+                      </span>
+                      {showStrike && (
+                        <span style={{ fontSize: 12, color: '#9ca3af', textDecoration: 'line-through' }}>
+                          {formatPrice(s.originalPrice!)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Info rows */}
           <div>

@@ -205,11 +205,31 @@ export function ApptDetailModal({
         <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
           {appt.services.length > 0 ? appt.services.map((s) => {
             const dotColor = s.color || '#888888'
+            const hasPromo = s.applied_promotion_id !== null
             return (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-                <div style={{ width: 8, height: 8, borderRadius: 100, background: dotColor, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, flex: 1 }}>{s.name}</span>
-                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{s.duration_minutes} min</span>
+              <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0' }}>
+                <div style={{ width: 8, height: 8, borderRadius: 100, background: dotColor, flexShrink: 0, marginTop: 5 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.name}</span>
+                  {hasPromo && s.promotion_title && (
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6B7280' }}>
+                      Offerta: {s.promotion_title}
+                    </p>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: '#9CA3AF' }}>{s.duration_minutes} min</span>
+                  {s.price_at_booking > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: hasPromo ? '#16A34A' : '#374151' }}>
+                      {formatPrice(s.price_at_booking)}
+                    </span>
+                  )}
+                  {hasPromo && (
+                    <span style={{ fontSize: 10, fontWeight: 600, background: '#F0FDF4', color: '#16A34A', borderRadius: 100, padding: '1px 6px' }}>
+                      Offerta applicata
+                    </span>
+                  )}
+                </div>
               </div>
             )
           }) : (

@@ -8,6 +8,8 @@ import {
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getMyClientRecord } from '@/lib/actions/client-auth'
+import { getActiveOffersForBooking } from '@/lib/actions/offers'
+import type { PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -54,6 +56,10 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
 
   if (!location || !staffMember || services.length === 0) notFound()
 
+  const offersByServiceId: Record<string, PromotionServicePricing[]> = clientRecord?.id
+    ? await getActiveOffersForBooking(tenant.tenant_id, serviceIds, clientRecord.id).catch(() => ({}))
+    : {}
+
   return (
     <ConfermaForm
       slug={slug}
@@ -66,6 +72,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
       location={location}
       staff={staffMember}
       services={services}
+      offersByServiceId={offersByServiceId}
       primaryColor={tenant.primary_color}
       logoUrl={tenant.logo_url}
       businessName={tenant.business_name}

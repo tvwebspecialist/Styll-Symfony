@@ -113,6 +113,9 @@ export interface CalendarioAppointment {
     category: string | null
     color: string | null
     duration_minutes: number
+    price_at_booking: number
+    applied_promotion_id: string | null
+    promotion_title: string | null
   }>
 }
 
@@ -155,6 +158,7 @@ function addDays(dateStr: string, days: number): string {
 
 type RawApptService = {
   price_at_booking: number
+  applied_promotion_id: string | null
   services: {
     id: string
     name: string
@@ -162,6 +166,7 @@ type RawApptService = {
     color: string | null
     duration_minutes: number
   } | null
+  promotions: { title: string } | null
 }
 type RawAppt = {
   id: string
@@ -195,7 +200,7 @@ export async function getCalendarioData(
   let apptQuery = db
     .from('appointments')
     .select(
-      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(price_at_booking, services(id, name, category, color, duration_minutes))'
+      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(price_at_booking, applied_promotion_id, services(id, name, category, color, duration_minutes), promotions(title))'
     )
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
@@ -242,13 +247,19 @@ export async function getCalendarioData(
     total_price: (a.appointment_services ?? []).reduce((sum, as) => sum + (as.price_at_booking ?? 0), 0),
     services: (a.appointment_services ?? [])
       .filter((as) => as.services !== null)
-      .map((as) => ({
-        id: as.services!.id,
-        name: as.services!.name,
-        category: as.services!.category,
-        color: as.services!.color,
-        duration_minutes: as.services!.duration_minutes,
-      })),
+      .map((as) => {
+        const promo = Array.isArray(as.promotions) ? as.promotions[0] : as.promotions
+        return {
+          id: as.services!.id,
+          name: as.services!.name,
+          category: as.services!.category,
+          color: as.services!.color,
+          duration_minutes: as.services!.duration_minutes,
+          price_at_booking: as.price_at_booking ?? 0,
+          applied_promotion_id: as.applied_promotion_id ?? null,
+          promotion_title: promo?.title ?? null,
+        }
+      }),
   }))
 
   const staff: CalendarioStaff[] = ((staffRows ?? []) as unknown as RawStaff[]).map((s) => ({
