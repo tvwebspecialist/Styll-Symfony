@@ -103,7 +103,6 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
     .from('promotions')
     .select('id, tenant_id, title, description, cover_image_url, valid_from, valid_until, show_in_app, show_on_landing, is_active, status, created_at')
     .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   if (!rows || (rows as any[]).length === 0) return []
@@ -645,7 +644,7 @@ export async function deleteOfferta(
   const db = createAdminClient()
   await (db as any)
     .from('promotions')
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq('id', promotionId)
     .eq('tenant_id', tenantId)
     .eq('status', 'draft')
