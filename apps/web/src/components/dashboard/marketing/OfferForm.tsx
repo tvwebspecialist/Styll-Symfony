@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { X, Check, ChevronLeft } from 'lucide-react'
+import { X, Check, ChevronLeft, ImagePlus, Trash2 } from 'lucide-react'
 import {
   createOfferta,
   getCatalogoPerOfferta,
+  uploadPromozioneCopertina,
   type DiscountType,
   type PromotionStatus,
   type CatalogoItem,
@@ -36,10 +37,9 @@ function combineDateTime(date: string, hh: string, mm: string): string {
 
 function fmtDatetime(date: string, hh: string, mm: string): string {
   if (!date) return '—'
-  const d = new Date(`${date}T${hh}:${mm}`)
   return new Intl.DateTimeFormat('it-IT', {
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  }).format(d)
+  }).format(new Date(`${date}T${hh}:${mm}`))
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -56,7 +56,8 @@ interface ProductDiscount {
   discount_value: string
 }
 
-// ── tiny styled checkbox ──────────────────────────────────────────────────────
+// ── styled checkbox ───────────────────────────────────────────────────────────
+// stopPropagation prevents double-fire when checkbox is inside a clickable row
 
 function StyledCheckbox({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
@@ -64,7 +65,7 @@ function StyledCheckbox({ checked, onChange }: { checked: boolean; onChange: () 
       type="button"
       role="checkbox"
       aria-checked={checked}
-      onClick={onChange}
+      onClick={(e) => { e.stopPropagation(); onChange() }}
       style={{
         width: 18, height: 18, borderRadius: 5,
         border: `1.5px solid ${checked ? '#222' : '#C8C8C8'}`,
@@ -157,8 +158,9 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
   // Step 1
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
-  const [showInApp, setShowInApp] = React.useState(true)
-  const [showOnLanding, setShowOnLanding] = React.useState(true)
+  const [coverFile, setCoverFile] = React.useState<File | null>(null)
+  const [coverPreviewUrl, setCoverPreviewUrl] = React.useState<string | null>(null)
+  const coverInputRef = React.useRef<HTMLInputElement>(null)
 
   // Step 2 & 3
   const [serviceDiscounts, setServiceDiscounts] = React.useState<ServiceDiscount[]>([])
@@ -182,8 +184,41 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     getCatalogoPerOfferta(tenantId).then(setCatalogo)
   }, [tenantId])
 
+  // Cleanup object URL on unmount
+  React.useEffect(() => {
+    const url = coverPreviewUrl
+    return () => { if (url) URL.revokeObjectURL(url) }
+  }, [coverPreviewUrl])
+
   const services = catalogo?.filter((i) => i.type === 'service') ?? []
   const products = catalogo?.filter((i) => i.type === 'product') ?? []
+
+  // ── cover image ────────────────────────────────────────────────────────────
+
+  function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Formato non supportato (JPG, PNG, WebP)')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File troppo grande (max 5MB)')
+      return
+    }
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl)
+    setCoverFile(file)
+    setCoverPreviewUrl(URL.createObjectURL(file))
+    setError(null)
+    // reset input so same file can be re-selected after removal
+    e.target.value = ''
+  }
+
+  function handleRemoveCover() {
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl)
+    setCoverFile(null)
+    setCoverPreviewUrl(null)
+  }
 
   // ── catalog selection ──────────────────────────────────────────────────────
 
@@ -271,14 +306,28 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     setError(null)
     setSaving(true)
     try {
+      // Upload cover image if present — non-blocking on failure
+      let coverImageUrl: string | null = null
+      if (coverFile) {
+        try {
+          const fd = new FormData()
+          fd.append('file', coverFile)
+          const res = await uploadPromozioneCopertina(fd)
+          if (res.ok && res.url) coverImageUrl = res.url
+        } catch {
+          // fall through — save with null cover
+        }
+      }
+
       const result = await createOfferta({
         tenantId,
         title: title.trim(),
         description: description.trim() || undefined,
+        cover_image_url: coverImageUrl,
         valid_from:  combineDateTime(validFromDate, validFromHH, validFromMM),
         valid_until: noExpiry ? null : combineDateTime(validUntilDate, validUntilHH, validUntilMM),
-        show_in_app: showInApp,
-        show_on_landing: showOnLanding,
+        show_in_app: true,
+        show_on_landing: false,
         status,
         service_discounts: serviceDiscounts.map((sd) => ({
           serviceId: sd.serviceId,
@@ -331,22 +380,64 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
             maxLength={200}
           />
         </div>
+
+        {/* Cover image upload */}
         <div>
-          <span style={labelStyle}>Visibilità</span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {([
-              { label: 'App clienti (PWA)', desc: 'Sezione "Offerte per te" nella app', value: showInApp, set: setShowInApp },
-              { label: 'Landing page', desc: 'Pagina pubblica del salone', value: showOnLanding, set: setShowOnLanding },
-            ] as const).map((item) => (
-              <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#222' }}>{item.label}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: '#B0B0B0' }}>{item.desc}</p>
-                </div>
-                <Toggle value={item.value} onChange={item.set} />
-              </div>
-            ))}
-          </div>
+          <span style={labelStyle}>Foto di copertina <span style={{ color: '#B0B0B0', fontWeight: 400 }}>(facoltativa)</span></span>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: 'none' }}
+            onChange={handleCoverChange}
+          />
+          {!coverPreviewUrl ? (
+            <button
+              type="button"
+              onClick={() => coverInputRef.current?.click()}
+              style={{
+                width: '100%', padding: '24px 16px', borderRadius: 12,
+                border: '1.5px dashed #D4D4D4', background: '#FAFAFA',
+                cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: 8, color: '#888',
+                transition: 'border-color 150ms, background 150ms',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = '#B0B0B0'
+                ;(e.currentTarget as HTMLElement).style.background = '#F5F5F5'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.borderColor = '#D4D4D4'
+                ;(e.currentTarget as HTMLElement).style.background = '#FAFAFA'
+              }}
+            >
+              <ImagePlus size={24} color="#B0B0B0" />
+              <span style={{ fontSize: 13, fontWeight: 500 }}>Carica foto</span>
+              <span style={{ fontSize: 11, color: '#C0C0C0' }}>JPG, PNG, WebP — max 5MB</span>
+            </button>
+          ) : (
+            <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverPreviewUrl}
+                alt="Anteprima copertina"
+                style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+              />
+              <button
+                type="button"
+                onClick={handleRemoveCover}
+                style={{
+                  position: 'absolute', top: 8, right: 8,
+                  width: 32, height: 32, borderRadius: 8,
+                  background: 'rgba(0,0,0,0.55)', border: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <Trash2 size={15} color="#FFF" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -369,16 +460,10 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
         </div>
       )
     }
-
     if (items.length === 0) {
-      return (
-        <p style={{ fontSize: 13, color: '#B0B0B0', textAlign: 'center', padding: '32px 0' }}>
-          Nessun elemento nel catalogo.
-        </p>
-      )
+      return <p style={{ fontSize: 13, color: '#B0B0B0', textAlign: 'center', padding: '32px 0' }}>Nessun elemento nel catalogo.</p>
     }
 
-    // group by category
     const groups = new Map<string, CatalogoItem[]>()
     for (const item of items) {
       const key = item.category || ''
@@ -483,22 +568,32 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
   }
 
   // ── step 4: validità ───────────────────────────────────────────────────────
+  // Date picker and time selects are vertically stacked to avoid height mismatch
+
+  function renderDateTimeRow(
+    dateVal: string, onDateChange: (v: string) => void,
+    hh: string, onHH: (v: string) => void,
+    mm: string, onMM: (v: string) => void,
+  ) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <DatePicker value={dateVal} onChange={onDateChange} placeholder="Seleziona data" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>alle</span>
+          <CustomSelect compact value={hh} onChange={onHH} options={HOUR_OPTIONS} />
+          <span style={{ fontSize: 14, color: '#555', fontWeight: 600 }}>:</span>
+          <CustomSelect compact value={mm} onChange={onMM} options={MIN_OPTIONS} />
+        </div>
+      </div>
+    )
+  }
 
   function renderStep4() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <label style={labelStyle}>Inizia il *</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
-              <DatePicker value={validFromDate} onChange={setValidFromDate} placeholder="Seleziona data" />
-            </div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-              <CustomSelect compact value={validFromHH} onChange={setValidFromHH} options={HOUR_OPTIONS} />
-              <span style={{ fontSize: 14, color: '#555' }}>:</span>
-              <CustomSelect compact value={validFromMM} onChange={setValidFromMM} options={MIN_OPTIONS} />
-            </div>
-          </div>
+          {renderDateTimeRow(validFromDate, setValidFromDate, validFromHH, setValidFromHH, validFromMM, setValidFromMM)}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -514,16 +609,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
         {!noExpiry && (
           <div>
             <label style={labelStyle}>Scade il</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ flex: 1 }}>
-                <DatePicker value={validUntilDate} onChange={setValidUntilDate} placeholder="Seleziona data" />
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                <CustomSelect compact value={validUntilHH} onChange={setValidUntilHH} options={HOUR_OPTIONS} />
-                <span style={{ fontSize: 14, color: '#555' }}>:</span>
-                <CustomSelect compact value={validUntilMM} onChange={setValidUntilMM} options={MIN_OPTIONS} />
-              </div>
-            </div>
+            {renderDateTimeRow(validUntilDate, setValidUntilDate, validUntilHH, setValidUntilHH, validUntilMM, setValidUntilMM)}
           </div>
         )}
       </div>
@@ -536,14 +622,21 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
     const hasDiscounts = serviceDiscounts.length > 0 || productDiscounts.length > 0
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Cover */}
+        {coverPreviewUrl && (
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={coverPreviewUrl} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+          </div>
+        )}
+
         {/* Dettagli */}
         <div style={{ background: '#F9F9F9', borderRadius: 12, padding: '14px 16px' }}>
           <p style={{ ...sectionHeadStyle, margin: '0 0 6px' }}>Dettagli</p>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#222' }}>{title}</p>
           {description && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#555' }}>{description}</p>}
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-            {showInApp && <span style={{ fontSize: 10, background: '#F0F9FF', color: '#0369A1', borderRadius: 100, padding: '2px 8px', fontWeight: 600 }}>PWA</span>}
-            {showOnLanding && <span style={{ fontSize: 10, background: '#FDF4FF', color: '#7E22CE', borderRadius: 100, padding: '2px 8px', fontWeight: 600 }}>Landing</span>}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <span style={{ fontSize: 10, background: '#F0F9FF', color: '#0369A1', borderRadius: 100, padding: '2px 8px', fontWeight: 600 }}>PWA</span>
           </div>
         </div>
 
@@ -554,11 +647,12 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
             {serviceDiscounts.map((sd) => {
               const svc = catalogo?.find((c) => c.id === sd.serviceId)
               if (!svc) return null
-              const preview = calcPreview(svc.price, sd.discount_type, sd.discount_value)
               return (
                 <div key={sd.serviceId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, color: '#444' }}>{svc.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#16A34A' }}>{preview ?? '—'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#16A34A' }}>
+                    {calcPreview(svc.price, sd.discount_type, sd.discount_value) ?? '—'}
+                  </span>
                 </div>
               )
             })}
@@ -572,18 +666,18 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
             {productDiscounts.map((pd) => {
               const prd = catalogo?.find((c) => c.id === pd.productId)
               if (!prd) return null
-              const preview = calcPreview(prd.price, pd.discount_type, pd.discount_value)
               return (
                 <div key={pd.productId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, color: '#444' }}>{prd.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#16A34A' }}>{preview ?? '—'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#16A34A' }}>
+                    {calcPreview(prd.price, pd.discount_type, pd.discount_value) ?? '—'}
+                  </span>
                 </div>
               )
             })}
           </div>
         )}
 
-        {/* No discount warning */}
         {!hasDiscounts && (
           <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#9A3412' }}>
             Questa offerta non applica sconti automatici — sarà solo informativa.
@@ -593,9 +687,7 @@ export function OfferForm({ tenantId, onSuccess, onClose }: Props) {
         {/* Validità */}
         <div style={{ background: '#F9F9F9', borderRadius: 12, padding: '14px 16px' }}>
           <p style={{ ...sectionHeadStyle, margin: '0 0 8px' }}>Validità</p>
-          <p style={{ margin: 0, fontSize: 13, color: '#444' }}>
-            Dal {fmtDatetime(validFromDate, validFromHH, validFromMM)}
-          </p>
+          <p style={{ margin: 0, fontSize: 13, color: '#444' }}>Dal {fmtDatetime(validFromDate, validFromHH, validFromMM)}</p>
           {noExpiry
             ? <p style={{ margin: '4px 0 0', fontSize: 13, color: '#B0B0B0' }}>Nessuna scadenza</p>
             : validUntilDate && <p style={{ margin: '4px 0 0', fontSize: 13, color: '#444' }}>Al {fmtDatetime(validUntilDate, validUntilHH, validUntilMM)}</p>

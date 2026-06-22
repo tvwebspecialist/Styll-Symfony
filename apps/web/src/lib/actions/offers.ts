@@ -70,6 +70,7 @@ export interface CreatePromozionInput {
   tenantId: string
   title: string
   description?: string
+  cover_image_url?: string | null
   valid_from: string
   valid_until?: string | null
   show_in_app: boolean
@@ -181,6 +182,7 @@ export async function createOfferta(
       tenant_id: input.tenantId,
       title: input.title.trim(),
       description: input.description?.trim() || null,
+      cover_image_url: input.cover_image_url ?? null,
       valid_from: input.valid_from,
       valid_until: input.valid_until ?? null,
       show_in_app: input.show_in_app,
@@ -423,6 +425,39 @@ export async function getActiveOffersForBooking(
   }
 
   return result
+}
+
+// ── Dashboard: upload cover image ─────────────────────────────────────────────
+
+export async function uploadPromozioneCopertina(
+  formData: FormData,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return { ok: false, error: 'Non autenticato' }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'Nessun file' }
+
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    return { ok: false, error: 'Formato non supportato (JPG, PNG, WebP)' }
+  }
+  if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'File troppo grande (max 5MB)' }
+
+  const db = createAdminClient()
+  const extByType: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+  const ext = extByType[file.type] ?? 'jpg'
+  const path = `${tenantId}/promotions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const arrayBuffer = await file.arrayBuffer()
+
+  const { error: uploadError } = await db.storage
+    .from('promotions')
+    .upload(path, arrayBuffer, { contentType: file.type, upsert: false })
+
+  if (uploadError) return { ok: false, error: uploadError.message }
+
+  const { data: urlData } = db.storage.from('promotions').getPublicUrl(path)
+  return { ok: true, url: urlData.publicUrl }
 }
 
 // ── Server-side: resolve best promotion when saving appointment_services ──────
