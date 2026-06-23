@@ -1026,7 +1026,7 @@
   pointer-events: none;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 639px) {
   .styll-modal-drag-handle {
     display: block;
   }
