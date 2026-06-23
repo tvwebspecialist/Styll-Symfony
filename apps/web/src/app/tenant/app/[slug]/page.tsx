@@ -491,12 +491,14 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   gap: 8,
                   overflowX: 'auto',
                   scrollSnapType: 'x mandatory',
+                  scrollPaddingLeft: 16,
+                  paddingLeft: 16,
+                  paddingRight: 16,
                   paddingBottom: 8,
                   msOverflowStyle: 'none',
                   scrollbarWidth: 'none',
                 } as CSSProperties}
               >
-                <div style={{ flexShrink: 0, width: 16 }} />
                 {activeOffers.map((offer) => {
                   const allItems = [...offer.service_items, ...offer.product_items]
                   const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
@@ -521,7 +523,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                       style={{
                         display: 'block',
                         flexShrink: 0,
-                        width: 'calc(100vw - 32px)',
+                        width: 'calc(100vw - 40px)',
                         height: 180,
                         borderRadius: 20,
                         overflow: 'hidden',
@@ -536,7 +538,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                           fill
                           src={offer.cover_image_url}
                           alt={offer.title}
-                          sizes="calc(100vw - 32px)"
+                          sizes="calc(100vw - 40px)"
                           style={{ objectFit: 'cover' }}
                           loading="lazy"
                         />
@@ -590,7 +592,6 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                     </Link>
                   )
                 })}
-                <div style={{ flexShrink: 0, width: 16 }} />
               </div>
             </section>
           )}
