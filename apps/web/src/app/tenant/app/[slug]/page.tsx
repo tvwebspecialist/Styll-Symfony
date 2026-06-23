@@ -522,7 +522,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                       style={{
                         display: 'block',
                         flexShrink: 0,
-                        width: 'calc(100vw - 32px)',
+                        width: 'calc(100vw - 48px)',
                         height: 180,
                         borderRadius: 20,
                         overflow: 'hidden',
@@ -537,7 +537,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                           fill
                           src={offer.cover_image_url}
                           alt={offer.title}
-                          sizes="calc(100vw - 32px)"
+                          sizes="calc(100vw - 48px)"
                           style={{ objectFit: 'cover' }}
                           loading="lazy"
                         />
