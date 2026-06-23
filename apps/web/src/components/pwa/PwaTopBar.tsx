@@ -235,6 +235,7 @@ function TopBarInner({
   const SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'appuntamenti': { title: 'Appuntamenti', backTo: tenantPath('/profilo') },
     'preferiti': { title: 'Preferiti', backTo: tenantPath('/profilo') },
+    'offerte': { title: 'Offerte', backTo: tenantPath('/') },
   }
   const PROFILO_SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'modifica': { title: 'Modifica profilo', backTo: tenantPath('/profilo') },
