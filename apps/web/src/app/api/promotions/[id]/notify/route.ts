@@ -57,6 +57,37 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Rate limit: 1 push per promotion per hour
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count: recentCount } = await (db as any)
+    .from('notification_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('promotion_id', promotionId)
+    .eq('type', 'promotion_published')
+    .gte('created_at', oneHourAgo)
+
+  if ((recentCount ?? 0) > 0) {
+    return NextResponse.json(
+      { error: 'Rate limit: attendi almeno 1 ora tra un invio e il successivo' },
+      { status: 429 },
+    )
+  }
+
+  // Safety cap: block if too many recipients
+  const { count: subCount } = await (db as any)
+    .from('push_subscriptions')
+    .select('*', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+
+  if ((subCount ?? 0) > 10000) {
+    console.error('[notify] Recipient limit exceeded', { tenantId, count: subCount })
+    return NextResponse.json(
+      { error: 'Limite destinatari: contatta il supporto Styll' },
+      { status: 429 },
+    )
+  }
+
   const result = await sendPromotionPush(promotionId, tenantId)
   return NextResponse.json(result)
 }

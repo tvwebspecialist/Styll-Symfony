@@ -57,10 +57,17 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
   const [analytics, setAnalytics] = React.useState<OffertaAnalytics | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [confirm, setConfirm] = React.useState<'notify' | 'delete' | null>(null)
+  const [pulseOn, setPulseOn] = React.useState(false)
 
   React.useEffect(() => {
     getOffertaAnalytics(row.id, row.tenant_id).then(setAnalytics).catch(() => {})
   }, [row.id, row.tenant_id])
+
+  React.useEffect(() => {
+    if (analytics !== null) return
+    const t = setInterval(() => setPulseOn((v) => !v), 600)
+    return () => clearInterval(t)
+  }, [analytics])
 
   const st = STATUS_STYLES[row.status]
   const allItems = [...row.service_items, ...row.product_items]
@@ -158,11 +165,13 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
   function renderPreview() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {row.cover_image_url && (
-          <div style={{ position: 'relative', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#F4F4F4' }}>
+        <div style={{ position: 'relative', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#1A1A2E' }}>
+          {row.cover_image_url ? (
             <Image fill src={row.cover_image_url} alt={row.title} sizes="560px" style={{ objectFit: 'cover' }} />
-          </div>
-        )}
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1A1A2E 0%, #4A4A6A 100%)' }} />
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#222', flex: 1 }}>{row.title}</h3>
@@ -176,10 +185,24 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
             {allItems.map((item, i) => {
               const name = 'serviceName' in item ? item.serviceName : item.productName
               const discStr = item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`
+              const orig = item.originalPrice
+              let discounted: number | null = null
+              if (orig !== undefined) {
+                discounted = item.discount_type === 'percent'
+                  ? Math.max(0, orig * (1 - item.discount_value / 100))
+                  : Math.max(0, orig - item.discount_value)
+              }
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F8F8', borderRadius: 10 }}>
                   <span style={{ fontSize: 14, color: '#222' }}>{name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>{discStr}</span>
+                  {discounted !== null ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: '#B0B0B0', textDecoration: 'line-through' }}>{formatEur(orig!)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatEur(discounted)}</span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>{discStr}</span>
+                  )}
                 </div>
               )
             })}
@@ -200,29 +223,30 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
   }
 
   function renderAnalytics() {
+    const loading = analytics === null
     const metrics = [
       {
         label: 'Notifiche inviate',
-        value: analytics === null ? '…' : analytics.notificheInviate === 0 ? '—' : String(analytics.notificheInviate),
+        value: loading ? null : analytics!.notificheInviate === 0 ? '—' : String(analytics!.notificheInviate),
         icon: '📨',
       },
       {
         label: 'Prenotazioni',
-        value: analytics === null ? '…' : String(analytics.prenotazioniGenerate),
+        value: loading ? null : String(analytics!.prenotazioniGenerate),
         icon: '🗓',
       },
       {
         label: 'Revenue',
-        value: analytics === null ? '…' : formatEur(analytics.revenueGenerato),
+        value: loading ? null : formatEur(analytics!.revenueGenerato),
         icon: '💶',
       },
     ]
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         {metrics.map((m) => (
-          <div key={m.label} style={{ background: '#F8F8F8', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+          <div key={m.label} style={{ background: loading ? '#F0F0F0' : '#F8F8F8', borderRadius: 12, padding: '12px 8px', textAlign: 'center', opacity: loading ? (pulseOn ? 0.5 : 0.9) : 1, transition: 'opacity 300ms' }}>
             <div style={{ fontSize: 20, marginBottom: 4 }}>{m.icon}</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#222' }}>{m.value}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: loading ? '#C0C0C0' : '#222' }}>{m.value ?? '—'}</div>
             <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{m.label}</div>
           </div>
         ))}
@@ -278,6 +302,12 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
     <>
       <StyllModal open onClose={onClose} title="Dettaglio offerta" size="lg">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {row.status === 'draft' && (
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>✏️</span>
+              <p style={{ margin: 0, fontSize: 13, color: '#92400E', fontWeight: 500 }}>Questa offerta non è ancora visibile ai clienti</p>
+            </div>
+          )}
           <div>
             <p style={sectionLabelStyle}>Anteprima</p>
             {renderPreview()}

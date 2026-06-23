@@ -488,11 +488,11 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               <div
                 style={{
                   display: 'flex',
-                  gap: 12,
+                  gap: 8,
                   overflowX: 'auto',
                   scrollSnapType: 'x mandatory',
-                  paddingLeft: 4,
-                  paddingRight: 4,
+                  paddingLeft: 16,
+                  paddingRight: 16,
                   paddingBottom: 8,
                   msOverflowStyle: 'none',
                   scrollbarWidth: 'none',
@@ -522,9 +522,8 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                       style={{
                         display: 'block',
                         flexShrink: 0,
-                        width: '80vw',
-                        maxWidth: 340,
-                        aspectRatio: '4/5',
+                        width: 'calc(100vw - 32px)',
+                        height: 180,
                         borderRadius: 20,
                         overflow: 'hidden',
                         position: 'relative',
@@ -538,7 +537,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                           fill
                           src={offer.cover_image_url}
                           alt={offer.title}
-                          sizes="80vw"
+                          sizes="calc(100vw - 32px)"
                           style={{ objectFit: 'cover' }}
                           loading="lazy"
                         />

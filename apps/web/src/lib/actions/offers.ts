@@ -15,6 +15,7 @@ export interface PromotionServiceItem {
   serviceName: string
   discount_type: DiscountType
   discount_value: number
+  originalPrice?: number
 }
 
 export interface PromotionProductItem {
@@ -22,6 +23,7 @@ export interface PromotionProductItem {
   productName: string
   discount_type: DiscountType
   discount_value: number
+  originalPrice?: number
 }
 
 export interface PromotionRow {
@@ -112,12 +114,12 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
   const [{ data: svcRows }, { data: prdRows }] = await Promise.all([
     (db as any)
       .from('promotion_services')
-      .select('promotion_id, service_id, discount_type, discount_value, services(name)')
+      .select('promotion_id, service_id, discount_type, discount_value, services(name, price)')
       .eq('tenant_id', tenantId)
       .in('promotion_id', promotionIds),
     (db as any)
       .from('promotion_products')
-      .select('promotion_id, product_id, discount_type, discount_value, products(name)')
+      .select('promotion_id, product_id, discount_type, discount_value, products(name, price_sell)')
       .eq('tenant_id', tenantId)
       .in('promotion_id', promotionIds),
   ])
@@ -126,7 +128,7 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
   for (const row of (svcRows ?? []) as any[]) {
     const svc = Array.isArray(row.services) ? row.services[0] : row.services
     const items = svcByPromotion.get(row.promotion_id) ?? []
-    items.push({ serviceId: row.service_id, serviceName: svc?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    items.push({ serviceId: row.service_id, serviceName: svc?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value), originalPrice: svc?.price !== undefined ? Number(svc.price) : undefined })
     svcByPromotion.set(row.promotion_id, items)
   }
 
@@ -134,7 +136,7 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
   for (const row of (prdRows ?? []) as any[]) {
     const prd = Array.isArray(row.products) ? row.products[0] : row.products
     const items = prdByPromotion.get(row.promotion_id) ?? []
-    items.push({ productId: row.product_id, productName: prd?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value) })
+    items.push({ productId: row.product_id, productName: prd?.name ?? '', discount_type: row.discount_type, discount_value: Number(row.discount_value), originalPrice: prd?.price_sell !== undefined ? Number(prd.price_sell) : undefined })
     prdByPromotion.set(row.promotion_id, items)
   }
 

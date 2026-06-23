@@ -46,98 +46,116 @@ export default async function OffertePage({ params }: Props) {
 
   return (
     <main style={{ minHeight: '100vh', background: '#F2F2F7', paddingBottom: 100 }}>
-      <div style={{ padding: '20px 16px 0' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#18181B', margin: 0 }}>Offerte per te</h1>
-        {offers.length === 0 && (
-          <p style={{ fontSize: 14, color: '#A1A1AA', marginTop: 16 }}>Nessuna offerta attiva al momento.</p>
-        )}
+      {/* Back link */}
+      <div style={{ padding: '16px 16px 0' }}>
+        <Link
+          href={tp('/')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 500, color: '#52525B', textDecoration: 'none' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Home
+        </Link>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          overflowX: 'auto',
-          paddingLeft: 16,
-          paddingRight: 16,
-          scrollSnapType: 'x mandatory',
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
-        } as CSSProperties}
-      >
-        {offers.map((offer, index) => {
-          const allItems = [...offer.service_items, ...offer.product_items]
-          const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
-          const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
-          let discountLabel = ''
-          if (allItems.length === 1) {
-            const item = allItems[0]
-            discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
-          } else if (pctMax > 0) {
-            discountLabel = `Fino al ${pctMax}% Sconto`
-          } else if (fixedMax > 0) {
-            discountLabel = `Fino a €${fixedMax} Sconto`
-          }
+      <div style={{ padding: '12px 16px 0' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#18181B', margin: 0 }}>Offerte per te</h1>
+      </div>
 
-          const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
-          const expiryText = offer.valid_until ? `Scade tra ${daysUntil(offer.valid_until)} gg` : ''
+      {offers.length === 0 ? (
+        <div style={{ padding: '60px 16px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏷️</div>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#18181B', margin: '0 0 6px' }}>Nessuna offerta attiva</p>
+          <p style={{ fontSize: 14, color: '#A1A1AA', margin: 0 }}>Le promozioni del salone appariranno qui.</p>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: '16px 16px 0',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 16,
+          } as CSSProperties}
+        >
+          {offers.map((offer) => {
+            const allItems = [...offer.service_items, ...offer.product_items]
+            const isInformativa = allItems.length === 0
 
-          return (
-            <Link
-              key={offer.id}
-              href={tp(`/offerte/${offer.id}`)}
-              style={{
-                display: 'block',
-                width: 'calc(100vw - 40px)',
-                height: '200px',
-                flexShrink: 0,
-                scrollSnapAlign: 'start',
-                position: 'relative',
-                borderRadius: 16,
-                overflow: 'hidden',
-                textDecoration: 'none',
-              } as CSSProperties}
-            >
-              {offer.cover_image_url ? (
-                <Image
-                  fill
-                  src={offer.cover_image_url}
-                  alt={offer.title}
-                  sizes="calc(100vw - 40px)"
-                  style={{ objectFit: 'cover' }}
-                  priority={index === 0}
-                />
-              ) : (
-                <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)` }} />
-              )}
+            let discountLabel = ''
+            if (!isInformativa) {
+              const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
+              const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
+              if (allItems.length === 1) {
+                const item = allItems[0]
+                discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
+              } else if (pctMax > 0) {
+                discountLabel = `Fino al ${pctMax}% Sconto`
+              } else if (fixedMax > 0) {
+                discountLabel = `Fino a €${fixedMax} Sconto`
+              }
+            }
 
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 55%)' }} />
+            const days = offer.valid_until ? daysUntil(offer.valid_until) : null
+            const isUrgent = days !== null && days <= 3
+            let validityText = ''
+            if (days !== null) {
+              if (days <= 0) validityText = 'Scade oggi'
+              else if (days === 1) validityText = 'Scade domani'
+              else if (days <= 7) validityText = `Scade tra ${days} giorni`
+            }
 
-              {showExpiry && (
-                <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', color: '#FFF', fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 10px' }}>
-                  {expiryText}
-                </div>
-              )}
-
-              <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, background: '#FFF', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {offer.title}
-                  </p>
-                  {discountLabel && (
-                    <p style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
-                      {discountLabel}
-                    </p>
+            return (
+              <Link
+                key={offer.id}
+                href={tp(`/offerte/${offer.id}`)}
+                style={{ display: 'block', borderRadius: 16, overflow: 'hidden', background: '#FFF', textDecoration: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+              >
+                {/* 16:9 image */}
+                <div style={{ position: 'relative', aspectRatio: '16/9', width: '100%' }}>
+                  {offer.cover_image_url ? (
+                    <Image
+                      fill
+                      src={offer.cover_image_url}
+                      alt={offer.title}
+                      sizes="(max-width: 600px) 100vw, 50vw"
+                      style={{ objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)` }} />
+                  )}
+                  {isUrgent && (
+                    <div style={{ position: 'absolute', top: 8, right: 8, background: '#DC2626', color: '#FFF', fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px' }}>
+                      ⚡ {validityText}
+                    </div>
                   )}
                 </div>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
+
+                {/* Content */}
+                <div style={{ padding: '12px 14px 14px' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: '#18181B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {offer.title}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    {isInformativa ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, background: '#F0F9FF', color: '#0369A1', borderRadius: 999, padding: '3px 10px' }}>Informativa</span>
+                    ) : discountLabel ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, background: '#FFF7ED', color: '#EA580C', borderRadius: 999, padding: '3px 10px' }}>{discountLabel}</span>
+                    ) : (
+                      <span />
+                    )}
+                    {!isUrgent && validityText ? (
+                      <span style={{ fontSize: 11, color: '#A1A1AA' }}>{validityText}</span>
+                    ) : !isUrgent && !validityText && offer.valid_until === null ? (
+                      <span style={{ fontSize: 11, color: '#A1A1AA' }}>Senza scadenza</span>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </main>
   )
 }
