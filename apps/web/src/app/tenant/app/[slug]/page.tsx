@@ -491,7 +491,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   gap: 8,
                   overflowX: 'auto',
                   scrollSnapType: 'x mandatory',
-                  paddingLeft: 16,
+                  paddingLeft: 32,
                   paddingRight: 16,
                   paddingBottom: 8,
                   msOverflowStyle: 'none',
