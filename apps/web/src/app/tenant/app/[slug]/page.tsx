@@ -472,9 +472,9 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ) : null}
 
           {activeOffers.length > 0 && (
-            <section style={{ ...animated(90), marginBottom: 16 }}>
+            <section style={{ ...animated(90), marginBottom: 16, marginLeft: -16, marginRight: -16 }}>
               {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 12px' }}>
                 <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
                 <Link
                   href={tp('/offerte')}
