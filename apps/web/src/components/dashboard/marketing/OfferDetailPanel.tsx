@@ -173,7 +173,7 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Cover image */}
-        <div style={{ position: 'relative', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#1A1A2E' }}>
+        <div style={{ position: 'relative', aspectRatio: '16/9', maxHeight: 240, borderRadius: 12, overflow: 'hidden', background: '#1A1A2E' }}>
           {row.cover_image_url ? (
             <Image fill src={row.cover_image_url} alt={row.title} sizes="560px" style={{ objectFit: 'cover' }} />
           ) : (
