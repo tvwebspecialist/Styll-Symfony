@@ -2,11 +2,10 @@
 
 import * as React from 'react'
 import Image from 'next/image'
-import { Zap, Tag, Plus, Pencil } from 'lucide-react'
+import { Zap, Tag, Plus, ChevronRight } from 'lucide-react'
 import {
   getOfferte,
   type PromotionRow,
-  type PromotionStatus,
 } from '@/lib/actions/offers'
 import { OfferForm } from '@/components/dashboard/marketing/OfferForm'
 import { OfferDetailPanel } from '@/components/dashboard/marketing/OfferDetailPanel'
@@ -22,12 +21,6 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: 'lastminute', label: 'Last-minute' },
 ]
 
-const STATUS_STYLES: Record<PromotionStatus, { bg: string; color: string; label: string }> = {
-  draft:    { bg: '#F5F5F5', color: '#888888', label: 'Bozza' },
-  active:   { bg: '#F0FDF4', color: '#16A34A', label: 'Attiva' },
-  expired:  { bg: '#FEF2F2', color: '#DC2626', label: 'Scaduta' },
-  archived: { bg: '#F5F5F5', color: '#B0B0B0', label: 'Archiviata' },
-}
 
 function buildDiscountLabel(row: PromotionRow): string | null {
   const all = [
@@ -49,13 +42,10 @@ function buildDiscountLabel(row: PromotionRow): string | null {
 function PromotionCard({
   row,
   onOpenDetail,
-  onModifica,
 }: {
   row: PromotionRow
   onOpenDetail: (row: PromotionRow) => void
-  onModifica: (row: PromotionRow) => void
 }) {
-  const st = STATUS_STYLES[row.status]
   const discountLabel = buildDiscountLabel(row)
   const isInactive = row.status !== 'active'
 
@@ -66,20 +56,16 @@ function PromotionCard({
       onClick={() => onOpenDetail(row)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(row) }}
       style={{
-        borderRadius: 14,
+        borderRadius: 12,
         overflow: 'hidden',
-        background: '#FFF',
-        border: '1px solid #F0F0F0',
-        boxShadow: '0 1px 3px rgba(10,13,18,0.04)',
         cursor: 'pointer',
-        opacity: isInactive ? 0.55 : 1,
-        filter: isInactive ? 'grayscale(30%)' : 'none',
+        opacity: isInactive ? 0.5 : 1,
         transition: 'opacity 150ms',
       }}
     >
-      {/* 16:9 cover */}
-      <div style={{ position: 'relative', aspectRatio: '16/9', width: '100%' }}>
-        {row.cover_image_url ? (
+      {/* 16:9 cover with overlay */}
+      <div style={{ position: 'relative', aspectRatio: '16/9', width: '100%', background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)' }}>
+        {row.cover_image_url && (
           <Image
             fill
             src={row.cover_image_url}
@@ -87,38 +73,26 @@ function PromotionCard({
             sizes="(max-width: 768px) 100vw, 360px"
             style={{ objectFit: 'cover' }}
           />
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)' }} />
         )}
-      </div>
-
-      {/* Text area */}
-      <div style={{ padding: '12px 14px', background: '#FFF' }}>
-        {/* Row 1: title + pill */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-          <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+        {/* White overlay box */}
+        <div style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          right: 12,
+          background: '#FFFFFF',
+          borderRadius: 12,
+          padding: '12px 14px',
+        }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#18181B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.title}
           </p>
-          <span style={{ fontSize: 11, fontWeight: 600, background: st.bg, color: st.color, borderRadius: 100, padding: '2px 8px', flexShrink: 0 }}>
-            {st.label}
-          </span>
-        </div>
-
-        {/* Row 2: discount label + Modifica btn */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          {discountLabel ? (
-            <span style={{ fontSize: 13, color: '#EA580C', fontWeight: 600 }}>{discountLabel}</span>
-          ) : (
-            <span style={{ fontSize: 13, color: '#B0B0B0' }}>Informativa</span>
-          )}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onModifica(row) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--color-primary, #222)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', flexShrink: 0 }}
-          >
-            <Pencil size={12} />
-            Modifica
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+            <span style={{ fontSize: 20, fontWeight: 800, color: '#18181B' }}>
+              {discountLabel ?? 'Informativa'}
+            </span>
+            <ChevronRight size={20} color="#A1A1AA" style={{ flexShrink: 0 }} />
+          </div>
         </div>
       </div>
     </div>
@@ -195,14 +169,15 @@ export function Promozioni({ tenantId }: PromozioniProps) {
               {sorted.map((p, i) => (
                 <React.Fragment key={p.id}>
                   {i === activeCount && hasInactive && activeCount > 0 && (
-                    <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #F0F0F0', paddingTop: 4 }}>
-                      <p style={{ fontSize: 11, color: '#B0B0B0', margin: 0 }}>Non attive</p>
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center' }}>
+                      <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+                      <span style={{ padding: '0 12px', fontSize: 11, color: '#9CA3AF', fontWeight: 500, background: '#FFFFFF' }}>Non attive</span>
+                      <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
                     </div>
                   )}
                   <PromotionCard
                     row={p}
                     onOpenDetail={setDetailOffer}
-                    onModifica={setEditOffer}
                   />
                 </React.Fragment>
               ))}
