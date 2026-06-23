@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface Props {
   params: Promise<{ slug: string; id: string }>
@@ -88,7 +89,7 @@ export default async function OffertaDetailPage({ params }: Props) {
     <main style={{ background: '#F2F2F7', paddingBottom: 96 }}>
 
       {/* ── Hero image ────────────────────────────────────────────── */}
-      <div style={{ position: 'relative', height: '60vh', width: '100%', background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)` }}>
+      <div style={{ position: 'relative', height: '55vh', width: '100%', background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)` }}>
         {coverUrl && (
           <Image
             src={coverUrl}
@@ -136,15 +137,8 @@ export default async function OffertaDetailPage({ params }: Props) {
         </Link>
       </div>
 
-      {/* ── Floating sheet ────────────────────────────────────────── */}
-      <div style={{
-        position: 'relative',
-        marginTop: -32,
-        borderRadius: '24px 24px 0 0',
-        background: '#FFFFFF',
-        padding: '20px 20px 24px',
-        minHeight: '50vh',
-      }}>
+      {/* ── Floating card ─────────────────────────────────────────── */}
+      <FloatingCard style={{ position: 'relative', marginTop: -24, zIndex: 1 }}>
         {/* Drag handle */}
         <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E5E7EB', margin: '0 auto 20px' }} />
 
@@ -226,7 +220,7 @@ export default async function OffertaDetailPage({ params }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </FloatingCard>
 
       {/* ── CTA fixed bottom ─────────────────────────────────────── */}
       {!isExpired && (
@@ -235,7 +229,7 @@ export default async function OffertaDetailPage({ params }: Props) {
           bottom: 0,
           left: 0,
           right: 0,
-          padding: '12px 16px',
+          padding: '12px 12px',
           paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)',
           background: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(12px)',
