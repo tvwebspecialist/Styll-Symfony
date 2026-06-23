@@ -305,6 +305,128 @@ export default async function AppHomePage({ params, searchParams }: Props) {
         </>
       ) : (
         <>
+          {activeOffers.length > 0 && (
+            <section style={{ ...animated(0), marginBottom: 16, marginLeft: -16, marginRight: -16 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 12px' }}>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
+                <Link
+                  href={tp('/offerte')}
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+                >
+                  Vedi tutte
+                </Link>
+              </div>
+
+              {/* Carousel — native horizontal scroll */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  overflowX: 'auto',
+                  scrollSnapType: 'x mandatory',
+                  scrollPaddingLeft: 16,
+                  paddingLeft: 16,
+                  paddingRight: 16,
+                  paddingBottom: 8,
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
+                } as CSSProperties}
+              >
+                {activeOffers.map((offer) => {
+                  const allItems = [...offer.service_items, ...offer.product_items]
+                  const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
+                  const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
+                  let discountLabel = ''
+                  if (allItems.length === 1) {
+                    const item = allItems[0]
+                    discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
+                  } else if (pctMax > 0) {
+                    discountLabel = `Fino al ${pctMax}% Sconto`
+                  } else if (fixedMax > 0) {
+                    discountLabel = `Fino a €${fixedMax} Sconto`
+                  }
+
+                  const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
+                  const expiryText = offer.valid_until ? `Scade tra ${daysUntil(offer.valid_until)} gg` : ''
+
+                  return (
+                    <Link
+                      key={offer.id}
+                      href={tp(`/offerte/${offer.id}`)}
+                      style={{
+                        display: 'block',
+                        flexShrink: 0,
+                        width: 'calc(100vw - 40px)',
+                        height: 180,
+                        borderRadius: 20,
+                        overflow: 'hidden',
+                        position: 'relative',
+                        scrollSnapAlign: 'start',
+                        textDecoration: 'none',
+                        background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
+                      } as CSSProperties}
+                    >
+                      {offer.cover_image_url && (
+                        <Image
+                          fill
+                          src={offer.cover_image_url}
+                          alt={offer.title}
+                          sizes="calc(100vw - 40px)"
+                          style={{ objectFit: 'cover' }}
+                          loading="lazy"
+                        />
+                      )}
+                      {showExpiry && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 12,
+                          right: 12,
+                          background: 'rgba(0,0,0,0.50)',
+                          backdropFilter: 'blur(6px)',
+                          WebkitBackdropFilter: 'blur(6px)',
+                          color: '#FFFFFF',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          borderRadius: 999,
+                          padding: '3px 10px',
+                        } as CSSProperties}>
+                          {expiryText}
+                        </div>
+                      )}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                        background: '#FFFFFF',
+                        borderRadius: 16,
+                        padding: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {offer.title}
+                          </p>
+                          {discountLabel && (
+                            <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
+                              {discountLabel}
+                            </p>
+                          )}
+                        </div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
           <div style={{ padding: '20px 16px 8px' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#222222' }}>
               Ciao, {homeData.clientName ?? 'Benvenuto'} 👋
@@ -471,130 +593,6 @@ export default async function AppHomePage({ params, searchParams }: Props) {
             </section>
           ) : null}
 
-          {activeOffers.length > 0 && (
-            <section style={{ ...animated(90), marginBottom: 16, marginLeft: -16, marginRight: -16 }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 12px' }}>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
-                <Link
-                  href={tp('/offerte')}
-                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
-                >
-                  Vedi tutte →
-                </Link>
-              </div>
-
-              {/* Carousel — native horizontal scroll */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  overflowX: 'auto',
-                  scrollSnapType: 'x mandatory',
-                  scrollPaddingLeft: 16,
-                  paddingLeft: 16,
-                  paddingRight: 16,
-                  paddingBottom: 8,
-                  msOverflowStyle: 'none',
-                  scrollbarWidth: 'none',
-                } as CSSProperties}
-              >
-                {activeOffers.map((offer) => {
-                  const allItems = [...offer.service_items, ...offer.product_items]
-                  const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
-                  const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
-                  let discountLabel = ''
-                  if (allItems.length === 1) {
-                    const item = allItems[0]
-                    discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
-                  } else if (pctMax > 0) {
-                    discountLabel = `Fino al ${pctMax}% Sconto`
-                  } else if (fixedMax > 0) {
-                    discountLabel = `Fino a €${fixedMax} Sconto`
-                  }
-
-                  const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
-                  const expiryText = offer.valid_until ? `Scade tra ${daysUntil(offer.valid_until)} gg` : ''
-
-                  return (
-                    <Link
-                      key={offer.id}
-                      href={tp(`/offerte/${offer.id}`)}
-                      style={{
-                        display: 'block',
-                        flexShrink: 0,
-                        width: 'calc(100vw - 40px)',
-                        height: 180,
-                        borderRadius: 20,
-                        overflow: 'hidden',
-                        position: 'relative',
-                        scrollSnapAlign: 'start',
-                        textDecoration: 'none',
-                        background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
-                      } as CSSProperties}
-                    >
-                      {offer.cover_image_url && (
-                        <Image
-                          fill
-                          src={offer.cover_image_url}
-                          alt={offer.title}
-                          sizes="calc(100vw - 40px)"
-                          style={{ objectFit: 'cover' }}
-                          loading="lazy"
-                        />
-                      )}
-                      {/* Expiry pill */}
-                      {showExpiry && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          background: 'rgba(0,0,0,0.50)',
-                          backdropFilter: 'blur(6px)',
-                          WebkitBackdropFilter: 'blur(6px)',
-                          color: '#FFFFFF',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          borderRadius: 999,
-                          padding: '3px 10px',
-                        } as CSSProperties}>
-                          {expiryText}
-                        </div>
-                      )}
-
-                      {/* Bottom white box */}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
-                        background: '#FFFFFF',
-                        borderRadius: 16,
-                        padding: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {offer.title}
-                          </p>
-                          {discountLabel && (
-                            <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
-                              {discountLabel}
-                            </p>
-                          )}
-                        </div>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            </section>
-          )}
 
           {rewards.length > 0 ? (
             <section
