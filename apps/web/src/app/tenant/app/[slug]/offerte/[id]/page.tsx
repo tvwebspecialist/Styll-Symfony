@@ -1,6 +1,7 @@
-import type { CSSProperties } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
@@ -74,141 +75,210 @@ export default async function OffertaDetailPage({ params }: Props) {
 
   const brandColor = tenant.primary_color ?? '#1a1a1a'
   const coverUrl = (promo as any).cover_image_url as string | null
+  const title = (promo as any).title as string
+  const description = (promo as any).description as string | null
 
-  // CTA: if single discounted service, pre-select it
   const ctaUrl = services.length === 1
     ? tp(`/prenota?preselect=${services[0].id}`)
     : tp('/prenota')
 
+  const TOP_OFFSET = 'calc(env(safe-area-inset-top, 0px) + 16px)'
+
+  const glassCircle: React.CSSProperties = {
+    position: 'absolute',
+    top: TOP_OFFSET,
+    left: 16,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.62)',
+    backdropFilter: 'blur(28px) saturate(210%)',
+    WebkitBackdropFilter: 'blur(28px) saturate(210%)',
+    boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.45), 0 1px 0 rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.11)',
+    background: 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.68))',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    textDecoration: 'none',
+  }
+
   return (
-    <main style={{ minHeight: '100vh', background: '#F2F2F7', paddingBottom: 120 }}>
-      {/* Back button + Cover */}
-      <div style={{ position: 'relative', width: '100%', height: 280 }}>
+    <main style={{ position: 'fixed', inset: 0, zIndex: 80, overflow: 'hidden', background: '#111' }}>
+      {/* Fullscreen background */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
         {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverUrl} alt={(promo as any).title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <Image
+            src={coverUrl}
+            alt={title}
+            fill
+            priority
+            sizes="100vw"
+            style={{ objectFit: 'cover' }}
+          />
         ) : (
           <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)` }} />
         )}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)' }} />
-        <Link
-          href={tp('/offerte')}
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-            left: 16,
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: 'rgba(255,255,255,0.92)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none',
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </Link>
+        {/* Top gradient — status bar readability */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0) 30%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Bottom blur zone — softens image edge for panel backdrop */}
+        <div style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '26%',
+          backdropFilter: 'blur(24px) saturate(130%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(130%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 55%)',
+          maskImage: 'linear-gradient(to bottom, transparent, black 55%)',
+          pointerEvents: 'none',
+        }} />
       </div>
 
-      {isExpired && (
-        <div style={{ margin: '16px 16px 0', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span>
-          <p style={{ margin: 0, fontSize: 14, color: '#DC2626', fontWeight: 600 }}>Questa offerta non è più disponibile</p>
-        </div>
-      )}
+      {/* Glass back button */}
+      <Link href={tp('/offerte')} aria-label="Torna alle offerte" style={glassCircle}>
+        <ArrowLeft size={18} color="#0a0a0a" strokeWidth={2.5} />
+      </Link>
 
-      <div style={{ padding: '20px 16px 0' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#18181B', margin: 0, lineHeight: 1.2 }}>
-          {(promo as any).title}
-        </h1>
-        {(promo as any).description && (
-          <p style={{ fontSize: 15, color: '#71717A', marginTop: 8, lineHeight: 1.5 }}>
-            {(promo as any).description}
-          </p>
-        )}
+      {/* Info panel */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        maxHeight: '65dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        background: 'rgba(255,255,255,0.96)',
+        borderRadius: '28px 28px 0 0',
+        borderTop: '1px solid rgba(0,0,0,0.08)',
+      }}>
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          {/* Drag handle */}
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
+          </div>
 
-        {/* Validity period pills */}
-        {!isExpired && (
-          <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#F4F4F5', borderRadius: 999, padding: '5px 12px' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              <span style={{ fontSize: 12, color: '#52525B' }}>
-                {validUntil
-                  ? `${formatDate(validFrom)} – ${formatDate(validUntil)}`
-                  : `Dal ${formatDate(validFrom)} · Senza scadenza`}
-              </span>
-            </div>
-            {daysLeft !== null && daysLeft <= 7 && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: daysLeft <= 3 ? '#FEF2F2' : '#FFF7ED', borderRadius: 999, padding: '5px 12px' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: daysLeft <= 3 ? '#DC2626' : '#EA580C' }}>
-                  ⚡ {daysLeft <= 0 ? 'Scade oggi' : daysLeft === 1 ? 'Scade domani' : `Scade tra ${daysLeft} giorni`}
-                </span>
+          <div style={{ padding: '8px 20px 20px', maxWidth: 640, margin: '0 auto' }}>
+            {/* Expired banner */}
+            {isExpired && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+                <p style={{ margin: 0, fontSize: 14, color: '#DC2626', fontWeight: 600 }}>Questa offerta non è più disponibile</p>
+              </div>
+            )}
+
+            {/* Title */}
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: '#0a0a0a', lineHeight: 1.15, margin: '0 0 8px' }}>
+              {title}
+            </h1>
+
+            {/* Description */}
+            {description && (
+              <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, margin: '0 0 12px' }}>
+                {description}
+              </p>
+            )}
+
+            {/* Validity pills */}
+            {!isExpired && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#F4F4F5', borderRadius: 999, padding: '5px 12px' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <span style={{ fontSize: 12, color: '#52525B' }}>
+                    {validUntil
+                      ? `${formatDate(validFrom)} – ${formatDate(validUntil)}`
+                      : `Dal ${formatDate(validFrom)} · Senza scadenza`}
+                  </span>
+                </div>
+                {daysLeft !== null && daysLeft <= 7 && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: daysLeft <= 3 ? '#FEF2F2' : '#FFF7ED', borderRadius: 999, padding: '5px 12px' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: daysLeft <= 3 ? '#DC2626' : '#EA580C' }}>
+                      ⚡ {daysLeft <= 0 ? 'Scade oggi' : daysLeft === 1 ? 'Scade domani' : `Scade tra ${daysLeft} giorni`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Services */}
+            {services.length > 0 && (
+              <div style={{ marginTop: 20, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.07)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '12px 16px 8px', margin: 0, background: '#F9F9F9' }}>
+                  Servizi inclusi
+                </p>
+                {services.map((s, i) => (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#FFF', borderTop: i === 0 ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(0,0,0,0.06)' }}>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0a0a0a' }}>{s.name}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>{formatPrice(s.discountedPrice)}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>{formatPrice(s.originalPrice)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Products */}
+            {products.length > 0 && (
+              <div style={{ marginTop: 12, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.07)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '12px 16px 8px', margin: 0, background: '#F9F9F9' }}>
+                  Prodotti inclusi
+                </p>
+                {products.map((p, i) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#FFF', borderTop: i === 0 ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(0,0,0,0.06)' }}>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#0a0a0a' }}>{p.name}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>{formatPrice(p.discountedPrice)}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>{formatPrice(p.originalPrice)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+        </div>
+
+        {/* CTA — sticky at panel bottom */}
+        {!isExpired && (
+          <div style={{
+            flexShrink: 0,
+            padding: '8px 16px',
+            paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)',
+          }}>
+            <Link
+              href={ctaUrl}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                minHeight: 56,
+                borderRadius: 999,
+                background: brandColor,
+                color: '#FFFFFF',
+                fontSize: 16,
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Prenota ora →
+            </Link>
+          </div>
         )}
       </div>
-
-      {/* Services */}
-      {services.length > 0 && (
-        <div style={{ margin: '20px 16px 0', background: '#FFF', borderRadius: 20, overflow: 'hidden' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#A1A1AA', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 16px 10px', margin: 0 }}>Servizi inclusi</p>
-          {services.map((s, i) => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: i > 0 ? '1px solid #F4F4F5' : 'none' }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#18181B' }}>{s.name}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>{formatPrice(s.discountedPrice)}</span>
-                <span style={{ fontSize: 13, color: '#A1A1AA', textDecoration: 'line-through' }}>{formatPrice(s.originalPrice)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Products */}
-      {products.length > 0 && (
-        <div style={{ margin: '12px 16px 0', background: '#FFF', borderRadius: 20, overflow: 'hidden' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#A1A1AA', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 16px 10px', margin: 0 }}>Prodotti inclusi</p>
-          {products.map((p, i) => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: i > 0 ? '1px solid #F4F4F5' : 'none' }}>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#18181B' }}>{p.name}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A' }}>{formatPrice(p.discountedPrice)}</span>
-                <span style={{ fontSize: 13, color: '#A1A1AA', textDecoration: 'line-through' }}>{formatPrice(p.originalPrice)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* CTA fixed bottom — only for active offers */}
-      {!isExpired && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: 'max(16px, env(safe-area-inset-bottom)) 16px 24px', background: 'rgba(242,242,247,0.96)', backdropFilter: 'blur(12px)' } as CSSProperties}>
-          <Link
-            href={ctaUrl}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              minHeight: 56,
-              borderRadius: 999,
-              background: brandColor,
-              color: '#FFFFFF',
-              fontSize: 16,
-              fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            Prenota ora →
-          </Link>
-        </div>
-      )}
     </main>
   )
 }

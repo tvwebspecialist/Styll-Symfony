@@ -62,6 +62,8 @@ export function PwaShell({
   const isPrenotaSubroute = pathname.startsWith(`${tenantPath('/prenota')}/`)
   // Product detail is fullscreen — no bottom nav
   const isProductDetail = pathname.startsWith(`${tenantPath('/prodotti')}/`)
+  // Offer detail is fullscreen — no bottom nav (same as product detail)
+  const isOfferDetail = pathname.startsWith(`${tenantPath('/offerte')}/`)
 
   if (isAuthPage) {
     return <>{children}</>
@@ -72,7 +74,7 @@ export function PwaShell({
   // top, altrimenti il glass non risale sotto la status bar (doppio conteggio).
   return (
     <>
-      {!isProductDetail && (
+      {!(isProductDetail || isOfferDetail) && (
         <PwaTopBar
           businessName={businessName}
           logoUrl={logoUrl}
@@ -83,10 +85,10 @@ export function PwaShell({
           slug={slug}
         />
       )}
-      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail) ? 0 : 96 }}>
+      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail) ? 0 : 96 }}>
         {children}
       </div>
-      {!(isPrenotaSubroute || isProductDetail) && (
+      {!(isPrenotaSubroute || isProductDetail || isOfferDetail) && (
         <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
       )}
       {isPrenotaSubroute && (
