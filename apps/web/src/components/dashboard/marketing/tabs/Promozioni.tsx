@@ -22,21 +22,8 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
 ]
 
 
-function buildDiscountLabel(row: PromotionRow): string | null {
-  const all = [
-    ...row.service_items.map((s) => ({ type: s.discount_type, value: s.discount_value })),
-    ...row.product_items.map((p) => ({ type: p.discount_type, value: p.discount_value })),
-  ]
-  if (all.length === 0) return null
-  if (all.length === 1) {
-    const { type, value } = all[0]
-    return type === 'percent' ? `${value}% Sconto` : `€${value} Sconto`
-  }
-  const pctMax = all.filter((a) => a.type === 'percent').reduce((m, a) => Math.max(m, a.value), 0)
-  const fixMax = all.filter((a) => a.type === 'fixed').reduce((m, a) => Math.max(m, a.value), 0)
-  if (pctMax > 0) return `Fino al ${pctMax}% Sconto`
-  if (fixMax > 0) return `Fino a €${fixMax} Sconto`
-  return null
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso))
 }
 
 function PromotionCard({
@@ -46,7 +33,6 @@ function PromotionCard({
   row: PromotionRow
   onOpenDetail: (row: PromotionRow) => void
 }) {
-  const discountLabel = buildDiscountLabel(row)
   const isInactive = row.status !== 'active'
 
   return (
@@ -56,44 +42,48 @@ function PromotionCard({
       onClick={() => onOpenDetail(row)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(row) }}
       style={{
+        position: 'relative',
+        aspectRatio: '16/9',
         borderRadius: 12,
         overflow: 'hidden',
         cursor: 'pointer',
         opacity: isInactive ? 0.5 : 1,
+        background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
         transition: 'opacity 150ms',
       }}
     >
-      {/* 16:9 cover with overlay */}
-      <div style={{ position: 'relative', aspectRatio: '16/9', width: '100%', background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)' }}>
-        {row.cover_image_url && (
-          <Image
-            fill
-            src={row.cover_image_url}
-            alt={row.title}
-            sizes="(max-width: 768px) 100vw, 360px"
-            style={{ objectFit: 'cover' }}
-          />
-        )}
-        {/* White overlay box */}
-        <div style={{
-          position: 'absolute',
-          bottom: 12,
-          left: 12,
-          right: 12,
-          background: '#FFFFFF',
-          borderRadius: 12,
-          padding: '12px 14px',
-        }}>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#18181B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {row.cover_image_url && (
+        <Image
+          fill
+          src={row.cover_image_url}
+          alt={row.title}
+          sizes="(max-width: 768px) 100vw, 360px"
+          style={{ objectFit: 'cover' }}
+        />
+      )}
+      {/* White overlay box */}
+      <div style={{
+        position: 'absolute',
+        bottom: 12,
+        left: 12,
+        right: 12,
+        background: '#FFFFFF',
+        borderRadius: 12,
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#18181B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.title}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#18181B' }}>
-              {discountLabel ?? 'Informativa'}
-            </span>
-            <ChevronRight size={20} color="#A1A1AA" style={{ flexShrink: 0 }} />
-          </div>
+          <p style={{ margin: '2px 0 0', fontSize: 11, color: '#A1A1AA' }}>
+            {formatDate(row.valid_from)}
+            {row.valid_until ? ` → ${formatDate(row.valid_until)}` : ' · Senza scadenza'}
+          </p>
         </div>
+        <ChevronRight size={18} color="#A1A1AA" style={{ flexShrink: 0 }} />
       </div>
     </div>
   )
