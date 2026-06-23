@@ -83,83 +83,85 @@ export default async function OffertaDetailPage({ params }: Props) {
     ? tp(`/prenota?preselect=${services[0].id}`)
     : tp('/prenota')
 
-  const TOP_OFFSET = 'calc(env(safe-area-inset-top, 0px) + 16px)'
-
   const items = [
     ...services.map(s => ({ key: `s-${s.id}`, name: s.name, disc: s.discountedPrice, orig: s.originalPrice })),
     ...products.map(p => ({ key: `p-${p.id}`, name: p.name, disc: p.discountedPrice, orig: p.originalPrice })),
   ]
 
   return (
-    <main style={{ height: '100dvh', overflow: 'hidden', position: 'relative' }}>
+    <main style={{
+      height: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+      background: '#F2F2F7',
+      paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
+      overflow: 'hidden',
+    }}>
 
-      {/* ── Hero image — fixed background ─────────────────────────── */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0,
+      {/* ── Card 1: immagine ────────────────────────────────────────── */}
+      <FloatingCard style={{
+        margin: '0 12px',
+        padding: 0,
+        flexShrink: 0,
+        aspectRatio: '16/9',
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
         background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)`,
       }}>
         {coverUrl && (
           <Image src={coverUrl} alt={title} fill priority sizes="100vw" style={{ objectFit: 'cover' }} />
         )}
-      </div>
+        <Link
+          href={tp('/offerte')}
+          aria-label="Torna alle offerte"
+          style={{
+            position: 'absolute', top: 12, left: 12, zIndex: 10,
+            width: 44, height: 44, borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.62)',
+            backdropFilter: 'blur(28px) saturate(210%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(210%)',
+            boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.45), 0 8px 24px rgba(15,23,42,0.11)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.68))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            textDecoration: 'none',
+          }}
+        >
+          <ArrowLeft size={18} color="#0a0a0a" strokeWidth={2.5} />
+        </Link>
+      </FloatingCard>
 
-      {/* ── Back button ───────────────────────────────────────────── */}
-      <Link
-        href={tp('/offerte')}
-        aria-label="Torna alle offerte"
-        style={{
-          position: 'fixed',
-          top: TOP_OFFSET,
-          left: 16,
-          zIndex: 20,
-          width: 44,
-          height: 44,
-          borderRadius: '50%',
-          border: '1px solid rgba(255,255,255,0.62)',
-          backdropFilter: 'blur(28px) saturate(210%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(210%)',
-          boxShadow: 'inset 0 -1px 0 rgba(255,255,255,0.45), 0 8px 24px rgba(15,23,42,0.11)',
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.68))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textDecoration: 'none',
-        }}
-      >
-        <ArrowLeft size={18} color="#0a0a0a" strokeWidth={2.5} />
-      </Link>
-
-      {/* ── Floating card — fixed bottom ──────────────────────────── */}
+      {/* ── Card 2: contenuto ───────────────────────────────────────── */}
       <FloatingCard style={{
-        position: 'fixed',
-        bottom: 12,
-        left: 12,
-        right: 12,
-        margin: 0,
-        zIndex: 10,
-        boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
-        padding: `20px 20px max(env(safe-area-inset-bottom, 0px), 20px)`,
+        margin: '0 12px 12px',
+        padding: `16px 20px max(env(safe-area-inset-bottom, 0px), 16px)`,
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
       }}>
         {/* Drag handle */}
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E5E7EB', margin: '0 auto 16px' }} />
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E5E7EB', margin: '0 auto 14px', flexShrink: 0 }} />
 
         {/* Expired banner */}
         {isExpired && (
-          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexShrink: 0 }}>
             <span style={{ fontSize: 16 }}>⚠️</span>
             <p style={{ margin: 0, fontSize: 13, color: '#DC2626', fontWeight: 600 }}>Questa offerta non è più disponibile</p>
           </div>
         )}
 
         {/* Title */}
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2, margin: '0 0 6px' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2, margin: '0 0 6px', flexShrink: 0 }}>
           {title}
         </h1>
 
         {/* Description */}
         {description && (
           <p style={{
-            fontSize: 14, color: '#6B7280', lineHeight: 1.5, margin: '0 0 10px',
+            fontSize: 14, color: '#6B7280', lineHeight: 1.5, margin: '0 0 10px', flexShrink: 0,
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}>
             {description}
@@ -168,7 +170,7 @@ export default async function OffertaDetailPage({ params }: Props) {
 
         {/* Validity pills */}
         {!isExpired && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, flexShrink: 0 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#F4F4F5', borderRadius: 999, padding: '4px 10px' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#52525B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
@@ -189,33 +191,31 @@ export default async function OffertaDetailPage({ params }: Props) {
           </div>
         )}
 
-        {/* Services + products compact scrollable list */}
-        {items.length > 0 && (
-          <div style={{ maxHeight: 120, overflowY: 'auto' }}>
-            {items.map((item, i) => (
-              <div key={item.key} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                paddingTop: 6, paddingBottom: 6,
-                borderTop: i > 0 ? '1px solid #F4F4F5' : undefined,
-              }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{item.name}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatPrice(item.disc)}</span>
-                  <span style={{ fontSize: 13, color: '#A1A1AA', textDecoration: 'line-through' }}>{formatPrice(item.orig)}</span>
-                </div>
+        {/* Services + products — flex: 1 fills remaining space, scrolls if overflow */}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {items.map((item, i) => (
+            <div key={item.key} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              paddingTop: 8, paddingBottom: 8,
+              borderTop: i > 0 ? '1px solid #F4F4F5' : undefined,
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{item.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatPrice(item.disc)}</span>
+                <span style={{ fontSize: 13, color: '#A1A1AA', textDecoration: 'line-through' }}>{formatPrice(item.orig)}</span>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
 
-        {/* CTA inside card */}
+        {/* CTA — always at bottom */}
         {!isExpired && (
           <Link href={ctaUrl} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: '100%', height: 52, borderRadius: 14,
             background: brandColor,
             color: '#FFFFFF', fontSize: 16, fontWeight: 700, textDecoration: 'none',
-            marginTop: 16,
+            marginTop: 16, flexShrink: 0,
           }}>
             Prenota ora →
           </Link>

@@ -15,6 +15,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { addProductToAppointment } from '@/lib/actions/wishlist'
@@ -223,206 +224,158 @@ export function ProductDetailClient({
         />
       </button>
 
-      {/* Info panel — white, always legible regardless of photo colors */}
-      <div
+      {/* Info panel — FloatingCard */}
+      <FloatingCard
         className="detail-panel"
         style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
+          position: 'fixed',
+          bottom: 12,
+          left: 12,
+          right: 12,
+          margin: 0,
           zIndex: 10,
-          maxHeight: '62dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          background: 'rgba(255,255,255,0.96)',
-          borderRadius: '28px 28px 0 0',
-          borderTop: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
+          padding: `20px 20px max(env(safe-area-inset-bottom, 0px), 20px)`,
           animationName: 'detail-panel-up',
           animationDuration: '360ms',
           animationTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
           animationFillMode: 'both',
         }}
       >
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
-          {/* Drag handle */}
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
-            <div style={{ width: 36, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.15)' }} />
-          </div>
+        {/* Drag handle */}
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E5E7EB', margin: '0 auto 16px' }} />
 
-          <div style={{ padding: '8px 20px 16px', maxWidth: 640, margin: '0 auto' }}>
-            {/* Badges */}
-            {(isNew || productCategory) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                {isNew && (
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '3px 10px',
-                    borderRadius: 100,
-                    background: '#111',
-                    color: '#fff',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                  }}>
-                    <Sparkles size={10} />
-                    Novità
-                  </span>
-                )}
-                {productCategory && (
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '3px 10px',
-                    borderRadius: 100,
-                    background: `${brandColor}22`,
-                    color: brandColor,
-                    fontSize: 11,
-                    fontWeight: 600,
-                  }}>
-                    {productCategory}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Brand */}
-            {productBrand && (
-              <p style={{
-                fontSize: 11,
+        {/* Badges */}
+        {(isNew || productCategory) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            {isNew && (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 10px',
+                borderRadius: 100,
+                background: '#111',
+                color: '#fff',
+                fontSize: 10,
                 fontWeight: 700,
-                color: 'rgba(0,0,0,0.45)',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
-                letterSpacing: '0.09em',
-                marginBottom: 4,
               }}>
-                {productBrand}
-              </p>
+                <Sparkles size={10} />
+                Novità
+              </span>
             )}
-
-            {/* Title — full width (price moved to bottom bar) */}
-            <h1 style={{
-              fontSize: 26,
-              fontWeight: 800,
-              color: '#0a0a0a',
-              lineHeight: 1.15,
-              margin: '0 0 10px',
-            }}>
-              {productName}
-            </h1>
-
-            {/* Description */}
-            {productDescription && (
-              <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, marginBottom: 0 }}>
-                {productDescription}
-              </p>
+            {productCategory && (
+              <span style={{
+                display: 'inline-block',
+                padding: '3px 10px',
+                borderRadius: 100,
+                background: `${brandColor}22`,
+                color: brandColor,
+                fontSize: 11,
+                fontWeight: 600,
+              }}>
+                {productCategory}
+              </span>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Bottom bar — white card: price | stepper | squircle action */}
-        <div style={{
-          flexShrink: 0,
-          padding: '8px 16px calc(env(safe-area-inset-bottom, 8px) + 12px)',
+        {/* Brand */}
+        {productBrand && (
+          <p style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: 'rgba(0,0,0,0.45)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.09em',
+            marginBottom: 4,
+          }}>
+            {productBrand}
+          </p>
+        )}
+
+        {/* Title */}
+        <h1 style={{
+          fontSize: 26,
+          fontWeight: 800,
+          color: '#0a0a0a',
+          lineHeight: 1.15,
+          margin: '0 0 10px',
         }}>
+          {productName}
+        </h1>
+
+        {/* Description */}
+        {productDescription && (
+          <p style={{ fontSize: 14, color: 'rgba(0,0,0,0.55)', lineHeight: 1.65, marginBottom: 0 }}>
+            {productDescription}
+          </p>
+        )}
+
+        {/* Price + qty stepper + action */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+          {priceSell > 0 && (
+            <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0a0a', margin: 0, flexShrink: 0 }}>
+              {formatPrice(priceSell)}
+            </p>
+          )}
+
+          <div style={{ flex: 1 }} />
+
+          {/* Qty stepper pill */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
-            padding: '12px 16px',
-            background: '#ffffff',
-            borderRadius: 20,
-            boxShadow: '0 2px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)',
-            maxWidth: 640,
-            margin: '0 auto',
+            gap: 2,
+            background: 'rgba(0,0,0,0.06)',
+            borderRadius: 100,
+            padding: '5px 6px',
+            flexShrink: 0,
           }}>
-            {/* Price */}
-            {priceSell > 0 && (
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0a0a', margin: 0, flexShrink: 0 }}>
-                {formatPrice(priceSell)}
-              </p>
-            )}
-
-            <div style={{ flex: 1 }} />
-
-            {/* Qty stepper pill */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              background: 'rgba(0,0,0,0.06)',
-              borderRadius: 100,
-              padding: '5px 6px',
-              flexShrink: 0,
-            }}>
-              <button
-                type="button"
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                style={{
-                  width: 28,
-                  height: 28,
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <Minus size={12} color="#444" />
-              </button>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#222', minWidth: 20, textAlign: 'center' }}>
-                {qty}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQty((q) => q + 1)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                }}
-              >
-                <Plus size={12} color="#444" />
-              </button>
-            </div>
-
-            {/* Action button — squircle, matches reference */}
             <button
               type="button"
-              onClick={() => setIsModalOpen(true)}
-              aria-label="Aggiungi alla visita"
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                border: 'none',
-                background: 'var(--brand-primary, #222)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                flexShrink: 0,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
-              }}
+              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             >
-              <CalendarPlus size={20} color="#fff" />
+              <Minus size={12} color="#444" />
+            </button>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#222', minWidth: 20, textAlign: 'center' }}>
+              {qty}
+            </span>
+            <button
+              type="button"
+              onClick={() => setQty((q) => q + 1)}
+              style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+            >
+              <Plus size={12} color="#444" />
             </button>
           </div>
+
+          {/* Action button */}
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            aria-label="Aggiungi alla visita"
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              border: 'none',
+              background: 'var(--brand-primary, #222)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
+            }}
+          >
+            <CalendarPlus size={20} color="#fff" />
+          </button>
         </div>
-      </div>
+      </FloatingCard>
 
       {/* Modal */}
       {isModalOpen && (

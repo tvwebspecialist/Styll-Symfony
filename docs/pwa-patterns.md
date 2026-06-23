@@ -6,103 +6,105 @@ Fonte di verità per i pattern visivi della PWA cliente.
 
 ## Floating Card
 
-Blocco bianco fisso in basso, staccato dai bordi laterali, con ombra superiore. Standard Styll per contenuti principali della PWA. **Non scrolla con la pagina — è sempre visibile.**
-
-### Valori CSS esatti (posizione fixed)
+Blocco bianco con angoli arrotondati, staccato dai bordi, con ombra. Componente base per tutti i contenuti PWA.
 
 ```css
-position: fixed;
-bottom: 12px;
-left: 12px;
-right: 12px;
-margin: 0;               /* annulla il margin base del componente */
-z-index: 10;
 background: white;
 border-radius: 24px;
-padding: 20px 20px max(env(safe-area-inset-bottom, 0px), 20px);
-box-shadow: 0 -4px 32px rgba(0,0,0,0.12);
+margin: 0 12px;
+padding: 20px;
+box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
 ```
-
-### Componente
 
 ```tsx
 import { FloatingCard } from '@/components/pwa/FloatingCard'
 
-<FloatingCard style={{
-  position: 'fixed',
-  bottom: 12,
-  left: 12,
-  right: 12,
-  margin: 0,
-  zIndex: 10,
-  boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
-  padding: `20px 20px max(env(safe-area-inset-bottom, 0px), 20px)`,
-}}>
+<FloatingCard style={{ /* override */ }}>
   contenuto
 </FloatingCard>
 ```
 
-Props: `children`, `className`, `style` (spread sopra gli stili base).
-
-> **Nota:** il componente ha `margin: '0 12px'` come base; quando si usa `position: fixed` con `left`/`right` espliciti, passare `margin: 0` nell'override per annullarlo.
+Props: `children`, `className`, `style` (spread sopra gli stili base). `margin: 0` nell'override quando si usa `position: fixed` con `left`/`right` espliciti.
 
 ---
 
-## Pattern Hero + Floating Card
+## Pattern: Dual Floating Card
 
-Hero image fissa come sfondo, FloatingCard fisso in basso con tutto il contenuto e il CTA dentro.
+Due card verticali che insieme occupano `100dvh`, con gap 8px tra loro. Card 1 = immagine, Card 2 = contenuto + CTA.
+
+```
+┌─────────────────────────────────┐  ← safe area top (paddingTop: max(12px, safe-area))
+│  ╭─────────────────────────╮   │
+│  │  [← back]               │   │  Card 1: immagine
+│  │  aspect-ratio: 16/9     │   │  margin: 0 12px, border-radius: 24px
+│  │  overflow: hidden       │   │  flex-shrink: 0
+│  ╰─────────────────────────╯   │
+│           ← gap: 8px →         │
+│  ╭─────────────────────────╮   │
+│  │  ▬ drag handle          │   │
+│  │  Titolo (22px 800)      │   │  Card 2: contenuto
+│  │  Descrizione (2 righe)  │   │  margin: 0 12px 12px
+│  │  Pill validità          │   │  flex: 1, display: flex, flex-direction: column
+│  │  ─── items (flex:1) ─── │   │  overflow: hidden
+│  │  [  Prenota ora →     ] │   │
+│  ╰─────────────────────────╯   │
+└─────────────────────────────────┘  ← safe area bottom (paddingBottom via padding shorthand)
+```
 
 ### Struttura
 
-```
-┌─────────────────────────────────┐
-│                                 │
-│   Hero image (fixed, 100dvh)    │
-│                                 │
-│   [← back button, fixed]        │
-│                                 │
-│                                 │
-│  ╭──────────────────────────╮   │
-│  │  ▬ drag handle           │   │
-│  │  Titolo offerta          │   │
-│  │  Descrizione (2 righe)   │   │
-│  │  Pill validità           │   │
-│  │  Servizio A    €18  ~~€30│   │
-│  │  Servizio B    €12  ~~€20│   │
-│  │  [  Prenota ora →      ] │   │
-│  ╰──────────────────────────╯   │
-└─────────────────────────────────┘
-```
-
-### Hero
-
 ```tsx
-<div style={{
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0,
-  background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}88 100%)`,
+<main style={{
+  height: '100dvh',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  background: '#F2F2F7',
+  paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
+  overflow: 'hidden',
 }}>
-  <Image src={coverUrl} alt={title} fill priority sizes="100vw" style={{ objectFit: 'cover' }} />
-</div>
+
+  {/* Card 1 — immagine */}
+  <FloatingCard style={{
+    margin: '0 12px',
+    padding: 0,
+    flexShrink: 0,
+    aspectRatio: '16/9',
+    overflow: 'hidden',
+    position: 'relative',       /* per back button assoluto + Next Image fill */
+    boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
+    background: brandColorGradient,
+  }}>
+    <Image src={coverUrl} alt={title} fill sizes="100vw" style={{ objectFit: 'cover' }} />
+    {/* Back button: position: absolute, top: 12, left: 12 */}
+  </FloatingCard>
+
+  {/* Card 2 — contenuto */}
+  <FloatingCard style={{
+    margin: '0 12px 12px',
+    padding: `16px 20px max(env(safe-area-inset-bottom, 0px), 16px)`,
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    boxShadow: '0 2px 16px rgba(0,0,0,0.08)',
+  }}>
+    {/* drag handle (flex-shrink: 0) */}
+    {/* title (flex-shrink: 0) */}
+    {/* description, pills (flex-shrink: 0) */}
+    {/* items list: flex: 1, minHeight: 0, overflowY: auto */}
+    {/* CTA: flex-shrink: 0, marginTop: 16, height: 52, borderRadius: 14 */}
+  </FloatingCard>
+</main>
 ```
 
-### Contenuto FloatingCard (ordine dall'alto)
+### Note chiave
 
-1. **Drag handle** — `width: 40, height: 4, borderRadius: 2, background: #E5E7EB`, centrato, `margin: '0 auto 16px'`
-2. **Titolo** — `fontSize: 22, fontWeight: 800, color: #18181B`
-3. **Descrizione** — `fontSize: 14, color: #6B7280, WebkitLineClamp: 2` (max 2 righe)
-4. **Pill validità** — badge data e urgenza
-5. **Lista servizi/prodotti** — righe compatte, `maxHeight: 120, overflowY: auto`
-   - ogni riga: nome + prezzo scontato verde (`#16A34A, 14px bold`) + originale barrato (`#A1A1AA`)
-6. **CTA** — `height: 52, borderRadius: 14, background: brandColor`, full-width, `marginTop: 16`
+- `minHeight: 0` sul container items è **obbligatorio** — senza, flex items non rispettano `overflow: auto` dentro un flex container
+- `flex-shrink: 0` su tutti gli elementi tranne items (altrimenti si comprimono quando Card 2 è piena)
+- Il back button va dentro Card 1 come `position: absolute` — non serve TopBar
+- `gap: 8` sul `<main>` gestisce lo spazio tra le card
 
-### Main wrapper
+### Pagine che usano questo pattern
 
-```tsx
-<main style={{ height: '100dvh', overflow: 'hidden', position: 'relative' }}>
-```
-
----
-
-## Pagine che usano FloatingCard
-
-- `app/tenant/app/[slug]/offerte/[id]/page.tsx` — dettaglio offerta (Hero + Floating Card)
+- `app/tenant/app/[slug]/offerte/[id]/page.tsx` — dettaglio offerta
