@@ -18,7 +18,7 @@ a gestire clienti, appuntamenti e fidelizzazione.
 
 ## Stack Tecnologico
 
-| Layer | Tecnologia |
+| Layer | Tecnologia 
 |-------|-----------|
 | Framework | Next.js 14+ (App Router), TypeScript strict |
 | Backend / Auth / DB | Supabase (PostgreSQL + Auth + Storage + Realtime) |
