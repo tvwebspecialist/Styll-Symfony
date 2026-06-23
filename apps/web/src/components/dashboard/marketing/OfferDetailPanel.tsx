@@ -2,6 +2,10 @@
 
 import * as React from 'react'
 import Image from 'next/image'
+import {
+  Bell, CalendarCheck, Euro, Zap, Pause, Pencil, Copy, Archive, Trash2,
+  Scissors, Package, Tag, Calendar,
+} from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
 import {
   getOffertaAnalytics,
@@ -29,16 +33,18 @@ function formatEur(v: number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v)
 }
 
-const secBtnStyle: React.CSSProperties = {
-  padding: '12px 20px', borderRadius: 12, border: '1.5px solid #E5E5E5',
-  background: '#FFF', color: '#222', fontSize: 14, fontWeight: 600,
-  cursor: 'pointer', width: '100%', textAlign: 'center',
+const outlinedBtnStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  padding: '10px 16px', borderRadius: 12, border: '1.5px solid #E5E5E5',
+  background: '#FFF', color: '#222', fontSize: 13, fontWeight: 600,
+  cursor: 'pointer', width: '100%',
 }
 
 const dangerBtnStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   padding: '12px 20px', borderRadius: 12, border: '1.5px solid #FECACA',
-  background: '#FFF', color: '#DC2626', fontSize: 14, fontWeight: 600,
-  cursor: 'pointer', width: '100%', textAlign: 'center',
+  background: '#FFF', color: '#DC2626', fontSize: 13, fontWeight: 600,
+  cursor: 'pointer', width: '100%',
 }
 
 const sectionLabelStyle: React.CSSProperties = {
@@ -70,7 +76,8 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
   }, [analytics])
 
   const st = STATUS_STYLES[row.status]
-  const allItems = [...row.service_items, ...row.product_items]
+  const serviceItems = row.service_items
+  const productItems = row.product_items
 
   async function handleNotificaDiNuovo() {
     setBusy(true)
@@ -165,14 +172,16 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
   function renderPreview() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Cover image */}
         <div style={{ position: 'relative', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#1A1A2E' }}>
           {row.cover_image_url ? (
             <Image fill src={row.cover_image_url} alt={row.title} sizes="560px" style={{ objectFit: 'cover' }} />
           ) : (
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1A1A2E 0%, #4A4A6A 100%)' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)' }} />
           )}
         </div>
 
+        {/* Title + pill */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#222', flex: 1 }}>{row.title}</h3>
           <span style={{ fontSize: 11, fontWeight: 600, background: st.bg, color: st.color, borderRadius: 100, padding: '3px 10px', flexShrink: 0, marginTop: 3 }}>
@@ -180,43 +189,90 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
           </span>
         </div>
 
-        {allItems.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {allItems.map((item, i) => {
-              const name = 'serviceName' in item ? item.serviceName : item.productName
-              const discStr = item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`
-              const orig = item.originalPrice
-              let discounted: number | null = null
-              if (orig !== undefined) {
-                discounted = item.discount_type === 'percent'
-                  ? Math.max(0, orig * (1 - item.discount_value / 100))
-                  : Math.max(0, orig - item.discount_value)
-              }
-              return (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F8F8', borderRadius: 10 }}>
-                  <span style={{ fontSize: 14, color: '#222' }}>{name}</span>
-                  {discounted !== null ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: '#B0B0B0', textDecoration: 'line-through' }}>{formatEur(orig!)}</span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatEur(discounted)}</span>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>{discStr}</span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
-          {row.valid_until
-            ? `Dal ${formatDate(row.valid_from)} al ${formatDate(row.valid_until)}`
-            : `Dal ${formatDate(row.valid_from)} · Senza scadenza`}
-        </p>
+        {/* Date row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Calendar size={14} color="#B0B0B0" />
+          <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
+            {row.valid_until
+              ? `Dal ${formatDate(row.valid_from)} al ${formatDate(row.valid_until)}`
+              : `Dal ${formatDate(row.valid_from)} · Senza scadenza`}
+          </p>
+        </div>
 
         {row.description && (
           <p style={{ margin: 0, fontSize: 14, color: '#555', lineHeight: 1.6 }}>{row.description}</p>
+        )}
+
+        {/* Services */}
+        {serviceItems.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Scissors size={13} color="#888" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Servizi</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {serviceItems.map((item, i) => {
+                const orig = item.originalPrice
+                const discounted = orig !== undefined
+                  ? (item.discount_type === 'percent' ? Math.max(0, orig * (1 - item.discount_value / 100)) : Math.max(0, orig - item.discount_value))
+                  : null
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F8F8', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Tag size={12} color="#EA580C" />
+                      <span style={{ fontSize: 14, color: '#222' }}>{item.serviceName}</span>
+                    </div>
+                    {discounted !== null ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: '#B0B0B0', textDecoration: 'line-through' }}>{formatEur(orig!)}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatEur(discounted)}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>
+                        {item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Products */}
+        {productItems.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Package size={13} color="#888" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prodotti</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {productItems.map((item, i) => {
+                const orig = item.originalPrice
+                const discounted = orig !== undefined
+                  ? (item.discount_type === 'percent' ? Math.max(0, orig * (1 - item.discount_value / 100)) : Math.max(0, orig - item.discount_value))
+                  : null
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F8F8F8', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Tag size={12} color="#EA580C" />
+                      <span style={{ fontSize: 14, color: '#222' }}>{item.productName}</span>
+                    </div>
+                    {discounted !== null ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: '#B0B0B0', textDecoration: 'line-through' }}>{formatEur(orig!)}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#16A34A' }}>{formatEur(discounted)}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#16A34A' }}>
+                        {item.discount_type === 'percent' ? `-${item.discount_value}%` : `-€${item.discount_value}`}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </div>
     )
@@ -228,24 +284,24 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
       {
         label: 'Notifiche inviate',
         value: loading ? null : analytics!.notificheInviate === 0 ? '—' : String(analytics!.notificheInviate),
-        icon: '📨',
+        icon: <Bell size={18} color="#6B7280" />,
       },
       {
         label: 'Prenotazioni',
         value: loading ? null : String(analytics!.prenotazioniGenerate),
-        icon: '🗓',
+        icon: <CalendarCheck size={18} color="#6B7280" />,
       },
       {
         label: 'Revenue',
         value: loading ? null : formatEur(analytics!.revenueGenerato),
-        icon: '💶',
+        icon: <Euro size={18} color="#6B7280" />,
       },
     ]
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         {metrics.map((m) => (
           <div key={m.label} style={{ background: loading ? '#F0F0F0' : '#F8F8F8', borderRadius: 12, padding: '12px 8px', textAlign: 'center', opacity: loading ? (pulseOn ? 0.5 : 0.9) : 1, transition: 'opacity 300ms' }}>
-            <div style={{ fontSize: 20, marginBottom: 4 }}>{m.icon}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>{m.icon}</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: loading ? '#C0C0C0' : '#222' }}>{m.value ?? '—'}</div>
             <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{m.label}</div>
           </div>
@@ -261,11 +317,21 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
     if (status === 'draft') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" disabled={disabled} onClick={handlePublish} className="styll-btn-primary" style={{ padding: '12px 20px', fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'center', width: '100%' }}>
+          <button type="button" disabled={disabled} onClick={handlePublish} className="styll-btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 20px', fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer', width: '100%' }}>
+            <Zap size={16} />
             {busy ? 'Salvataggio…' : 'Pubblica'}
           </button>
-          <button type="button" disabled={disabled} onClick={() => onModifica(row)} style={secBtnStyle}>Modifica</button>
-          <button type="button" disabled={disabled} onClick={() => setConfirm('delete')} style={dangerBtnStyle}>Elimina</button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <button type="button" disabled={disabled} onClick={() => onModifica(row)} style={outlinedBtnStyle}>
+              <Pencil size={15} /> Modifica
+            </button>
+            <button type="button" disabled={disabled} onClick={handleDuplicate} style={outlinedBtnStyle}>
+              <Copy size={15} /> Duplica
+            </button>
+          </div>
+          <button type="button" disabled={disabled} onClick={() => setConfirm('delete')} style={dangerBtnStyle}>
+            <Trash2 size={15} /> Elimina
+          </button>
         </div>
       )
     }
@@ -273,25 +339,39 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
     if (status === 'active') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" disabled={disabled} onClick={() => setConfirm('notify')} style={secBtnStyle}>Notifica di nuovo</button>
-          <button type="button" disabled={disabled} onClick={() => handleStatusAction('pause')} style={secBtnStyle}>Metti in pausa</button>
-          <button type="button" disabled={disabled} onClick={() => onModifica(row)} style={secBtnStyle}>Modifica</button>
+          <button type="button" disabled={disabled} onClick={() => setConfirm('notify')} className="styll-btn-primary" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 20px', fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer', width: '100%' }}>
+            <Bell size={16} /> Notifica di nuovo
+          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <button type="button" disabled={disabled} onClick={() => handleStatusAction('pause')} style={outlinedBtnStyle}>
+              <Pause size={15} /> Metti in pausa
+            </button>
+            <button type="button" disabled={disabled} onClick={() => onModifica(row)} style={outlinedBtnStyle}>
+              <Pencil size={15} /> Modifica
+            </button>
+          </div>
         </div>
       )
     }
 
     if (status === 'expired') {
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" disabled={disabled} onClick={handleDuplicate} style={secBtnStyle}>Duplica</button>
-          <button type="button" disabled={disabled} onClick={() => handleStatusAction('archive')} style={secBtnStyle}>Archivia</button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <button type="button" disabled={disabled} onClick={handleDuplicate} style={outlinedBtnStyle}>
+            <Copy size={15} /> Duplica
+          </button>
+          <button type="button" disabled={disabled} onClick={() => handleStatusAction('archive')} style={outlinedBtnStyle}>
+            <Archive size={15} /> Archivia
+          </button>
         </div>
       )
     }
 
     if (status === 'archived') {
       return (
-        <button type="button" disabled={disabled} onClick={handleDuplicate} style={secBtnStyle}>Duplica</button>
+        <button type="button" disabled={disabled} onClick={handleDuplicate} style={outlinedBtnStyle}>
+          <Copy size={15} /> Duplica
+        </button>
       )
     }
 
@@ -304,7 +384,7 @@ export function OfferDetailPanel({ row, onClose, onModifica, onMutate }: Props) 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {row.status === 'draft' && (
             <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 16 }}>✏️</span>
+              <Pencil size={15} color="#92400E" />
               <p style={{ margin: 0, fontSize: 13, color: '#92400E', fontWeight: 500 }}>Questa offerta non è ancora visibile ai clienti</p>
             </div>
           )}
