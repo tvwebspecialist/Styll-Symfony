@@ -480,7 +480,10 @@ export async function uploadPromozioneCopertina(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Non autenticato' }
+  if (!tenantId) {
+    console.error('[uploadPromozioneCopertina] getActiveTenantId() returned null — utente non autenticato o cookie mancante')
+    return { ok: false, error: 'Non autenticato' }
+  }
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -499,13 +502,19 @@ export async function uploadPromozioneCopertina(
   const ext = extByType[detectedMime] ?? 'jpg'
   const path = `${tenantId}/promotions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
+  console.log('[uploadPromozioneCopertina] uploading to bucket "promotions", path:', path, 'mime:', detectedMime, 'size:', arrayBuffer.byteLength)
+
   const { error: uploadError } = await db.storage
     .from('promotions')
     .upload(path, arrayBuffer, { contentType: detectedMime, upsert: false })
 
-  if (uploadError) return { ok: false, error: uploadError.message }
+  if (uploadError) {
+    console.error('[uploadPromozioneCopertina] upload error:', uploadError.message, uploadError)
+    return { ok: false, error: uploadError.message }
+  }
 
   const { data: urlData } = db.storage.from('promotions').getPublicUrl(path)
+  console.log('[uploadPromozioneCopertina] success, url:', urlData.publicUrl)
   return { ok: true, url: urlData.publicUrl }
 }
 

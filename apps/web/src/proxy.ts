@@ -90,7 +90,7 @@ function buildCspHeader(allowEmbedding: boolean): string {
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://www.google-analytics.com https://va.vercel-scripts.com",
-    "img-src 'self' https://*.supabase.co data: blob:",
+    "img-src 'self' https://*.supabase.co https://*.vercel.app data: blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "frame-src 'self' https://accounts.google.com",
