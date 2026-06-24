@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
+import type { TablesUpdate } from '@/types'
 
 async function getAuthenticatedClientId(tenantId: string): Promise<{ clientId: string; userId: string } | null> {
   const supabase = await createClient()
@@ -263,13 +264,13 @@ export async function updateClientProfileData(
 
     const db = createAdminClient()
 
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    const updates: TablesUpdate<'clients'> = { updated_at: new Date().toISOString() }
     if (data.fullName !== undefined) updates.full_name = data.fullName
     if (data.phone !== undefined) updates.phone = data.phone
     if (data.dateOfBirth !== undefined) updates.date_of_birth = data.dateOfBirth || null
 
     // Update profiles table
-    const profileUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    const profileUpdates: TablesUpdate<'profiles'> = { updated_at: new Date().toISOString() }
     if (data.fullName !== undefined) profileUpdates.full_name = data.fullName
     if (data.phone !== undefined) profileUpdates.phone = data.phone
 

@@ -6,6 +6,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
+import type { Json, TablesUpdate } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
 
@@ -25,7 +26,7 @@ async function logAdminAction(
       entity_type: entityType,
       entity_id: entityId,
       tenant_id: tenantId,
-      details,
+      details: details as unknown as Json,
     })
   } catch {
     // best-effort
@@ -72,7 +73,7 @@ export async function updateTenant(id: string, input: Partial<TenantInput>): Pro
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const payload: Record<string, unknown> = {}
+  const payload: TablesUpdate<'tenants'> = {}
   if (input.business_name !== undefined) payload.business_name = input.business_name
   if (input.slug !== undefined) payload.slug = input.slug
   if (input.timezone !== undefined) payload.timezone = input.timezone
@@ -81,7 +82,7 @@ export async function updateTenant(id: string, input: Partial<TenantInput>): Pro
   if (input.secondary_color !== undefined) payload.secondary_color = input.secondary_color
   if (input.logo_url !== undefined) payload.logo_url = input.logo_url
   if (input.font_family !== undefined) payload.font_family = input.font_family
-  if (input.settings !== undefined) payload.settings = input.settings ?? {}
+  if (input.settings !== undefined) payload.settings = (input.settings ?? {}) as unknown as Json
   const { error } = await db.from('tenants').update(payload).eq('id', id)
   if (error) return { success: false, error: error.message }
   bumpAdmin()
@@ -179,20 +180,20 @@ export async function updateTenantSubscription(
     const { error } = await db
       .from('tenant_subscriptions')
       .update({
-        plan_id: input.plan_id,
+        plan_id: input.plan_id ?? undefined,
         status: input.status ?? 'active',
-        starts_at: input.starts_at ?? null,
-        ends_at: input.ends_at ?? null,
+        current_period_start: input.starts_at ?? undefined,
+        current_period_end: input.ends_at ?? undefined,
       })
       .eq('id', existing.id)
     if (error) return { success: false, error: error.message }
   } else {
     const { error } = await db.from('tenant_subscriptions').insert({
       tenant_id: tenantId,
-      plan_id: input.plan_id,
+      plan_id: input.plan_id as string,
       status: input.status ?? 'active',
-      starts_at: input.starts_at ?? new Date().toISOString(),
-      ends_at: input.ends_at ?? null,
+      current_period_start: input.starts_at ?? new Date().toISOString(),
+      current_period_end: input.ends_at ?? undefined,
     })
     if (error) return { success: false, error: error.message }
   }

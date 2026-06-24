@@ -777,6 +777,7 @@ async function rollbackInventoryOnCancellation(
           .eq('id', (inv as { id: string }).id)
       }
 
+      // TODO: migration pending — 'inventory_movements' table not yet in DB schema.
       await db.from('inventory_movements').insert({
         tenant_id:      tenantId,
         product_id:     item.product_id,

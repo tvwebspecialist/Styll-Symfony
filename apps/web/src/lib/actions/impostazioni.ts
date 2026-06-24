@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
+import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export async function updateTenant(data: {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Tenant non trovato' }
   const db = createAdminClient()
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const updates: TablesUpdate<'tenants'> = { updated_at: new Date().toISOString() }
   if (data.businessName !== undefined) updates.business_name = data.businessName
   if (data.primaryColor !== undefined) updates.primary_color = data.primaryColor
   if (data.logoUrl !== undefined) updates.logo_url = data.logoUrl

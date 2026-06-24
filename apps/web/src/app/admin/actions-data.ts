@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Json, TablesUpdate, TablesInsert } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
 
@@ -22,7 +23,7 @@ async function logAdminAction(
       entity_type: entityType,
       entity_id: entityId,
       tenant_id: tenantId,
-      details,
+      details: details as unknown as Json,
     })
   } catch {
     // best-effort
@@ -251,8 +252,8 @@ export async function updateTenantClient(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const patch: Record<string, unknown> = {}
-  if (input.full_name !== undefined) patch.full_name = input.full_name?.trim() || null
+  const patch: TablesUpdate<'clients'> = {}
+  if (input.full_name !== undefined) patch.full_name = input.full_name?.trim() || undefined
   if (input.email !== undefined) patch.email = input.email?.trim() || null
   if (input.phone !== undefined) patch.phone = input.phone?.trim() || null
   if (input.tags !== undefined) {
@@ -575,7 +576,7 @@ export async function importClientsForTenant(
   })
 
   const errors: ImportError[] = []
-  const toInsert: Array<Record<string, unknown>> = []
+  const toInsert: TablesInsert<'clients'>[] = []
   let skipped = 0
 
   const inv: Partial<Record<string, string>> = {}
@@ -649,7 +650,7 @@ export async function importClientsForTenant(
       imported_count: imported,
       skipped_count: skipped,
       error_count: errors.length,
-      errors: errors.slice(0, 100) as unknown as Record<string, unknown>[],
+      errors: errors.slice(0, 100) as unknown as Json,
       status,
     })
     .select('id')
@@ -738,5 +739,5 @@ export async function getImportJobErrors(
     .maybeSingle()
 
   if (error) return { success: false, error: error.message }
-  return { success: true, errors: (data?.errors ?? []) as ImportError[] }
+  return { success: true, errors: (data?.errors ?? []) as unknown as ImportError[] }
 }

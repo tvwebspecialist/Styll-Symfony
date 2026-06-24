@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Json } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
 
@@ -22,7 +23,7 @@ async function logAdminAction(
       entity_type: entityType,
       entity_id: entityId,
       tenant_id: tenantId,
-      details,
+      details: details as unknown as Json,
     })
   } catch {
     // best-effort
@@ -264,7 +265,7 @@ export async function setAdminSetting(
   const db = createAdminClient()
   const { error } = await db
     .from('admin_settings')
-    .upsert({ key, value, updated_at: new Date().toISOString(), updated_by: auth.id })
+    .upsert({ key, value: value as unknown as Json, updated_at: new Date().toISOString(), updated_by: auth.id })
   if (error) return { success: false, error: error.message }
   await logAdminAction(auth.id, 'settings.updated', 'settings', key, null, { value })
   revalidatePath('/admin/settings')

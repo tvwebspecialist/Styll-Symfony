@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendVerificationCodeEmail } from '@/lib/email'
+import type { TablesUpdate } from '@/types'
 
 function generateOtpCode(): string {
   // Cryptographically secure 6-digit code
@@ -116,7 +117,7 @@ export async function verifyEmailOTP(
   // Code check
   if (token.code !== code.trim()) {
     const newAttempts = (token.attempts as number) + 1
-    const updates: Record<string, unknown> = { attempts: newAttempts }
+    const updates: TablesUpdate<'email_verification_tokens'> = { attempts: newAttempts }
     if (newAttempts >= 5) {
       updates.locked_until = new Date(now.getTime() + 5 * 60_000).toISOString()
     }

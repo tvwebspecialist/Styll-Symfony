@@ -1,5 +1,8 @@
 'use server'
 
+// TODO: migration pending — tables 'badges', 'client_badges', 'tier_configs',
+// columns 'client_loyalty.current_tier' not yet in DB schema.
+
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'

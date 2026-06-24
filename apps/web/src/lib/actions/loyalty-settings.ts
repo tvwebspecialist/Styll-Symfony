@@ -1,5 +1,8 @@
 'use server'
 
+// TODO: migration pending — tables 'badges', 'tier_configs', 'loyalty_configs.is_active'
+// not yet in DB schema. Type errors below are expected until migrations are deployed.
+
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'

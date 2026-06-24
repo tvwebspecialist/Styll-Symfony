@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { finalizeOnboardingSchema } from '@/lib/validations/auth'
+import type { Json, TablesUpdate } from '@/types'
 
 export interface FinalizeResult {
   success: boolean
@@ -127,7 +128,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
           business_name: step1.name,
           slug,
           timezone: 'Europe/Rome',
-          settings: tenantSettings,
+          settings: tenantSettings as unknown as Json,
           status: 'active',
         })
         .eq('id', tenantId)
@@ -139,7 +140,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
           business_name: step1.name,
           slug,
           timezone: 'Europe/Rome',
-          settings: tenantSettings,
+          settings: tenantSettings as unknown as Json,
           status: 'active',
         })
         .select('id')
@@ -273,7 +274,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         .insert(
           pendingInvites.map((m) => ({
             tenant_id: tenantId,
-            profile_id: null,
+            profile_id: null as unknown as string,
             role: m.role,
             is_active: true,
           }))
@@ -301,7 +302,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
       .select('full_name')
       .eq('id', user.id)
       .maybeSingle()
-    const profileUpdate: Record<string, unknown> = {
+    const profileUpdate: TablesUpdate<'profiles'> = {
       onboarding_completed: true,
       work_mode: step2.work_mode,
       updated_at: new Date().toISOString(),
