@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export async function updateAppSettings(
   if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
 
   const db = createAdminClient()
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  const updates: TablesUpdate<'tenants'> = { updated_at: new Date().toISOString() }
 
   if (settings.businessName !== undefined) updates.business_name = settings.businessName
   if (settings.primaryColor !== undefined) updates.primary_color = settings.primaryColor
@@ -407,7 +408,7 @@ export async function updateProductShowOnSite(
 
   const { error } = await db
     .from('products')
-    .update({ show_on_site: value } as Record<string, unknown>)
+    .update({ show_on_site: value })
     .eq('id', id)
     .eq('tenant_id', tenantId)
 
@@ -516,7 +517,7 @@ export async function uploadWebsitePhoto(
     photo: {
       id: inserted.id,
       url: inserted.url,
-      sortOrder: inserted.sort_order,
+      sortOrder: inserted.sort_order ?? 0,
     },
   }
 }

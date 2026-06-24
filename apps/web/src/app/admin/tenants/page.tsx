@@ -18,7 +18,8 @@ export default async function TenantsPage() {
   type CountMap = Record<string, number>
   const empty: CountMap = {}
 
-  async function countBy(table: string): Promise<CountMap> {
+  type CountableTable = 'services' | 'staff_members' | 'locations'
+  async function countBy(table: CountableTable): Promise<CountMap> {
     if (ids.length === 0) return empty
     const { data } = await db
       .from(table)

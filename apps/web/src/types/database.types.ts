@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_audit_log: {
@@ -78,6 +103,7 @@ export type Database = {
       }
       appointment_products: {
         Row: {
+          applied_promotion_id: string | null
           appointment_id: string
           created_at: string
           id: string
@@ -87,6 +113,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          applied_promotion_id?: string | null
           appointment_id: string
           created_at?: string
           id?: string
@@ -96,6 +123,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          applied_promotion_id?: string | null
           appointment_id?: string
           created_at?: string
           id?: string
@@ -105,6 +133,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointment_products_applied_promotion_id_fkey"
+            columns: ["applied_promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointment_products_appointment_id_fkey"
             columns: ["appointment_id"]
@@ -130,6 +165,7 @@ export type Database = {
       }
       appointment_services: {
         Row: {
+          applied_promotion_id: string | null
           appointment_id: string
           created_at: string
           id: string
@@ -138,6 +174,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          applied_promotion_id?: string | null
           appointment_id: string
           created_at?: string
           id?: string
@@ -146,6 +183,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          applied_promotion_id?: string | null
           appointment_id?: string
           created_at?: string
           id?: string
@@ -154,6 +192,13 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointment_services_applied_promotion_id_fkey"
+            columns: ["applied_promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointment_services_appointment_id_fkey"
             columns: ["appointment_id"]
@@ -526,7 +571,7 @@ export type Database = {
           full_name: string
           id: string
           marketing_consent: boolean
-          phone: string
+          phone: string | null
           preferred_contact_channel: string | null
           profile_id: string | null
           tags: Json
@@ -541,7 +586,7 @@ export type Database = {
           full_name: string
           id?: string
           marketing_consent?: boolean
-          phone: string
+          phone?: string | null
           preferred_contact_channel?: string | null
           profile_id?: string | null
           tags?: Json
@@ -556,7 +601,7 @@ export type Database = {
           full_name?: string
           id?: string
           marketing_consent?: boolean
-          phone?: string
+          phone?: string | null
           preferred_contact_channel?: string | null
           profile_id?: string | null
           tags?: Json
@@ -613,6 +658,42 @@ export type Database = {
           subject?: string
           updated_at?: string | null
           variables?: Json | null
+        }
+        Relationships: []
+      }
+      email_verification_tokens: {
+        Row: {
+          attempts: number
+          code: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          last_sent_at: string
+          locked_until: string | null
+          used: boolean
+        }
+        Insert: {
+          attempts?: number
+          code: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          last_sent_at?: string
+          locked_until?: string | null
+          used?: boolean
+        }
+        Update: {
+          attempts?: number
+          code?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          last_sent_at?: string
+          locked_until?: string | null
+          used?: boolean
         }
         Relationships: []
       }
@@ -789,6 +870,151 @@ export type Database = {
           },
           {
             foreignKeyName: "loyalty_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_automations: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          tenant_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          tenant_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          tenant_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_automations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_log: {
+        Row: {
+          appointment_id: string | null
+          id: string
+          profile_id: string | null
+          promotion_id: string | null
+          sent_at: string
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          id?: string
+          profile_id?: string | null
+          promotion_id?: string | null
+          sent_at?: string
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          appointment_id?: string | null
+          id?: string
+          profile_id?: string | null
+          promotion_id?: string | null
+          sent_at?: string
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          meta: Json
+          profile_id: string | null
+          tenant_id: string
+          title: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          meta?: Json
+          profile_id?: string | null
+          tenant_id: string
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          meta?: Json
+          profile_id?: string | null
+          tenant_id?: string
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1031,6 +1257,7 @@ export type Database = {
           bio: string | null
           created_at: string
           email: string | null
+          email_verified: boolean
           full_name: string | null
           id: string
           is_superadmin: boolean
@@ -1048,6 +1275,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
+          email_verified?: boolean
           full_name?: string | null
           id: string
           is_superadmin?: boolean
@@ -1065,6 +1293,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           email?: string | null
+          email_verified?: boolean
           full_name?: string | null
           id?: string
           is_superadmin?: boolean
@@ -1079,8 +1308,113 @@ export type Database = {
         }
         Relationships: []
       }
+      promotion_products: {
+        Row: {
+          created_at: string
+          discount_type: string
+          discount_value: number
+          id: string
+          product_id: string
+          promotion_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_type: string
+          discount_value: number
+          id?: string
+          product_id: string
+          promotion_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          product_id?: string
+          promotion_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_products_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotion_services: {
+        Row: {
+          created_at: string
+          discount_type: string
+          discount_value: number
+          id: string
+          promotion_id: string
+          service_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_type: string
+          discount_value: number
+          id?: string
+          promotion_id: string
+          service_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          promotion_id?: string
+          service_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_services_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_services_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       promotions: {
         Row: {
+          cover_image_url: string | null
           created_at: string
           description: string | null
           discount_type: string | null
@@ -1091,6 +1425,7 @@ export type Database = {
           service_id: string | null
           show_in_app: boolean
           show_on_landing: boolean
+          status: string
           tenant_id: string
           title: string
           updated_at: string
@@ -1098,6 +1433,7 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
           discount_type?: string | null
@@ -1108,6 +1444,7 @@ export type Database = {
           service_id?: string | null
           show_in_app?: boolean
           show_on_landing?: boolean
+          status?: string
           tenant_id: string
           title: string
           updated_at?: string
@@ -1115,6 +1452,7 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          cover_image_url?: string | null
           created_at?: string
           description?: string | null
           discount_type?: string | null
@@ -1125,6 +1463,7 @@ export type Database = {
           service_id?: string | null
           show_in_app?: boolean
           show_on_landing?: boolean
+          status?: string
           tenant_id?: string
           title?: string
           updated_at?: string
@@ -1141,6 +1480,57 @@ export type Database = {
           },
           {
             foreignKeyName: "promotions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          p256dh: string
+          profile_id: string
+          tenant_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          profile_id: string
+          tenant_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          profile_id?: string
+          tenant_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1965,6 +2355,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

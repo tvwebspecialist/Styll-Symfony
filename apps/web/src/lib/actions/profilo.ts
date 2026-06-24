@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
+import type { Json, TablesUpdate } from '@/types'
 
 export interface ProfileData {
   id: string
@@ -67,7 +68,7 @@ async function logShadowAction(
       entity_type: 'profile',
       entity_id: null,
       tenant_id: tenantId,
-      details,
+      details: details as unknown as Json,
     })
   } catch {
     /* swallow */

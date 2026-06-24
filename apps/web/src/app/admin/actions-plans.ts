@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { TablesUpdate } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
 
@@ -47,8 +48,11 @@ export async function updateSubscriptionPlan(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const payload: Record<string, unknown> = { ...input }
-  if (input.feature_flags !== undefined) payload.feature_flags = input.feature_flags ?? {}
+  const { feature_flags, ...rest } = input
+  const payload: TablesUpdate<'subscription_plans'> = {
+    ...rest,
+    ...(feature_flags !== undefined ? { feature_flags: feature_flags as unknown as import('@/types').Json } : {}),
+  }
   const { error } = await db.from('subscription_plans').update(payload).eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/admin/subscription-plans')

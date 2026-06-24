@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
+import type { Json, TablesUpdate, TablesInsert } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
 
@@ -24,7 +25,7 @@ async function logAdminAction(
       entity_type: entityType,
       entity_id: entityId,
       tenant_id: tenantId,
-      details,
+      details: details as unknown as Json,
     })
   } catch {
     // best-effort
@@ -42,7 +43,7 @@ export async function updateProfile(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
-  const payload: Record<string, unknown> = {}
+  const payload: TablesUpdate<'profiles'> = {}
   if (input.full_name !== undefined) payload.full_name = input.full_name
   if (input.is_superadmin !== undefined) payload.is_superadmin = input.is_superadmin
   const { error } = await db.from('profiles').update(payload).eq('id', id)
@@ -91,7 +92,7 @@ export async function inviteUser(input: {
       email: input.email,
       full_name: input.fullName ?? null,
       is_superadmin: input.isSuperadmin ?? false,
-    })
+    } as TablesInsert<'profiles'>)
 
   if (input.tenantId) {
     const { data: existingMember } = await db

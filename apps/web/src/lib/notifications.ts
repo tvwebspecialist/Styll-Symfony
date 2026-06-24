@@ -1,3 +1,5 @@
+import type { Json } from '@/types'
+
 /**
  * Helper per inserire notifiche in-app per lo staff del tenant.
  * Solo server-side. Non importare in componenti client.
@@ -173,7 +175,7 @@ export async function insertStaffNotification(params: InsertParams): Promise<voi
       type: params.type,
       title: params.title,
       body: params.body ?? null,
-      meta: params.meta ?? {},
+      meta: (params.meta ?? {}) as unknown as Json,
     })
     .then(({ error }) => {
       if (error) {

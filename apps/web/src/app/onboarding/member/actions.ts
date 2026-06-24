@@ -172,5 +172,5 @@ export async function getMemberOnboardingContext(tenantId: string): Promise<{
     return { success: false, error: 'Errore nel caricamento dei servizi' }
   }
 
-  return { success: true, services: services || [] }
+  return { success: true, services: (services || []).map(s => ({ ...s, category: s.category ?? undefined })) }
 }

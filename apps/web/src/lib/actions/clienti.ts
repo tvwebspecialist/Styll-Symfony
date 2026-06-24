@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import type { Json } from '@/types'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
 
@@ -229,7 +230,7 @@ export async function getClienti(): Promise<{
 export interface ClienteInfo {
   id: string
   fullName: string
-  phone: string
+  phone: string | null
   email: string | null
   dateOfBirth: string | null
   preferredChannel: string | null
@@ -972,7 +973,7 @@ export async function importClients(
       imported_count: imported,
       skipped_count: skipped,
       error_count: errors.length,
-      errors: errors.slice(0, 100) as unknown as Record<string, unknown>[],
+      errors: errors.slice(0, 100) as unknown as Json,
       status,
     })
     .select('id')

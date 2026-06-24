@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { Database } from '@/types/database.types'
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'
 const ROOT_DOMAIN = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it').trim().replace(/^\./, '')
@@ -33,7 +34,7 @@ function resolveCookieMaxAge(name: string, value: string, options?: SupabaseCook
 export async function createClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  return createServerClient<Database>(
     // trim() evita whitespace/newline accidentali dalla env
     (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim(),
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '').trim(),

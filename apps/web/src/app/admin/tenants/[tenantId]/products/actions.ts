@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { ActionResult } from '@/app/admin/actions'
+import type { TablesUpdate } from '@/types'
 
 async function requireSuperadmin(): Promise<{ id: string } | { error: string }> {
   const supabase = await createClient()
@@ -95,7 +96,7 @@ export async function updateProduct(
 
   const { name, brand, category, price_sell, price_cost, sku, is_active, inventory } = input
 
-  const patch: Record<string, unknown> = {}
+  const patch: TablesUpdate<'products'> = {}
   if (name !== undefined) patch.name = name
   if (brand !== undefined) patch.brand = brand ?? null
   if (category !== undefined) patch.category = category ?? null

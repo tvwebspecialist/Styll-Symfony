@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type { Database } from '@/types/database.types'
 
 /**
  * Resolve the cookie `domain` so the Supabase session cookie is shared across
@@ -54,7 +55,7 @@ export function createClient() {
   // Evaluated inside the factory so it's always client-side, never during SSR.
   const cookieDomain = getCookieDomain()
 
-  return createBrowserClient(
+  return createBrowserClient<Database>(
     // trim() evita whitespace/newline accidentali dalla env
     (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim(),
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '').trim(),

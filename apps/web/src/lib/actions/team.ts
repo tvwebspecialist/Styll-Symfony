@@ -7,6 +7,7 @@ import { getActiveTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { MANAGER_ROLES } from '@/lib/constants'
+import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ export async function setStaffServices(
     const rows = serviceIds.map((sid) => ({
       staff_id: staffId,
       service_id: sid,
+      tenant_id: tenantId,
     }))
     const { error } = await db.from('staff_services').insert(rows)
     if (error) return { success: false, error: error.message }
@@ -301,8 +303,10 @@ export async function updateStaffRole(
     return { success: false, error: 'Non hai i permessi per modificare i membri' }
   }
 
-  const updates: Record<string, unknown> = { role }
-  if (typeof isActive === 'boolean') updates.is_active = isActive
+  const updates: TablesUpdate<'staff_members'> = {
+    role,
+    ...(typeof isActive === 'boolean' ? { is_active: isActive } : {}),
+  }
 
   const { error } = await db
     .from('staff_members')
