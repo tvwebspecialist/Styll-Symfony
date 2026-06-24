@@ -13,6 +13,7 @@
  */
 
 import * as React from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { X, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
@@ -219,8 +220,7 @@ function Step1Upload({
         {file ? (
           <>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/img/Churn_green.png" alt="" width={28} height={28} />
+              <Image src="/img/Churn_green.png" alt="File caricato" width={28} height={28} />
             </div>
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222222' }}>{file.name}</p>

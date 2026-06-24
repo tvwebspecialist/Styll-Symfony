@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { Bell, CalendarPlus, UserX, BarChart2 } from 'lucide-react'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { createClient } from '@/lib/supabase/client'
@@ -216,11 +217,11 @@ export function NotificationOnboardingDashboard({ primaryColor, logoUrl, busines
                 alignItems:     'center',
                 justifyContent: 'center',
                 overflow:       'hidden',
+                position:       'relative',
               }}
             >
               {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'cover' }} />
               ) : (
                 <span style={{ fontSize: 30, fontWeight: 800, color: '#ffffff' }}>{initial}</span>
               )}
@@ -262,11 +263,11 @@ export function NotificationOnboardingDashboard({ primaryColor, logoUrl, busines
                     alignItems:     'center',
                     justifyContent: 'center',
                     overflow:       'hidden',
+                    position:       'relative',
                   }}
                 >
                   {logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <Image src={logoUrl} alt="" fill style={{ objectFit: 'cover' }} />
                   ) : (
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{initial}</span>
                   )}

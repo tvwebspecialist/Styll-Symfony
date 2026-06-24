@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import { Loader2, Building2, MapPin, CreditCard, Plus, Pencil, Trash2, Check, ImagePlus, X as XIcon, Images, Phone } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
@@ -117,11 +118,11 @@ function BusinessTab({ tenant }: { tenant: ImpostazioniData['tenant'] }) {
                 overflow: 'hidden', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'var(--color-fg-muted)',
+                position: 'relative',
               }}
             >
               {logoUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <Image src={logoUrl} alt="Logo attività" fill style={{ objectFit: 'cover' }} />
                 : <ImagePlus size={24} />
               }
             </div>
@@ -292,8 +293,7 @@ function PhotosUploader({
                 border: '1px solid var(--color-border)',
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Image src={url} alt={`Foto ${i + 1}`} fill style={{ objectFit: 'cover' }} />
               {i === 0 && (
                 <span style={{
                   position: 'absolute', top: 4, left: 4,

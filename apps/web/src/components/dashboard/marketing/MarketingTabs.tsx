@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Smartphone, UserMinus, MessageSquare, Tag, Star, Info, X, type LucideIcon } from 'lucide-react'
 import { Social } from './tabs/Social'
@@ -123,8 +124,7 @@ export function MarketingTabs({ tenantId }: MarketingTabsProps) {
                 {/* Popup header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/img/Churn_yellow.png" alt="" width={18} height={18} />
+                    <Image src="/img/Churn_yellow.png" alt="" width={18} height={18} />
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#111111' }}>Come funziona Pulse</span>
                   </div>
                   <button

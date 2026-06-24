@@ -502,8 +502,6 @@ export async function uploadPromozioneCopertina(
   const ext = extByType[detectedMime] ?? 'jpg'
   const path = `${tenantId}/promotions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
-  console.log('[uploadPromozioneCopertina] uploading to bucket "promotions", path:', path, 'mime:', detectedMime, 'size:', arrayBuffer.byteLength)
-
   const { error: uploadError } = await db.storage
     .from('promotions')
     .upload(path, arrayBuffer, { contentType: detectedMime, upsert: false })
@@ -514,7 +512,6 @@ export async function uploadPromozioneCopertina(
   }
 
   const { data: urlData } = db.storage.from('promotions').getPublicUrl(path)
-  console.log('[uploadPromozioneCopertina] success, url:', urlData.publicUrl)
   return { ok: true, url: urlData.publicUrl }
 }
 

@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import {
   ImagePlus,
@@ -360,10 +361,9 @@ function ToggleRow({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
       {(photoUrl !== undefined || initials !== undefined) && (
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#F3F4F6', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#6B7280' }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#F3F4F6', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#6B7280', position: 'relative' }}>
           {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <Image src={photoUrl} alt="Foto staff" fill style={{ objectFit: 'cover' }} />
           ) : (
             initials ?? '?'
           )}
@@ -391,10 +391,9 @@ function ToggleRow({
 function ProductToggleRow({ product, onChange }: { product: WebsiteProduct; onChange: (id: string, value: boolean) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F3F4F6' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F3F4F6', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>
+      <div style={{ width: 40, height: 40, borderRadius: 8, background: '#F3F4F6', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', position: 'relative' }}>
         {product.photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <Image src={product.photoUrl} alt="Foto prodotto" fill style={{ objectFit: 'cover' }} />
         ) : (
           <Package size={16} />
         )}
@@ -437,8 +436,7 @@ function SortableWebsitePhoto({ photo, isHero, onDelete }: { photo: WebsitePhoto
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => { setHovering(false); setConfirmDelete(false) }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photo.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      <Image src={photo.url} alt="Foto portfolio" fill style={{ objectFit: 'cover' }} />
       {isHero && (
         <div style={{ position: 'absolute', top: 6, left: 6, background: '#F97316', borderRadius: 6, padding: '2px 7px', display: 'flex', alignItems: 'center', gap: 3 }}>
           <Star size={9} color="#FFF" fill="#FFF" />
@@ -882,8 +880,7 @@ export function WebsiteTabClient({
               </label>
               <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#F3F4F6', border: '1px solid #E5E7EB' }}>
                 {heroImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={heroImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <Image src={heroImageUrl} alt="Foto di sfondo hero" fill style={{ objectFit: 'cover' }} />
                 ) : (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#9CA3AF' }}>
                     <ImageIcon size={36} />
@@ -989,9 +986,8 @@ export function WebsiteTabClient({
               <label style={{ ...labelStyle, marginBottom: 8 }}>Foto About</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {aboutImageUrl && (
-                  <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #E5E7EB' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={aboutImageUrl} alt="About" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #E5E7EB', position: 'relative' }}>
+                    <Image src={aboutImageUrl} alt="Foto About" fill style={{ objectFit: 'cover' }} />
                   </div>
                 )}
                 <button type="button" onClick={() => aboutFileRef.current?.click()} disabled={uploadingAbout} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: uploadingAbout ? 'default' : 'pointer' }}>

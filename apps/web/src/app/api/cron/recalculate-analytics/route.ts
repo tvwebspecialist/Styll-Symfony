@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   const { data: processed, error } = await db.rpc('recompute_all_client_analytics')
   if (error) {
     console.error('[cron/recalculate-analytics] rpc error:', error.message)
-    return NextResponse.json({ error: 'Recalculation failed', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Recalculation failed' }, { status: 500 })
   }
 
   // ── 3. Fetch nuovi dati + nome cliente (unico round-trip post-recompute) ──

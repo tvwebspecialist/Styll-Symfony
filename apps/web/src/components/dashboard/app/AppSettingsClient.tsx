@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import { ImagePlus, Loader2, Globe, Smartphone } from 'lucide-react'
 import { updateAppSettings, uploadTenantLogo } from '@/lib/actions/app-settings'
@@ -55,10 +56,9 @@ function LogoUploader({ currentUrl, onUploaded }: { currentUrl: string; onUpload
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-      <div style={{ width: 72, height: 72, borderRadius: 16, background: '#F3F4F6', border: '2px dashed #D1D5DB', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#9CA3AF' }}>
+      <div style={{ width: 72, height: 72, borderRadius: 16, background: '#F3F4F6', border: '2px dashed #D1D5DB', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#9CA3AF', position: 'relative' }}>
         {currentUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={currentUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <Image src={currentUrl} alt="Logo" fill style={{ objectFit: 'cover' }} />
         ) : (
           <ImagePlus size={26} />
         )}
@@ -539,8 +539,7 @@ export function AppSettingsClient({
                     <div key={label} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 14, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       {logoUrl ? (
                         <div style={{ width: size, height: size, borderRadius: size * 0.22, background: '#FFFFFF', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={logoUrl} alt="" style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
+                          <Image src={logoUrl} alt="Logo preview" width={Math.round(size * 0.7)} height={Math.round(size * 0.7)} style={{ objectFit: 'contain' }} />
                         </div>
                       ) : (
                         <div style={{ width: size, height: size, borderRadius: size * 0.22, background: primaryColor || '#1A1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>

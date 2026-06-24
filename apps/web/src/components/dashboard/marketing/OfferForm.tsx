@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { X, Check, ChevronLeft, ImagePlus, Trash2 } from 'lucide-react'
 import {
   createOfferta,
@@ -668,8 +669,15 @@ export function OfferForm({ tenantId, onSuccess, onClose, initialData }: Props) 
         {/* Cover */}
         {(coverPreviewUrl ?? existingCoverUrl) && (
           <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E5E5' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={(coverPreviewUrl ?? existingCoverUrl)!} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+            {coverPreviewUrl ? (
+              // blob: URL from local file preview — next/image does not support blob URLs
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={coverPreviewUrl} alt="Anteprima copertina" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+            ) : (
+              <div style={{ position: 'relative', height: 140 }}>
+                <Image src={existingCoverUrl!} alt="Copertina offerta" fill style={{ objectFit: 'cover' }} />
+              </div>
+            )}
           </div>
         )}
 
