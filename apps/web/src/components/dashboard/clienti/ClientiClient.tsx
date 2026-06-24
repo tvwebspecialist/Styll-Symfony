@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronRight, MoreHorizontal, Plus, Search, Upload, FileDown, Code, Printer, X } from 'lucide-react'
@@ -684,8 +685,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={CHURN_IMG[c.churn]} alt={CHURN_LABEL[c.churn]} width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
+                    <Image src={CHURN_IMG[c.churn]} alt={CHURN_LABEL[c.churn]} width={28} height={28} style={{ display: 'block', flexShrink: 0 }} />
                     <span style={{ fontSize: 13, color: '#222222' }}>{CHURN_LABEL[c.churn]}</span>
                   </div>
 

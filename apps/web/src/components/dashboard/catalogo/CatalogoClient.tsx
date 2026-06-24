@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { toast } from 'sonner'
 import {
   Scissors,
@@ -426,11 +427,11 @@ function ProdottoForm({
               overflow: 'hidden', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--color-fg-muted)',
+              position: 'relative',
             }}
           >
             {photoUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <Image src={photoUrl} alt="Foto prodotto" fill style={{ objectFit: 'cover' }} />
               : <ImagePlus size={24} />
             }
           </div>

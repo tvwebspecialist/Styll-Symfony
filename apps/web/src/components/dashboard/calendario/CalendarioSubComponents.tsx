@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { ChevronLeft, ChevronRight, Plus, Users } from 'lucide-react'
 import type { CalendarioAppointment, CalendarioData } from '@/lib/actions/calendario'
 import { ApptDetailModal } from './ApptDetailModal'
@@ -491,9 +492,9 @@ export function CalendarioMainLayout({
                         cursor: 'pointer', textAlign: 'left',
                       }}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#FFF', flexShrink: 0 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#FFF', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
                         {s.avatar_url
-                          ? <img src={s.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                          ? <Image src={s.avatar_url} alt="" fill style={{ objectFit: 'cover' }} />
                           : initials}
                       </div>
                       {s.full_name ?? 'Staff'}

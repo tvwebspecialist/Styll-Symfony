@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import gsap from 'gsap'
 import { Star, Flame, Trophy, Zap } from 'lucide-react'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
@@ -653,7 +654,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
                 }}>
                   {logoUrl
-                    ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain' }} />
                     : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
                   }
                 </div>
@@ -702,9 +703,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
             {/* White flash overlay */}
             <div id="s5-flash" style={{ position: 'absolute', inset: 0, background: '#fff', opacity: 0, pointerEvents: 'none' }}/>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '0 32px' }}>
-              <div id="s5-logo" style={{ width: 100, height: 100, borderRadius: 26, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div id="s5-logo" style={{ width: 100, height: 100, borderRadius: 26, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
                 {logoUrl
-                  ? <img src={logoUrl} alt={businessName} style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                  ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain' }} />
                   : <span style={{ fontSize: 38, fontWeight: 800, color: '#fff' }}>{initial}</span>
                 }
               </div>
@@ -742,7 +743,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                           boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
                         }}>
                           {loc.photo_url
-                            ? <img src={loc.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block', borderRadius: '24px 24px 0 0' }}/>
+                            ? <div style={{ position: 'relative', height: 120, borderRadius: '24px 24px 0 0', overflow: 'hidden' }}>
+                                <Image src={loc.photo_url} alt="" fill priority style={{ objectFit: 'cover' }} />
+                              </div>
                             : <div style={{ width: '100%', height: 120, background: `linear-gradient(135deg, ${accent}88, ${darken(accent, 0.65)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
@@ -782,9 +785,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                                   boxShadow: `0 0 24px ${accent}55`,
                                 }}/>
                               )}
-                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.30)', flexShrink: 0 }}>
+                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.30)', flexShrink: 0, position: 'relative' }}>
                                 {s.photo_url
-                                  ? <img src={s.photo_url} fetchPriority="high" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+                                  ? <Image src={s.photo_url} alt="" fill style={{ objectFit: 'cover' }} />
                                   : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.72)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       <span style={{ fontSize: i === 0 ? 26 : 20, fontWeight: 800, color: '#fff' }}>{initials}</span>
                                     </div>
