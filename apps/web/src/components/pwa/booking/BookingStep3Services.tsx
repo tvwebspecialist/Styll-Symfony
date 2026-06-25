@@ -99,8 +99,8 @@ export default function BookingStep3Services({
     ? 'calc(88px + var(--bottom-nav-height, 80px) + max(16px, env(safe-area-inset-bottom, 0px)))'
     : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
 
-  // Fix 2: altezza foto fissa = safe-area-top + 12px padding + (100vw - 24px) * 0.75
-  const photoAreaHeight = 'calc(max(12px, env(safe-area-inset-top, 12px)) + (100vw - 24px) * 0.75 + 12px)'
+  // altezza card foto = safe-area-top + immagine 4:3 su larghezza (100vw - 24px) + 12px gap sotto
+  const photoAreaHeight = 'calc(env(safe-area-inset-top, 0px) + (100vw - 24px) * 0.75 + 12px)'
 
   return (
     <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
@@ -110,19 +110,17 @@ export default function BookingStep3Services({
         style={{
           position: 'fixed',
           top: 0,
-          left: 0,
-          right: 0,
+          left: 12,
+          right: 12,
           zIndex: 10,
-          paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
-          paddingLeft: 12,
-          paddingRight: 12,
+          borderRadius: 44,
+          overflow: 'hidden',
           background: '#F2F2F7',
         }}
       >
       <div
         style={{
-          borderRadius: 44,
-          overflow: 'hidden',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
           aspectRatio: '4 / 3',
           position: 'relative',
           width: '100%',
@@ -167,7 +165,7 @@ export default function BookingStep3Services({
           aria-label="Torna indietro"
           style={{
             position: 'absolute',
-            top: 12,
+            top: 'max(52px, calc(env(safe-area-inset-top, 0px) + 12px))',
             left: 12,
             zIndex: 10,
             width: 44,
