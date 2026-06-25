@@ -1,8 +1,7 @@
-// GLASS OVERLAY STANDARD v2: gradient inset morbido + blur 5px con mask graduale
-// Pattern approvato — replicare su tutte le card immagine+testo del progetto
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { PublicBookingLocation } from './types'
 
 interface Props {
@@ -135,82 +134,32 @@ export default function BookingStep1Locations({
                 </div>
               )}
 
-              {/* Layer 1 — gradient lungo e morbido */}
-              <div
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.45) 28%, rgba(0,0,0,0.10) 55%, rgba(0,0,0,0) 75%)',
-                  borderRadius: 'inherit',
-                }}
-              />
-
-              {/* Layer 2 — blur leggero con dissolvenza graduale */}
-              <div
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: '50%',
-                  backdropFilter: 'blur(5px)',
-                  WebkitBackdropFilter: 'blur(5px)',
-                  maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
-                  WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 65%, transparent 100%)',
-                  borderRadius: 'inherit',
-                }}
-              />
-
-              {/* Testo sopra entrambi i layer */}
+              {/* Mini FloatingCard overlay */}
               <div
                 style={{
                   position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: '20px 20px 24px 20px',
+                  bottom: 10,
+                  left: 10,
+                  right: 10,
+                  background: 'white',
+                  borderRadius: 20,
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                 }}
               >
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: '#fff',
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {location.name}
-                </p>
-                {(location.city || location.address) && (
-                  <p
-                    style={{
-                      margin: '4px 0 0',
-                      fontSize: 13,
-                      color: 'rgba(255, 255, 255, 0.75)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    {[location.city, location.address].filter(Boolean).join(', ')}
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#18181B', lineHeight: 1.3 }}>
+                    {location.name}
                   </p>
-                )}
+                  {(location.city || location.address) && (
+                    <p style={{ margin: '1px 0 0', fontSize: 12, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[location.city, location.address].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight size={18} color="#A1A1AA" style={{ flexShrink: 0, marginLeft: 8 }} />
               </div>
             </div>
           )
