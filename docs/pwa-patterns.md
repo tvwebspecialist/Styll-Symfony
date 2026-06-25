@@ -4,6 +4,19 @@ Fonte di verità per i pattern visivi della PWA cliente.
 
 ---
 
+## Design Tokens — Border Radius
+
+| Token | Value | Uso |
+|-------|-------|-----|
+| `--radius-float` | `44px` | FloatingCard (tocca i bordi iPhone) |
+| `--radius-card` | `28px` | Card nel feed (offerte carousel, prodotti) |
+| `--radius-button` | `16px` | Bottoni CTA, selettori quantità |
+| `--radius-input` | `14px` | Input, select, form fields |
+| `--radius-pill` | `999px` | Badge, pill stato, tag piccoli |
+| `--radius-icon` | `12px` | Icone con sfondo, avatar piccoli |
+
+---
+
 ## Floating Card
 
 Blocco bianco con angoli arrotondati, staccato dai bordi, con ombra. Componente base per tutti i contenuti PWA.

@@ -324,22 +324,23 @@ export function ProductDetailClient({
 
           <div style={{ flex: 1 }} />
 
-          {/* Qty stepper pill */}
+          {/* Qty stepper */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            background: 'rgba(0,0,0,0.06)',
-            borderRadius: 100,
-            padding: '5px 6px',
+            height: 48,
+            borderRadius: 16,
+            border: '1.5px solid #E5E7EB',
+            background: '#F9F9F9',
             flexShrink: 0,
+            overflow: 'hidden',
           }}>
             <button
               type="button"
               onClick={() => setQty((q) => Math.max(1, q - 1))}
-              style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              style={{ width: 36, height: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             >
-              <Minus size={12} color="#444" />
+              <Minus size={18} color="#444" />
             </button>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#222', minWidth: 20, textAlign: 'center' }}>
               {qty}
@@ -347,9 +348,9 @@ export function ProductDetailClient({
             <button
               type="button"
               onClick={() => setQty((q) => q + 1)}
-              style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+              style={{ width: 36, height: '100%', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
             >
-              <Plus size={12} color="#444" />
+              <Plus size={18} color="#444" />
             </button>
           </div>
 
@@ -361,7 +362,7 @@ export function ProductDetailClient({
             style={{
               width: 48,
               height: 48,
-              borderRadius: 14,
+              borderRadius: 16,
               border: 'none',
               background: 'var(--brand-primary, #222)',
               display: 'flex',

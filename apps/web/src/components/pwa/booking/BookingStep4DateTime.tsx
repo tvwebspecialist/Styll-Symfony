@@ -480,7 +480,7 @@ export default function BookingStep4DateTime({
                   onClick={() => handleSlotSelect(slot.time)}
                   style={{
                     height: 56,
-                    borderRadius: 14,
+                    borderRadius: 16,
                     border: 'none',
                     background: isSelected ? brandColor : 'white',
                     color: isSelected ? 'white' : '#111',

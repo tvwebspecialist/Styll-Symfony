@@ -593,7 +593,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
     color: '#1a1a2e', textAlign: 'center', whiteSpace: 'pre-line',
   }
   const btnSt: React.CSSProperties = {
-    width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+    width: '100%', padding: '16px', borderRadius: 16, border: 'none',
     background: accent, color: '#fff', fontSize: 16, fontWeight: 700,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
   }
@@ -987,7 +987,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                         </svg>
                         {loading ? 'Attivazione…' : 'Attiva notifiche'}
                       </button>
-                      <button onClick={() => goTo(4)} disabled={loading} style={{ width: '100%', border: 'none', background: 'transparent', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '10px 0', borderRadius: 14 }}>
+                      <button onClick={() => goTo(4)} disabled={loading} style={{ width: '100%', border: 'none', background: 'transparent', color: '#aaa', fontSize: 14, cursor: 'pointer', padding: '10px 0', borderRadius: 16 }}>
                         Adesso no
                       </button>
                     </div>

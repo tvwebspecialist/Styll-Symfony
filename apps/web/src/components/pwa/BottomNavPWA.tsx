@@ -50,7 +50,7 @@ export function BottomNavPWA({ slug, primaryColor: _primaryColor, fontFamily }: 
             height: 72,
             padding: '5px 5px',
             backgroundColor: '#222222',
-            borderRadius: 100,
+            borderRadius: 44,
             boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
           }}
         >
@@ -80,7 +80,7 @@ export function BottomNavPWA({ slug, primaryColor: _primaryColor, fontFamily }: 
                     justifyContent: 'center',
                     gap: isActive ? 8 : 0,
                     backgroundColor: isActive ? '#FFFFFF' : 'transparent',
-                    borderRadius: 100,
+                    borderRadius: 999,
                     padding: isActive ? '0px 18px' : '0',
                     width: isActive ? 'auto' : 52,
                     height: isActive ? 62 : 52,
