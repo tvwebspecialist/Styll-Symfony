@@ -99,18 +99,33 @@ export default function BookingStep3Services({
     ? 'calc(88px + var(--bottom-nav-height, 80px) + max(16px, env(safe-area-inset-bottom, 0px)))'
     : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
 
+  // Fix 2: altezza foto fissa = safe-area-top + 12px padding + (100vw - 24px) * 0.75
+  const photoAreaHeight = 'calc(max(12px, env(safe-area-inset-top, 12px)) + (100vw - 24px) * 0.75 + 12px)'
+
   return (
     <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
 
-      {/* 1. FloatingCard immagine barbiere */}
+      {/* 1+2. FloatingCard immagine barbiere — fixed in cima */}
       <div
         style={{
-          margin: '12px 12px 0',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
+          paddingLeft: 12,
+          paddingRight: 12,
+          background: '#F2F2F7',
+        }}
+      >
+      <div
+        style={{
           borderRadius: 44,
           overflow: 'hidden',
           aspectRatio: '4 / 3',
           position: 'relative',
-          flexShrink: 0,
+          width: '100%',
         }}
       >
         {heroPhoto ? (
@@ -190,7 +205,7 @@ export default function BookingStep3Services({
             left: 10,
             right: 10,
             background: 'white',
-            borderRadius: 20,
+            borderRadius: 34,
             padding: '10px 14px',
           }}
         >
@@ -202,9 +217,10 @@ export default function BookingStep3Services({
           </p>
         </div>
       </div>
+      </div>
 
-      {/* 4. Lista servizi */}
-      <div style={{ padding: '0 12px', paddingBottom: listPaddingBottom }}>
+      {/* 4. Lista servizi — padding-top compensa la foto fixed */}
+      <div style={{ padding: '0 12px', paddingTop: photoAreaHeight, paddingBottom: listPaddingBottom }}>
         {groups.map((group) => (
           <div key={group.category}>
             {/* Label categoria */}
@@ -310,29 +326,24 @@ export default function BookingStep3Services({
                       const { discountedPrice, appliedPromotionId } = applyBestPromotion(Number(service.price ?? 0), servicePromos)
                       const hasDiscount = appliedPromotionId !== null
                       const appliedPromo = servicePromos.find((p) => p.promotionId === appliedPromotionId) ?? null
-                      return (
-                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                          {hasDiscount && appliedPromo && (
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', borderRadius: 100, padding: '1px 6px' }}>
+                      return hasDiscount ? (
+                        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {appliedPromo && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#16A34A', background: '#F0FDF4', borderRadius: 100, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                               {formatDiscount(appliedPromo)}
                             </span>
                           )}
-                          {hasDiscount && (
-                            <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>
-                              {formatCurrency(service.price)}
-                            </span>
-                          )}
-                          <span
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: hasDiscount ? '#16A34A' : '#222222',
-                              letterSpacing: '-0.3px',
-                            }}
-                          >
-                            {hasDiscount ? formatCurrency(discountedPrice) : formatCurrency(service.price)}
+                          <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through', whiteSpace: 'nowrap' }}>
+                            {formatCurrency(service.price)}
+                          </span>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: '#16A34A', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>
+                            {formatCurrency(discountedPrice)}
                           </span>
                         </div>
+                      ) : (
+                        <span style={{ flexShrink: 0, fontSize: 16, fontWeight: 700, color: '#222222', letterSpacing: '-0.3px' }}>
+                          {formatCurrency(service.price)}
+                        </span>
                       )
                     })()}
                   </button>
