@@ -100,7 +100,7 @@ export default function BookingStep3Services({
     : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
 
   // altezza card foto = safe-area-top + immagine 4:3 su larghezza (100vw - 24px) + 12px gap sotto
-  const photoAreaHeight = 'calc(max(16px, calc(env(safe-area-inset-top, 0px) + 16px)) + (100vw - 24px) * 0.75 + 12px)'
+  const photoAreaHeight = 'calc((100vw - 24px) * 0.75 + 12px)'
 
   return (
     <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
@@ -109,7 +109,7 @@ export default function BookingStep3Services({
       <div
         style={{
           position: 'fixed',
-          top: 'max(16px, calc(env(safe-area-inset-top, 0px) + 16px))',
+          top: 0,
           left: 12,
           right: 12,
           zIndex: 10,
@@ -120,7 +120,6 @@ export default function BookingStep3Services({
       >
       <div
         style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
           aspectRatio: '4 / 3',
           position: 'relative',
           width: '100%',
