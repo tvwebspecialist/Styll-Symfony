@@ -100,7 +100,7 @@ export default function BookingStep3Services({
     : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
 
   // altezza card foto = safe-area-top + immagine 4:3 su larghezza (100vw - 24px) + 12px gap sotto
-  const photoAreaHeight = 'calc(env(safe-area-inset-top, 0px) + (100vw - 24px) * 0.75 + 12px)'
+  const photoAreaHeight = 'calc(env(safe-area-inset-top, 0px) + (100vw - 24px) * 1.333 + 12px)'
 
   return (
     <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
@@ -121,7 +121,7 @@ export default function BookingStep3Services({
       <div
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
-          aspectRatio: '4 / 3',
+          aspectRatio: '3 / 4',
           position: 'relative',
           width: '100%',
         }}
@@ -204,13 +204,13 @@ export default function BookingStep3Services({
             right: 10,
             background: 'white',
             borderRadius: 34,
-            padding: '10px 14px',
+            padding: '14px 18px',
           }}
         >
           <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222', lineHeight: 1.3 }}>
             {heroName}
           </p>
-          <p style={{ margin: '2px 0 0', fontSize: 14, color: '#71717A', lineHeight: 1.3 }}>
+          <p style={{ margin: '3px 0 0', fontSize: 14, color: '#71717A', lineHeight: 1.3 }}>
             {heroRole}
           </p>
         </div>
