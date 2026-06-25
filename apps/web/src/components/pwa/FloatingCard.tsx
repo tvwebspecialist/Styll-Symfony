@@ -12,10 +12,10 @@ export function FloatingCard({ children, className, style }: FloatingCardProps) 
       className={className}
       style={{
         background: 'white',
-        borderRadius: 24,
-        margin: '0 12px',
-        padding: 20,
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.08)',
+        borderRadius: 44,
+        margin: '0 16px',
+        padding: 24,
+        boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
         ...style,
       }}
     >

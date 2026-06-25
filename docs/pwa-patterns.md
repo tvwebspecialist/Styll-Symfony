@@ -10,10 +10,10 @@ Blocco bianco con angoli arrotondati, staccato dai bordi, con ombra. Componente 
 
 ```css
 background: white;
-border-radius: 24px;
-margin: 0 12px;
-padding: 20px;
-box-shadow: 0 -4px 24px rgba(0,0,0,0.08);
+border-radius: 44px;
+margin: 0 16px;
+padding: 24px;
+box-shadow: 0 8px 40px rgba(0,0,0,0.18);
 ```
 
 ```tsx
@@ -33,10 +33,10 @@ Props: `children`, `className`, `style` (spread sopra gli stili base). `margin: 
 Due card verticali che insieme occupano `100dvh`, con gap 8px tra loro. Card 1 = immagine, Card 2 = contenuto + CTA.
 
 ```
-┌─────────────────────────────────┐  ← safe area top (paddingTop: max(12px, safe-area))
+┌─────────────────────────────────┐  ← safe area top (paddingTop: max(16px, safe-area))
 │  ╭─────────────────────────╮   │
 │  │  [← back]               │   │  Card 1: immagine
-│  │  aspect-ratio: 16/9     │   │  margin: 0 12px, border-radius: 24px
+│  │  aspect-ratio: 16/9     │   │  margin: 0 16px, border-radius: 44px
 │  │  overflow: hidden       │   │  flex-shrink: 0
 │  ╰─────────────────────────╯   │
 │           ← gap: 8px →         │
@@ -49,6 +49,7 @@ Due card verticali che insieme occupano `100dvh`, con gap 8px tra loro. Card 1 =
 │  │  [  Prenota ora →     ] │   │
 │  ╰─────────────────────────╯   │
 └─────────────────────────────────┘  ← safe area bottom (paddingBottom via padding shorthand)
+
 ```
 
 ### Struttura
@@ -66,7 +67,7 @@ Due card verticali che insieme occupano `100dvh`, con gap 8px tra loro. Card 1 =
 
   {/* Card 1 — immagine */}
   <FloatingCard style={{
-    margin: '0 12px',
+    margin: '0 16px',
     padding: 0,
     flexShrink: 0,
     aspectRatio: '16/9',
@@ -81,8 +82,8 @@ Due card verticali che insieme occupano `100dvh`, con gap 8px tra loro. Card 1 =
 
   {/* Card 2 — contenuto */}
   <FloatingCard style={{
-    margin: '0 12px 12px',
-    padding: `16px 20px max(env(safe-area-inset-bottom, 0px), 16px)`,
+    margin: '0 16px 16px',
+    padding: `16px 24px max(env(safe-area-inset-bottom, 0px), 16px)`,
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
