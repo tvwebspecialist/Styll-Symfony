@@ -229,13 +229,13 @@ export function ProductDetailClient({
         className="detail-panel"
         style={{
           position: 'fixed',
-          bottom: 12,
-          left: 12,
-          right: 12,
+          bottom: 16,
+          left: 16,
+          right: 16,
           margin: 0,
           zIndex: 10,
-          boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
-          padding: `20px 20px max(env(safe-area-inset-bottom, 0px), 20px)`,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          padding: `24px 24px max(env(safe-area-inset-bottom, 0px), 24px)`,
           animationName: 'detail-panel-up',
           animationDuration: '360ms',
           animationTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
