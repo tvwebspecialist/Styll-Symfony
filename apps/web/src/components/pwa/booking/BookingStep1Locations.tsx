@@ -150,11 +150,11 @@ export default function BookingStep1Locations({
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#18181B', lineHeight: 1.3 }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 18, color: '#222222', lineHeight: 1.3 }}>
                     {location.name}
                   </p>
                   {(location.city || location.address) && (
-                    <p style={{ margin: '1px 0 0', fontSize: 12, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <p style={{ margin: '1px 0 0', fontSize: 14, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[location.city, location.address].filter(Boolean).join(', ')}
                     </p>
                   )}

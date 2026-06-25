@@ -1,10 +1,6 @@
-// HERO: foto barbiere sticky 300px full-width, overlay gradient 8-stop, nome+ruolo sovrapposti
-// PwaTopBar restituisce null per questo step — la hero sostituisce la topbar
-// lista servizi: card con ombra + selezione brand-primary + padding separazione hero
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BottomCTA } from '../ui/BottomCTA'
 import type { PublicStaffMember, ServiceForStaff } from '@/lib/actions/public-booking'
 import { applyBestPromotion, formatDiscount, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
 
@@ -59,7 +55,6 @@ export default function BookingStep3Services({
   onBack,
   onContinue,
   primaryColor,
-  skipLocationStep = false,
   initialSelectedIds,
   isFirstStep = false,
   offersByServiceId = {},
@@ -82,6 +77,7 @@ export default function BookingStep3Services({
     const { discountedPrice } = applyBestPromotion(Number(service.price ?? 0), items)
     return total + discountedPrice
   }, 0)
+
   function toggleService(serviceId: string) {
     setSelectedIds((current) =>
       current.includes(serviceId)
@@ -95,59 +91,28 @@ export default function BookingStep3Services({
   const heroRole = staffId === 'any' ? 'Ti assegneremo il primo professionista disponibile' : getRoleLabel((staff as { role?: string } | null)?.role)
   const heroInitials = getInitials(heroName)
 
+  const ctaBottom = isFirstStep
+    ? 'calc(var(--bottom-nav-height, 80px) + max(16px, env(safe-area-inset-bottom, 16px)))'
+    : 'max(16px, env(safe-area-inset-bottom, 16px))'
+
+  const listPaddingBottom = isFirstStep
+    ? 'calc(88px + var(--bottom-nav-height, 80px) + max(16px, env(safe-area-inset-bottom, 0px)))'
+    : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
+
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
-      {/* HERO — foto barbiere sticky (sostituisce PwaTopBar per questo step) */}
+    <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
+
+      {/* 1. FloatingCard immagine barbiere */}
       <div
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 61,
-          width: '100%',
-          height: '300px',
+          margin: '12px 12px 0',
+          borderRadius: 44,
           overflow: 'hidden',
-          borderRadius: '0 0 36px 36px',
+          aspectRatio: '4 / 3',
+          position: 'relative',
           flexShrink: 0,
-          transform: 'translateZ(0)',
         }}
       >
-        {/* Floating back button */}
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Torna indietro"
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-            left: 16,
-            zIndex: 10,
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            background: '#ffffff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.10), 0 0px 1px rgba(0,0,0,0.06)',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#111111"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-
         {heroPhoto ? (
           <img
             src={heroPhoto}
@@ -180,111 +145,84 @@ export default function BookingStep3Services({
           </div>
         )}
 
-              {/* OVERLAY v3 — gradient 8-stop puro, no backdrop-filter */}
-              <div
-                aria-hidden="true"
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: `
-                    linear-gradient(
-                      to top,
-                      rgba(0,0,0,0.85) 0%,
-                      rgba(0,0,0,0.75) 10%,
-                      rgba(0,0,0,0.60) 20%,
-                      rgba(0,0,0,0.40) 35%,
-                      rgba(0,0,0,0.20) 50%,
-                      rgba(0,0,0,0.08) 65%,
-                      rgba(0,0,0,0.02) 78%,
-                      rgba(0,0,0,0) 88%
-                    )
-                  `,
-                  borderRadius: 'inherit',
-                }}
-              />
-
-      </div>
-
-      {/* Layer blur — sticky sibling, solidale con la hero durante lo scroll */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'sticky',
-          top: 0,
-          width: '100%',
-          height: '300px',
-          marginTop: '-300px',
-          flexShrink: 0,
-          backdropFilter: 'blur(5px)',
-          WebkitBackdropFilter: 'blur(5px)',
-          maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
-          WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
-          zIndex: 62,
-          pointerEvents: 'none',
-          borderRadius: '0 0 36px 36px',
-        }}
-      />
-
-      {/* Testo hero — sticky sibling al di sopra del blur (zIndex 63 > 62) */}
-      <div
-        aria-hidden="false"
-        style={{
-          position: 'sticky',
-          top: 0,
-          height: '300px',
-          marginTop: '-300px',
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-end',
-          padding: '20px 20px 28px',
-          zIndex: 63,
-          pointerEvents: 'none',
-        }}
-      >
-        <p
+        {/* Back button */}
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Torna indietro"
           style={{
-            margin: 0,
-            fontSize: '24px',
-            fontWeight: 700,
-            color: '#ffffff',
-            lineHeight: 1.2,
-            letterSpacing: '-0.4px',
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 10,
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.10), 0 0px 1px rgba(0,0,0,0.06)',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
           }}
         >
-          {heroName}
-        </p>
-        <p
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#111111"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+
+        {/* 2. Mini FloatingCard nome + ruolo in overlay */}
+        <div
           style={{
-            margin: '5px 0 0',
-            fontSize: '14px',
-            fontWeight: 400,
-            color: 'rgba(255,255,255,0.75)',
+            position: 'absolute',
+            bottom: 10,
+            left: 10,
+            right: 10,
+            background: 'white',
+            borderRadius: 20,
+            padding: '10px 14px',
           }}
         >
-          {heroRole}
-        </p>
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222', lineHeight: 1.3 }}>
+            {heroName}
+          </p>
+          <p style={{ margin: '2px 0 0', fontSize: 14, color: '#71717A', lineHeight: 1.3 }}>
+            {heroRole}
+          </p>
+        </div>
       </div>
 
-      <div style={{ paddingTop: 24, paddingBottom: isFirstStep ? 'calc(96px + var(--bottom-nav-height, 80px) + 16px + env(safe-area-inset-bottom))' : 'calc(96px + env(safe-area-inset-bottom))' }}>
+      {/* 4. Lista servizi */}
+      <div style={{ padding: '0 12px', paddingBottom: listPaddingBottom }}>
         {groups.map((group) => (
-          <section key={group.category} style={{ marginBottom: 28 }}>
-            {/* Label categoria — sobria, grigio chiaro */}
+          <div key={group.category}>
+            {/* Label categoria */}
             <p
               style={{
-                margin: 0,
-                padding: '0 20px 10px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'rgba(0,0,0,0.38)',
+                margin: '20px 4px 8px',
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                letterSpacing: '0.07em',
               }}
             >
               {group.category}
             </p>
 
-            <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Card singole per servizio */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {group.services.map((service) => {
                 const isSelected = selectedIds.includes(service.id)
                 const isPressed = pressedId === service.id
@@ -302,46 +240,42 @@ export default function BookingStep3Services({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 14,
-                      padding: '16px 16px',
-                      background: isSelected ? `${brandColor}10` : '#ffffff',
+                      padding: 16,
+                      background: 'white',
                       borderRadius: 20,
                       border: `2px solid ${isSelected ? brandColor : 'transparent'}`,
-                      boxShadow: '0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
                       cursor: 'pointer',
                       transform: isPressed ? 'scale(0.98)' : 'scale(1)',
-                      transition: 'transform 150ms ease, border-color 150ms ease, background 150ms ease',
+                      transition: 'transform 150ms ease, border-color 150ms ease',
                       textAlign: 'left',
                       WebkitTapHighlightColor: 'transparent',
                     }}
                   >
-                    {/* Checkbox */}
+                    {/* Radio circle */}
                     <span
                       style={{
-                        width: 24,
-                        height: 24,
+                        width: 22,
+                        height: 22,
                         borderRadius: '50%',
                         flexShrink: 0,
                         border: `2px solid ${isSelected ? brandColor : 'rgba(0,0,0,0.18)'}`,
-                        background: isSelected ? brandColor : 'transparent',
+                        background: 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        transition: 'background 150ms ease, border-color 150ms ease',
+                        transition: 'border-color 150ms ease',
                       }}
                     >
                       {isSelected && (
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
+                        <span
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            background: brandColor,
+                          }}
+                        />
                       )}
                     </span>
 
@@ -352,7 +286,7 @@ export default function BookingStep3Services({
                           margin: 0,
                           fontSize: 16,
                           fontWeight: 600,
-                          color: '#111111',
+                          color: '#222222',
                           lineHeight: 1.3,
                         }}
                       >
@@ -363,7 +297,7 @@ export default function BookingStep3Services({
                           margin: '3px 0 0',
                           fontSize: 13,
                           fontWeight: 400,
-                          color: 'var(--color-fg-muted, rgba(0,0,0,0.45))',
+                          color: '#9CA3AF',
                         }}
                       >
                         {service.duration_minutes} min
@@ -383,22 +317,21 @@ export default function BookingStep3Services({
                               {formatDiscount(appliedPromo)}
                             </span>
                           )}
-                          <span
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 700,
-                              color: hasDiscount ? '#16A34A' : (isSelected ? brandColor : '#111111'),
-                              letterSpacing: '-0.3px',
-                              transition: 'color 150ms ease',
-                            }}
-                          >
-                            {hasDiscount ? formatCurrency(discountedPrice) : formatCurrency(service.price)}
-                          </span>
                           {hasDiscount && (
                             <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.35)', textDecoration: 'line-through' }}>
                               {formatCurrency(service.price)}
                             </span>
                           )}
+                          <span
+                            style={{
+                              fontSize: 16,
+                              fontWeight: 700,
+                              color: hasDiscount ? '#16A34A' : '#222222',
+                              letterSpacing: '-0.3px',
+                            }}
+                          >
+                            {hasDiscount ? formatCurrency(discountedPrice) : formatCurrency(service.price)}
+                          </span>
                         </div>
                       )
                     })()}
@@ -406,22 +339,39 @@ export default function BookingStep3Services({
                 )
               })}
             </div>
-          </section>
+          </div>
         ))}
       </div>
 
-      <BottomCTA
-        primary={{
-          label:
-            selectedIds.length > 0
-              ? `Continua · ${formatCurrency(totalPrice)} · ${totalDuration} min`
-              : 'Seleziona un servizio',
-          onClick: () => onContinue(selectedIds),
-          disabled: selectedIds.length === 0,
+      {/* 3. CTA pill fisso */}
+      <button
+        type="button"
+        onClick={() => { if (selectedIds.length > 0) onContinue(selectedIds) }}
+        disabled={selectedIds.length === 0}
+        style={{
+          position: 'fixed',
+          bottom: ctaBottom,
+          left: 16,
+          right: 16,
+          zIndex: 50,
+          height: 56,
+          borderRadius: 44,
+          background: brandColor,
+          color: 'white',
+          fontWeight: 700,
+          fontSize: 16,
+          border: 'none',
+          cursor: selectedIds.length === 0 ? 'default' : 'pointer',
+          opacity: selectedIds.length === 0 ? 0.45 : 1,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          transition: 'opacity 200ms',
+          WebkitTapHighlightColor: 'transparent',
         }}
-        tenantPrimary={brandColor}
-        bottomOffset={isFirstStep ? 'calc(var(--bottom-nav-height, 80px) + 16px)' : undefined}
-      />
+      >
+        {selectedIds.length > 0
+          ? `Continua · ${formatCurrency(totalPrice)} · ${totalDuration} min`
+          : 'Seleziona un servizio'}
+      </button>
     </div>
   )
 }
