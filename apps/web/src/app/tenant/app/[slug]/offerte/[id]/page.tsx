@@ -212,7 +212,7 @@ export default async function OffertaDetailPage({ params }: Props) {
         {!isExpired && (
           <Link href={ctaUrl} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '100%', height: 52, borderRadius: 14,
+            width: '100%', height: 52, borderRadius: 16,
             background: brandColor,
             color: '#FFFFFF', fontSize: 16, fontWeight: 700, textDecoration: 'none',
             marginTop: 16, flexShrink: 0,
