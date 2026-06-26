@@ -212,94 +212,95 @@ export default function BookingStep5Confirm({
     })
   }
 
+  const needsPhone = isLoggedIn && (!initialPhone || initialPhone.trim() === '')
+  const phoneValid = phone.trim().length >= 6
+  const isDisabled = isSubmitting || (needsPhone && !phoneValid)
+
   return (
-    <div className="min-h-screen" style={{ background: '#F2F2F7' }}>
+    <div style={{ minHeight: '100vh', background: '#ffffff' }}>
 
       {/* Scrollable content */}
-      <div className="pb-36 px-4 pt-6 flex flex-col gap-3">
+      <div style={{
+        padding: 16,
+        paddingBottom: 'calc(80px + max(8px, env(safe-area-inset-bottom, 0px)))',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}>
 
-        {/* ── HERO — Staff + Sede ─────────────────────────────────── */}
-        <div
-          className="rounded-3xl overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${brandColor}18 0%, ${brandColor}08 100%)`,
-            border: `1.5px solid ${brandColor}22`,
-            boxShadow: `0 8px 32px ${brandColor}18`,
-          }}
-        >
-          <div className="px-5 py-5 flex items-center gap-4">
-            {/* Avatar with gradient ring */}
-            <div
-              className="shrink-0 rounded-full p-[3px]"
-              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}55)` }}
-            >
-              {staff.photo_url ? (
-                <Image
-                  src={staff.photo_url}
-                  alt={staff.full_name ?? 'Barbiere'}
-                  width={76}
-                  height={76}
-                  className="rounded-full object-cover w-[76px] h-[76px] block bg-white"
-                />
-              ) : (
-                <div
-                  className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-[20px] font-black"
-                  style={{ backgroundColor: brandColor }}
-                >
-                  {getInitials(staff.full_name)}
-                </div>
-              )}
+        {/* ── HERO — foto barbiere + FloatingCard overlay ─────────── */}
+        <div style={{ position: 'relative', borderRadius: 28, overflow: 'hidden', aspectRatio: '4/3', background: `${brandColor}12` }}>
+          {staff.photo_url ? (
+            <Image
+              src={staff.photo_url}
+              alt={staff.full_name ?? 'Barbiere'}
+              fill
+              sizes="100vw"
+              style={{ objectFit: 'cover' }}
+              priority
+            />
+          ) : (
+            <div style={{
+              width: '100%', height: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: `linear-gradient(135deg, ${brandColor}22, ${brandColor}0a)`,
+            }}>
+              <span style={{ fontSize: 56, fontWeight: 900, color: brandColor, opacity: 0.3 }}>
+                {getInitials(staff.full_name)}
+              </span>
             </div>
+          )}
 
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-400 mb-0.5">
-                Il tuo barbiere
+          {/* Mini FloatingCard bianca */}
+          <div style={{
+            position: 'absolute', bottom: 10, left: 10, right: 10,
+            background: 'white', borderRadius: 34, padding: 16,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          }}>
+            <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>
+              Il tuo barbiere
+            </p>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {staff.full_name ?? 'Barbiere'}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+              <MapPin size={12} color="#71717A" style={{ flexShrink: 0 }} />
+              <p style={{ margin: 0, fontSize: 14, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {location.name}
               </p>
-              <p
-                className="text-[22px] font-black text-gray-900 leading-tight truncate"
-                style={{ fontFamily: 'var(--font-tenant, inherit)' }}
-              >
-                {staff.full_name ?? 'Barbiere'}
-              </p>
-              <div className="flex items-center gap-1 mt-1">
-                <MapPin className="w-3 h-3 shrink-0" style={{ color: brandColor }} />
-                <p className="text-[13px] font-medium text-gray-500 truncate">{location.name}</p>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* ── DATA + ORA — Due chip affiancati ────────────────────── */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Data */}
-          <div className="bg-white rounded-2xl px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Calendar className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Data</p>
+        {/* ── DATA + ORA ───────────────────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Calendar size={14} color={brandColor} style={{ flexShrink: 0 }} />
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Data</p>
             </div>
-            <p className="text-[15px] font-black text-gray-900 capitalize leading-snug">
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#111827', lineHeight: 1.2, textTransform: 'capitalize' }}>
               {formattedDate}
             </p>
           </div>
 
-          {/* Ora + durata */}
-          <div className="bg-white rounded-2xl px-4 py-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Orario</p>
+          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Clock size={14} color={brandColor} style={{ flexShrink: 0 }} />
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Orario</p>
             </div>
-            <p className="text-[28px] font-black text-gray-900 leading-none">{formattedTime}</p>
-            <p className="text-[12px] text-gray-400 mt-1 font-medium">{totalDuration} min</p>
+            <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{formattedTime}</p>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#A1A1AA', fontWeight: 500 }}>{totalDuration} min</p>
           </div>
         </div>
 
-        {/* ── SERVIZI ─────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-          <div className="flex items-center gap-2 px-5 pt-4 pb-3">
-            <Scissors className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
-            <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">Servizi</p>
+        {/* ── SERVIZI ──────────────────────────────────────────────── */}
+        <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <Scissors size={14} color={brandColor} style={{ flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Servizi</p>
           </div>
-          <div className="px-5 pb-4 flex flex-col">
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {services.map((service, i) => {
               const items = offersByServiceId[service.id] ?? []
               const { discountedPrice, appliedPromotionId } = applyBestPromotion(Number(service.price ?? 0), items)
@@ -307,25 +308,24 @@ export default function BookingStep5Confirm({
               return (
                 <div
                   key={service.id}
-                  className="flex items-center justify-between py-2.5"
-                  style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0,
+                    borderTop: i > 0 ? '1px solid #F3F4F6' : 'none',
+                  }}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: brandColor }}
-                    />
-                    <p className="text-[15px] font-medium text-gray-900 truncate">{service.name}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-0.5 ml-3 shrink-0">
-                    <p className="text-[15px] font-bold" style={{ color: hasDiscount ? '#16A34A' : '#111827' }}>
-                      € {discountedPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
-                    </p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                    {service.name}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
                     {hasDiscount && (
-                      <p className="text-[12px] text-gray-400 line-through">
-                        € {Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                      <p style={{ margin: 0, fontSize: 13, color: '#A1A1AA', textDecoration: 'line-through' }}>
+                        €{Number(service.price ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
                       </p>
                     )}
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: hasDiscount ? '#16A34A' : '#111827' }}>
+                      €{discountedPrice.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                    </p>
                   </div>
                 </div>
               )
@@ -333,55 +333,47 @@ export default function BookingStep5Confirm({
           </div>
         </div>
 
-        {/* ── PRODOTTI AGGIUNTI (condizionale) ────────────────────── */}
+        {/* ── PRODOTTI AGGIUNTI (condizionale) ─────────────────────── */}
         {selectedProducts.length > 0 && (
-          <div className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center justify-between px-5 pt-4 pb-3">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-3.5 h-3.5 shrink-0" style={{ color: brandColor }} />
-                <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gray-400">
-                  Prodotti aggiunti
-                </p>
+          <div style={{ background: 'white', borderRadius: 28, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShoppingBag size={14} color={brandColor} style={{ flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Prodotti aggiunti</p>
               </div>
-              <span
-                className="text-[11px] font-bold text-white rounded-full px-2 py-0.5 leading-tight"
-                style={{ backgroundColor: brandColor }}
-              >
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'white', backgroundColor: brandColor, borderRadius: 999, padding: '2px 8px', lineHeight: 1.5 }}>
                 {selectedProducts.length}
               </span>
             </div>
-            <div className="px-5 pb-4 flex flex-col">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
               {selectedProducts.map((product, i) => (
                 <div
                   key={product.id}
-                  className="flex items-center gap-3 py-2.5"
-                  style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0,
+                    borderTop: i > 0 ? '1px solid #F3F4F6' : 'none',
+                  }}
                 >
-                  {/* Thumbnail o placeholder */}
                   {product.photo_url ? (
                     <Image
                       src={product.photo_url}
                       alt={product.name}
                       width={44}
                       height={44}
-                      className="w-11 h-11 rounded-xl object-cover shrink-0 bg-gray-100"
+                      style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover', flexShrink: 0, background: '#f3f4f6' }}
                     />
                   ) : (
-                    <div
-                      className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center"
-                      style={{ background: `${brandColor}12` }}
-                    >
-                      <ShoppingBag className="w-5 h-5" style={{ color: brandColor }} />
+                    <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${brandColor}12` }}>
+                      <ShoppingBag size={20} color={brandColor} />
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold text-gray-900 truncate">{product.name}</p>
-                    {product.brand && (
-                      <p className="text-[12px] text-gray-400 truncate">{product.brand}</p>
-                    )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</p>
+                    {product.brand && <p style={{ margin: '2px 0 0', fontSize: 12, color: '#A1A1AA', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.brand}</p>}
                   </div>
-                  <p className="text-[15px] font-bold text-gray-900 shrink-0">
-                    € {Number(product.price_sell ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#111827', flexShrink: 0 }}>
+                    €{Number(product.price_sell ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 0 })}
                   </p>
                 </div>
               ))}
@@ -389,34 +381,23 @@ export default function BookingStep5Confirm({
           </div>
         )}
 
-        {/* ── TOTALE — Sfondo brand ────────────────────────────────── */}
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
-            boxShadow: `0 8px 24px ${brandColor}44`,
-          }}
-        >
-          <div className="flex items-center justify-between px-5 pt-5 pb-2">
-            <p className="text-[14px] font-semibold text-white/75">Totale da pagare</p>
-            <p className="text-[34px] font-black text-white leading-none tracking-tight">
-              € {grandTotal.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
+        {/* ── TOTALE ───────────────────────────────────────────────── */}
+        <div style={{ borderRadius: 28, padding: 20, background: brandColor }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>Totale da pagare</p>
+            <p style={{ margin: 0, fontSize: 34, fontWeight: 900, color: 'white', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              €{grandTotal.toLocaleString('it-IT', { minimumFractionDigits: 0 })}
             </p>
           </div>
-          <p className="text-center text-[11px] text-white/55 pb-4 px-4">
+          <p style={{ margin: '8px 0 0', textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
             Pagamento in sede al termine della visita
           </p>
         </div>
 
-      </div>
-
-      {/* ── CTA FIXED IN BASSO ──────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-[max(24px,env(safe-area-inset-bottom,0px))] pt-3 z-20"
-           style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-
-        {isLoggedIn && (!initialPhone || initialPhone.trim() === '') && (
-          <div className="mb-3">
-            <p className="text-[12px] font-medium text-gray-500 px-1 mb-2">
+        {/* ── PHONE INPUT (se necessario) ──────────────────────────── */}
+        {needsPhone && (
+          <div>
+            <p style={{ margin: '0 0 8px 4px', fontSize: 12, fontWeight: 500, color: '#6B7280' }}>
               Per completare la prenotazione inserisci il tuo numero di telefono
             </p>
             <input
@@ -424,46 +405,65 @@ export default function BookingStep5Confirm({
               placeholder="+39 333 123 4567"
               value={phone}
               onChange={(e) => { setPhone(e.target.value); setPhoneError('') }}
-              className="w-full px-4 py-3 rounded-2xl text-[15px] font-medium text-gray-900 placeholder-gray-400 bg-white border focus:outline-none"
               style={{
-                borderColor: phoneError ? '#EF4444' : 'rgba(0,0,0,0.12)',
+                width: '100%', boxSizing: 'border-box',
+                padding: '12px 16px', borderRadius: 18, fontSize: 15, fontWeight: 500,
+                color: '#111827', background: 'white',
+                border: `1.5px solid ${phoneError ? '#EF4444' : 'rgba(0,0,0,0.12)'}`,
                 boxShadow: phoneError ? '0 0 0 2px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.06)',
+                outline: 'none',
               }}
             />
             {phoneError && (
-              <p className="mt-1.5 text-[12px] font-medium text-red-500 px-1">{phoneError}</p>
+              <p style={{ margin: '6px 0 0 4px', fontSize: 12, fontWeight: 500, color: '#EF4444' }}>{phoneError}</p>
             )}
           </div>
         )}
 
-        {(() => {
-          const needsPhone = isLoggedIn && (!initialPhone || initialPhone.trim() === '')
-          const phoneValid = phone.trim().length >= 6
-          return (
-            <button
-              onClick={handleConferma}
-              disabled={isSubmitting || (needsPhone && !phoneValid)}
-              className="w-full py-4 rounded-2xl text-[16px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
-              style={{
-                background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}CC 100%)`,
-                boxShadow: `0 4px 20px ${brandColor}44`,
-                transition: 'opacity 0.2s ease, box-shadow 0.2s ease',
-              }}
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : needsPhone && !phoneValid ? (
-                <span>Inserisci il numero per continuare</span>
-              ) : (
-                <>
-                  <span>Conferma prenotazione</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          )
-        })()}
       </div>
+
+      {/* ── CTA PILL FIXED ───────────────────────────────────────────── */}
+      <button
+        type="button"
+        onClick={handleConferma}
+        disabled={isDisabled}
+        style={{
+          position: 'fixed',
+          bottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+          left: 8,
+          right: 8,
+          zIndex: 50,
+          height: 56,
+          borderRadius: 44,
+          background: brandColor,
+          color: 'white',
+          fontWeight: 700,
+          fontSize: 16,
+          border: 'none',
+          cursor: isDisabled ? 'default' : 'pointer',
+          opacity: isDisabled ? 0.45 : 1,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          transition: 'opacity 200ms',
+          WebkitTapHighlightColor: 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
+        {isSubmitting ? (
+          <Loader2 size={20} style={{ animation: 'step5Spin 0.75s linear infinite', flexShrink: 0 }} />
+        ) : needsPhone && !phoneValid ? (
+          <span>Inserisci il numero per continuare</span>
+        ) : (
+          <>
+            <span>Conferma prenotazione</span>
+            <ArrowRight size={16} />
+          </>
+        )}
+      </button>
+
+      <style>{`@keyframes step5Spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Error modal */}
       {submitError && (
