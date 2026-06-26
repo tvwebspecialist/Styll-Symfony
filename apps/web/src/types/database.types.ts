@@ -309,6 +309,53 @@ export type Database = {
           },
         ]
       }
+      badges: {
+        Row: {
+          condition_type: string
+          condition_value: number
+          created_at: string
+          description: string | null
+          display_order: number
+          icon_url: string | null
+          id: string
+          is_active: boolean
+          name: string
+          tenant_id: string
+        }
+        Insert: {
+          condition_type: string
+          condition_value?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          icon_url?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          tenant_id: string
+        }
+        Update: {
+          condition_type?: string
+          condition_value?: number
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          icon_url?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "badges_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_analytics: {
         Row: {
           avg_frequency_days: number | null
@@ -353,6 +400,52 @@ export type Database = {
           },
           {
             foreignKeyName: "client_analytics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_badges: {
+        Row: {
+          badge_id: string
+          client_id: string
+          id: string
+          tenant_id: string
+          unlocked_at: string
+        }
+        Insert: {
+          badge_id: string
+          client_id: string
+          id?: string
+          tenant_id: string
+          unlocked_at?: string
+        }
+        Update: {
+          badge_id?: string
+          client_id?: string
+          id?: string
+          tenant_id?: string
+          unlocked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_badges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_badges_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -419,10 +512,14 @@ export type Database = {
           client_id: string
           created_at: string
           current_streak: number
+          current_tier: string
           id: string
           last_visit_date: string | null
           longest_streak: number
           tenant_id: string
+          tier_grace_expires_at: string | null
+          tier_points_this_year: number
+          tier_year: number
           total_points: number
           updated_at: string
         }
@@ -431,10 +528,14 @@ export type Database = {
           client_id: string
           created_at?: string
           current_streak?: number
+          current_tier?: string
           id?: string
           last_visit_date?: string | null
           longest_streak?: number
           tenant_id: string
+          tier_grace_expires_at?: string | null
+          tier_points_this_year?: number
+          tier_year?: number
           total_points?: number
           updated_at?: string
         }
@@ -443,10 +544,14 @@ export type Database = {
           client_id?: string
           created_at?: string
           current_streak?: number
+          current_tier?: string
           id?: string
           last_visit_date?: string | null
           longest_streak?: number
           tenant_id?: string
+          tier_grace_expires_at?: string | null
+          tier_points_this_year?: number
+          tier_year?: number
           total_points?: number
           updated_at?: string
         }
@@ -697,6 +802,71 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_movements: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          location_id: string | null
+          movement_type: string
+          notes: string | null
+          product_id: string
+          quantity: number
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          movement_type: string
+          notes?: string | null
+          product_id: string
+          quantity: number
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          location_id?: string | null
+          movement_type?: string
+          notes?: string | null
+          product_id?: string
+          quantity?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           address: string | null
@@ -767,6 +937,7 @@ export type Database = {
           created_at: string
           ended_at: string | null
           id: string
+          is_active: boolean
           points_per_euro: number | null
           points_per_visit: number | null
           started_at: string
@@ -780,6 +951,7 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          is_active?: boolean
           points_per_euro?: number | null
           points_per_visit?: number | null
           started_at?: string
@@ -793,6 +965,7 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          is_active?: boolean
           points_per_euro?: number | null
           points_per_visit?: number | null
           started_at?: string
@@ -819,6 +992,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          loyalty_config_version: number | null
           points: number
           staff_id: string | null
           tenant_id: string
@@ -830,6 +1004,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          loyalty_config_version?: number | null
           points: number
           staff_id?: string | null
           tenant_id: string
@@ -841,6 +1016,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          loyalty_config_version?: number | null
           points?: number
           staff_id?: string | null
           tenant_id?: string
@@ -2062,6 +2238,53 @@ export type Database = {
         }
         Relationships: []
       }
+      tier_configs: {
+        Row: {
+          benefits: Json
+          created_at: string
+          display_order: number
+          id: string
+          min_points: number
+          tenant_id: string
+          tier_label: string
+          tier_name: string
+          updated_at: string
+          visual_style: Json
+        }
+        Insert: {
+          benefits?: Json
+          created_at?: string
+          display_order?: number
+          id?: string
+          min_points?: number
+          tenant_id: string
+          tier_label: string
+          tier_name: string
+          updated_at?: string
+          visual_style?: Json
+        }
+        Update: {
+          benefits?: Json
+          created_at?: string
+          display_order?: number
+          id?: string
+          min_points?: number
+          tenant_id?: string
+          tier_label?: string
+          tier_name?: string
+          updated_at?: string
+          visual_style?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_photos: {
         Row: {
           created_at: string
@@ -2206,6 +2429,15 @@ export type Database = {
     }
     Functions: {
       current_tenant_id: { Args: never; Returns: string }
+      decrement_product_inventory: {
+        Args: {
+          p_location_id: string
+          p_product_id: string
+          p_quantity: number
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
       generate_invitation_token: { Args: never; Returns: string }
       get_invitation_by_token: {
         Args: { p_token: string }

@@ -41,7 +41,7 @@ export function BottomCTA({ primary, secondary, tenantPrimary, bottomOffset }: B
           zIndex: 50,
           display: 'flex',
           gap: 10,
-          padding: '12px 16px',
+          padding: '12px 8px',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
           background: 'rgba(247,247,247,0.94)',
           backdropFilter: 'blur(12px)',

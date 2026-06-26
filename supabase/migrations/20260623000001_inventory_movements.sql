@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   product_id     UUID        NOT NULL REFERENCES products(id)     ON DELETE CASCADE,
   location_id    UUID                 REFERENCES locations(id)    ON DELETE SET NULL,
   appointment_id UUID                 REFERENCES appointments(id) ON DELETE SET NULL,
-  movement_type  TEXT        NOT NULL CHECK (movement_type IN ('sale', 'restock', 'adjustment', 'write_off')),
+  movement_type  TEXT        NOT NULL CHECK (movement_type IN ('sale', 'restock', 'adjustment', 'write_off', 'return')),
   quantity       INTEGER     NOT NULL,
   notes          TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()

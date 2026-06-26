@@ -777,7 +777,6 @@ async function rollbackInventoryOnCancellation(
           .eq('id', (inv as { id: string }).id)
       }
 
-      // @ts-expect-error TODO: migration pending — 'inventory_movements' table not yet in DB schema
       await db.from('inventory_movements').insert({ tenant_id: tenantId, product_id: item.product_id, location_id: locationId, appointment_id: appointmentId, movement_type: 'return', quantity: item.quantity })
     }),
   )
@@ -805,9 +804,7 @@ async function decrementInventoryOnCompletion(
   await Promise.all(
     (items as Array<{ product_id: string; quantity: number }>).map(async (item) => {
       await Promise.all([
-        // @ts-expect-error TODO: migration pending — 'decrement_product_inventory' RPC not yet in DB schema
         db.rpc('decrement_product_inventory', { p_tenant_id: tenantId, p_product_id: item.product_id, p_location_id: locationId, p_quantity: item.quantity }),
-        // @ts-expect-error TODO: migration pending — 'inventory_movements' table not yet in DB schema
         db.from('inventory_movements').insert({ tenant_id: tenantId, product_id: item.product_id, location_id: locationId, appointment_id: appointmentId, movement_type: 'sale', quantity: -item.quantity }),
       ])
     }),

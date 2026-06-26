@@ -99,32 +99,59 @@ export default function BookingStep3Services({
     ? 'calc(88px + var(--bottom-nav-height, 80px) + max(16px, env(safe-area-inset-bottom, 0px)))'
     : 'calc(88px + max(16px, env(safe-area-inset-bottom, 0px)))'
 
-  // altezza card foto = safe-area-top + immagine 4:3 su larghezza (100vw - 24px) + 12px gap sotto
-  const photoAreaHeight = 'calc((100vw - 24px) * 0.75 + 24px)'
-
   return (
-    <div style={{ background: '#F2F2F7', minHeight: '100vh' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
 
-      {/* 1+2. FloatingCard immagine barbiere — fixed in cima */}
+      {/* HERO — foto barbiere sticky */}
       <div
         style={{
-          position: 'fixed',
-          top: 12,
-          left: 12,
-          right: 12,
-          zIndex: 10,
-          borderRadius: 44,
-          overflow: 'hidden',
-          background: '#F2F2F7',
-        }}
-      >
-      <div
-        style={{
-          aspectRatio: '4 / 3',
-          position: 'relative',
+          position: 'sticky',
+          top: 0,
+          zIndex: 61,
           width: '100%',
+          height: '300px',
+          overflow: 'hidden',
+          borderRadius: '0 0 36px 36px',
+          flexShrink: 0,
+          transform: 'translateZ(0)',
         }}
       >
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Torna indietro"
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+            left: 16,
+            zIndex: 10,
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.10), 0 0px 1px rgba(0,0,0,0.06)',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#111111"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+
         {heroPhoto ? (
           <img
             src={heroPhoto}
@@ -157,67 +184,75 @@ export default function BookingStep3Services({
           </div>
         )}
 
-        {/* Back button */}
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Torna indietro"
-          style={{
-            position: 'absolute',
-            top: 'max(52px, calc(env(safe-area-inset-top, 0px) + 12px))',
-            left: 12,
-            zIndex: 10,
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            background: '#ffffff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.10), 0 0px 1px rgba(0,0,0,0.06)',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            WebkitTapHighlightColor: 'transparent',
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#111111"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-
-        {/* 2. Mini FloatingCard nome + ruolo in overlay */}
         <div
+          aria-hidden="true"
           style={{
             position: 'absolute',
-            bottom: 10,
-            left: 10,
-            right: 10,
-            background: 'white',
-            borderRadius: 34,
-            padding: '14px 18px',
+            inset: 0,
+            background: `
+              linear-gradient(
+                to top,
+                rgba(0,0,0,0.85) 0%,
+                rgba(0,0,0,0.75) 10%,
+                rgba(0,0,0,0.60) 20%,
+                rgba(0,0,0,0.40) 35%,
+                rgba(0,0,0,0.20) 50%,
+                rgba(0,0,0,0.08) 65%,
+                rgba(0,0,0,0.02) 78%,
+                rgba(0,0,0,0) 88%
+              )
+            `,
+            borderRadius: 'inherit',
           }}
-        >
-          <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222', lineHeight: 1.3 }}>
-            {heroName}
-          </p>
-          <p style={{ margin: '3px 0 0', fontSize: 14, color: '#71717A', lineHeight: 1.3 }}>
-            {heroRole}
-          </p>
-        </div>
-      </div>
+        />
       </div>
 
-      {/* 4. Lista servizi — padding-top compensa la foto fixed */}
-      <div style={{ padding: '0 12px', paddingTop: photoAreaHeight, paddingBottom: listPaddingBottom }}>
+      {/* Blur layer — sticky sibling solidale con hero */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'sticky',
+          top: 0,
+          width: '100%',
+          height: '300px',
+          marginTop: '-300px',
+          flexShrink: 0,
+          backdropFilter: 'blur(5px)',
+          WebkitBackdropFilter: 'blur(5px)',
+          maskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
+          WebkitMaskImage: 'linear-gradient(to top, black 30%, rgba(0,0,0,0.4) 55%, transparent 70%)',
+          zIndex: 62,
+          pointerEvents: 'none',
+          borderRadius: '0 0 36px 36px',
+        }}
+      />
+
+      {/* Testo hero */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '300px',
+          marginTop: '-300px',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          padding: '20px 20px 24px',
+          zIndex: 63,
+          pointerEvents: 'none',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#ffffff', lineHeight: 1.2, letterSpacing: '-0.4px' }}>
+          {heroName}
+        </p>
+        <p style={{ margin: '5px 0 0', fontSize: '14px', fontWeight: 400, color: 'rgba(255,255,255,0.75)' }}>
+          {heroRole}
+        </p>
+      </div>
+
+      {/* Lista servizi */}
+      <div style={{ padding: '0 12px', paddingTop: 20, paddingBottom: listPaddingBottom }}>
         {groups.map((group) => (
           <div key={group.category}>
             {/* Label categoria */}
@@ -359,8 +394,8 @@ export default function BookingStep3Services({
         style={{
           position: 'fixed',
           bottom: ctaBottom,
-          left: 16,
-          right: 16,
+          left: 8,
+          right: 8,
           zIndex: 50,
           height: 56,
           borderRadius: 44,

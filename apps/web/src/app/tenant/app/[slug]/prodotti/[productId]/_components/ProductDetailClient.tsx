@@ -229,9 +229,9 @@ export function ProductDetailClient({
         className="detail-panel"
         style={{
           position: 'fixed',
-          bottom: 16,
-          left: 16,
-          right: 16,
+          bottom: 8,
+          left: 8,
+          right: 8,
           margin: 0,
           zIndex: 10,
           boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
