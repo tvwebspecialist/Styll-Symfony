@@ -143,7 +143,7 @@ export default function BookingStep1Locations({
                   right: 10,
                   background: 'white',
                   borderRadius: 20,
-                  padding: '10px 14px',
+                  padding: 16,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
