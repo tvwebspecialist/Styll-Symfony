@@ -77,7 +77,7 @@ export function BookingUpsellDrawer({
 
       <motion.div
         key="upsell-drawer"
-        className="fixed bottom-4 left-4 right-4 z-[201] flex flex-col overflow-hidden bg-white"
+        className="fixed bottom-2 left-2 right-2 z-[201] flex flex-col overflow-hidden bg-white"
         style={{ maxHeight: '85vh', borderRadius: '24px' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}

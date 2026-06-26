@@ -169,7 +169,7 @@ export default function BookingSuccessModal(props: Props) {
 
       {/* Floating panel — slide-up + fade-in via framer-motion */}
       <motion.div
-        className="fixed bottom-4 left-4 right-4 z-[201] bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.24)]"
+        className="fixed bottom-2 left-2 right-2 z-[201] bg-white rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.24)]"
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 26 }}

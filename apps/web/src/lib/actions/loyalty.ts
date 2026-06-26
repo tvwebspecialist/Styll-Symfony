@@ -56,12 +56,10 @@ export async function checkAndUnlockBadges(
 ): Promise<void> {
   const db = createAdminClient()
 
-  // @ts-expect-error TODO: migration pending — 'badges' table not yet in DB schema
   const { data: badges } = await (db.from('badges').select('id, condition_type, condition_value').eq('tenant_id', tenantId).eq('is_active', true) as unknown as Promise<{ data: Array<{ id: string; condition_type: string; condition_value: number }> | null }>)
 
   if (!badges?.length) return
 
-  // @ts-expect-error TODO: migration pending — 'client_badges' table not yet in DB schema
   const { data: alreadyUnlocked } = await (db.from('client_badges').select('badge_id').eq('tenant_id', tenantId).eq('client_id', clientId) as unknown as Promise<{ data: Array<{ badge_id: string }> | null }>)
 
   const unlockedSet = new Set((alreadyUnlocked ?? []).map((b) => b.badge_id))
@@ -95,7 +93,6 @@ export async function checkAndUnlockBadges(
 
   if (toUnlock.length > 0) {
     // ON CONFLICT DO NOTHING — unique index prevents doubles
-    // @ts-expect-error TODO: migration pending — 'client_badges' table not yet in DB schema
     await db.from('client_badges').upsert(toUnlock, { onConflict: 'tenant_id,client_id,badge_id', ignoreDuplicates: true })
   }
 }
@@ -112,7 +109,6 @@ export async function checkAndUpdateTier(
   const db = createAdminClient()
 
   // Load tenant tier thresholds
-  // @ts-expect-error TODO: migration pending — 'tier_configs' table not yet in DB schema
   const { data: tiers } = await (db.from('tier_configs').select('tier_name, min_points').eq('tenant_id', tenantId).order('display_order', { ascending: true }) as unknown as Promise<{ data: Array<{ tier_name: string; min_points: number }> | null }>)
 
   const tierList = (tiers ?? []).length > 0
@@ -141,7 +137,6 @@ export async function checkAndUpdateTier(
     if (computedIdx <= currentIdx) return // no upgrade, stay put
   }
 
-  // @ts-expect-error TODO: migration pending — client_loyalty.current_tier not yet in schema
   await db.from('client_loyalty').update({ current_tier: computedTier }).eq('id', loyaltyState.id)
 }
 
@@ -234,7 +229,6 @@ export async function assignPointsOnCompletion(
 
   if (!loyaltyRow) {
     // Create loyalty record for this client
-    // @ts-expect-error TODO: migration pending — client_loyalty.current_tier, tier_points_this_year, tier_year not in schema
     const newRowResult = await (db.from('client_loyalty').insert({ tenant_id: tenantId, client_id: appt.client_id, total_points: 0, available_points: 0, current_streak: 0, longest_streak: 0, current_tier: 'bronze', tier_points_this_year: 0, tier_year: currentYear, last_visit_date: null }).select().single() as unknown as Promise<{ data: ClientLoyaltyState | null }>)
     loyaltyRow = newRowResult.data
   }
@@ -290,7 +284,6 @@ export async function assignPointsOnCompletion(
     description: `Visita completata`,
     appointment_id: appointmentId,
     staff_id: appt.staff_id ?? null,
-    // @ts-expect-error TODO: migration pending — loyalty_transactions.loyalty_config_version not yet in schema
     loyalty_config_version: config.version ?? 1,
   })
 
@@ -310,7 +303,6 @@ export async function assignPointsOnCompletion(
     last_visit_date: now.toISOString(),
   }
 
-  // @ts-expect-error TODO: migration pending — client_loyalty.tier_points_this_year, tier_year not in schema
   await db.from('client_loyalty').update({ total_points: newTotal, available_points: newAvailable, current_streak: newStreak, longest_streak: newLongest, last_visit_date: now.toISOString(), tier_points_this_year: newTierPoints, tier_year: currentYear }).eq('id', loyaltyRow.id)
 
   // Check badges and tier
@@ -371,7 +363,6 @@ export async function addManualPoints(input: {
   const currentYear = new Date().getFullYear()
 
   if (!existing) {
-    // @ts-expect-error TODO: migration pending — client_loyalty.current_tier, tier_points_this_year, tier_year not in schema
     await db.from('client_loyalty').insert({ tenant_id: tenantId, client_id: input.clientId, total_points: input.points, available_points: input.points, current_streak: 0, longest_streak: 0, current_tier: 'bronze', tier_points_this_year: input.points, tier_year: currentYear })
   } else {
     const newTotal = (existing.total_points ?? 0) + input.points
@@ -386,7 +377,6 @@ export async function addManualPoints(input: {
       available_points: newAvailable,
     }
 
-    // @ts-expect-error TODO: migration pending — client_loyalty.tier_points_this_year, tier_year not in schema
     await db.from('client_loyalty').update({ total_points: newTotal, available_points: newAvailable, tier_points_this_year: newTierPoints, tier_year: currentYear }).eq('id', existing.id)
 
     await checkAndUpdateTier(input.clientId, tenantId, updatedState)
