@@ -111,7 +111,7 @@ export default function BookingStep5Confirm({
       locationId,
       serviceCategories: categories,
       clientId: clientId ?? undefined,
-      limit: 6,
+      limit: 4,
     })
       .then((products) => {
         setUpsellProducts(products)
