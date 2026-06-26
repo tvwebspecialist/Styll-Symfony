@@ -63,7 +63,7 @@ export async function getUpsellProductsAction(params: {
 
   // Only products with stock > 0
   const available = (productRes.data as unknown as RawProduct[])
-    .filter((p) => (inventoryMap.get(p.id) ?? 0) > 0)
+    .filter((p) => (inventoryMap.get(p.id) ?? 1) > 0)
     .map((p) => ({
       id: p.id,
       name: p.name,
