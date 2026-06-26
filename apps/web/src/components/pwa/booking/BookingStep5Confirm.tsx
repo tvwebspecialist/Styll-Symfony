@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState, useMemo, useEffect } from 'react'
-import { ArrowRight, Calendar, Clock, Loader2, MapPin, Scissors, ShoppingBag } from 'lucide-react'
+import { Calendar, Clock, Loader2, MapPin, Scissors, ShoppingBag } from 'lucide-react'
 import { BookingUpsellDrawer } from './BookingUpsellDrawer'
 import BookingAuthModal from './BookingAuthModal'
 import BookingSuccessModal from './BookingSuccessModal'
@@ -276,7 +276,7 @@ export default function BookingStep5Confirm({
               <Calendar size={14} color={brandColor} style={{ flexShrink: 0 }} />
               <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Data</p>
             </div>
-            <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1, textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1.25, textTransform: 'capitalize' }}>
               {formattedDate}
             </p>
           </div>
@@ -453,10 +453,7 @@ export default function BookingStep5Confirm({
         ) : needsPhone && !phoneValid ? (
           <span>Inserisci il numero per continuare</span>
         ) : (
-          <>
-            <span>Conferma prenotazione</span>
-            <ArrowRight size={16} />
-          </>
+          <span>Conferma prenotazione</span>
         )}
       </button>
 

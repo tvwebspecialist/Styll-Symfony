@@ -305,14 +305,14 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleEmailContinue()
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
           />
           {error && <p className="px-1 text-[12px] text-red-500">{error}</p>}
           <button
             type="button"
             onClick={() => void handleEmailContinue()}
             disabled={!isValidEmail(email) || loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
             {loading ? (
@@ -321,7 +321,7 @@ export function EmailOtpForm({
                 Caricamento…
               </>
             ) : (
-              'Continua →'
+              'Continua'
             )}
           </button>
           <div className="flex items-center gap-2">
@@ -333,7 +333,7 @@ export function EmailOtpForm({
             type="button"
             onClick={() => void handleGoogleSignIn()}
             disabled={googleLoading}
-            className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-gray-200 bg-white text-[14px] font-medium text-gray-700 transition-all active:scale-[0.98] disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white text-[14px] font-medium text-gray-700 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
               <span className="size-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" aria-hidden="true" />
@@ -364,7 +364,7 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && fullName.trim()) void handleProfileDataContinue()
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
@@ -377,14 +377,14 @@ export function EmailOtpForm({
               setPhone(e.target.value)
               setError(null)
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
           />
           {error && <p className="px-1 text-[12px] text-red-500">{error}</p>}
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
             disabled={!fullName.trim() || !phone.trim() || loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
             {loading ? (
@@ -393,7 +393,7 @@ export function EmailOtpForm({
                 Invio in corso…
               </>
             ) : (
-              'Invia codice →'
+              'Invia codice'
             )}
           </button>
           <button
