@@ -254,12 +254,9 @@ export default function BookingStep5Confirm({
           {/* Mini FloatingCard bianca */}
           <div style={{
             position: 'absolute', bottom: 10, left: 10, right: 10,
-            background: 'white', borderRadius: 34, padding: 16,
+            background: 'white', borderRadius: 18, padding: 16,
             boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
           }}>
-            <p style={{ margin: '0 0 2px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>
-              Il tuo barbiere
-            </p>
             <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#222222', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {staff.full_name ?? 'Barbiere'}
             </p>
@@ -279,7 +276,7 @@ export default function BookingStep5Confirm({
               <Calendar size={14} color={brandColor} style={{ flexShrink: 0 }} />
               <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A1A1AA' }}>Data</p>
             </div>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#111827', lineHeight: 1.2, textTransform: 'capitalize' }}>
+            <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1, textTransform: 'capitalize', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {formattedDate}
             </p>
           </div>
