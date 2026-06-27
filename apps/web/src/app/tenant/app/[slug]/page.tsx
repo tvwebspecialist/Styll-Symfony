@@ -8,6 +8,8 @@ import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getActiveOffersForClient, type ActivePromotionForClient } from '@/lib/actions/offers'
 import { daysUntil } from '@/lib/utils/offer-pricing'
+import { AppointmentPill } from '@/components/pwa/AppointmentPill'
+import { PwaProductCard } from '@/components/pwa/PwaProductCard'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -339,87 +341,16 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           }
         >
           {(homeData.products ?? []).map((product) => (
-            <Link
+            <PwaProductCard
               key={product.id}
-              href={tp(`/prodotti/${product.id}`)}
-              style={{
-                display: 'block',
-                flexShrink: 0,
-                width: 152,
-                background: '#FFFFFF',
-                borderRadius: 20,
-                border: '1px solid #F0F0F0',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                textDecoration: 'none',
-                overflow: 'hidden',
-                scrollSnapAlign: 'start',
-              }}
-            >
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '1/1',
-                  background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
-                }}
-              >
-                {product.photo_url ? (
-                  <Image
-                    src={product.photo_url}
-                    alt={product.name}
-                    fill
-                    style={{ objectFit: 'cover' }}
-                    sizes="152px"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 28,
-                    }}
-                  >
-                    🧴
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '8px 12px 12px' }}>
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: '#111',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    marginBottom: product.brand ? 2 : 6,
-                  }}
-                >
-                  {product.name}
-                </p>
-                {product.brand && (
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: '#B0B0B0',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginBottom: 6,
-                    }}
-                  >
-                    {product.brand}
-                  </p>
-                )}
-                <p style={{ fontSize: 14, fontWeight: 800, color: '#111' }}>
-                  {formatPrice(product.price_sell)}
-                </p>
-              </div>
-            </Link>
+              name={product.name}
+              brand={product.brand}
+              photo_url={product.photo_url}
+              price_sell={product.price_sell}
+              detailHref={tp(`/prodotti/${product.id}`)}
+              imageSize="160px"
+              style={{ width: 160, flexShrink: 0, scrollSnapAlign: 'start' }}
+            />
           ))}
         </div>
       </section>
@@ -825,238 +756,14 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ════════════════════════════════════════════════════════════════════ */}
       {!isGuest && isImminent && homeData.nextAppointment && (
         <>
-          {/* Card appuntamento — PRIMA delle offerte (ticket premium) */}
-          <section
-            style={{
-              ...animated(0),
-              borderRadius: 24,
-              overflow: 'hidden',
-              background: '#FFFFFF',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.05)',
-              marginBottom: 16,
-            }}
-          >
-            {/* Header brand */}
-            <div
-              style={{
-                background: 'var(--brand-primary)',
-                padding: '14px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.18)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                    lineHeight: 1,
-                  }}
-                >
-                  ✂️
-                </div>
-                <span
-                  style={{
-                    color: 'rgba(255,255,255,0.9)',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: '0.8px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Appuntamento
-                </span>
-              </div>
-              <span
-                style={{
-                  background: 'rgba(255,255,255,0.22)',
-                  color: '#FFFFFF',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  borderRadius: 999,
-                  padding: '4px 12px',
-                  letterSpacing: '0.3px',
-                }}
-              >
-                Oggi 🔔
-              </span>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: '20px 20px 0' }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                {/* Date box — brand tint */}
-                <div
-                  style={{
-                    textAlign: 'center',
-                    background: 'color-mix(in srgb, var(--brand-primary) 10%, #ffffff)',
-                    borderRadius: 16,
-                    padding: '12px 14px',
-                    flexShrink: 0,
-                    minWidth: 62,
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      color: 'var(--brand-primary)',
-                      margin: 0,
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    {formatWeekday(homeData.nextAppointment.startTime)}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 30,
-                      fontWeight: 900,
-                      color: '#111111',
-                      lineHeight: 1,
-                      margin: '4px 0',
-                    }}
-                  >
-                    {formatDay(homeData.nextAppointment.startTime)}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      color: '#9CA3AF',
-                      margin: 0,
-                    }}
-                  >
-                    {formatMonth(homeData.nextAppointment.startTime)}
-                  </p>
-                </div>
-
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-                  <p
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 800,
-                      color: '#111111',
-                      lineHeight: 1.2,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginBottom: 10,
-                    }}
-                  >
-                    {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-                      {formatTime(homeData.nextAppointment.startTime)}
-                    </span>
-                  </div>
-                  {homeData.nextAppointment.staffName ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                      </svg>
-                      <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-                        {homeData.nextAppointment.staffName}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick actions — tab-style dividers */}
-            <div
-              style={{
-                display: 'flex',
-                marginTop: 20,
-                borderTop: '1px solid #F3F4F6',
-              }}
-            >
-              {mapsUrl ? (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 4,
-                    padding: '14px 8px',
-                    textDecoration: 'none',
-                    borderRight: '1px solid #F3F4F6',
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>📍</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Indicazioni</span>
-                </a>
-              ) : (
-                <div
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 4,
-                    padding: '14px 8px',
-                    borderRight: '1px solid #F3F4F6',
-                  }}
-                >
-                  <span style={{ fontSize: 16, opacity: 0.35 }}>📍</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#D1D5DB' }}>Indicazioni</span>
-                </div>
-              )}
-              <Link
-                href={tp('/appuntamenti')}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
-                  padding: '14px 8px',
-                  textDecoration: 'none',
-                  borderRight: '1px solid #F3F4F6',
-                }}
-              >
-                <span style={{ fontSize: 16 }}>📅</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Calendario</span>
-              </Link>
-              <Link
-                href={tp('/prenota')}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 4,
-                  padding: '14px 8px',
-                  textDecoration: 'none',
-                }}
-              >
-                <span style={{ fontSize: 16 }}>✏️</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Modifica</span>
-              </Link>
-            </div>
-          </section>
+          {/* Pill appuntamento imminente — PRIMA delle offerte */}
+          <div style={{ ...animated(0), marginBottom: 16 }}>
+            <AppointmentPill
+              startTime={homeData.nextAppointment.startTime}
+              isToday={homeData.nextAppointmentIsToday ?? false}
+              detailHref={tp('/appuntamenti')}
+            />
+          </div>
 
           {/* Offerte */}
           {offersCarousel && <div style={animated(60)}>{offersCarousel}</div>}
