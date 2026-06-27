@@ -3,6 +3,7 @@
 'use client'
 
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -64,9 +65,9 @@ const backBtnStyle = {
 } as const
 
 function TopBarInner({
-  businessName: _businessName,
-  logoUrl: _logoUrl,
-  primaryColor: _primaryColor,
+  businessName,
+  logoUrl,
+  primaryColor,
   fontFamily,
   clientName,
   clientAvatarUrl,
@@ -99,6 +100,77 @@ function TopBarInner({
 
   // ── Home ──────────────────────────────────────────────────────────────────
   if (isHome) {
+    // Guest variant: show business logo/name + "Accedi" pill
+    if (!clientName) {
+      const accentColor = primaryColor ?? 'var(--brand-primary)'
+      return (
+        <div style={glassShell}>
+          <div style={{ ...contentBar, paddingLeft: 20, paddingRight: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt={businessName}
+                  style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: accentColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    flexShrink: 0,
+                  }}
+                >
+                  {businessName.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span
+                style={{
+                  fontSize: 17,
+                  fontWeight: 700,
+                  color: '#111111',
+                  fontFamily: fontFamily ?? 'inherit',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {businessName}
+              </span>
+            </div>
+            <Link
+              href={tenantPath('/accesso')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 36,
+                padding: '0 18px',
+                borderRadius: 999,
+                border: `1.5px solid ${accentColor}`,
+                color: accentColor,
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: 'none',
+                flexShrink: 0,
+              }}
+            >
+              Accedi
+            </Link>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div style={glassShell}>
         <div style={contentBar}>
