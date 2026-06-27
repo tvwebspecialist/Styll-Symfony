@@ -57,6 +57,7 @@ export type HomePageData = {
   lastAppointmentDuration?: number | null
   lastAppointmentPrice?: number | null
   nextAppointmentIsImminent?: boolean
+  nextAppointmentIsToday?: boolean
   products?: HomeProduct[]
   services?: HomeService[]
 }
@@ -349,6 +350,16 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
     nextAppointmentIsImminent: nextAppointment
       ? new Date(nextAppointment.start_time).getTime() - Date.now() < 48 * 3600 * 1000
       : false,
+    nextAppointmentIsToday: (() => {
+      if (!nextAppointment) return false
+      const n = new Date()
+      const d = new Date(nextAppointment.start_time)
+      return (
+        d.getFullYear() === n.getFullYear() &&
+        d.getMonth() === n.getMonth() &&
+        d.getDate() === n.getDate()
+      )
+    })(),
     products,
     services,
   }
