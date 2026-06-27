@@ -825,108 +825,164 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ════════════════════════════════════════════════════════════════════ */}
       {!isGuest && isImminent && homeData.nextAppointment && (
         <>
-          {/* Card appuntamento — PRIMA delle offerte */}
+          {/* Card appuntamento — PRIMA delle offerte (ticket premium) */}
           <section
             style={{
               ...animated(0),
+              borderRadius: 24,
+              overflow: 'hidden',
               background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 20,
+              boxShadow: '0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.05)',
               marginBottom: 16,
-              border: '2px solid var(--brand-primary)',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
             }}
           >
-            <p
+            {/* Header brand */}
+            <div
               style={{
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: 'var(--brand-primary)',
-                fontWeight: 700,
-                marginBottom: 16,
+                background: 'var(--brand-primary)',
+                padding: '14px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              Il tuo appuntamento è oggi 🔔
-            </p>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              {/* Date box */}
-              <div
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 13,
+                    lineHeight: 1,
+                  }}
+                >
+                  ✂️
+                </div>
+                <span
+                  style={{
+                    color: 'rgba(255,255,255,0.9)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.8px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Appuntamento
+                </span>
+              </div>
+              <span
                 style={{
-                  textAlign: 'center',
-                  background: 'var(--brand-primary)',
-                  borderRadius: 14,
-                  padding: '12px 16px',
-                  flexShrink: 0,
+                  background: 'rgba(255,255,255,0.22)',
                   color: '#FFFFFF',
-                  minWidth: 64,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: '4px 12px',
+                  letterSpacing: '0.3px',
                 }}
               >
-                <p
+                Oggi 🔔
+              </span>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 20px 0' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                {/* Date box — brand tint */}
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    opacity: 0.8,
-                    margin: 0,
+                    textAlign: 'center',
+                    background: 'color-mix(in srgb, var(--brand-primary) 10%, #ffffff)',
+                    borderRadius: 16,
+                    padding: '12px 14px',
+                    flexShrink: 0,
+                    minWidth: 62,
                   }}
                 >
-                  {formatWeekday(homeData.nextAppointment.startTime)}
-                </p>
-                <p
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 800,
-                    lineHeight: 1.1,
-                    margin: '4px 0',
-                  }}
-                >
-                  {formatDay(homeData.nextAppointment.startTime)}
-                </p>
-                <p
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    opacity: 0.8,
-                    margin: 0,
-                  }}
-                >
-                  {formatMonth(homeData.nextAppointment.startTime)}
-                </p>
-              </div>
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 800,
-                    color: '#222222',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
-                </p>
-                <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 4 }}>
-                  alle {formatTime(homeData.nextAppointment.startTime)}
-                </p>
-                {homeData.nextAppointment.staffName ? (
-                  <p style={{ fontSize: 12, color: '#B0B0B0', marginTop: 2 }}>
-                    con {homeData.nextAppointment.staffName}
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: 'var(--brand-primary)',
+                      margin: 0,
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    {formatWeekday(homeData.nextAppointment.startTime)}
                   </p>
-                ) : null}
+                  <p
+                    style={{
+                      fontSize: 30,
+                      fontWeight: 900,
+                      color: '#111111',
+                      lineHeight: 1,
+                      margin: '4px 0',
+                    }}
+                  >
+                    {formatDay(homeData.nextAppointment.startTime)}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      color: '#9CA3AF',
+                      margin: 0,
+                    }}
+                  >
+                    {formatMonth(homeData.nextAppointment.startTime)}
+                  </p>
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+                  <p
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 800,
+                      color: '#111111',
+                      lineHeight: 1.2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+                      {formatTime(homeData.nextAppointment.startTime)}
+                    </span>
+                  </div>
+                  {homeData.nextAppointment.staffName ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                      </svg>
+                      <span style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+                        {homeData.nextAppointment.staffName}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
-            {/* Quick actions */}
+
+            {/* Quick actions — tab-style dividers */}
             <div
               style={{
                 display: 'flex',
-                gap: 8,
                 marginTop: 20,
-                paddingTop: 16,
-                borderTop: '1px solid #F0F0F0',
+                borderTop: '1px solid #F3F4F6',
               }}
             >
               {mapsUrl ? (
@@ -935,78 +991,69 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
+                    flex: 1,
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    flex: 1,
-                    height: 38,
-                    borderRadius: 999,
-                    background: '#F5F5F5',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#222222',
-                    textDecoration: 'none',
                     gap: 4,
+                    padding: '14px 8px',
+                    textDecoration: 'none',
+                    borderRight: '1px solid #F3F4F6',
                   }}
                 >
-                  📍 Indicazioni
+                  <span style={{ fontSize: 16 }}>📍</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Indicazioni</span>
                 </a>
               ) : (
-                <span
+                <div
                   style={{
+                    flex: 1,
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    flex: 1,
-                    height: 38,
-                    borderRadius: 999,
-                    background: '#F5F5F5',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#B0B0B0',
                     gap: 4,
+                    padding: '14px 8px',
+                    borderRight: '1px solid #F3F4F6',
                   }}
                 >
-                  📍 Indicazioni
-                </span>
+                  <span style={{ fontSize: 16, opacity: 0.35 }}>📍</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#D1D5DB' }}>Indicazioni</span>
+                </div>
               )}
               <Link
                 href={tp('/appuntamenti')}
                 style={{
+                  flex: 1,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  flex: 1,
-                  height: 38,
-                  borderRadius: 999,
-                  background: '#F5F5F5',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#222222',
-                  textDecoration: 'none',
                   gap: 4,
+                  padding: '14px 8px',
+                  textDecoration: 'none',
+                  borderRight: '1px solid #F3F4F6',
                 }}
               >
-                📅 Calendario
+                <span style={{ fontSize: 16 }}>📅</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Calendario</span>
               </Link>
               <Link
                 href={tp('/prenota')}
                 style={{
+                  flex: 1,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  flex: 1,
-                  height: 38,
-                  borderRadius: 999,
-                  background: '#F5F5F5',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#222222',
-                  textDecoration: 'none',
                   gap: 4,
+                  padding: '14px 8px',
+                  textDecoration: 'none',
                 }}
               >
-                ✏️ Modifica
+                <span style={{ fontSize: 16 }}>✏️</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>Modifica</span>
               </Link>
             </div>
           </section>
@@ -1045,113 +1092,100 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               : 'Continua a venire per scalare i livelli!',
           )}
 
-          {/* Card appuntamento (compatta) */}
-          <section
-            style={{
-              ...animated(activeOffers.length > 0 ? 120 : 60),
-              background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 20,
-              marginBottom: 16,
-            }}
-          >
+          {/* Card appuntamento compatta — stile list item premium */}
+          <div style={{ ...animated(activeOffers.length > 0 ? 120 : 60), marginBottom: 16 }}>
             <p
               style={{
                 fontSize: 11,
                 textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: '#B0B0B0',
-                marginBottom: 14,
+                letterSpacing: '0.6px',
+                fontWeight: 700,
+                color: '#9CA3AF',
+                marginBottom: 10,
+                paddingLeft: 2,
               }}
             >
               Prossimo appuntamento
             </p>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-              {/* Compact date box */}
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 20,
+                padding: '14px 16px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+              }}
+            >
+              {/* Brand circle icon */}
               <div
                 style={{
-                  textAlign: 'center',
-                  background: '#F5F5F5',
-                  borderRadius: 12,
-                  padding: '10px 14px',
+                  width: 52,
+                  height: 52,
+                  borderRadius: '50%',
+                  background: 'color-mix(in srgb, var(--brand-primary) 12%, #ffffff)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   flexShrink: 0,
-                  minWidth: 58,
+                  fontSize: 22,
+                  lineHeight: 1,
                 }}
               >
-                <p
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    color: '#B0B0B0',
-                    margin: 0,
-                  }}
-                >
-                  {formatWeekday(homeData.nextAppointment.startTime)}
-                </p>
-                <p
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: '#222222',
-                    lineHeight: 1.1,
-                    margin: '4px 0',
-                  }}
-                >
-                  {formatDay(homeData.nextAppointment.startTime)}
-                </p>
-                <p
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    color: '#B0B0B0',
-                    margin: 0,
-                  }}
-                >
-                  {formatMonth(homeData.nextAppointment.startTime)}
-                </p>
+                ✂️
               </div>
+
               {/* Info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
-                    color: '#222222',
+                    color: '#111111',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
+                    marginBottom: 4,
                   }}
                 >
                   {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
                 </p>
-                <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 4 }}>
-                  alle {formatTime(homeData.nextAppointment.startTime)}
+                <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
+                  {formatWeekday(homeData.nextAppointment.startTime)}{' '}
+                  {formatDay(homeData.nextAppointment.startTime)}{' '}
+                  {formatMonth(homeData.nextAppointment.startTime)} · {formatTime(homeData.nextAppointment.startTime)}
                 </p>
+                {homeData.nextAppointment.staffName ? (
+                  <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
+                    con {homeData.nextAppointment.staffName}
+                  </p>
+                ) : null}
               </div>
-              {/* Arrow */}
+
+              {/* Brand action button */}
               <Link
                 href={tp('/appuntamenti')}
                 style={{
-                  width: 38,
-                  height: 38,
+                  width: 42,
+                  height: 42,
                   borderRadius: '50%',
-                  background: '#F5F5F5',
+                  background: 'var(--brand-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   textDecoration: 'none',
                   flexShrink: 0,
+                  boxShadow: '0 4px 12px color-mix(in srgb, var(--brand-primary) 40%, transparent)',
                 }}
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#222222"
-                  strokeWidth="2.5"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
@@ -1159,7 +1193,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                 </svg>
               </Link>
             </div>
-          </section>
+          </div>
 
           {/* Prodotti */}
           {productsScroll && (
