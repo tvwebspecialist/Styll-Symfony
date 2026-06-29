@@ -8,6 +8,7 @@ import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getActiveOffersForClient, type ActivePromotionForClient } from '@/lib/actions/offers'
 import { daysUntil } from '@/lib/utils/offer-pricing'
+import { formatTimeInTimezone } from '@/lib/utils/timezone'
 import { AppointmentPill } from '@/components/pwa/AppointmentPill'
 import { PwaProductCard } from '@/components/pwa/PwaProductCard'
 
@@ -20,8 +21,10 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+const PWA_TZ = 'Europe/Rome'
+
 function formatTime(value: string): string {
-  return value.slice(11, 16)
+  return formatTimeInTimezone(value, PWA_TZ)
 }
 
 function daysAgo(value: string): number {
@@ -56,17 +59,17 @@ function animated(delay: number): CSSProperties {
 
 function formatWeekday(value: string): string {
   return capitalize(
-    new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value.slice(0, 10)))
+    new Intl.DateTimeFormat('it-IT', { weekday: 'short', timeZone: PWA_TZ }).format(new Date(value))
   )
 }
 
 function formatDay(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value.slice(0, 10)))
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric', timeZone: PWA_TZ }).format(new Date(value))
 }
 
 function formatMonth(value: string): string {
   return capitalize(
-    new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value.slice(0, 10)))
+    new Intl.DateTimeFormat('it-IT', { month: 'short', timeZone: PWA_TZ }).format(new Date(value))
   )
 }
 
