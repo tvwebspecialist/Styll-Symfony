@@ -148,7 +148,7 @@ function TopBarInner({
               </span>
             </div>
             <Link
-              href={tenantPath('/accesso')}
+              href={tenantPath('/profilo')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
