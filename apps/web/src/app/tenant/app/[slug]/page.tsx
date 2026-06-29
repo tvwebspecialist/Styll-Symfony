@@ -538,86 +538,76 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           {/* Card accedi */}
           <div style={{ ...animated(activeOffers.length > 0 ? 180 : 120), marginBottom: 16 }}>
             <div
-              style={
-                {
-                  height: 180,
-                  borderRadius: 28,
-                  overflow: 'hidden',
-                  position: 'relative',
-                  background: `linear-gradient(135deg, ${tenant.primary_color ?? '#27272A'} 0%, color-mix(in srgb, ${tenant.primary_color ?? '#27272A'} 55%, #000000) 100%)`,
-                } as CSSProperties
-              }
+              style={{
+                borderRadius: 20,
+                background: '#111111',
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+              }}
             >
-              {/* Logo watermark */}
-              {tenant.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={tenant.logo_url}
-                  alt=""
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: 100,
-                    height: 100,
-                    objectFit: 'contain',
-                    opacity: 0.15,
-                  }}
-                />
-              )}
-              {/* Logo centered */}
-              {tenant.logo_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={tenant.logo_url}
-                  alt={displayBusinessName}
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -60%)',
-                    width: 48,
-                    height: 48,
-                    objectFit: 'contain',
-                  }}
-                />
-              )}
-              <div
+              {/* Top row: text + logo */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, margin: 0 }}>
+                    Porta{' '}
+                    <span style={{ color: tenant.primary_color ?? 'var(--brand-primary)' }}>
+                      {displayBusinessName}
+                    </span>
+                    {' '}sempre con te.
+                  </p>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
+                    Prenota, accumula punti fedeltà e ricevi offerte esclusive — tutto dal tuo telefono.
+                  </p>
+                </div>
+
+                {/* Logo box */}
+                {tenant.logo_url && (
+                  <div
+                    style={{
+                      width: 80,
+                      height: 80,
+                      flexShrink: 0,
+                      borderRadius: 16,
+                      background: 'rgba(255,255,255,0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: `0 0 40px 10px ${tenant.primary_color ? tenant.primary_color + '55' : 'rgba(255,255,255,0.15)'}`,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={tenant.logo_url}
+                      alt={displayBusinessName}
+                      style={{ width: 56, height: 56, objectFit: 'contain' }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* CTA */}
+              <Link
+                href={tp('/profilo')}
                 style={{
-                  position: 'absolute',
-                  bottom: 12,
-                  left: 12,
-                  right: 12,
-                  background: '#FFFFFF',
-                  borderRadius: 20,
-                  padding: '12px 16px',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 8,
+                  alignSelf: 'flex-start',
+                  marginTop: 20,
+                  padding: '10px 20px',
+                  borderRadius: 99,
+                  background: tenant.primary_color ?? 'var(--brand-primary)',
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <p style={{ flex: 1, margin: 0, fontSize: 13, fontWeight: 600, color: '#18181B' }}>
-                  Accedi per prenotare e guadagnare punti
-                </p>
-                <Link
-                  href={tp('/profilo')}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 999,
-                    background: '#18181B',
-                    color: '#FFFFFF',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Accedi
-                </Link>
-              </div>
+                Accedi →
+              </Link>
             </div>
           </div>
         </>
