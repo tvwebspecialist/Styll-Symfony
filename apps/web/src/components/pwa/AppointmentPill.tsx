@@ -2,7 +2,6 @@ import Link from 'next/link'
 
 interface AppointmentPillProps {
   startTime: string
-  isToday: boolean
   detailHref: string
 }
 
@@ -24,9 +23,8 @@ function formatMonth(value: string): string {
   return new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value)).toUpperCase()
 }
 
-export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentPillProps) {
+export function AppointmentPill({ startTime, detailHref }: AppointmentPillProps) {
   const timeStr = formatTime(startTime)
-  const whenLabel = isToday ? 'Oggi' : 'Domani'
 
   return (
     <Link
@@ -37,11 +35,10 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
         gap: 12,
         padding: '10px 10px 10px 10px',
         borderRadius: 16,
-        background: 'var(--brand-primary)',
+        background: '#fff',
         textDecoration: 'none',
         minHeight: 68,
-        boxShadow:
-          '0 6px 24px color-mix(in srgb, var(--brand-primary) 35%, transparent), 0 2px 8px rgba(0,0,0,0.06)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
       }}
     >
       {/* Date box */}
@@ -51,7 +48,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(0,0,0,0.20)',
+          background: '#f5f5f3',
           borderRadius: 10,
           padding: '6px 10px',
           flexShrink: 0,
@@ -62,7 +59,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           style={{
             fontSize: 9,
             fontWeight: 700,
-            color: 'rgba(255,255,255,0.7)',
+            color: '#999',
             letterSpacing: '0.5px',
             lineHeight: 1,
           }}
@@ -73,7 +70,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           style={{
             fontSize: 22,
             fontWeight: 900,
-            color: '#FFFFFF',
+            color: '#111',
             lineHeight: 1.1,
             margin: '1px 0',
           }}
@@ -84,7 +81,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           style={{
             fontSize: 9,
             fontWeight: 700,
-            color: 'rgba(255,255,255,0.7)',
+            color: '#999',
             letterSpacing: '0.5px',
             lineHeight: 1,
           }}
@@ -99,7 +96,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: 'rgba(255,255,255,0.75)',
+            color: '#999',
             textTransform: 'uppercase',
             letterSpacing: '0.6px',
             margin: 0,
@@ -111,7 +108,7 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
           style={{
             fontSize: 22,
             fontWeight: 800,
-            color: '#FFFFFF',
+            color: '#111',
             margin: '2px 0 0',
             lineHeight: 1,
           }}
@@ -120,32 +117,31 @@ export function AppointmentPill({ startTime, isToday, detailHref }: AppointmentP
         </p>
       </div>
 
-      {/* Right badge */}
+      {/* Right arrow */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 4,
-          background: 'rgba(0,0,0,0.22)',
+          justifyContent: 'center',
+          width: 36,
+          height: 36,
           borderRadius: 999,
-          padding: '8px 12px',
+          background: 'var(--brand-primary)',
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#FFFFFF' }}>
-          {whenLabel}
-        </span>
         <svg
-          width="11"
-          height="11"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="#FFFFFF"
-          strokeWidth="2.8"
+          strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <polyline points="9 18 15 12 9 6" />
+          <line x1="7" y1="17" x2="17" y2="7" />
+          <polyline points="7 7 17 7 17 17" />
         </svg>
       </div>
     </Link>
