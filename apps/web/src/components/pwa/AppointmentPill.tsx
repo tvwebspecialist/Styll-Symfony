@@ -1,24 +1,27 @@
 import Link from 'next/link'
+import { formatTimeInTimezone } from '@/lib/utils/timezone'
 
 interface AppointmentPillProps {
   startTime: string
   detailHref: string
 }
 
+const TZ = 'Europe/Rome'
+
 function formatTime(value: string): string {
-  return value.slice(11, 16)
+  return formatTimeInTimezone(value, TZ)
 }
 
 function formatWeekday(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value.slice(0, 10))).toUpperCase()
+  return new Intl.DateTimeFormat('it-IT', { weekday: 'short', timeZone: TZ }).format(new Date(value)).toUpperCase()
 }
 
 function formatDay(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value.slice(0, 10)))
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric', timeZone: TZ }).format(new Date(value))
 }
 
 function formatMonth(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value.slice(0, 10))).toUpperCase()
+  return new Intl.DateTimeFormat('it-IT', { month: 'short', timeZone: TZ }).format(new Date(value)).toUpperCase()
 }
 
 export function AppointmentPill({ startTime, detailHref }: AppointmentPillProps) {
