@@ -544,21 +544,46 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   borderRadius: 28,
                   overflow: 'hidden',
                   position: 'relative',
-                  background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
+                  background: `linear-gradient(135deg, ${tenant.primary_color ?? '#27272A'} 0%, color-mix(in srgb, ${tenant.primary_color ?? '#27272A'} 55%, #000000) 100%)`,
                 } as CSSProperties
               }
             >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 16,
-                  left: 18,
-                  fontSize: 32,
-                  lineHeight: 1,
-                }}
-              >
-                💈
-              </div>
+              {/* Logo watermark */}
+              {tenant.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logo_url}
+                  alt=""
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 100,
+                    height: 100,
+                    objectFit: 'contain',
+                    opacity: 0.15,
+                  }}
+                />
+              )}
+              {/* Logo centered */}
+              {tenant.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logo_url}
+                  alt={displayBusinessName}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -60%)',
+                    width: 48,
+                    height: 48,
+                    objectFit: 'contain',
+                  }}
+                />
+              )}
               <div
                 style={{
                   position: 'absolute',
@@ -574,10 +599,10 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                 }}
               >
                 <p style={{ flex: 1, margin: 0, fontSize: 13, fontWeight: 600, color: '#18181B' }}>
-                  Accedi per prenotare e guadagnare punti 💈
+                  Accedi per prenotare e guadagnare punti
                 </p>
                 <Link
-                  href={tp('/accesso')}
+                  href={tp('/profilo')}
                   style={{
                     padding: '8px 16px',
                     borderRadius: 999,
@@ -796,7 +821,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               }}
             >
               <p style={{ fontSize: 16, fontWeight: 500, color: '#111111', margin: 0 }}>
-                I tuoi appuntamenti
+                Appuntamenti
               </p>
               <Link
                 href={tp('/appuntamenti')}

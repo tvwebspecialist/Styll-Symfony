@@ -95,10 +95,8 @@ export function AppointmentPill({ startTime, detailHref }: AppointmentPillProps)
         <p
           style={{
             fontSize: 11,
-            fontWeight: 600,
+            fontWeight: 400,
             color: '#999',
-            textTransform: 'uppercase',
-            letterSpacing: '0.6px',
             margin: 0,
           }}
         >
