@@ -21,10 +21,7 @@ function capitalize(value: string): string {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+  return value.slice(11, 16)
 }
 
 function daysAgo(value: string): number {
@@ -59,17 +56,17 @@ function animated(delay: number): CSSProperties {
 
 function formatWeekday(value: string): string {
   return capitalize(
-    new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value))
+    new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value.slice(0, 10)))
   )
 }
 
 function formatDay(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value.slice(0, 10)))
 }
 
 function formatMonth(value: string): string {
   return capitalize(
-    new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value))
+    new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value.slice(0, 10)))
   )
 }
 

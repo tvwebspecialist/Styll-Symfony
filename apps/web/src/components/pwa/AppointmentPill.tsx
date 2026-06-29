@@ -6,21 +6,19 @@ interface AppointmentPillProps {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(
-    new Date(value)
-  )
+  return value.slice(11, 16)
 }
 
 function formatWeekday(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value)).toUpperCase()
+  return new Intl.DateTimeFormat('it-IT', { weekday: 'short' }).format(new Date(value.slice(0, 10))).toUpperCase()
 }
 
 function formatDay(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric' }).format(new Date(value.slice(0, 10)))
 }
 
 function formatMonth(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value)).toUpperCase()
+  return new Intl.DateTimeFormat('it-IT', { month: 'short' }).format(new Date(value.slice(0, 10))).toUpperCase()
 }
 
 export function AppointmentPill({ startTime, detailHref }: AppointmentPillProps) {
