@@ -554,9 +554,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                     <span style={{ color: tenant.primary_color ?? 'var(--brand-primary)' }}>Accedi</span>
                     {' '}per non perderti nulla.
                   </p>
-                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-                    Prenota in pochi secondi, accumula punti ad ogni visita e ricevi offerte riservate solo a te.
-                  </p>
+
                 </div>
 
                 {/* Logo */}

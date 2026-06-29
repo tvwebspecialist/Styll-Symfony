@@ -9,6 +9,7 @@ export default async function UsersPage() {
     db
       .from('profiles')
       .select('id, full_name, email, is_superadmin, onboarding_completed, created_at')
+      .or('user_type.eq.staff,is_superadmin.eq.true')
       .order('created_at', { ascending: false }),
     db
       .from('tenants')

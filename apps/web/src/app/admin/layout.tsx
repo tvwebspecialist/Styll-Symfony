@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const [profileRes, tenantsCount, usersCount] = await Promise.all([
     db.from('profiles').select('is_superadmin').eq('id', user.id).maybeSingle(),
     db.from('tenants').select('*', { count: 'exact', head: true }),
-    db.from('profiles').select('*', { count: 'exact', head: true }),
+    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
   ])
 
   if (!profileRes.data?.is_superadmin) redirect('/dashboard')
