@@ -454,72 +454,33 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ════════════════════════════════════════════════════════════════════ */}
       {isGuest && (
         <>
-          {/* Hero */}
-          <section
-            style={{
-              ...animated(0),
-              background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 28,
-              marginBottom: 16,
-            }}
-          >
-            <p style={{ fontSize: 26, fontWeight: 800, color: '#222222', lineHeight: 1.15 }}>
-              Benvenuto da
-            </p>
-            <p
-              style={{
-                fontSize: 26,
-                fontWeight: 800,
-                color: 'var(--brand-primary)',
-                lineHeight: 1.15,
-                marginTop: 2,
-              }}
-            >
-              {displayBusinessName}
-            </p>
-            <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 8 }}>
-              Il tuo salone di fiducia, sempre con te.
-            </p>
-            <Link
-              href={tp('/prenota')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-                minHeight: 54,
-                borderRadius: 999,
-                background: 'var(--brand-primary)',
-                color: '#FFFFFF',
-                textDecoration: 'none',
-                fontSize: 16,
-                fontWeight: 700,
-                marginTop: 20,
-              }}
-            >
-              📅 Prenota ora
-            </Link>
-          </section>
+          {/* Offerte */}
+          {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
 
           {/* Servizi */}
           {(homeData.services ?? []).length > 0 && (
-            <section style={{ ...animated(60), marginBottom: 16 }}>
-              <h2
+            <section style={{ ...animated(activeOffers.length > 0 ? 60 : 0), marginBottom: 16 }}>
+              <div
                 style={{
-                  fontSize: 16,
-                  fontWeight: 800,
-                  color: '#222222',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   marginBottom: 12,
                 }}
               >
-                Servizi
-              </h2>
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Servizi</h2>
+                <Link
+                  href={tp('/prenota')}
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+                >
+                  Vedi tutti
+                </Link>
+              </div>
               <div
                 style={
                   {
                     display: 'flex',
-                    gap: 8,
+                    gap: 10,
                     overflowX: 'auto',
                     scrollSnapType: 'x mandatory',
                     paddingBottom: 8,
@@ -539,7 +500,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                       background: '#FFFFFF',
                       borderRadius: 16,
                       padding: 16,
-                      border: '1px solid #F0F0F0',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
                       textDecoration: 'none',
                       scrollSnapAlign: 'start',
                     }}
@@ -560,13 +521,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                     <p style={{ fontSize: 12, color: '#B0B0B0', marginBottom: 4 }}>
                       {service.duration_minutes} min
                     </p>
-                    <p
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: 'var(--brand-primary)',
-                      }}
-                    >
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand-primary)' }}>
                       {formatPrice(service.price)}
                     </p>
                   </Link>
@@ -577,38 +532,68 @@ export default async function AppHomePage({ params, searchParams }: Props) {
 
           {/* Prodotti */}
           {productsScroll && (
-            <div style={animated(120)}>{productsScroll}</div>
+            <div style={animated(activeOffers.length > 0 ? 120 : 60)}>{productsScroll}</div>
           )}
 
-          {/* Banner loyalty */}
-          <div
-            style={{
-              ...animated(180),
-              background: '#F9F9F9',
-              borderRadius: 16,
-              padding: '16px 20px',
-              marginBottom: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <p style={{ fontSize: 13, color: '#666666', flex: 1, margin: 0 }}>
-              💈 Accedi per guadagnare punti ad ogni visita
-            </p>
-            <Link
-              href={tp('/accesso')}
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: 'var(--brand-primary)',
-                textDecoration: 'none',
-                flexShrink: 0,
-              }}
+          {/* Card accedi */}
+          <div style={{ ...animated(activeOffers.length > 0 ? 180 : 120), marginBottom: 16 }}>
+            <div
+              style={
+                {
+                  height: 180,
+                  borderRadius: 28,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
+                } as CSSProperties
+              }
             >
-              Accedi
-            </Link>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 18,
+                  fontSize: 32,
+                  lineHeight: 1,
+                }}
+              >
+                💈
+              </div>
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 12,
+                  left: 12,
+                  right: 12,
+                  background: '#FFFFFF',
+                  borderRadius: 20,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <p style={{ flex: 1, margin: 0, fontSize: 13, fontWeight: 600, color: '#18181B' }}>
+                  Accedi per prenotare e guadagnare punti 💈
+                </p>
+                <Link
+                  href={tp('/accesso')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 999,
+                    background: '#18181B',
+                    color: '#FFFFFF',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Accedi
+                </Link>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -760,7 +745,6 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           <div style={{ ...animated(0), marginBottom: 16 }}>
             <AppointmentPill
               startTime={homeData.nextAppointment.startTime}
-              isToday={homeData.nextAppointmentIsToday ?? false}
               detailHref={tp('/appuntamenti')}
             />
           </div>
@@ -801,46 +785,61 @@ export default async function AppHomePage({ params, searchParams }: Props) {
 
           {/* Card appuntamento compatta — stile list item premium */}
           <div style={{ ...animated(activeOffers.length > 0 ? 120 : 60), marginBottom: 16 }}>
-            <p
+            <div
               style={{
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.6px',
-                fontWeight: 700,
-                color: '#9CA3AF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
                 marginBottom: 10,
                 paddingLeft: 2,
+                paddingRight: 2,
               }}
             >
-              Prossimo appuntamento
-            </p>
+              <p style={{ fontSize: 16, fontWeight: 500, color: '#111111', margin: 0 }}>
+                I tuoi appuntamenti
+              </p>
+              <Link
+                href={tp('/appuntamenti')}
+                style={{ fontSize: 14, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+              >
+                Vedi tutti
+              </Link>
+            </div>
             <div
               style={{
                 background: '#FFFFFF',
-                borderRadius: 20,
-                padding: '14px 16px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
+                borderRadius: 16,
+                padding: '10px 10px',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 14,
+                gap: 12,
+                minHeight: 68,
               }}
             >
-              {/* Brand circle icon */}
+              {/* Date box */}
               <div
                 style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: '50%',
-                  background: 'color-mix(in srgb, var(--brand-primary) 12%, #ffffff)',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  background: '#f5f5f3',
+                  borderRadius: 10,
+                  padding: '6px 10px',
                   flexShrink: 0,
-                  fontSize: 22,
-                  lineHeight: 1,
+                  minWidth: 48,
                 }}
               >
-                ✂️
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#999', letterSpacing: '0.5px', lineHeight: 1 }}>
+                  {formatWeekday(homeData.nextAppointment.startTime)}
+                </span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: '#111', lineHeight: 1.1, margin: '1px 0' }}>
+                  {formatDay(homeData.nextAppointment.startTime)}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#999', letterSpacing: '0.5px', lineHeight: 1 }}>
+                  {formatMonth(homeData.nextAppointment.startTime)}
+                </span>
               </div>
 
               {/* Info */}
@@ -853,29 +852,24 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    marginBottom: 4,
+                    margin: 0,
+                    marginBottom: 2,
                   }}
                 >
                   {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
                 </p>
-                <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>
-                  {formatWeekday(homeData.nextAppointment.startTime)}{' '}
-                  {formatDay(homeData.nextAppointment.startTime)}{' '}
-                  {formatMonth(homeData.nextAppointment.startTime)} · {formatTime(homeData.nextAppointment.startTime)}
+                <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 500, margin: 0 }}>
+                  {formatTime(homeData.nextAppointment.startTime)}
+                  {homeData.nextAppointment.staffName ? ` · con ${homeData.nextAppointment.staffName}` : ''}
                 </p>
-                {homeData.nextAppointment.staffName ? (
-                  <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
-                    con {homeData.nextAppointment.staffName}
-                  </p>
-                ) : null}
               </div>
 
-              {/* Brand action button */}
+              {/* Arrow button */}
               <Link
                 href={tp('/appuntamenti')}
                 style={{
-                  width: 42,
-                  height: 42,
+                  width: 36,
+                  height: 36,
                   borderRadius: '50%',
                   background: 'var(--brand-primary)',
                   display: 'flex',
@@ -883,20 +877,20 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   justifyContent: 'center',
                   textDecoration: 'none',
                   flexShrink: 0,
-                  boxShadow: '0 4px 12px color-mix(in srgb, var(--brand-primary) 40%, transparent)',
                 }}
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#FFFFFF"
-                  strokeWidth="2.8"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <polyline points="9 18 15 12 9 6" />
+                  <line x1="7" y1="17" x2="17" y2="7" />
+                  <polyline points="7 7 17 7 17 17" />
                 </svg>
               </Link>
             </div>
