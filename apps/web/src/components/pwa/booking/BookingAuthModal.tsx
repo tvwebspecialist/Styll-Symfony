@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { EmailOtpForm } from '@/components/pwa/auth/EmailOtpForm'
+import { floatingCardShellStyle } from '@/components/pwa/FloatingCard'
 
 interface BookingAuthModalProps {
   primaryColor: string
@@ -166,8 +167,8 @@ export default function BookingAuthModal({
 
       {/* Floating panel */}
       <motion.div
-        className="fixed bottom-2 left-2 right-2 z-[70] bg-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden"
-        style={{ borderRadius: 44 }}
+        className="fixed bottom-2 left-2 right-2 z-[70] overflow-hidden"
+        style={{ ...floatingCardShellStyle }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}

@@ -71,7 +71,7 @@ export interface AdminStats {
   total_tenants: number
   active_tenants: number
   suspended_tenants: number
-  total_users: number
+  total_staff: number
   new_signups_7d: number
   new_signups_30d: number
   total_services: number
@@ -121,9 +121,9 @@ export async function getAdminStats(): Promise<{
     db.from('tenants').select('id, created_at, status'),
     db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'suspended'),
-    db.from('profiles').select('*', { count: 'exact', head: true }),
-    db.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', d7),
-    db.from('profiles').select('id, created_at').gte('created_at', d365),
+    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
+    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true').gte('created_at', d7),
+    db.from('profiles').select('id, created_at').or('user_type.eq.staff,is_superadmin.eq.true').gte('created_at', d365),
     db.from('services').select('*', { count: 'exact', head: true }),
     db.from('subscription_plans').select('*', { count: 'exact', head: true }),
     db
@@ -208,7 +208,7 @@ export async function getAdminStats(): Promise<{
       total_tenants: tenantsArr.length,
       active_tenants: activeTenants.count ?? 0,
       suspended_tenants: suspendedTenants.count ?? 0,
-      total_users: users.count ?? 0,
+      total_staff: users.count ?? 0,
       new_signups_7d: newSignups7Count,
       new_signups_30d: allRecentUsers.filter(
         (u) => new Date(u.created_at).getTime() >= new Date(d30).getTime()
@@ -355,6 +355,7 @@ export async function adminGlobalSearch(query: string): Promise<{
       .from('profiles')
       .select('id, full_name, email')
       .or(`full_name.ilike.${q},email.ilike.${q}`)
+      .or('user_type.eq.staff,is_superadmin.eq.true')
       .limit(8),
     db
       .from('services')

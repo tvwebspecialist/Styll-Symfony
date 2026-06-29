@@ -16,7 +16,7 @@ export default async function StaffPage({
       .select('id, profile_id, role, bio, is_active, photo_url, created_at, profile:profiles(full_name, email)')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true }),
-    db.from('profiles').select('id, full_name, email').order('full_name', { ascending: true }),
+    db.from('profiles').select('id, full_name, email').or('user_type.eq.staff,is_superadmin.eq.true').order('full_name', { ascending: true }),
   ])
 
   return (

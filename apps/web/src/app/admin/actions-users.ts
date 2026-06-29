@@ -79,7 +79,7 @@ export async function inviteUser(input: {
   const db = createAdminClient()
 
   const { data: invited, error } = await db.auth.admin.inviteUserByEmail(input.email, {
-    data: { full_name: input.fullName ?? null },
+    data: { full_name: input.fullName ?? null, user_type: 'staff' },
   })
   if (error) return { success: false, error: error.message }
   const userId = invited?.user?.id
@@ -92,6 +92,7 @@ export async function inviteUser(input: {
       email: input.email,
       full_name: input.fullName ?? null,
       is_superadmin: input.isSuperadmin ?? false,
+      user_type: 'staff',
     } as TablesInsert<'profiles'>)
 
   if (input.tenantId) {

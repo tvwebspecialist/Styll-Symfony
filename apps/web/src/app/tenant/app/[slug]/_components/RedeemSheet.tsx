@@ -38,7 +38,7 @@ export function RedeemSheet({ reward, children }: RedeemSheetProps) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton className="rounded-[28px]">
+        <DialogContent showCloseButton className="rounded-[44px]">
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-neutral-950">
               Riscatta il premio

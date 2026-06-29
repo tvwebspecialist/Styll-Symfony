@@ -238,8 +238,8 @@ async function DashboardContent() {
           iconColor="text-emerald-400"
         />
         <StatCard
-          label="Utenti totali"
-          value={s.total_users}
+          label="Staff totali"
+          value={s.total_staff}
           sub={`${s.total_services} servizi configurati`}
           icon={Users}
           iconBg="bg-indigo-500/15"

@@ -51,11 +51,13 @@ export async function listTenantClients(
     from: (t: string) => {
       select: (s: string) => {
         eq: (c: string, v: string) => {
-          order: (
-            c: string,
-            opts: { ascending: boolean }
-          ) => {
-            limit: (n: number) => Promise<{ data: TenantClientRow[] | null; error: { message: string } | null }>
+          is: (c: string, v: null) => {
+            order: (
+              c: string,
+              opts: { ascending: boolean }
+            ) => {
+              limit: (n: number) => Promise<{ data: TenantClientRow[] | null; error: { message: string } | null }>
+            }
           }
         }
       }
@@ -65,6 +67,7 @@ export async function listTenantClients(
     .from('clients')
     .select('id, full_name, phone, email, created_at')
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }
@@ -73,7 +76,7 @@ export async function listTenantClients(
 
 export interface TenantAppointmentRow {
   id: string
-  starts_at: string
+  start_time: string
   status: string
   client_name: string | null
 }
@@ -95,7 +98,7 @@ export async function listTenantAppointments(
               data:
                 | Array<{
                     id: string
-                    starts_at: string
+                    start_time: string
                     status: string
                     client: { full_name: string | null } | { full_name: string | null }[] | null
                   }>
@@ -109,16 +112,16 @@ export async function listTenantAppointments(
   }
   const { data, error } = await db
     .from('appointments')
-    .select('id, starts_at, status, client:clients(full_name)')
+    .select('id, start_time, status, client:clients(full_name)')
     .eq('tenant_id', tenantId)
-    .order('starts_at', { ascending: false })
+    .order('start_time', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }
   const rows: TenantAppointmentRow[] = (data ?? []).map((r) => {
     const c = Array.isArray(r.client) ? r.client[0] : r.client
     return {
       id: r.id,
-      starts_at: r.starts_at,
+      start_time: r.start_time,
       status: r.status,
       client_name: c?.full_name ?? null,
     }
