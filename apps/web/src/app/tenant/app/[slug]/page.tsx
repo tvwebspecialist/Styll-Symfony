@@ -551,40 +551,29 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                 {/* Text */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 22, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, margin: 0 }}>
-                    Porta{' '}
-                    <span style={{ color: tenant.primary_color ?? 'var(--brand-primary)' }}>
-                      {displayBusinessName}
-                    </span>
-                    {' '}sempre con te.
+                    <span style={{ color: tenant.primary_color ?? 'var(--brand-primary)' }}>Accedi</span>
+                    {' '}per non perderti nulla.
                   </p>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
-                    Prenota, accumula punti fedeltà e ricevi offerte esclusive — tutto dal tuo telefono.
+                    Prenota in pochi secondi, accumula punti ad ogni visita e ricevi offerte riservate solo a te.
                   </p>
                 </div>
 
-                {/* Logo box */}
+                {/* Logo */}
                 {tenant.logo_url && (
-                  <div
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tenant.logo_url}
+                    alt={displayBusinessName}
                     style={{
                       width: 80,
                       height: 80,
                       flexShrink: 0,
-                      borderRadius: 16,
-                      background: 'rgba(255,255,255,0.08)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: `0 0 40px 10px ${tenant.primary_color ? tenant.primary_color + '55' : 'rgba(255,255,255,0.15)'}`,
-                      overflow: 'hidden',
+                      borderRadius: 22,
+                      objectFit: 'cover',
+                      boxShadow: `0 0 32px 8px ${tenant.primary_color ? tenant.primary_color + '40' : 'rgba(255,255,255,0.12)'}`,
                     }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={tenant.logo_url}
-                      alt={displayBusinessName}
-                      style={{ width: 56, height: 56, objectFit: 'contain' }}
-                    />
-                  </div>
+                  />
                 )}
               </div>
 
@@ -606,7 +595,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Accedi →
+                Accedi
               </Link>
             </div>
           </div>
