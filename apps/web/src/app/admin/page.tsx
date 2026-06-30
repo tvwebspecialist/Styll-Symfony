@@ -25,8 +25,7 @@ import { GrowthLineChart, SignupsBarChart } from './dashboard-client'
 
 export const dynamic = 'force-dynamic'
 
-const cardClass =
-  'rounded-2xl border bg-[var(--admin-surface)] border-[var(--admin-border)] p-5 shadow-[var(--shadow-md)]'
+const cardClass = 'admin-card p-5'
 
 function StatCard({
   label,
@@ -47,11 +46,9 @@ function StatCard({
 }) {
   return (
     <div
-      className="relative flex flex-col gap-4 rounded-2xl border p-5 shadow-[var(--shadow-md)] transition-shadow hover:shadow-[var(--shadow-lg)]"
-      style={{
-        background: 'var(--admin-surface)',
-        borderColor: 'var(--admin-border)',
-      }}
+      className={`admin-card relative flex flex-col gap-4 p-5 transition-shadow hover:shadow-[var(--shadow-lg)] ${
+        alert ? 'border-amber-500/30' : ''
+      }`}
     >
       <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
         <Icon size={18} className={iconColor} />
@@ -59,32 +56,24 @@ function StatCard({
 
       <div className="flex flex-col gap-0.5">
         <span
-          className={`font-[Outfit] text-3xl font-bold tabular-nums leading-none ${
-            alert ? 'text-amber-400' : ''
-          }`}
-          style={alert ? undefined : { color: 'var(--admin-text)' }}
+          className={`text-3xl font-bold tabular-nums leading-none ${alert ? 'text-amber-500' : ''}`}
+          style={alert ? undefined : { color: 'var(--admin-text)', fontFamily: 'var(--font-primary)' }}
         >
           {value}
         </span>
-        <span
-          className="mt-1 text-xs font-medium uppercase tracking-wide"
-          style={{ color: 'var(--admin-text-muted)' }}
-        >
+        <span className="mt-1 text-[11px] font-medium uppercase tracking-widest" style={{ color: 'var(--admin-text-subtle)' }}>
           {label}
         </span>
       </div>
 
       {sub && (
-        <span
-          className={`text-xs ${alert ? 'text-amber-400/80' : ''}`}
-          style={alert ? undefined : { color: 'var(--admin-text-subtle)' }}
-        >
+        <span className={`text-xs ${alert ? 'text-amber-500/80' : ''}`} style={alert ? undefined : { color: 'var(--admin-text-muted)' }}>
           {sub}
         </span>
       )}
 
       {alert && (
-        <div className="pointer-events-none absolute inset-0 rounded-2xl border border-amber-500/20 bg-amber-500/[0.03]" />
+        <div className="pointer-events-none absolute inset-0 rounded-[var(--radius-lg)] border border-amber-500/20 bg-amber-500/[0.04]" />
       )}
     </div>
   )
@@ -366,7 +355,7 @@ async function DashboardContent() {
               const Icon = eventIcon(ev.action)
               return (
                 <li key={ev.id} className="flex items-start gap-3 py-3">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--admin-surface-2)] text-zinc-300">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text-subtle)' }}>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -418,26 +407,23 @@ function AlertCard({
   description: string
 }) {
   return (
-    <div
-      className="relative rounded-2xl border border-amber-500/20 p-5 shadow-[var(--shadow-md)]"
-      style={{ background: 'var(--admin-surface)' }}
-    >
-      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-amber-500/[0.06]" />
+    <div className="relative admin-card border-amber-500/30 p-5">
+      <div className="pointer-events-none absolute inset-0 rounded-[var(--radius-lg)] bg-amber-500/[0.05]" />
       <div className="relative flex items-start justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-amber-500">
           {title}
         </span>
-        <Icon className="h-5 w-5 text-amber-400" />
+        <Icon className="h-5 w-5 text-amber-500" />
       </div>
       <div className="relative mt-3 flex flex-col gap-1">
-        <span className="font-[Outfit] text-3xl font-bold tabular-nums text-amber-300">
+        <span className="text-3xl font-bold tabular-nums text-amber-500" style={{ fontFamily: 'var(--font-primary)' }}>
           {count}
         </span>
-        <span className="text-xs text-amber-400/80">{description}</span>
+        <span className="text-xs text-amber-500/80">{description}</span>
       </div>
       <Link
         href="/admin/tenants"
-        className="relative mt-3 inline-flex text-xs font-medium text-amber-400 hover:underline"
+        className="relative mt-3 inline-flex text-xs font-semibold text-amber-500 hover:underline"
       >
         Vedi tenants →
       </Link>
@@ -465,11 +451,11 @@ function DashboardSkeleton() {
 export default function AdminHomePage() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Dashboard' }]} />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--admin-text)]">Dashboard</h1>
-          <p className="text-sm text-[var(--admin-text-muted)]">Panoramica della piattaforma Styll</p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)', fontFamily: 'var(--font-primary)' }}>Dashboard</h1>
+          <p className="text-sm" style={{ color: 'var(--admin-text-muted)' }}>Panoramica della piattaforma Styll</p>
         </div>
       </div>
 

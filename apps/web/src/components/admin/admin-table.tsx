@@ -167,10 +167,16 @@ export function AdminTable<Row>({
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div
+        className="overflow-hidden rounded-[var(--radius-lg)] border"
+        style={{ background: 'var(--admin-surface)', borderColor: 'var(--admin-border)' }}
+      >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <table className="w-full text-sm" style={{ fontFamily: 'var(--font-primary)' }}>
+            <thead
+              className="sticky top-0 z-10 text-left text-xs uppercase tracking-wide"
+              style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text-subtle)', borderBottom: '1px solid var(--admin-border)' }}
+            >
               <tr>
                 {selectable ? (
                   <th className="w-8 px-3 py-2">
@@ -223,7 +229,8 @@ export function AdminTable<Row>({
                 <tr>
                   <td
                     colSpan={colCount}
-                    className="px-3 py-12 text-center text-xs text-muted-foreground"
+                    className="px-3 py-12 text-center text-xs"
+                    style={{ color: 'var(--admin-text-subtle)' }}
                   >
                     {emptyMessage}
                   </td>
@@ -235,11 +242,13 @@ export function AdminTable<Row>({
                   return (
                     <tr
                       key={id}
-                      className={cn(
-                        'border-t transition-colors',
-                        isSel ? 'bg-accent/40' : 'hover:bg-muted/30',
-                        onRowClick && 'cursor-pointer'
-                      )}
+                      className={cn('border-t transition-colors', onRowClick && 'cursor-pointer')}
+                      style={{
+                        borderColor: 'var(--admin-border)',
+                        background: isSel ? 'var(--admin-accent-subtle)' : undefined,
+                      }}
+                      onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'var(--admin-hover-bg)' }}
+                      onMouseLeave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '' }}
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
                     >
                       {selectable ? (

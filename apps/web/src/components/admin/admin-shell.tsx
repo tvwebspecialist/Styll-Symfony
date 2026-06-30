@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import { GlobalSearch } from '@/components/admin/global-search'
+import { NotificationBell } from '@/components/admin/notification-bell'
 import { stopTenantImpersonation } from '@/app/admin/actions'
 
 // ─── Nav config ──────────────────────────────────────────────
@@ -38,8 +39,8 @@ const SECTIONS: NavSection[] = [
     label: 'Operatività',
     items: [
       { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
-      { label: 'Tenants', href: '/admin/tenants', icon: Building2, countKey: 'tenants' },
-      { label: 'Utenti', href: '/admin/users', icon: Users, countKey: 'users' },
+      { label: 'Barbieri', href: '/admin/tenants', icon: Building2, countKey: 'tenants' },
+      { label: 'Staff', href: '/admin/users', icon: Users, countKey: 'users' },
     ],
   },
   {
@@ -52,12 +53,12 @@ const SECTIONS: NavSection[] = [
   },
 ]
 
-const MOBILE_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
-  { label: 'Tenants', href: '/admin/tenants', icon: Building2 },
-  { label: 'Utenti', href: '/admin/users', icon: Users },
+const MOBILE_TABS: NavItem[] = [
+  { label: 'Overview', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
+  { label: 'Barbieri', href: '/admin/tenants', icon: Building2 },
+  { label: 'Staff', href: '/admin/users', icon: Users },
   { label: 'Piani', href: '/admin/subscription-plans', icon: CreditCard },
-  { label: 'Impostazioni', href: '/admin/settings', icon: Settings },
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
 ]
 
 // ─── Types ───────────────────────────────────────────────────
@@ -81,56 +82,34 @@ function isActive(pathname: string, item: NavItem): boolean {
     : pathname === item.href || pathname.startsWith(item.href + '/')
 }
 
-// ─── SidebarLink ─────────────────────────────────────────────
-function SidebarLink({
+function initials(email: string | null): string {
+  if (!email) return 'AD'
+  return email.split('@')[0].slice(0, 2).toUpperCase()
+}
+
+// ─── SidebarNavItem ──────────────────────────────────────────
+function SidebarNavItem({
   item,
   active,
-  badge,
+  count,
 }: {
   item: NavItem
   active: boolean
-  badge?: number
+  count?: number
 }) {
-  const [hover, setHover] = React.useState(false)
   const Icon = item.icon
-
   return (
     <Link
       href={item.href}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        fontSize: 14,
-        fontWeight: 500,
-        padding: '10px 12px',
-        borderRadius: 8,
-        textDecoration: 'none',
-        transition: 'background 120ms ease, color 120ms ease',
-        background: active
-          ? 'var(--sidebar-item-active-bg)'
-          : hover
-            ? 'var(--sidebar-item-hover-bg)'
-            : 'transparent',
-        color: active ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-item-text)',
-      }}
+      className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+        active ? 'admin-nav-active' : 'admin-nav-inactive'
+      }`}
     >
-      <Icon size={18} color={active ? 'var(--sidebar-item-active-text)' : 'currentColor'} />
-      <span style={{ flex: 1 }}>{item.label}</span>
-      {typeof badge === 'number' && (
-        <span
-          style={{
-            background: active ? 'rgba(255,255,255,0.15)' : 'var(--sidebar-item-hover-bg)',
-            color: active ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-section-label)',
-            borderRadius: 999,
-            padding: '1px 7px',
-            fontSize: 10,
-            fontWeight: 600,
-          }}
-        >
-          {badge}
+      <Icon size={16} className="shrink-0" />
+      <span className="flex-1 font-medium">{item.label}</span>
+      {typeof count === 'number' && count > 0 && (
+        <span className="rounded-full bg-[var(--admin-accent)] px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
+          {count > 999 ? '999+' : count}
         </span>
       )}
     </Link>
@@ -162,140 +141,81 @@ export function AdminShell({
     setExitingImpersonation(false)
   }
 
-  // Initials from email
-  const initials = email
-    ? email.split('@')[0].slice(0, 2).toUpperCase()
-    : 'AD'
+  const userInitials = initials(email)
 
   return (
     <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        background: 'var(--sidebar-bg)',
-        fontFamily: 'var(--font-primary)',
-        color: 'var(--sidebar-item-text)',
-      }}
+      className="min-h-screen font-[family-name:var(--font-primary)]"
+      style={{ background: 'var(--admin-bg)', color: 'var(--admin-text)' }}
     >
       {/* ── Desktop Sidebar ──────────────────────────────── */}
       <aside
-        style={{
-          display: 'none',
-          flexDirection: 'column',
-          flexShrink: 0,
-          padding: 16,
-          width: 'var(--sidebar-width)',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          height: '100vh',
-          zIndex: 40,
-          overflowY: 'auto',
-          scrollbarWidth: 'none',
-        }}
-        className="md:!flex"
+        className="fixed inset-y-0 left-0 z-40 hidden flex-col md:flex"
+        style={{ width: 'var(--admin-sidebar-width)' }}
       >
         <div
+          className="flex h-full flex-col overflow-hidden border-r"
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            borderRadius: 20,
-            background: 'var(--sidebar-bg)',
-            border: '1px solid var(--sidebar-border)',
-            padding: '0 0 8px 0',
-            overflow: 'hidden',
+            background: 'var(--admin-sidebar-bg)',
+            borderColor: 'var(--admin-border)',
           }}
         >
           {/* Brand */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 60,
-              padding: '0 20px',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--sidebar-item-text)' }}>
+          <div className="flex h-16 shrink-0 items-center gap-2 border-b px-5"
+            style={{ borderColor: 'var(--admin-border)' }}>
+            <span
+              className="text-lg font-bold tracking-tight"
+              style={{ color: 'var(--admin-text)', fontFamily: 'var(--font-primary)' }}
+            >
               Styll
             </span>
-            <span className="rounded-md bg-red-900/40 px-2 py-0.5 text-[10px] font-bold tracking-widest text-red-400">
+            <span className="rounded-md bg-[var(--admin-accent)] px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white">
               ADMIN
             </span>
           </div>
 
-          {/* Nav */}
-          <nav style={{ flex: 1, padding: '0 12px', overflowY: 'auto', scrollbarWidth: 'none' }}>
+          {/* Nav sections */}
+          <nav className="flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none]">
             {SECTIONS.map((section, idx) => (
-              <div key={section.label}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--sidebar-section-label)',
-                    padding: `${idx === 0 ? 8 : 16}px 12px 6px`,
-                  }}
+              <div key={section.label} className={idx > 0 ? 'mt-6' : ''}>
+                <p
+                  className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-widest"
+                  style={{ color: 'var(--admin-text-subtle)' }}
                 >
                   {section.label}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map((item) => (
+                    <SidebarNavItem
+                      key={item.href}
+                      item={item}
+                      active={isActive(pathname, item)}
+                      count={item.countKey ? counts?.[item.countKey] : undefined}
+                    />
+                  ))}
                 </div>
-                {section.items.map((item) => (
-                  <SidebarLink
-                    key={item.href}
-                    item={item}
-                    active={isActive(pathname, item)}
-                    badge={item.countKey ? counts?.[item.countKey] : undefined}
-                  />
-                ))}
               </div>
             ))}
           </nav>
 
           {/* Footer */}
           <div
-            style={{
-              padding: '12px 16px',
-              borderTop: '1px solid var(--sidebar-border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
+            className="shrink-0 border-t p-3"
+            style={{ borderColor: 'var(--admin-border)' }}
           >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
+            <div className="mb-2 flex items-center gap-2.5 rounded-xl px-2 py-2">
               <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                 style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 999,
-                  background: 'var(--sidebar-item-hover-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--sidebar-item-text)',
-                  flexShrink: 0,
+                  background: 'var(--admin-surface-2)',
+                  color: 'var(--admin-text)',
                 }}
               >
-                {initials}
+                {userInitials}
               </div>
               <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--sidebar-section-label)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
+                className="truncate text-xs"
+                style={{ color: 'var(--admin-text-muted)' }}
               >
                 {email ?? '—'}
               </span>
@@ -304,23 +224,8 @@ export function AdminShell({
               type="button"
               onClick={handleSignOut}
               disabled={signingOut}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                width: '100%',
-                background: 'var(--sidebar-item-hover-bg)',
-                border: 'none',
-                borderRadius: 8,
-                padding: '8px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--sidebar-item-text)',
-                cursor: 'pointer',
-                opacity: signingOut ? 0.5 : 1,
-                transition: 'background 120ms ease',
-              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-colors hover:bg-[var(--admin-hover-bg)] disabled:opacity-50"
+              style={{ color: 'var(--admin-text-muted)' }}
             >
               <LogOut size={13} />
               {signingOut ? 'Uscita…' : 'Esci'}
@@ -330,162 +235,103 @@ export function AdminShell({
       </aside>
 
       {/* ── Main column ──────────────────────────────────── */}
-      <div
-        style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
-        className="md:ml-[var(--sidebar-width)]"
-      >
-        {/* TopBar */}
-        <header style={{ padding: '16px 16px 0' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: 60,
-              borderRadius: 20,
-              background: '#FFFFFF',
-              border: '1px solid var(--sidebar-border)',
-              padding: '0 20px',
-              gap: 12,
-            }}
-          >
-            {/* Mobile brand */}
+      <div className="flex flex-1 flex-col md:pl-[var(--admin-sidebar-width)]">
+        {/* Topbar */}
+        <header
+          className="sticky top-0 z-30 flex items-center gap-3 border-b px-4 md:px-6"
+          style={{
+            height: 'var(--admin-topbar-height)',
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderColor: 'var(--admin-border)',
+          }}
+        >
+          {/* Mobile brand */}
+          <div className="flex items-center gap-2 md:hidden">
+            <span className="text-sm font-bold" style={{ color: 'var(--admin-text)' }}>
+              Styll
+            </span>
+            <span className="rounded bg-[var(--admin-accent)] px-1 py-0.5 text-[9px] font-bold tracking-widest text-white">
+              ADMIN
+            </span>
+          </div>
+
+          {/* Shadow mode pill */}
+          {impersonation && (
             <div
-              className="flex md:hidden"
-              style={{ alignItems: 'center', gap: 8 }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sidebar-item-text)' }}>
-                Styll
-              </span>
-              <span className="rounded-md bg-red-900/40 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-400">
-                ADMIN
-              </span>
-            </div>
-
-            {/* Shadow mode pill */}
-            {impersonation && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'rgba(139,92,246,0.1)',
-                  border: '1px solid rgba(139,92,246,0.2)',
-                  borderRadius: 999,
-                  padding: '4px 10px 4px 8px',
-                  flexShrink: 0,
-                }}
-              >
-                <Eye size={13} style={{ color: '#8B5CF6' }} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#8B5CF6' }}>
-                  {impersonation.tenantName}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleExitImpersonation}
-                  disabled={exitingImpersonation}
-                  style={{
-                    marginLeft: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    opacity: exitingImpersonation ? 0.5 : 1,
-                  }}
-                  aria-label="Esci da shadow mode"
-                >
-                  <X size={12} style={{ color: '#8B5CF6' }} />
-                </button>
-              </div>
-            )}
-
-            <div style={{ flex: 1 }} />
-
-            <GlobalSearch />
-
-            {/* Admin avatar */}
-            <div
+              className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
+                background: 'rgba(139,92,246,0.08)',
+                borderColor: 'rgba(139,92,246,0.2)',
+                color: '#8B5CF6',
               }}
             >
-              <span
-                className="hidden sm:inline"
-                style={{ fontSize: 12, color: 'var(--sidebar-section-label)' }}
+              <Eye size={12} />
+              <span>{impersonation.tenantName}</span>
+              <button
+                type="button"
+                onClick={handleExitImpersonation}
+                disabled={exitingImpersonation}
+                className="ml-1 flex items-center opacity-70 hover:opacity-100 disabled:opacity-40"
+                aria-label="Esci da shadow mode"
               >
-                {email ?? '—'}
-              </span>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  background: 'var(--sidebar-item-hover-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: 'var(--sidebar-item-text)',
-                  flexShrink: 0,
-                }}
-              >
-                {initials}
-              </div>
+                <X size={11} />
+              </button>
             </div>
+          )}
+
+          <div className="flex-1" />
+
+          <GlobalSearch />
+          <NotificationBell />
+
+          {/* Avatar */}
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+            style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text)' }}
+          >
+            {userInitials}
           </div>
         </header>
 
-        <main style={{ flex: 1, overflowX: 'auto', padding: '16px 16px 96px' }}>
+        {/* Page content */}
+        <main className="flex-1 px-4 py-6 pb-28 md:px-6 md:pb-6">
           {children}
         </main>
       </div>
 
-      {/* ── Mobile Bottom Nav ─────────────────────────────── */}
+      {/* ── Mobile Bottom Tab Bar ─────────────────────────── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 pt-2 md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t md:hidden"
         style={{
-          background: 'rgba(255,255,255,0.92)',
+          background: 'rgba(255,255,255,0.96)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          borderTop: '1px solid var(--sidebar-border)',
+          borderColor: 'var(--admin-border)',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+          paddingTop: '8px',
         }}
       >
-        {MOBILE_ITEMS.map((item) => {
+        {MOBILE_TABS.map((item) => {
           const active = isActive(pathname, item)
           const Icon = item.icon
           return (
             <Link
               key={item.href}
               href={item.href}
+              className="flex min-w-[48px] flex-col items-center gap-1 rounded-xl px-2 py-1 transition-colors"
               aria-label={item.label}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-                padding: '6px 10px',
-                borderRadius: 10,
-                textDecoration: 'none',
-                background: active ? 'var(--sidebar-item-hover-bg)' : 'transparent',
-                transition: 'background 120ms ease',
-                minWidth: 48,
-              }}
             >
               <Icon
                 size={20}
-                color={active ? 'var(--sidebar-item-active-bg)' : 'var(--sidebar-section-label)'}
+                style={{ color: active ? 'var(--admin-accent)' : 'var(--admin-text-subtle)' }}
               />
               <span
+                className="text-[10px] font-semibold"
                 style={{
-                  fontSize: 10,
+                  color: active ? 'var(--admin-accent)' : 'var(--admin-text-subtle)',
                   fontWeight: active ? 700 : 500,
-                  color: active ? 'var(--sidebar-item-active-bg)' : 'var(--sidebar-section-label)',
-                  whiteSpace: 'nowrap',
                 }}
               >
                 {item.label}
