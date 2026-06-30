@@ -15,10 +15,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!user) redirect('/login')
 
   const db = createAdminClient()
-  const [profileRes, tenantsCount, usersCount] = await Promise.all([
+  const [profileRes, tenantsCount, usersCount, unreadNotifRes] = await Promise.all([
     db.from('profiles').select('is_superadmin').eq('id', user.id).maybeSingle(),
     db.from('tenants').select('*', { count: 'exact', head: true }),
     db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
+    db.from('platform_notifications').select('id', { count: 'exact', head: true }).eq('is_read', false),
   ])
 
   if (!profileRes.data?.is_superadmin) redirect('/dashboard')
@@ -31,6 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         tenants: tenantsCount.count ?? 0,
         users: usersCount.count ?? 0,
       }}
+      initialUnreadCount={unreadNotifRes.count ?? 0}
     >
       {children}
     </AdminShell>

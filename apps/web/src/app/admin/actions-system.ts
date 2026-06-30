@@ -80,6 +80,7 @@ export interface AdminStats {
   tenants_without_services: number
   tenants_without_hours: number
   tenants_without_locations: number
+  tenants_without_owner: number
   growth_by_month: { month: string; count: number }[]
   signups_by_month: { month: string; count: number }[]
   recent_events: Array<{
@@ -117,6 +118,7 @@ export async function getAdminStats(): Promise<{
     subs,
     tenantList,
     auditEvents,
+    ownerMembers,
   ] = await Promise.all([
     db.from('tenants').select('id, created_at, status'),
     db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'active'),
@@ -137,7 +139,13 @@ export async function getAdminStats(): Promise<{
       .from('admin_audit_log')
       .select('id, action, entity_type, created_at, details')
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(30),
+    db
+      .from('staff_members')
+      .select('tenant_id')
+      .eq('role', 'owner')
+      .is('deleted_at', null)
+      .eq('is_active', true),
   ])
 
   const tenantsArr = (tenants.data ?? []) as Array<{
@@ -202,6 +210,11 @@ export async function getAdminStats(): Promise<{
   const noHours = tenantList2.filter((t) => (t.working_hours?.[0]?.count ?? 0) === 0).length
   const noLocations = tenantList2.filter((t) => (t.locations?.[0]?.count ?? 0) === 0).length
 
+  const tenantIdsWithOwner = new Set(
+    ((ownerMembers.data ?? []) as Array<{ tenant_id: string }>).map((r) => r.tenant_id)
+  )
+  const noOwner = tenantsArr.filter((t) => !tenantIdsWithOwner.has(t.id)).length
+
   return {
     success: true,
     data: {
@@ -219,6 +232,7 @@ export async function getAdminStats(): Promise<{
       tenants_without_services: noServices,
       tenants_without_hours: noHours,
       tenants_without_locations: noLocations,
+      tenants_without_owner: noOwner,
       growth_by_month: growth,
       signups_by_month: signups,
       recent_events:
