@@ -96,11 +96,11 @@ export default async function TenantsPage() {
   }))
 
   return (
-    <div className="flex flex-col gap-5">
-      <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Tenants' }]} />
+    <div className="flex flex-col gap-5" style={{ fontFamily: 'var(--font-primary)' }}>
+      <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Barbieri' }]} />
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Tenants</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>Barbieri</h1>
+        <p className="text-sm" style={{ color: 'var(--admin-text-muted)' }}>
           Gestisci tutti gli account business della piattaforma.
         </p>
       </div>

@@ -319,18 +319,49 @@
 
 /* ─── Admin (super-admin area) — light only ──────────────────── */
 :root {
-  --admin-bg: #F0F0F6;
+  --admin-bg: #FBFBFB;
   --admin-surface: #FFFFFF;
-  --admin-surface-2: #F7F7FC;
+  --admin-surface-2: #F5F5F5;
   --admin-border: rgba(0, 0, 0, 0.08);
   --admin-border-strong: rgba(0, 0, 0, 0.14);
-  --admin-text: #111118;
-  --admin-text-muted: #52525e;
-  --admin-text-subtle: #8888a0;
+  --admin-text: #222222;
+  --admin-text-muted: #6B7280;
+  --admin-text-subtle: #9CA3AF;
   --admin-accent: #E94560;
-  --admin-active-bg: #111118;
+  --admin-accent-subtle: rgba(233, 69, 96, 0.08);
+  --admin-active-bg: #222222;
   --admin-active-fg: #FFFFFF;
   --admin-hover-bg: rgba(0, 0, 0, 0.04);
+  --admin-sidebar-bg: #FFFFFF;
+  --admin-sidebar-width: 228px;
+  --admin-topbar-height: 64px;
+}
+
+/* Admin nav active indicator */
+.admin-nav-active {
+  background-color: var(--admin-accent-subtle) !important;
+  color: var(--admin-accent) !important;
+  border-left: 3px solid var(--admin-accent);
+  font-weight: 600;
+}
+.admin-nav-active svg {
+  color: var(--admin-accent) !important;
+}
+.admin-nav-inactive {
+  border-left: 3px solid transparent;
+  color: var(--admin-text-muted);
+}
+.admin-nav-inactive:hover {
+  background-color: var(--admin-hover-bg);
+  color: var(--admin-text);
+}
+
+/* Admin card baseline */
+.admin-card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 @keyframes tabFadeIn {

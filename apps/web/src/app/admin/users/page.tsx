@@ -18,9 +18,17 @@ export default async function UsersPage() {
   ])
 
   return (
-    <UsersClient
-      initialUsers={(usersRes.data ?? []) as never}
-      initialTenants={(tenantsRes.data ?? []) as never}
-    />
+    <div className="flex flex-col gap-5" style={{ fontFamily: 'var(--font-primary)' }}>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>Staff</h1>
+        <p className="text-sm" style={{ color: 'var(--admin-text-muted)' }}>
+          Gestisci i profili staff della piattaforma.
+        </p>
+      </div>
+      <UsersClient
+        initialUsers={(usersRes.data ?? []) as never}
+        initialTenants={(tenantsRes.data ?? []) as never}
+      />
+    </div>
   )
 }

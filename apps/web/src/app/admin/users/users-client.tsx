@@ -309,7 +309,10 @@ export function UsersClient({
       header: '',
       className: 'w-10',
       accessor: (r) => (
-        <span className="bg-zinc-200  text-zinc-700  rounded-full w-8 h-8 inline-flex items-center justify-center text-xs font-semibold">
+        <span
+          className="rounded-full w-8 h-8 inline-flex items-center justify-center text-xs font-bold"
+          style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text)' }}
+        >
           {initialsFor(r)}
         </span>
       ),
@@ -337,7 +340,8 @@ export function UsersClient({
             e.stopPropagation()
             openTenantsFor(r)
           }}
-          className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-200   "
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors hover:bg-[var(--admin-hover-bg)]"
+          style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text-muted)' }}
         >
           <UsersIcon className="h-3 w-3" />
           Tenant
