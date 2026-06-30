@@ -73,6 +73,7 @@ interface AdminShellProps {
   onSignOut: () => Promise<void>
   counts?: AdminCounts
   impersonation?: { tenantName: string; tenantId: string } | null
+  initialUnreadCount?: number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -123,6 +124,7 @@ export function AdminShell({
   onSignOut,
   counts,
   impersonation,
+  initialUnreadCount = 0,
 }: AdminShellProps) {
   const pathname = usePathname() ?? ''
   const router = useRouter()
@@ -284,7 +286,7 @@ export function AdminShell({
           <div className="flex-1" />
 
           <GlobalSearch />
-          <NotificationBell />
+          <NotificationBell initialUnreadCount={initialUnreadCount} />
 
           {/* Avatar */}
           <div
