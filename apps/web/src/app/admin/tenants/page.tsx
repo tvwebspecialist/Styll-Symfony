@@ -32,10 +32,25 @@ export default async function TenantsPage() {
     return map
   }
 
-  const [services, staff, locations, plans] = await Promise.all([
+  async function countClients(): Promise<CountMap> {
+    if (ids.length === 0) return empty
+    const { data } = await db
+      .from('clients')
+      .select('tenant_id')
+      .in('tenant_id', ids)
+      .is('deleted_at', null)
+    const map: CountMap = {}
+    for (const r of (data ?? []) as Array<{ tenant_id: string }>) {
+      map[r.tenant_id] = (map[r.tenant_id] ?? 0) + 1
+    }
+    return map
+  }
+
+  const [services, staff, locations, clients, plans] = await Promise.all([
     countBy('services'),
     countBy('staff_members'),
     countBy('locations'),
+    countClients(),
     listPlanOptions(),
   ])
 
@@ -90,6 +105,7 @@ export default async function TenantsPage() {
     staff_count: staff[t.id] ?? 0,
     active_staff_count: activeStaffMap[t.id] ?? 0,
     locations_count: locations[t.id] ?? 0,
+    clients_count: clients[t.id] ?? 0,
     plan_id: plansMap[t.id]?.plan_id ?? null,
     plan_name: plansMap[t.id]?.plan_name ?? null,
     subscription_status: plansMap[t.id]?.status ?? null,

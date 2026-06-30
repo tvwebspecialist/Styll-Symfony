@@ -40,7 +40,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
       { label: 'Barbieri', href: '/admin/tenants', icon: Building2, countKey: 'tenants' },
-      { label: 'Staff', href: '/admin/users', icon: Users, countKey: 'users' },
+      { label: 'Team Styll', href: '/admin/users', icon: Users, countKey: 'users' },
     ],
   },
   {
@@ -56,7 +56,7 @@ const SECTIONS: NavSection[] = [
 const MOBILE_TABS: NavItem[] = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
   { label: 'Barbieri', href: '/admin/tenants', icon: Building2 },
-  { label: 'Staff', href: '/admin/users', icon: Users },
+  { label: 'Team Styll', href: '/admin/users', icon: Users },
   { label: 'Piani', href: '/admin/subscription-plans', icon: CreditCard },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
 ]
