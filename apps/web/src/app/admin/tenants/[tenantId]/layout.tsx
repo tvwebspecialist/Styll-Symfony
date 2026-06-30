@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -134,10 +135,10 @@ export default async function TenantDetailLayout({
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Clienti" value={clientsCount ?? 0} />
-        <StatCard label="Appuntamenti" value={appointmentsCount ?? 0} />
-        <StatCard label="Servizi" value={servicesCount ?? 0} />
-        <StatCard label="Staff" value={staffCount ?? 0} />
+        <StatCard label="Clienti" value={clientsCount ?? 0} href={`/admin/tenants/${tenantId}/clients`} />
+        <StatCard label="Appuntamenti" value={appointmentsCount ?? 0} href={`/admin/tenants/${tenantId}/appointments`} />
+        <StatCard label="Servizi" value={servicesCount ?? 0} href={`/admin/tenants/${tenantId}/services`} />
+        <StatCard label="Staff" value={staffCount ?? 0} href={`/admin/tenants/${tenantId}/staff`} />
       </div>
 
       <TenantTabs tenantId={tenantId} tabs={TABS} />
@@ -147,15 +148,18 @@ export default async function TenantDetailLayout({
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, href }: { label: string; value: number; href: string }) {
   return (
-    <div className="admin-card p-4">
+    <Link
+      href={href}
+      className="admin-card block p-4 transition-shadow hover:shadow-[var(--shadow-md)]"
+    >
       <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--admin-text-subtle)' }}>
         {label}
       </div>
       <div className="mt-1.5 text-2xl font-bold tabular-nums" style={{ color: 'var(--admin-text)', fontFamily: 'var(--font-primary)' }}>
         {value}
       </div>
-    </div>
+    </Link>
   )
 }

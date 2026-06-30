@@ -9,7 +9,7 @@ export default async function UsersPage() {
     db
       .from('profiles')
       .select('id, full_name, email, is_superadmin, onboarding_completed, created_at')
-      .or('user_type.eq.staff,is_superadmin.eq.true')
+      .eq('is_superadmin', true)
       .order('created_at', { ascending: false }),
     db
       .from('tenants')
@@ -20,9 +20,9 @@ export default async function UsersPage() {
   return (
     <div className="flex flex-col gap-5" style={{ fontFamily: 'var(--font-primary)' }}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>Staff</h1>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>Team Styll</h1>
         <p className="text-sm" style={{ color: 'var(--admin-text-muted)' }}>
-          Gestisci i profili staff della piattaforma.
+          Gestisci i profili interni della piattaforma.
         </p>
       </div>
       <UsersClient
