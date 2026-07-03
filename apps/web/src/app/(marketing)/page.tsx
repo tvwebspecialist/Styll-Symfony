@@ -668,9 +668,14 @@ function Footer() {
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Legale</div>
-            {['Privacy Policy', 'Termini di servizio', 'Cookie Policy'].map((l) => (
-              <div key={l} style={{ marginBottom: 10 }}>
-                <a href="#" style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>{l}</a>
+            {([
+              { label: 'Privacy Policy', href: '/privacy' },
+              { label: 'Termini di servizio', href: '#' },
+              { label: 'Cookie Policy', href: '/cookie' },
+              { label: 'Sub-responsabili', href: '/sub-processor' },
+            ] as const).map(({ label, href }) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <Link href={href} style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>{label}</Link>
               </div>
             ))}
           </div>

@@ -28,6 +28,7 @@ function resolveUrlBanner(
 export function ClientAccessForm({
   tenantId,
   tenantSlug,
+  tenantName,
   initialEmail,
   returnTo,
   urlError,
@@ -57,6 +58,7 @@ export function ClientAccessForm({
         tenantId={tenantId}
         tenantSlug={tenantSlug}
         mode="page"
+        businessName={tenantName}
         prefillEmail={initialEmail}
         returnTo={returnTo}
       />

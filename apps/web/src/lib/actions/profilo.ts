@@ -539,6 +539,36 @@ export async function deleteAccount(
       return { ok: false, error: "Inserisci la tua email per confermare l'eliminazione" }
     }
     const db = createAdminClient()
+
+    // Collect all client IDs linked to this profile (across all tenants)
+    const { data: clientRows } = await db
+      .from('clients')
+      .select('id')
+      .eq('profile_id', user.id)
+
+    const clientIds = (clientRows ?? []).map((r) => r.id)
+
+    if (clientIds.length > 0) {
+      await Promise.all([
+        db.from('client_notes').delete().in('client_id', clientIds),
+        db.from('client_loyalty').delete().in('client_id', clientIds),
+        db.from('client_analytics').delete().in('client_id', clientIds),
+        db.from('client_badges').delete().in('client_id', clientIds),
+      ])
+    }
+
+    await db.from('push_subscriptions').delete().eq('profile_id', user.id)
+
+    const { data: avatarFiles } = await db.storage.from('avatars').list(user.id)
+    if (avatarFiles && avatarFiles.length > 0) {
+      const paths = avatarFiles.map((f) => `${user.id}/${f.name}`)
+      await db.storage.from('avatars').remove(paths)
+    }
+
+    // appointments e loyalty_transactions conservati per
+    // possibili obblighi fiscali (Art. 2220 c.c.).
+    // Il collegamento CRM viene rimosso tramite soft-delete
+    // del profilo cliente.
     const { error } = await db
       .from('profiles')
       .update({

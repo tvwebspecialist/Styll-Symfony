@@ -25,11 +25,13 @@ export default async function PreferenzePage({ params }: Props) {
   const db = createAdminClient()
   const [profileRes, clientRes] = await Promise.all([
     db.from('profiles').select('notification_preferences').eq('id', user.id).maybeSingle(),
-    db.from('clients').select('marketing_consent').eq('tenant_id', tenant.tenant_id).eq('profile_id', user.id).is('deleted_at', null).maybeSingle(),
+    db.from('clients').select('marketing_consent, churn_profiling_objected_at').eq('tenant_id', tenant.tenant_id).eq('profile_id', user.id).is('deleted_at', null).maybeSingle(),
   ])
 
   const notifPrefs = (profileRes.data?.notification_preferences as Record<string, boolean>) ?? {}
-  const marketingConsent = (clientRes.data as { marketing_consent?: boolean } | null)?.marketing_consent ?? false
+  const marketingConsent = clientRes.data?.marketing_consent ?? false
+  const churnObjected = clientRes.data?.churn_profiling_objected_at !== null &&
+    clientRes.data?.churn_profiling_objected_at !== undefined
 
   return (
     <main className="min-h-screen bg-[#F8F8F8] pb-24">
@@ -38,7 +40,9 @@ export default async function PreferenzePage({ params }: Props) {
           tenantId={tenant.tenant_id}
           initialNotifPrefs={notifPrefs}
           initialMarketingConsent={marketingConsent}
+          initialChurnObjected={churnObjected}
           primaryColor={tenant.primary_color ?? '#1a1a1a'}
+          privacyPath={tp('/privacy')}
         />
       </div>
     </main>

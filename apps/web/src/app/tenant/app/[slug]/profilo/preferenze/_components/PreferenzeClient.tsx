@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ExternalLink, FileText, Shield } from 'lucide-react'
-import { updateNotificationPreferences, updateMarketingConsent } from '@/lib/actions/pwa-client-actions'
+import { updateNotificationPreferences, updateMarketingConsent, updateChurnProfilingConsent } from '@/lib/actions/pwa-client-actions'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { useOptimistic, useTransition } from 'react'
 
@@ -10,7 +10,9 @@ interface Props {
   tenantId: string
   initialNotifPrefs: Record<string, boolean>
   initialMarketingConsent: boolean
+  initialChurnObjected: boolean
   primaryColor: string
+  privacyPath: string
 }
 
 function Toggle({
@@ -87,13 +89,16 @@ export function PreferenzeClient({
   tenantId,
   initialNotifPrefs,
   initialMarketingConsent,
+  initialChurnObjected,
   primaryColor: _primaryColor,
+  privacyPath,
 }: Props) {
   const { status, subscribe, unsubscribe } = usePushSubscription(tenantId)
   const [, startTransition] = useTransition()
 
   const [prefs, setPrefs] = useOptimistic(initialNotifPrefs)
   const [marketing, setMarketing] = useOptimistic(initialMarketingConsent)
+  const [churnObjected, setChurnObjected] = useOptimistic(initialChurnObjected)
 
   function updatePref(key: string, value: boolean) {
     startTransition(async () => {
@@ -106,6 +111,13 @@ export function PreferenzeClient({
     startTransition(async () => {
       setMarketing(value)
       await updateMarketingConsent(tenantId, value)
+    })
+  }
+
+  function updateChurn(objected: boolean) {
+    startTransition(async () => {
+      setChurnObjected(objected)
+      await updateChurnProfilingConsent(tenantId, objected)
     })
   }
 
@@ -164,6 +176,23 @@ export function PreferenzeClient({
         </div>
       </SectionCard>
 
+      {/* Analisi delle visite */}
+      <SectionCard title="Analisi delle visite">
+        <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex-1 pr-4">
+            <p className="text-sm font-medium text-neutral-800">Analisi della frequenza</p>
+            <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
+              Il tuo barbiere può vedere quanto tempo è passato dall&apos;ultima visita per capire quando
+              contattarti. Puoi disattivare questa analisi in qualsiasi momento.
+            </p>
+          </div>
+          <Toggle
+            checked={!churnObjected}
+            onChange={(v) => updateChurn(!v)}
+          />
+        </div>
+      </SectionCard>
+
       {/* Privacy */}
       <SectionCard title="Privacy">
         <LinkRow
@@ -177,7 +206,7 @@ export function PreferenzeClient({
         />
         <LinkRow
           label="Privacy policy"
-          href="https://styll.it/privacy"
+          href={privacyPath}
         />
       </SectionCard>
 

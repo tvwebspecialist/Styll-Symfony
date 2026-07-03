@@ -280,6 +280,7 @@ export default function BookingAuthModal({
                 tenantId={tenantId}
                 tenantSlug={tenantSlug}
                 mode="modal"
+                businessName={businessName}
                 prefillEmail={prefillEmail}
                 prefillFullName={prefillFullName}
                 prefillPhone={prefillPhone}
