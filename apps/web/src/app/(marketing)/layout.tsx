@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { CookieBanner } from '@/components/shared/CookieBanner'
 
 export const metadata: Metadata = {
   title: 'Styll — Il sistema di retention per barbieri',
@@ -21,5 +22,10 @@ export default function MarketingLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <div className="min-h-screen">{children}</div>
+  return (
+    <>
+      <div className="min-h-screen">{children}</div>
+      <CookieBanner privacyPath="/cookie" />
+    </>
+  )
 }

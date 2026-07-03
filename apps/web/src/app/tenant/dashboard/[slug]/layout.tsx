@@ -14,6 +14,7 @@ import { getImpersonationState, resolveActiveProfileForTenant } from '@/lib/tena
 import { getTenantBySlug } from '@/lib/tenant'
 import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
 import { NotificationOnboardingDashboard } from '@/components/dashboard/NotificationOnboardingDashboard'
+import { CookieBanner } from '@/components/shared/CookieBanner'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -226,6 +227,10 @@ export default async function TenantDashboardLayout({ params, children }: Props)
               logoUrl={tenantBySlug.logo_url}
               businessName={tenantBySlug.business_name}
               tenantId={tenantBySlug.tenant_id}
+            />
+            <CookieBanner
+              privacyPath="/cookie"
+              brandColor={tenantBySlug.primary_color ?? '#1A1A1A'}
             />
           </div>
         </NotificationCountProvider>
