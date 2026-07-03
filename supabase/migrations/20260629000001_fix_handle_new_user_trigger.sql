@@ -6,7 +6,7 @@
 -- i valori ammessi), default a 'client'.
 
 -- 'staff' viene assegnato SOLO quando il codice applicativo lo
--- imposta esplicitamente nel metadata al momento della creazione.
+-- imposta esplicitamente nel metadata al momento della creazione..
 -- =============================================================
 
 create or replace function public.handle_new_user()
