@@ -22,6 +22,7 @@ interface Props {
   puntiPath: string
   modificaPath: string
   preferenzePath: string
+  privacyPath: string
   basePath: string
   profile: {
     fullName: string | null
@@ -98,6 +99,7 @@ export function SettingsList({
   puntiPath,
   modificaPath,
   preferenzePath,
+  privacyPath,
   basePath,
 }: Props) {
   const [, startTransition] = useTransition()
@@ -152,8 +154,8 @@ export function SettingsList({
       <SectionCard title="Altro">
         <SettingRow
           icon={<GreyIcon icon={<FileText className="size-5" />} />}
-          label="Termini e Privacy"
-          href="https://styll.it/privacy"
+          label="Privacy Policy"
+          href={privacyPath}
         />
         <SettingRow
           icon={<div className="size-5 shrink-0 flex items-center justify-center" style={{ color: '#dc2626' }}><LogOut className="size-5" /></div>}

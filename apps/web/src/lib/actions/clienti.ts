@@ -761,7 +761,7 @@ export async function createCliente(input: {
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
     preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
-    marketing_consent: input.marketingConsent ?? true,
+    marketing_consent: input.marketingConsent ?? false,
     tags: '["active"]',
   }).select('id').single()
 

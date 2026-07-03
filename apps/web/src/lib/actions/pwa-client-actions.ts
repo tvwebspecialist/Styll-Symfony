@@ -339,3 +339,30 @@ export async function updateMarketingConsent(
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
   }
 }
+
+export async function updateChurnProfilingConsent(
+  tenantId: string,
+  objected: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { ok: false, error: 'Non autenticato' }
+
+    const db = createAdminClient()
+    const { error } = await db
+      .from('clients')
+      .update({
+        churn_profiling_objected_at: objected ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', tenantId)
+      .eq('profile_id', user.id)
+      .is('deleted_at', null)
+
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
+  }
+}

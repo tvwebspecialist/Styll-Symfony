@@ -152,7 +152,7 @@ export async function createTenantClient(
     full_name: input.full_name.trim(),
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
-    marketing_consent: true,
+    marketing_consent: false,
     preferred_contact_channel: 'whatsapp',
     tags: '["active"]',
   })
@@ -221,7 +221,7 @@ export async function seedDemoClients(
       full_name: `${first} ${last}`,
       email: `${slug}${suffix}@${pick(DEMO_DOMAINS)}`,
       phone: randomPhone(),
-      marketing_consent: true,
+      marketing_consent: false,
       preferred_contact_channel: 'whatsapp',
       tags: '["active"]',
     }

@@ -914,7 +914,10 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           padding: '24px 0 8px',
         }}
       >
-        Powered by Styll · Termini · Privacy
+        Powered by Styll ·{' '}
+        <Link href={tp('/privacy')} style={{ color: '#CCCCCC', textDecoration: 'underline' }}>
+          Privacy
+        </Link>
       </footer>
     </main>
   )

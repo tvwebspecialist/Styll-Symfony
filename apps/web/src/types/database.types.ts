@@ -644,6 +644,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          churn_profiling_objected_at: string | null
           created_at: string
           date_of_birth: string | null
           deleted_at: string | null
@@ -659,6 +660,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          churn_profiling_objected_at?: string | null
           created_at?: string
           date_of_birth?: string | null
           deleted_at?: string | null
@@ -674,6 +676,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          churn_profiling_objected_at?: string | null
           created_at?: string
           date_of_birth?: string | null
           deleted_at?: string | null

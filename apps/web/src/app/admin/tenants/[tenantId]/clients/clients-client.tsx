@@ -31,7 +31,7 @@ const EMPTY: FormState = {
   email: '',
   phone: '',
   tags: '',
-  marketing_consent: true,
+  marketing_consent: false,
 }
 
 function rowToForm(r: TenantClientDetailedRow): FormState {

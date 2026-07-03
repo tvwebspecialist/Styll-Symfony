@@ -136,7 +136,7 @@ export async function verifyOtp(
       phone: normalizedPhone,
       created_at: now,
       updated_at: now,
-      marketing_consent: true,
+      marketing_consent: false,
       tags: [],
     }
 
@@ -327,7 +327,7 @@ export async function verifyEmailOtp(
   email: string,
   token: string,
   tenantId: string,
-  profileData?: { fullName?: string; phone?: string },
+  profileData?: { fullName?: string; phone?: string; marketingConsent?: boolean },
 ): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
   const db = createAdminClient()
 
@@ -443,7 +443,7 @@ export async function verifyEmailOtp(
     email: normalizedEmail,
     created_at: now,
     updated_at: now,
-    marketing_consent: true,
+    marketing_consent: profileData?.marketingConsent ?? false,
     tags: [],
   })
 
@@ -530,7 +530,7 @@ export async function setupPwaGoogleClient(
     phone: null as string | null,
     created_at: now,
     updated_at: now,
-    marketing_consent: true,
+    marketing_consent: false,
     tags: [],
   })
 

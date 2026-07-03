@@ -24,6 +24,7 @@ interface Props {
   tenantId: string
   tenantSlug: string
   mode: 'page' | 'modal'
+  businessName?: string
   prefillEmail?: string
   prefillFullName?: string
   prefillPhone?: string
@@ -43,6 +44,7 @@ export function EmailOtpForm({
   tenantId,
   tenantSlug,
   mode,
+  businessName,
   prefillEmail = '',
   prefillFullName = '',
   prefillPhone = '',
@@ -57,6 +59,7 @@ export function EmailOtpForm({
   const [fullName, setFullName] = useState(prefillFullName)
   const [phone, setPhone] = useState(prefillPhone)
   const [isNewUser, setIsNewUser] = useState(false)
+  const [marketingConsent, setMarketingConsent] = useState(false)
   const [otp, setOtp] = useState<string[]>(EMPTY_OTP)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -158,7 +161,7 @@ export function EmailOtpForm({
 
     const normalizedEmail = email.trim().toLowerCase()
     const profileData = isNewUser
-      ? { fullName: fullName.trim() || undefined, phone: phone.trim() || undefined }
+      ? { fullName: fullName.trim() || undefined, phone: phone.trim() || undefined, marketingConsent }
       : undefined
     const result = await verifyEmailOtp(normalizedEmail, code, tenantId, profileData)
 
@@ -380,6 +383,19 @@ export function EmailOtpForm({
             className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
           />
           {error && <p className="px-1 text-[12px] text-red-500">{error}</p>}
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--brand-primary,#222222)]"
+            />
+            <span className="text-[11px] leading-relaxed text-gray-500">
+              Voglio ricevere offerte e promozioni da{' '}
+              <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
+              Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
+            </span>
+          </label>
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
@@ -681,6 +697,19 @@ export function EmailOtpForm({
               {error}
             </p>
           )}
+          <label className="mt-1 flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--brand-primary,#1a1a1a)]"
+            />
+            <span className="text-xs leading-relaxed text-neutral-500">
+              Voglio ricevere offerte e promozioni da{' '}
+              <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
+              Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
+            </span>
+          </label>
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}

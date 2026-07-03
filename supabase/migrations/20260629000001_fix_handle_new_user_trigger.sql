@@ -4,6 +4,7 @@
 -- inclusi i clienti PWA che si registrano via OTP.
 -- Ora: legge user_type da raw_user_meta_data (validato contro
 -- i valori ammessi), default a 'client'.
+
 -- 'staff' viene assegnato SOLO quando il codice applicativo lo
 -- imposta esplicitamente nel metadata al momento della creazione.
 -- =============================================================

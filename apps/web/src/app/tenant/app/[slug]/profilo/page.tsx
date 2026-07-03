@@ -192,6 +192,7 @@ export default async function ProfiloPage({ params }: Props) {
             puntiPath={tp('/punti')}
             modificaPath={tp('/profilo/modifica')}
             preferenzePath={tp('/profilo/preferenze')}
+            privacyPath={tp('/privacy')}
             basePath={tp('')}
             profile={{
               fullName: profileFullName,

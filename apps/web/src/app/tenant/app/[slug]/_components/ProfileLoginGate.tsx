@@ -114,6 +114,7 @@ export function ProfileLoginGate({
             tenantId={tenantId}
             tenantSlug={slug}
             mode="modal"
+            businessName={businessName ?? undefined}
           />
         </div>
       </div>
