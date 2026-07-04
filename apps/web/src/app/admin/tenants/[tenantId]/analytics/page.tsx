@@ -1,24 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireSuperadmin } from '@/app/admin/actions'
+import {
+  fetchSiteAnalyticsDailyRows,
+  type SiteAnalyticsDb,
+  type SiteAnalyticsDailyRow,
+  type SiteAnalyticsSurface,
+} from '@/lib/site-analytics/daily'
 import { notFound } from 'next/navigation'
 import { TenantAnalyticsClient } from './analytics-client'
 
 export const dynamic = 'force-dynamic'
 
 // ── DB types ────────────────────────────────────────────────────
-
-interface DailyRaw {
-  day: string
-  sessions: number
-  page_views: number
-  booking_started: number
-  booking_completed: number
-  conversion_rate: number
-  new_signups: number
-  logins: number
-  mobile_sessions: number
-  desktop_sessions: number
-}
 
 interface ActivityRaw {
   last_login_at: string | null
@@ -51,54 +44,20 @@ function sinceDate(days: number): string {
   return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
 }
 
-function num(v: unknown): number {
-  return typeof v === 'number' ? v : Number(v) || 0
-}
-
-function str(v: unknown): string {
-  return typeof v === 'string' ? v : String(v ?? '')
-}
-
 // ── Data fetch ───────────────────────────────────────────────────
 
 async function fetchSurfaceData(
-  db: UntypedDb,
+  db: SiteAnalyticsDb,
   tenantId: string,
-  surface: 'website' | 'pwa',
+  surface: SiteAnalyticsSurface,
   since: string,
-): Promise<DailyRaw[]> {
-  const today = new Date().toISOString().slice(0, 10)
-  const { data, error } = await db
-    .from('site_analytics_daily')
-    .select('day,sessions,page_views,booking_started,booking_completed,conversion_rate,new_signups,logins,mobile_sessions,desktop_sessions')
-    .eq('tenant_id', tenantId)
-    .eq('app_surface', surface)
-    .gte('day', since)
-    .order('day', { ascending: true })
-
-  // DEBUG — remove before shipping
-  console.log('[analytics-debug] fetchSurfaceData', {
-    surface,
+): Promise<SiteAnalyticsDailyRow[]> {
+  return fetchSiteAnalyticsDailyRows(db, {
+    context: `TenantAnalyticsPage ${surface}`,
     tenantId,
+    surface,
     since,
-    today,
-    rowCount: data?.length ?? null,
-    firstRow: data?.[0] ?? null,
-    error,
   })
-
-  return (data ?? []).map((r) => ({
-    day: str(r.day),
-    sessions: num(r.sessions),
-    page_views: num(r.page_views),
-    booking_started: num(r.booking_started),
-    booking_completed: num(r.booking_completed),
-    conversion_rate: num(r.conversion_rate),
-    new_signups: num(r.new_signups),
-    logins: num(r.logins),
-    mobile_sessions: num(r.mobile_sessions),
-    desktop_sessions: num(r.desktop_sessions),
-  }))
 }
 
 // ── Page ────────────────────────────────────────────────────────
@@ -118,6 +77,7 @@ export default async function TenantAnalyticsPage({ params, searchParams }: Page
   const sp = await searchParams
   const period = parsePeriod(sp.days)
   const since = sinceDate(period)
+  const appointmentsSince = `${since}T00:00:00.000Z`
 
   const db = createAdminClient() as unknown as UntypedDb
 
@@ -132,8 +92,8 @@ export default async function TenantAnalyticsPage({ params, searchParams }: Page
 
   // Fetch site data per surface in parallel
   const [websiteDaily, pwaDaily] = await Promise.all([
-    fetchSurfaceData(db, tenantId, 'website', since),
-    fetchSurfaceData(db, tenantId, 'pwa', since),
+    fetchSurfaceData(db as unknown as SiteAnalyticsDb, tenantId, 'website', since),
+    fetchSurfaceData(db as unknown as SiteAnalyticsDb, tenantId, 'pwa', since),
   ])
 
   // Dashboard section: last login from tenant_activity_log (graceful degrade)
@@ -155,7 +115,7 @@ export default async function TenantAnalyticsPage({ params, searchParams }: Page
     .from('appointments')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
-    .gte('created_at', new Date(Date.now() - period * 86400000).toISOString())
+    .gte('created_at', appointmentsSince)
     .is('deleted_at', null)
 
   return (

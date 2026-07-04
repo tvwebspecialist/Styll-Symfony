@@ -48,9 +48,9 @@ function pctChange(current: number, prev: number): number | null {
   return (current - prev) / prev
 }
 
-function formatDayLabel(dayStr: string): string {
-  const parts = dayStr.split('-')
-  if (parts.length !== 3) return dayStr
+function formatDateLabel(dateStr: string): string {
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
   return `${parseInt(parts[2])}/${parseInt(parts[1])}`
 }
 
@@ -230,7 +230,7 @@ function PlatformAreaChart({ daily, sessionDelta, insightText }: PlatformAreaCha
 
   const chartData = daily.map((d) => ({
     ...d,
-    day_label: formatDayLabel(d.day),
+    date_label: formatDateLabel(d.date),
   }))
 
   return (
@@ -297,7 +297,7 @@ function PlatformAreaChart({ daily, sessionDelta, insightText }: PlatformAreaCha
                   vertical={false}
                 />
                 <XAxis
-                  dataKey="day_label"
+                  dataKey="date_label"
                   tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }}
                   axisLine={false}
                   tickLine={false}

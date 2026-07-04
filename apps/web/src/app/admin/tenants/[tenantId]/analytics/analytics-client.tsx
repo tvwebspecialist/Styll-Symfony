@@ -23,21 +23,9 @@ import {
   TrendingUp,
   Clock,
 } from 'lucide-react'
+import type { SiteAnalyticsDailyRow as DailyRow } from '@/lib/site-analytics/daily'
 
 // ── Types ────────────────────────────────────────────────────────
-
-export interface DailyRow {
-  day: string
-  sessions: number
-  page_views: number
-  booking_started: number
-  booking_completed: number
-  conversion_rate: number
-  new_signups: number
-  logins: number
-  mobile_sessions: number
-  desktop_sessions: number
-}
 
 interface Props {
   tenantName: string
@@ -60,11 +48,6 @@ function sum(rows: DailyRow[], key: keyof DailyRow): number {
   return rows.reduce((s, r) => s + (r[key] as number), 0)
 }
 
-function avg(rows: DailyRow[], key: keyof DailyRow): number {
-  if (rows.length === 0) return 0
-  return sum(rows, key) / rows.length
-}
-
 function fmtNum(n: number): string {
   return n.toLocaleString('it-IT')
 }
@@ -73,9 +56,9 @@ function fmtPct(n: number, d = 1): string {
   return `${(n * 100).toFixed(d)}%`
 }
 
-function fmtDay(dayStr: string): string {
-  const p = dayStr.split('-')
-  return p.length === 3 ? `${parseInt(p[2])}/${parseInt(p[1])}` : dayStr
+function fmtDate(dateStr: string): string {
+  const p = dateStr.split('-')
+  return p.length === 3 ? `${parseInt(p[2])}/${parseInt(p[1])}` : dateStr
 }
 
 function daysSince(iso: string | null): number | null {
@@ -319,7 +302,7 @@ function WebsiteSection({ daily, period }: { daily: DailyRow[]; period: number }
   const convRate = totalSessions > 0 ? totalBookings / totalSessions : 0
   const hasData = daily.length > 0
 
-  const chartData = daily.map((r) => ({ ...r, day_label: fmtDay(r.day) }))
+  const chartData = daily.map((r) => ({ ...r, date_label: fmtDate(r.date) }))
 
   return (
     <section className="flex flex-col gap-4">
@@ -364,7 +347,7 @@ function WebsiteSection({ daily, period }: { daily: DailyRow[]; period: number }
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--admin-border)" vertical={false} />
-                <XAxis dataKey="day_label" tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <XAxis dataKey="date_label" tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                 <Tooltip contentStyle={TT_STYLE} />
                 <Area type="monotone" dataKey="sessions" name="Sessioni" stroke={BLUE} strokeWidth={2} fill="url(#grad-web-sessions)" dot={false} activeDot={{ r: 4, fill: BLUE }} />
@@ -389,7 +372,7 @@ function PwaSection({ daily, period }: { daily: DailyRow[]; period: number }) {
   const totalSignups = sum(daily, 'new_signups')
   const hasData = daily.length > 0
 
-  const chartData = daily.map((r) => ({ ...r, day_label: fmtDay(r.day) }))
+  const chartData = daily.map((r) => ({ ...r, date_label: fmtDate(r.date) }))
 
   return (
     <section className="flex flex-col gap-4">
@@ -413,7 +396,7 @@ function PwaSection({ daily, period }: { daily: DailyRow[]; period: number }) {
             Andamento sessioni e accessi
           </h3>
           <p className="mt-0.5 text-xs" style={{ color: 'var(--admin-text-muted)' }}>
-            La conversion rate non è mostrata: l'obiettivo nella PWA è l'engagement, non l'acquisizione
+            La conversion rate non è mostrata: l&apos;obiettivo nella PWA è l&apos;engagement, non l&apos;acquisizione
           </p>
         </div>
         {hasData ? (
@@ -431,7 +414,7 @@ function PwaSection({ daily, period }: { daily: DailyRow[]; period: number }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--admin-border)" vertical={false} />
-                <XAxis dataKey="day_label" tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <XAxis dataKey="date_label" tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--admin-text-subtle)' }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                 <Tooltip contentStyle={TT_STYLE} />
                 <Area type="monotone" dataKey="sessions" name="Sessioni" stroke={ACCENT} strokeWidth={2} fill="url(#grad-pwa-sessions)" dot={false} activeDot={{ r: 4, fill: ACCENT }} />

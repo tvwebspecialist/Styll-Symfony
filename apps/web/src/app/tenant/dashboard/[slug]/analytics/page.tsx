@@ -1,6 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  fetchSiteAnalyticsDailyRows,
+  type SiteAnalyticsDailyRow,
+  type SiteAnalyticsDb,
+} from '@/lib/site-analytics/daily'
 import { getTenantBySlug } from '@/lib/tenant'
 import { SiteAnalyticsClient } from '@/components/dashboard/analytics/SiteAnalyticsClient'
 
@@ -11,7 +16,7 @@ interface Props {
 }
 
 interface DailyRow {
-  day: string
+  date: string
   sessions: number
   page_views: number
   unique_visitors: number
@@ -23,39 +28,54 @@ interface DailyRow {
   desktop_sessions: number
 }
 
-interface BookingSourceRow {
-  booking_source: string
-  count: number
-}
+function combineDailyRows(rows: SiteAnalyticsDailyRow[]): DailyRow[] {
+  const byDate = new Map<string, DailyRow>()
 
-interface ClientStatsRow {
-  total: number
-  with_account: number
-}
+  for (const row of rows) {
+    const existing = byDate.get(row.date)
 
-type AnalyticsDb = {
-  from(table: 'site_analytics_daily'): {
-    select(cols: string): {
-      eq(col: string, val: string): {
-        gte(col: string, val: string): {
-          order(col: string, opts: { ascending: boolean }): Promise<{ data: DailyRow[] | null }>
-        }
-      }
+    if (!existing) {
+      byDate.set(row.date, {
+        date: row.date,
+        sessions: row.sessions,
+        page_views: row.page_views,
+        unique_visitors: row.unique_visitors,
+        booking_started: row.booking_started,
+        booking_completed: row.booking_completed,
+        conversion_rate: row.conversion_rate,
+        new_signups: row.new_signups,
+        mobile_sessions: row.mobile_sessions,
+        desktop_sessions: row.desktop_sessions,
+      })
+      continue
     }
+
+    existing.sessions += row.sessions
+    existing.page_views += row.page_views
+    existing.unique_visitors += row.unique_visitors
+    existing.booking_started += row.booking_started
+    existing.booking_completed += row.booking_completed
+    existing.new_signups += row.new_signups
+    existing.mobile_sessions += row.mobile_sessions
+    existing.desktop_sessions += row.desktop_sessions
+    existing.conversion_rate =
+      existing.booking_started > 0 ? existing.booking_completed / existing.booking_started : 0
   }
-  rpc(fn: 'get_booking_source_breakdown', params: { p_tenant_id: string; p_days: number }): Promise<{ data: BookingSourceRow[] | null }>
+
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 async function getAnalyticsData(tenantId: string) {
   const db = createAdminClient()
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-  const { data: daily } = await (db as unknown as AnalyticsDb)
-    .from('site_analytics_daily')
-    .select('day,sessions,page_views,unique_visitors,booking_started,booking_completed,conversion_rate,new_signups,mobile_sessions,desktop_sessions')
-    .eq('tenant_id', tenantId)
-    .gte('day', since)
-    .order('day', { ascending: true })
+  const daily = combineDailyRows(
+    await fetchSiteAnalyticsDailyRows(db as unknown as SiteAnalyticsDb, {
+      context: 'tenant dashboard analytics',
+      tenantId,
+      since,
+    }),
+  )
 
   // Quick wins from existing appointments table
   const { data: bookingSourceRaw } = await db
@@ -89,7 +109,7 @@ async function getAnalyticsData(tenantId: string) {
     .not('profile_id', 'is', null)
 
   return {
-    daily: (daily ?? []) as DailyRow[],
+    daily,
     bookingSources,
     totalClients: totalClients ?? 0,
     clientsWithAccount: clientsWithAccount ?? 0,
