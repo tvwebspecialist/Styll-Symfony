@@ -8,6 +8,8 @@ import BookingAuthModal from './BookingAuthModal'
 import BookingSuccessModal from './BookingSuccessModal'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
+import { trackEvent, getCurrentAnonymousId } from '@/lib/site-analytics/track'
+import { linkSessionToClient } from '@/lib/site-analytics/link-session'
 import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
 import { useToast } from '@/components/pwa/ui/Toast'
 import { applyBestPromotion, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
@@ -129,6 +131,11 @@ export default function BookingStep5Confirm({
   }, [])
 
   useEffect(() => {
+    trackEvent({ tenantId, eventType: 'booking_started' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     if (!googleLogin) return
     const t = setTimeout(() => {
       showToast({
@@ -189,6 +196,11 @@ export default function BookingStep5Confirm({
       setSubmitError(result.error ?? 'Non siamo riusciti a confermare la prenotazione.')
       setIsSubmitting(false)
       return
+    }
+    trackEvent({ tenantId, eventType: 'booking_completed' })
+    if (result.clientId) {
+      const anonymousId = getCurrentAnonymousId()
+      linkSessionToClient(tenantId, anonymousId, result.clientId).catch(() => {})
     }
     sessionStorage.removeItem('booking_upsell_ids')
     sessionStorage.removeItem('upsell_shown')

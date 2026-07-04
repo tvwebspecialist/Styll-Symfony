@@ -8,6 +8,8 @@ import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pw
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { trackEvent, getCurrentAnonymousId } from '@/lib/site-analytics/track'
+import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
 
 function GoogleIcon() {
   return (
@@ -193,6 +195,9 @@ export function EmailOtpForm({
     } catch {
       // Non-blocking — session works via cookies
     }
+
+    trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login' })
+    linkSessionByAuthUser(tenantId, getCurrentAnonymousId()).catch(() => {})
 
     if (onSuccess) {
       onSuccess({

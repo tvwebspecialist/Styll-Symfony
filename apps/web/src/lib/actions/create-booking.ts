@@ -42,6 +42,7 @@ const createGuestBookingSchema = z.object({
 export interface CreateGuestBookingResult {
   success: boolean
   appointmentId?: string
+  clientId?: string
   error?: string
 }
 
@@ -431,6 +432,7 @@ export async function createGuestBooking(
   return {
     success: true,
     appointmentId,
+    clientId,
   }
 }
 

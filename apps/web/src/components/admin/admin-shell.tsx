@@ -13,6 +13,7 @@ import {
   LogOut,
   Eye,
   X,
+  BarChart2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -41,6 +42,7 @@ const SECTIONS: NavSection[] = [
       { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, match: (p) => p === '/admin' },
       { label: 'Barbieri', href: '/admin/tenants', icon: Building2, countKey: 'tenants' },
       { label: 'Team Styll', href: '/admin/users', icon: Users, countKey: 'users' },
+      { label: 'Analytics', href: '/admin/analytics', icon: BarChart2 },
     ],
   },
   {
