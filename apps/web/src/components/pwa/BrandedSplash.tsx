@@ -77,9 +77,17 @@ interface InlineProps {
 export type BrandedSplashProps = FullscreenProps | InlineProps
 
 // ─── Fullscreen variant ───────────────────────────────────────────────────────
-// Shown at PWA open in standalone mode. Visual language matches PwaOnboarding
-// step-0/step-4: glass logo container, back.out bounce entry, sine float loop,
-// power3.out text fade-up. No GSAP — pure CSS animations with equivalent easings.
+// Phases:
+//   'cover'      — initial SSR render + hydration: opaque bgColor only (no content).
+//                  Prevents page content flash. Bridges iOS native → JS splash by
+//                  matching background color before animations fire.
+//   'preloading' — standalone confirmed, logo preloading via new Image().
+//                  Still shows opaque cover; logo fallback never shown as transient state.
+//   'visible'    — logo ready (or definitively failed), full animated splash.
+//   'exit'       — exit animation playing.
+//   'gone'       — unmounted (non-standalone browser OR animation complete).
+
+type SplashPhase = 'cover' | 'preloading' | 'visible' | 'exit' | 'gone'
 
 function FullscreenSplash({
   businessName,
@@ -87,9 +95,10 @@ function FullscreenSplash({
   splashColor,
   logoUrl,
 }: Omit<FullscreenProps, 'variant'>) {
-  const [phase, setPhase] = React.useState<'visible' | 'exit' | 'gone'>('visible')
-  const [logoLoaded, setLogoLoaded] = React.useState(false)
-  const [useTextFallback, setUseTextFallback] = React.useState(!logoUrl)
+  const bgColor = splashColor ?? primaryColor
+
+  const [phase, setPhase] = React.useState<SplashPhase>('cover')
+  const [logoOk, setLogoOk] = React.useState(false)
 
   React.useEffect(() => {
     const isStandalone =
@@ -101,15 +110,33 @@ function FullscreenSplash({
       return
     }
 
-    const logoFallbackTimer = logoUrl
-      ? setTimeout(() => { if (!logoLoaded) setUseTextFallback(true) }, 400)
-      : undefined
+    setPhase('preloading')
 
-    const exitTimer  = setTimeout(() => setPhase('exit'), 600)
-    const goneTimer  = setTimeout(() => setPhase('gone'), 1100)
+    let exitTimer: ReturnType<typeof setTimeout>
+    let goneTimer: ReturnType<typeof setTimeout>
+
+    const enterVisible = (hasLogo: boolean) => {
+      setLogoOk(hasLogo)
+      setPhase('visible')
+      exitTimer = setTimeout(() => setPhase('exit'), 1600)
+      goneTimer = setTimeout(() => setPhase('gone'), 2100)
+    }
+
+    if (!logoUrl) {
+      enterVisible(false)
+      return () => { clearTimeout(exitTimer); clearTimeout(goneTimer) }
+    }
+
+    const img = new window.Image()
+    // 1 s cap: if logo takes longer, show text initial rather than blocking indefinitely
+    const fallbackTimer = setTimeout(() => enterVisible(false), 1000)
+
+    img.onload  = () => { clearTimeout(fallbackTimer); enterVisible(true) }
+    img.onerror = () => { clearTimeout(fallbackTimer); enterVisible(false) }
+    img.src = logoUrl
 
     return () => {
-      clearTimeout(logoFallbackTimer)
+      clearTimeout(fallbackTimer)
       clearTimeout(exitTimer)
       clearTimeout(goneTimer)
     }
@@ -117,16 +144,19 @@ function FullscreenSplash({
 
   if (phase === 'gone') return null
 
-  const bgColor      = splashColor ?? primaryColor
   const isLight      = isLightColor(bgColor)
-  const textColor    = isLight ? '#111111' : '#FFFFFF'
-  const subtextColor = isLight ? 'rgba(0,0,0,0.38)' : 'rgba(255,255,255,0.38)'
-  const glassBg      = isLight ? 'rgba(0,0,0,0.06)'       : 'rgba(255,255,255,0.09)'
-  const glassBorder  = isLight ? '1px solid rgba(0,0,0,0.10)' : '1px solid rgba(255,255,255,0.18)'
-  const ringColor    = isLight ? 'rgba(0,0,0,1)'  : 'rgba(255,255,255,1)'
+  const textColor    = isLight ? '#111111'                    : '#FFFFFF'
+  const subtextColor = isLight ? 'rgba(0,0,0,0.38)'          : 'rgba(255,255,255,0.38)'
+  const glassBg      = isLight ? 'rgba(0,0,0,0.06)'          : 'rgba(255,255,255,0.09)'
+  const glassBorder  = isLight ? '1px solid rgba(0,0,0,0.10)': '1px solid rgba(255,255,255,0.18)'
+  const ringColor    = isLight ? 'rgba(0,0,0,1)'             : 'rgba(255,255,255,1)'
   const initial      = businessName.charAt(0).toUpperCase() || 'S'
   const isExiting    = phase === 'exit'
+  const showContent  = phase === 'visible' || phase === 'exit'
 
+  // Outer div always present across all non-gone phases → same DOM node → no flash.
+  // During cover/preloading: opaque bgColor, no content (bridges SSR gap + logo preload).
+  // During visible/exit: same bgColor background, content animates in on top.
   return (
     <div
       style={{
@@ -142,97 +172,99 @@ function FullscreenSplash({
         animation: isExiting ? 'bs-exit 500ms cubic-bezier(0.55,0,1,0.45) forwards' : 'none',
       }}
     >
-      <style>{KEYFRAMES}</style>
+      {showContent && (
+        <>
+          <style>{KEYFRAMES}</style>
 
-      {/* Logo zone: rings + float wrapper + glass box */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Logo zone: rings + float wrapper + glass box */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-        {/* Pulse ring 1 — starts after logo entry lands */}
-        <div style={{
-          position: 'absolute',
-          width: 120, height: 120,
-          borderRadius: '50%',
-          background: ringColor,
-          animation: 'bs-ring 2.4s cubic-bezier(0.215,0.61,0.355,1) 0.85s infinite both',
-          pointerEvents: 'none',
-        }} />
-        {/* Pulse ring 2 — offset for organic feel */}
-        <div style={{
-          position: 'absolute',
-          width: 120, height: 120,
-          borderRadius: '50%',
-          background: ringColor,
-          animation: 'bs-ring2 3.4s cubic-bezier(0.215,0.61,0.355,1) 1.55s infinite both',
-          pointerEvents: 'none',
-        }} />
+            {/* Pulse ring 1 — starts after logo entry lands */}
+            <div style={{
+              position: 'absolute',
+              width: 120, height: 120,
+              borderRadius: '50%',
+              background: ringColor,
+              animation: 'bs-ring 2.4s cubic-bezier(0.215,0.61,0.355,1) 0.85s infinite both',
+              pointerEvents: 'none',
+            }} />
+            {/* Pulse ring 2 — offset for organic feel */}
+            <div style={{
+              position: 'absolute',
+              width: 120, height: 120,
+              borderRadius: '50%',
+              background: ringColor,
+              animation: 'bs-ring2 3.4s cubic-bezier(0.215,0.61,0.355,1) 1.55s infinite both',
+              pointerEvents: 'none',
+            }} />
 
-        {/* Float wrapper — translateY runs independently from scale */}
-        <div style={{
-          animation: 'bs-float 2.5s cubic-bezier(0.45,0.05,0.55,0.95) 0.92s infinite',
-        }}>
-          {/* Glass container — matches PwaOnboarding s1-logo / s5-logo */}
-          <div style={{
-            width: 120, height: 120,
-            borderRadius: 28,
-            background: glassBg,
-            border: glassBorder,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            position: 'relative',
-            animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both',
-          }}>
-            {logoUrl && !useTextFallback ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoUrl}
-                alt={businessName}
-                fetchPriority="high"
-                onLoad={() => setLogoLoaded(true)}
-                onError={() => setUseTextFallback(true)}
-                style={{
-                  width: 80, height: 80,
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.10))',
-                }}
-              />
-            ) : (
-              <span style={{
-                fontSize: 56, fontWeight: 800,
-                color: textColor,
-                lineHeight: 1,
-                letterSpacing: '-2px',
+            {/* Float wrapper — translateY runs independently from scale */}
+            <div style={{
+              animation: 'bs-float 2.5s cubic-bezier(0.45,0.05,0.55,0.95) 0.92s infinite',
+            }}>
+              {/* Glass container — matches PwaOnboarding s1-logo / s5-logo */}
+              <div style={{
+                width: 120, height: 120,
+                borderRadius: 28,
+                background: glassBg,
+                border: glassBorder,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                position: 'relative',
+                animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both',
               }}>
-                {initial}
-              </span>
-            )}
+                {logoOk ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl!}
+                    alt={businessName}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.10))',
+                    }}
+                  />
+                ) : (
+                  <span style={{
+                    fontSize: 56, fontWeight: 800,
+                    color: textColor,
+                    lineHeight: 1,
+                    letterSpacing: '-2px',
+                  }}>
+                    {initial}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Business name — fade up after logo entry */}
-      <span style={{
-        marginTop: 24,
-        fontSize: 22, fontWeight: 700,
-        color: textColor,
-        letterSpacing: '-0.4px',
-        opacity: 0.92,
-        animation: 'bs-fade-up 0.6s cubic-bezier(0.215,0.61,0.355,1) 0.84s both',
-      }}>
-        {businessName}
-      </span>
+          {/* Business name — fade up after logo entry */}
+          <span style={{
+            marginTop: 24,
+            fontSize: 22, fontWeight: 700,
+            color: textColor,
+            letterSpacing: '-0.4px',
+            opacity: 0.92,
+            animation: 'bs-fade-up 0.6s cubic-bezier(0.215,0.61,0.355,1) 0.84s both',
+          }}>
+            {businessName}
+          </span>
 
-      {/* Powered by Styll */}
-      <div style={{
-        position: 'absolute',
-        bottom: 52,
-        animation: 'bs-fade-up 0.6s cubic-bezier(0.215,0.61,0.355,1) 1.0s both',
-      }}>
-        <span style={{ fontSize: 12, color: subtextColor, fontWeight: 500, letterSpacing: '0.01em' }}>
-          Powered by Styll
-        </span>
-      </div>
+          {/* Powered by Styll */}
+          <div style={{
+            position: 'absolute',
+            bottom: 52,
+            animation: 'bs-fade-up 0.6s cubic-bezier(0.215,0.61,0.355,1) 1.0s both',
+          }}>
+            <span style={{ fontSize: 12, color: subtextColor, fontWeight: 500, letterSpacing: '0.01em' }}>
+              Powered by Styll
+            </span>
+          </div>
+        </>
+      )}
     </div>
   )
 }

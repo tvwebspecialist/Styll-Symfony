@@ -68,8 +68,8 @@ export default async function manifest(
       ? tenant.business_name.slice(0, 12).trim()
       : tenant.business_name,
     description: `Prenota con ${tenant.business_name}`,
-    theme_color: tenant.primary_color ?? '#1a1a1a',
-    background_color: tenant.primary_color ?? '#1a1a1a',
+    theme_color: tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a',
+    background_color: tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a',
     display: 'standalone',
     orientation: 'portrait',
     lang: 'it',
