@@ -46,6 +46,107 @@ function getTierInfo(totalPoints: number): { label: string; emoji: string; color
   return { label: 'Bronzo', emoji: '🥉', color: '#7C3016', bg: '#FEF0E6' }
 }
 
+// Scissors SVG icon — inline so no extra import
+function ScissorsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  )
+}
+
+// Unified booking CTA — replaces the old "È ora di un nuovo taglio" hero block
+// and "Riprenota l'ultima volta" row. Renders a single dark card with conditional
+// content based on whether the client has a previous appointment in history.
+function BookingCTACard({
+  hasLastBooking,
+  lastServiceNames,
+  lastStaffName,
+  lastDuration,
+  lastPrice,
+  lastVisitDate,
+  bookingHref,
+  primaryColor,
+  style,
+}: {
+  hasLastBooking: boolean
+  lastServiceNames: string[]
+  lastStaffName: string | null
+  lastDuration: number | null
+  lastPrice: number | null
+  lastVisitDate: string | null
+  bookingHref: string
+  primaryColor: string
+  style?: CSSProperties
+}) {
+  const detailParts = [
+    lastStaffName,
+    lastDuration ? `${lastDuration} min` : null,
+    lastPrice != null ? formatPrice(lastPrice) : null,
+  ].filter(Boolean)
+
+  return (
+    <section style={{ background: '#111111', borderRadius: 20, padding: 24, marginBottom: 16, ...style }}>
+      {/* Context label */}
+      <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.35)' }}>
+        {hasLastBooking ? 'Riprenota' : 'Prenota'}
+      </p>
+
+      {/* Main heading */}
+      <p style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+        {hasLastBooking
+          ? lastServiceNames.join(' + ') || 'Il tuo ultimo taglio'
+          : 'È ora di un nuovo appuntamento'}
+      </p>
+
+      {/* "X giorni fa" for no-history state with loyalty date */}
+      {!hasLastBooking && lastVisitDate && (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+          Ultima visita: {daysAgo(lastVisitDate)} giorni fa
+        </p>
+      )}
+
+      {/* Last booking detail row — only when rebooking */}
+      {hasLastBooking && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '11px 14px', marginTop: 18 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ScissorsIcon />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {detailParts.length > 0 && (
+              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                {detailParts.join(' · ')}
+              </p>
+            )}
+            {lastVisitDate && (
+              <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.28)', lineHeight: 1.5 }}>
+                {daysAgo(lastVisitDate)} giorni fa
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CTA */}
+      <Link
+        href={bookingHref}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '100%', minHeight: 52, borderRadius: 999, marginTop: 20,
+          background: hasLastBooking ? primaryColor : '#FFFFFF',
+          color: hasLastBooking ? '#FFFFFF' : '#111111',
+          textDecoration: 'none', fontSize: 15, fontWeight: 700,
+        }}
+      >
+        {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
+      </Link>
+    </section>
+  )
+}
+
 function animated(delay: number): CSSProperties {
   return {
     opacity: 0,
@@ -608,132 +709,25 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           {/* Offerte */}
           {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
 
-          {/* Hero CTA scuro */}
-          <section
-            style={{
-              ...animated(activeOffers.length > 0 ? 60 : 0),
-              background: '#1a1a1a',
-              borderRadius: 20,
-              padding: 24,
-              marginBottom: 16,
-            }}
-          >
-            <p
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: '#FFFFFF',
-                lineHeight: 1.2,
-              }}
-            >
-              È ora di un nuovo taglio ✂️
-            </p>
-            {homeData.loyalty?.lastVisitDate ? (
-              <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 8 }}>
-                Ultima visita: {daysAgo(homeData.loyalty.lastVisitDate)} giorni fa
-              </p>
-            ) : null}
-            <Link
-              href={tp('/prenota')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-                minHeight: 52,
-                borderRadius: 999,
-                background: '#FFFFFF',
-                color: '#1a1a1a',
-                textDecoration: 'none',
-                fontSize: 15,
-                fontWeight: 700,
-                marginTop: 20,
-              }}
-            >
-              Prenota ora
-            </Link>
-          </section>
-
-          {/* Rebooking rapido */}
-          {homeData.lastAppointmentServiceNames && homeData.lastAppointmentServiceNames.length > 0 ? (
-            <section
-              style={{
-                ...animated(activeOffers.length > 0 ? 120 : 60),
-                background: '#FFFFFF',
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  color: '#B0B0B0',
-                  marginBottom: 14,
-                }}
-              >
-                {`Riprenota l'ultima volta`}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ fontSize: 28, flexShrink: 0, lineHeight: 1 }}>✂️</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: '#222222',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {homeData.lastAppointmentServiceNames.join(' + ')}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#B0B0B0', marginTop: 3 }}>
-                    {[
-                      homeData.lastAppointmentStaffName,
-                      homeData.lastAppointmentDuration
-                        ? `${homeData.lastAppointmentDuration} min`
-                        : null,
-                      homeData.lastAppointmentPrice != null
-                        ? formatPrice(homeData.lastAppointmentPrice)
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-                <Link
-                  href={tp('/prenota')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: 36,
-                    padding: '0 16px',
-                    borderRadius: 999,
-                    background: '#1a1a1a',
-                    color: '#FFFFFF',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    flexShrink: 0,
-                  }}
-                >
-                  Riprenota
-                </Link>
-              </div>
-            </section>
-          ) : null}
+          {/* Unified booking CTA — prenota or riprenota based on history */}
+          <BookingCTACard
+            hasLastBooking={!!(homeData.lastAppointmentServiceNames?.length)}
+            lastServiceNames={homeData.lastAppointmentServiceNames ?? []}
+            lastStaffName={homeData.lastAppointmentStaffName ?? null}
+            lastDuration={homeData.lastAppointmentDuration ?? null}
+            lastPrice={homeData.lastAppointmentPrice ?? null}
+            lastVisitDate={homeData.loyalty?.lastVisitDate ?? null}
+            bookingHref={tp('/prenota')}
+            primaryColor={tenant.primary_color ?? 'var(--brand-primary)'}
+            style={animated(activeOffers.length > 0 ? 60 : 0)}
+          />
 
           {/* Loyalty */}
-          {loyaltySection(activeOffers.length > 0 ? 180 : 120)}
+          {loyaltySection(activeOffers.length > 0 ? 120 : 60)}
 
           {/* Prodotti */}
           {productsScroll && (
-            <div style={animated(activeOffers.length > 0 ? 240 : 180)}>{productsScroll}</div>
+            <div style={animated(activeOffers.length > 0 ? 180 : 120)}>{productsScroll}</div>
           )}
         </>
       )}
