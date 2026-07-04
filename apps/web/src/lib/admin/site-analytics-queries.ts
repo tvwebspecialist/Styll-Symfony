@@ -1,9 +1,13 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  fetchSiteAnalyticsDailyRows,
+  type SiteAnalyticsDb,
+} from '@/lib/site-analytics/daily'
 
 // ── Exported types ──────────────────────────────────────────────
 
 export interface DailyPoint {
-  day: string
+  date: string
   sessions: number
   page_views: number
   booking_completed: number
@@ -131,19 +135,18 @@ export async function getAdminSiteAnalytics(periodDays: number): Promise<AdminSi
   const prevSince = isoDate(now - 2 * periodDays * 86400000)
 
   // Current period
-  const { data: currentRaw } = await db
-    .from('site_analytics_daily')
-    .select('tenant_id,day,sessions,page_views,booking_completed,conversion_rate,mobile_sessions,desktop_sessions')
-    .gte('day', currentSince)
-    .lt('day', currentUntil)
-    .order('day', { ascending: true })
+  const currentRaw = await fetchSiteAnalyticsDailyRows(db as unknown as SiteAnalyticsDb, {
+    context: 'getAdminSiteAnalytics current period',
+    since: currentSince,
+    until: currentUntil,
+  })
 
   // Previous period (for trends)
-  const { data: prevRaw } = await db
-    .from('site_analytics_daily')
-    .select('tenant_id,sessions,conversion_rate')
-    .gte('day', prevSince)
-    .lt('day', currentSince)
+  const prevRaw = await fetchSiteAnalyticsDailyRows(db as unknown as SiteAnalyticsDb, {
+    context: 'getAdminSiteAnalytics previous period',
+    since: prevSince,
+    until: currentSince,
+  })
 
   // Tenant names
   const tenantIds = Array.from(new Set((currentRaw ?? []).map((r) => str(r.tenant_id))))
@@ -175,7 +178,7 @@ export async function getAdminSiteAnalytics(periodDays: number): Promise<AdminSi
     // not fatal
   }
 
-  // ── Aggregate per-tenant and per-day ───────────────────────────
+  // ── Aggregate per-tenant and per-date ──────────────────────────
 
   interface TenantAgg {
     sessions: number
@@ -192,7 +195,7 @@ export async function getAdminSiteAnalytics(periodDays: number): Promise<AdminSi
 
   for (const row of currentRaw ?? []) {
     const tid = str(row.tenant_id)
-    const day = str(row.day)
+    const date = str(row.date)
 
     const ta = tenantAgg.get(tid) ?? { sessions: 0, page_views: 0, booking_completed: 0, conversion_sum: 0, mobile: 0, desktop: 0, days: 0 }
     tenantAgg.set(tid, {
@@ -205,8 +208,8 @@ export async function getAdminSiteAnalytics(periodDays: number): Promise<AdminSi
       days: ta.days + 1,
     })
 
-    const da = dailyAgg.get(day) ?? { sessions: 0, page_views: 0, booking_completed: 0 }
-    dailyAgg.set(day, {
+    const da = dailyAgg.get(date) ?? { sessions: 0, page_views: 0, booking_completed: 0 }
+    dailyAgg.set(date, {
       sessions: da.sessions + num(row.sessions),
       page_views: da.page_views + num(row.page_views),
       booking_completed: da.booking_completed + num(row.booking_completed),
@@ -235,7 +238,7 @@ export async function getAdminSiteAnalytics(periodDays: number): Promise<AdminSi
   // Build sorted daily series
   const daily: DailyPoint[] = Array.from(dailyAgg.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([day, agg]) => ({ day, ...agg }))
+    .map(([date, agg]) => ({ date, ...agg }))
 
   // ── Platform-level aggregates ───────────────────────────────────
 

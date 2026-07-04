@@ -13,7 +13,7 @@ import {
 } from 'recharts'
 
 interface DailyRow {
-  day: string
+  date: string
   sessions: number
   page_views: number
   unique_visitors: number
@@ -38,7 +38,7 @@ interface Props {
   clientsWithAccount: number
 }
 
-function formatDay(value: string): string {
+function formatDate(value: string): string {
   const d = new Date(value)
   return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 }
@@ -102,7 +102,7 @@ export function SiteAnalyticsClient({
 
   const chartData = daily.map((d) => ({
     ...d,
-    day_label: formatDay(d.day),
+    date_label: formatDate(d.date),
     conversion_pct: Math.round(d.conversion_rate * 1000) / 10,
   }))
 
@@ -213,7 +213,7 @@ export function SiteAnalyticsClient({
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border, #e5e7eb)" />
-              <XAxis dataKey="day_label" tick={{ fontSize: 11 }} stroke="none" />
+              <XAxis dataKey="date_label" tick={{ fontSize: 11 }} stroke="none" />
               <YAxis tick={{ fontSize: 11 }} stroke="none" allowDecimals={false} />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Area
@@ -260,7 +260,7 @@ export function SiteAnalyticsClient({
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 4, right: 12, left: -12, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border, #e5e7eb)" />
-              <XAxis dataKey="day_label" tick={{ fontSize: 11 }} stroke="none" />
+              <XAxis dataKey="date_label" tick={{ fontSize: 11 }} stroke="none" />
               <YAxis tick={{ fontSize: 11 }} stroke="none" allowDecimals={false} />
               <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Bar dataKey="booking_started" name="Avviate" fill="var(--brand-secondary, #c9a96e)" radius={[3, 3, 0, 0]} />
