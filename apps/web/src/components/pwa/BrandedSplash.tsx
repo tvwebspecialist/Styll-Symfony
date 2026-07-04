@@ -162,7 +162,8 @@ function FullscreenSplash({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        // z-index 10000 > PwaOnboarding (9999) — splash always on top until dismissed
+        zIndex: 10000,
         background: bgColor,
         display: 'flex',
         flexDirection: 'column',
@@ -202,19 +203,26 @@ function FullscreenSplash({
             <div style={{
               animation: 'bs-float 2.5s cubic-bezier(0.45,0.05,0.55,0.95) 0.92s infinite',
             }}>
-              {/* Glass container — matches PwaOnboarding s1-logo / s5-logo */}
-              <div style={{
-                width: 120, height: 120,
-                borderRadius: 28,
-                background: glassBg,
-                border: glassBorder,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                position: 'relative',
-                animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both',
-              }}>
+              {/*
+               * Bounce-in wrapper (animates scale/opacity) is SEPARATE from the
+               * glass container (overflow:hidden + border-radius). Safari iOS has a
+               * known bug: overflow:hidden on an element that has a CSS transform
+               * animation does not clip its children. Keeping the clip on a static
+               * non-animated child element fixes it.
+               */}
+              <div style={{ animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both' }}>
+                {/* Glass container — static (no animation) so overflow:hidden clips correctly in Safari */}
+                <div style={{
+                  width: 120, height: 120,
+                  borderRadius: 28,
+                  background: glassBg,
+                  border: glassBorder,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}>
                 {logoOk ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -237,9 +245,10 @@ function FullscreenSplash({
                     {initial}
                   </span>
                 )}
-              </div>
-            </div>
-          </div>
+                </div>{/* glass container */}
+              </div>{/* bounce-in wrapper */}
+            </div>{/* float wrapper */}
+          </div>{/* logo zone */}
 
           {/* Business name — fade up after logo entry */}
           <span style={{
