@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
 import { getTenantBySlug } from '@/lib/tenant'
+import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
 
 const FONT_MAP: Record<string, string> = {
   outfit: 'var(--font-outfit)',
@@ -127,6 +128,7 @@ export default async function LandingLayout({ params, children }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="website" />
       {children}
     </div>
   )

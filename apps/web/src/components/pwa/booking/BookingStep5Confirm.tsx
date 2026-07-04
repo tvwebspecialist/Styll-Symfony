@@ -8,7 +8,7 @@ import BookingAuthModal from './BookingAuthModal'
 import BookingSuccessModal from './BookingSuccessModal'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
-import { trackEvent, getCurrentAnonymousId } from '@/lib/site-analytics/track'
+import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
 import { linkSessionToClient } from '@/lib/site-analytics/link-session'
 import type { PublicLocation, PublicService, PublicStaffMember, UpsellProduct } from '@/lib/actions/public-booking'
 import { useToast } from '@/components/pwa/ui/Toast'
@@ -39,6 +39,7 @@ interface Props {
   googleLogin?: boolean
   rescheduleFromId?: string
   offersByServiceId?: Record<string, PromotionServicePricing[]>
+  appSurface?: AppSurface
 }
 
 function getInitials(name: string | null): string {
@@ -84,6 +85,7 @@ export default function BookingStep5Confirm({
   clientId,
   googleLogin = false,
   rescheduleFromId,
+  appSurface = 'pwa',
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const { showToast } = useToast()
@@ -131,7 +133,7 @@ export default function BookingStep5Confirm({
   }, [])
 
   useEffect(() => {
-    trackEvent({ tenantId, eventType: 'booking_started' })
+    trackEvent({ tenantId, eventType: 'booking_started', appSurface })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -197,7 +199,7 @@ export default function BookingStep5Confirm({
       setIsSubmitting(false)
       return
     }
-    trackEvent({ tenantId, eventType: 'booking_completed' })
+    trackEvent({ tenantId, eventType: 'booking_completed', appSurface })
     if (result.clientId) {
       const anonymousId = getCurrentAnonymousId()
       linkSessionToClient(tenantId, anonymousId, result.clientId).catch(() => {})

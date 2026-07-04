@@ -2,21 +2,22 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
-import { trackEvent } from '@/lib/site-analytics/track'
+import { trackEvent, type AppSurface } from '@/lib/site-analytics/track'
 
 interface Props {
   tenantId: string
+  appSurface: AppSurface
 }
 
-export function SiteAnalyticsTracker({ tenantId }: Props) {
+export function SiteAnalyticsTracker({ tenantId, appSurface }: Props) {
   const pathname = usePathname()
   const lastPath = useRef<string | null>(null)
 
   useEffect(() => {
     if (pathname === lastPath.current) return
     lastPath.current = pathname
-    trackEvent({ tenantId, eventType: 'page_view' })
-  }, [tenantId, pathname])
+    trackEvent({ tenantId, eventType: 'page_view', appSurface })
+  }, [tenantId, pathname, appSurface])
 
   return null
 }
