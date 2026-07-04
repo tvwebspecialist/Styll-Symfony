@@ -80,6 +80,32 @@ function LogoUploader({ currentUrl, onUploaded }: { currentUrl: string; onUpload
   )
 }
 
+function isLightHex(hex: string): boolean {
+  const clean = hex.replace('#', '')
+  if (clean.length !== 6) return false
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6
+}
+
+function SplashMiniPreview({ bgColor, logoUrl, businessName }: { bgColor: string; logoUrl: string; businessName: string }) {
+  const textColor = isLightHex(bgColor) ? '#111111' : '#FFFFFF'
+  const initial = businessName.charAt(0).toUpperCase() || 'S'
+  return (
+    <div style={{ width: 80, height: 140, borderRadius: 12, background: bgColor, border: '1.5px solid #E5E7EB', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logoUrl} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+      ) : (
+        <span style={{ fontSize: 32, fontWeight: 800, color: textColor, lineHeight: 1 }}>{initial}</span>
+      )}
+      <span style={{ fontSize: 7, fontWeight: 700, color: textColor, opacity: 0.85, textAlign: 'center', padding: '0 4px', lineHeight: 1.2 }}>{businessName || 'Nome'}</span>
+      <span style={{ fontSize: 6, color: textColor, opacity: 0.4, fontWeight: 500 }}>Powered by Styll</span>
+    </div>
+  )
+}
+
 function readRuntimeLocation() {
   if (typeof window === 'undefined') return null
 
@@ -360,6 +386,7 @@ export function AppSettingsClient({
   const [businessName, setBusinessName] = React.useState(initialSettings?.businessName ?? '')
   const [primaryColor, setPrimaryColor] = React.useState(initialSettings?.primaryColor ?? '#1A1A1A')
   const [secondaryColor, setSecondaryColor] = React.useState(initialSettings?.secondaryColor ?? '#4B5563')
+  const [splashColor, setSplashColor] = React.useState(initialSettings?.splashColor ?? '')
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
   const [saving, setSaving] = React.useState(false)
@@ -392,10 +419,12 @@ export function AppSettingsClient({
 
   async function handleSave() {
     setSaving(true)
+    const hexRegex = /^#[0-9a-fA-F]{6}$/
     const result = await updateAppSettings({
       businessName: businessName.trim(),
       primaryColor: primaryColor || null,
       secondaryColor: secondaryColor || null,
+      splashColor: splashColor && hexRegex.test(splashColor) ? splashColor : null,
       fontFamily: fontFamily || null,
       logoUrl: logoUrl.trim() || null,
     })
@@ -585,6 +614,53 @@ export function AppSettingsClient({
                     </div>
                   </div>
                 ))}
+
+                <div>
+                  <label style={labelStyle}>Colore schermata di caricamento</label>
+                  <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
+                    Il colore di sfondo che appare mentre l&apos;app si avvia. Se lasci vuoto, usi il colore principale.
+                  </p>
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                    <SplashMiniPreview
+                      bgColor={splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor}
+                      logoUrl={logoUrl}
+                      businessName={businessName}
+                    />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <label style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}>
+                          <div style={{ width: 52, height: 52, borderRadius: 12, background: splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor, border: '2px solid #E5E7EB', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }} />
+                          <input
+                            type="color"
+                            value={splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor}
+                            onChange={(e) => setSplashColor(e.target.value)}
+                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+                          />
+                        </label>
+                        <div style={{ flex: 1 }}>
+                          <input
+                            className="styll-input"
+                            style={{ ...inputStyle, width: '100%', fontFamily: 'monospace', fontSize: 13 }}
+                            value={splashColor}
+                            onChange={(e) => setSplashColor(e.target.value)}
+                            placeholder={`${primaryColor} (colore principale)`}
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                      {splashColor && (
+                        <button
+                          type="button"
+                          onClick={() => setSplashColor('')}
+                          style={{ alignSelf: 'flex-start', fontSize: 12, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
+                        >
+                          ↩ Usa colore principale
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 8px' }}>Palette</p>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

@@ -11,6 +11,7 @@ export interface AppSettings {
   businessName: string
   primaryColor: string | null
   secondaryColor: string | null
+  splashColor: string | null
   fontFamily: string | null
   logoUrl: string | null
   aboutTitle: string | null
@@ -72,7 +73,7 @@ export async function getAppSettings(): Promise<AppSettings | null> {
   const db = createAdminClient()
   const { data } = await db
     .from('tenants')
-    .select('business_name, primary_color, secondary_color, font_family, logo_url, settings, slug')
+    .select('business_name, primary_color, secondary_color, splash_color, font_family, logo_url, settings, slug')
     .eq('id', tenantId)
     .maybeSingle()
 
@@ -87,6 +88,7 @@ export async function getAppSettings(): Promise<AppSettings | null> {
     businessName: (d.business_name as string | null) ?? '',
     primaryColor: (d.primary_color as string | null) ?? null,
     secondaryColor: (d.secondary_color as string | null) ?? null,
+    splashColor: (d.splash_color as string | null) ?? null,
     fontFamily: (d.font_family as string | null) ?? null,
     logoUrl: (d.logo_url as string | null) ?? null,
     aboutTitle: (about?.title as string | null) ?? null,
@@ -121,6 +123,7 @@ export async function updateAppSettings(
   if (settings.businessName !== undefined) updates.business_name = settings.businessName
   if (settings.primaryColor !== undefined) updates.primary_color = settings.primaryColor
   if (settings.secondaryColor !== undefined) updates.secondary_color = settings.secondaryColor
+  if (settings.splashColor !== undefined) updates.splash_color = settings.splashColor
   if (settings.fontFamily !== undefined) updates.font_family = settings.fontFamily
   if (settings.logoUrl !== undefined) updates.logo_url = settings.logoUrl
 

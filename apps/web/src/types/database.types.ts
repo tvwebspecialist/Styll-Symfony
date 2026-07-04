@@ -2215,6 +2215,7 @@ export type Database = {
           logo_url: string | null
           primary_color: string | null
           secondary_color: string | null
+          splash_color: string | null
           settings: Json
           slug: string
           social_links: Json | null
@@ -2236,6 +2237,7 @@ export type Database = {
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          splash_color?: string | null
           settings?: Json
           slug: string
           social_links?: Json | null
@@ -2257,6 +2259,7 @@ export type Database = {
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          splash_color?: string | null
           settings?: Json
           slug?: string
           social_links?: Json | null

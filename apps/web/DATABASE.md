@@ -27,6 +27,7 @@
 | `logo_url` | `text` |  Nullable |
 | `primary_color` | `text` |  Nullable |
 | `secondary_color` | `text` |  Nullable |
+| `splash_color` | `text` |  Nullable |
 | `font_family` | `text` |  Nullable |
 | `settings` | `jsonb` |  |
 | `status` | `text` |  |
