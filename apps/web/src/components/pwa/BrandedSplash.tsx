@@ -204,49 +204,45 @@ function FullscreenSplash({
               animation: 'bs-float 2.5s cubic-bezier(0.45,0.05,0.55,0.95) 0.92s infinite',
             }}>
               {/*
-               * Bounce-in wrapper (animates scale/opacity) is SEPARATE from the
-               * glass container (overflow:hidden + border-radius). Safari iOS has a
-               * known bug: overflow:hidden on an element that has a CSS transform
-               * animation does not clip its children. Keeping the clip on a static
-               * non-animated child element fixes it.
+               * clip-path: inset(0 round 28px) replaces overflow:hidden for rounded clipping.
+               * Safari iOS computes clip-path AFTER transforms, so it clips correctly
+               * even while bs-bounce-in is animating scale — no extra wrapper needed.
                */}
-              <div style={{ animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both' }}>
-                {/* Glass container — static (no animation) so overflow:hidden clips correctly in Safari */}
-                <div style={{
-                  width: 120, height: 120,
-                  borderRadius: 28,
-                  background: glassBg,
-                  border: glassBorder,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                  position: 'relative',
+              <div style={{
+                width: 120, height: 120,
+                borderRadius: 28,
+                clipPath: 'inset(0 round 28px)',
+                background: glassBg,
+                border: glassBorder,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                animation: 'bs-bounce-in 0.65s cubic-bezier(0.34,1.56,0.64,1) 0.22s both',
+              }}>
+              {logoOk ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl!}
+                  alt={businessName}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.10))',
+                  }}
+                />
+              ) : (
+                <span style={{
+                  fontSize: 56, fontWeight: 800,
+                  color: textColor,
+                  lineHeight: 1,
+                  letterSpacing: '-2px',
                 }}>
-                {logoOk ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={logoUrl!}
-                    alt={businessName}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.10))',
-                    }}
-                  />
-                ) : (
-                  <span style={{
-                    fontSize: 56, fontWeight: 800,
-                    color: textColor,
-                    lineHeight: 1,
-                    letterSpacing: '-2px',
-                  }}>
-                    {initial}
-                  </span>
-                )}
-                </div>{/* glass container */}
-              </div>{/* bounce-in wrapper */}
+                  {initial}
+                </span>
+              )}
+              </div>{/* glass container */}
             </div>{/* float wrapper */}
           </div>{/* logo zone */}
 
