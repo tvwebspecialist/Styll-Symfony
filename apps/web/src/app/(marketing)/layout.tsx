@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { CookieBanner } from '@/components/shared/CookieBanner'
+import { PostHogProvider } from '@/components/marketing/PostHogProvider'
 
 export const metadata: Metadata = {
   title: 'Styll — Il sistema di retention per barbieri',
@@ -24,6 +25,7 @@ export default function MarketingLayout({
 }) {
   return (
     <>
+      <PostHogProvider />
       <div className="min-h-screen">{children}</div>
       <CookieBanner privacyPath="/cookie" />
     </>

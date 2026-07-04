@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
 import { CookieBanner } from '@/components/shared/CookieBanner'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
+import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
 import { PwaOnboardingLoader } from '@/components/pwa/PwaOnboardingLoader'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
@@ -259,6 +260,7 @@ export default async function AppLayout({ params, children }: Props) {
           businessName={tenant.business_name}
           tenantId={tenant.tenant_id}
         />
+        <SiteAnalyticsTracker tenantId={tenant.tenant_id} />
         <CookieBanner privacyPath="/cookie" brandColor={brandPrimary} />
       </div>
     </>

@@ -9,6 +9,8 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { sendEmailVerificationOTP } from '@/lib/actions/email-verification'
 import { cn } from '@/lib/utils'
+import { savePlatformLead } from '@/lib/actions/platform-leads'
+import { identifyLead } from '@/components/marketing/PostHogProvider'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
 
@@ -136,6 +138,10 @@ export function RegisterForm() {
         router.push('/login')
         return
       }
+
+      // PostHog identify + platform_leads (best-effort, non-blocking)
+      identifyLead(cleanEmail, { full_name: cleanName, source: 'trial_signup' })
+      savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
 
       // Send OTP and redirect to email verification
       await sendEmailVerificationOTP(cleanEmail)
