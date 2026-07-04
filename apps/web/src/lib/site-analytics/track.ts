@@ -20,13 +20,16 @@ export type SiteEventType =
   | 'signup_completed'
   | 'login'
 
+export type AppSurface = 'website' | 'pwa'
+
 export interface TrackEventParams {
   tenantId: string
   eventType: SiteEventType
+  appSurface: AppSurface
   metadata?: Record<string, unknown>
 }
 
-export function trackEvent({ tenantId, eventType, metadata }: TrackEventParams): void {
+export function trackEvent({ tenantId, eventType, appSurface, metadata }: TrackEventParams): void {
   if (typeof window === 'undefined') return
 
   const anonymousId = getCurrentAnonymousId()
@@ -34,6 +37,7 @@ export function trackEvent({ tenantId, eventType, metadata }: TrackEventParams):
     tenant_id: tenantId,
     anonymous_id: anonymousId,
     event_type: eventType,
+    app_surface: appSurface,
     page_url: window.location.pathname,
     referrer: document.referrer || null,
     user_agent: navigator.userAgent,

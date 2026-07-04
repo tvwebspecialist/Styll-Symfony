@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SiteEventType } from '@/lib/site-analytics/track'
+import type { SiteEventType, AppSurface } from '@/lib/site-analytics/track'
 
 // TODO: replace with Redis-backed rate limiter when app runs on multiple serverless instances.
 // Current in-memory map resets on cold start — acceptable for single-instance deploys.
@@ -27,10 +27,13 @@ const VALID_EVENTS = new Set<string>([
   'booking_completed', 'signup_completed', 'login',
 ])
 
+const VALID_SURFACES = new Set<string>(['website', 'pwa'])
+
 interface TrackPayload {
   tenant_id: string
   anonymous_id: string
   event_type: string
+  app_surface: string
   page_url?: string
   referrer?: string | null
   user_agent?: string
@@ -41,6 +44,7 @@ interface SessionRow { id: string }
 interface SessionUpsertData {
   tenant_id: string
   anonymous_id: string
+  app_surface: AppSurface
   user_agent: string | null
   last_seen_at: string
   first_seen_at?: string
@@ -76,12 +80,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false }, { status: 400 })
   }
 
-  const { tenant_id, anonymous_id, event_type, page_url, referrer, user_agent, metadata } = body
+  const { tenant_id, anonymous_id, event_type, app_surface, page_url, referrer, user_agent, metadata } = body
 
-  if (!tenant_id || !anonymous_id || !event_type) {
+  if (!tenant_id || !anonymous_id || !event_type || !app_surface) {
     return NextResponse.json({ ok: false }, { status: 400 })
   }
   if (!VALID_EVENTS.has(event_type)) {
+    return NextResponse.json({ ok: false }, { status: 400 })
+  }
+  if (!VALID_SURFACES.has(app_surface)) {
     return NextResponse.json({ ok: false }, { status: 400 })
   }
 
@@ -99,11 +106,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         {
           tenant_id,
           anonymous_id,
+          app_surface: app_surface as AppSurface,
           user_agent: user_agent ?? null,
           last_seen_at: now,
           first_seen_at: now,
         },
-        { onConflict: 'tenant_id,anonymous_id', ignoreDuplicates: false }
+        { onConflict: 'tenant_id,anonymous_id,app_surface', ignoreDuplicates: false }
       )
       .select('id')
       .maybeSingle()

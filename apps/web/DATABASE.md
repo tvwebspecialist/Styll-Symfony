@@ -780,6 +780,7 @@
 | `landing_page` | `text` |  Nullable |
 | `device_type` | `text` |  |
 | `created_at` | `timestamptz` |  |
+| `app_surface` | `text` |  |
 
 ## Table `site_events`
 
@@ -812,4 +813,5 @@
 | `top_referrers` | `jsonb` |  |
 | `device_breakdown` | `jsonb` |  |
 | `updated_at` | `timestamptz` |  |
+| `app_surface` | `text` | Primary |
 

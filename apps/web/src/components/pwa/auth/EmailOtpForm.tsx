@@ -8,7 +8,7 @@ import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pw
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
-import { trackEvent, getCurrentAnonymousId } from '@/lib/site-analytics/track'
+import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
 import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
 
 function GoogleIcon() {
@@ -32,6 +32,7 @@ interface Props {
   prefillPhone?: string
   returnTo?: string
   onSuccess?: (data: { email: string; fullName: string; phone: string }) => void
+  appSurface?: AppSurface
 }
 
 type Step = 'email' | 'profile-data' | 'otp'
@@ -52,6 +53,7 @@ export function EmailOtpForm({
   prefillPhone = '',
   returnTo,
   onSuccess,
+  appSurface = 'pwa',
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(tenantSlug)
@@ -196,7 +198,7 @@ export function EmailOtpForm({
       // Non-blocking — session works via cookies
     }
 
-    trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login' })
+    trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login', appSurface })
     linkSessionByAuthUser(tenantId, getCurrentAnonymousId()).catch(() => {})
 
     if (onSuccess) {

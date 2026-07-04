@@ -20,6 +20,7 @@ const TABS = [
   { href: '/appointments', label: 'Appuntamenti' },
   { href: '/subscription', label: 'Abbonamento' },
   { href: '/audit', label: 'Audit Log' },
+  { href: '/analytics', label: 'Analytics' },
 ]
 
 const STATUS_BADGE: Record<string, string> = {

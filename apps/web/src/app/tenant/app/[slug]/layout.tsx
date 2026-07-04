@@ -260,7 +260,7 @@ export default async function AppLayout({ params, children }: Props) {
           businessName={tenant.business_name}
           tenantId={tenant.tenant_id}
         />
-        <SiteAnalyticsTracker tenantId={tenant.tenant_id} />
+        <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="pwa" />
         <CookieBanner privacyPath="/cookie" brandColor={brandPrimary} />
       </div>
     </>
