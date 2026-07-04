@@ -105,7 +105,7 @@ export async function generateMetadata({
     title: `${tenant.business_name} | App cliente`,
     description: `Apri l'app di ${tenant.business_name} per prenotare, scoprire promozioni e gestire il tuo profilo.`,
     manifest: `/api/pwa-manifest?slug=${encodeURIComponent(slug)}`,
-    themeColor: tenant.primary_color ?? '#1a1a1a',
+    themeColor: tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a',
     icons: {
       apple: [
         {
@@ -137,7 +137,7 @@ export async function generateViewport({
   const tenant = await getTenantBySlug(slug)
 
   return {
-    themeColor: tenant?.primary_color ?? '#1a1a1a',
+    themeColor: tenant?.splash_color ?? tenant?.primary_color ?? '#1a1a1a',
     viewportFit: 'cover',
   }
 }
