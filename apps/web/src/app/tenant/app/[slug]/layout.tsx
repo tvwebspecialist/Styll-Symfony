@@ -248,6 +248,7 @@ export default async function AppLayout({ params, children }: Props) {
           logoUrl={tenant.logo_url}
           primaryColor={tenant.primary_color}
           secondaryColor={tenant.secondary_color}
+          splashColor={tenant.splash_color ?? null}
           fontFamily={tenant.font_family}
           clientName={clientProfile?.fullName ?? null}
           clientAvatarUrl={clientProfile?.avatarUrl ?? null}

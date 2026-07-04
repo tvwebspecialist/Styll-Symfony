@@ -47,12 +47,12 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient()
   const { data } = await db
     .from('tenants')
-    .select('business_name, primary_color, logo_url')
+    .select('business_name, primary_color, splash_color, logo_url')
     .eq('slug', slug)
     .eq('status', 'active')
     .maybeSingle()
 
-  const bgColor = safeColor(data?.primary_color)
+  const bgColor = safeColor(data?.splash_color ?? data?.primary_color)
   const name = (data?.business_name ?? 'S').trim()
   const initial = name.charAt(0).toUpperCase()
   const logoUrl = safeImageUrl(data?.logo_url)

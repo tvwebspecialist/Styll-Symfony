@@ -8,6 +8,7 @@ export interface TenantBranding {
   business_name: string
   primary_color: string
   secondary_color: string
+  splash_color: string | null
   logo_url: string | null
   font_family: string | null
   status: string
@@ -18,7 +19,7 @@ async function fetchTenantBySlug(slug: string): Promise<TenantBranding | null> {
   const db = createAdminClient()
   const { data, error } = await db
     .from('tenants')
-    .select('id, slug, business_name, primary_color, secondary_color, logo_url, font_family, status, settings')
+    .select('id, slug, business_name, primary_color, secondary_color, splash_color, logo_url, font_family, status, settings')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -30,6 +31,7 @@ async function fetchTenantBySlug(slug: string): Promise<TenantBranding | null> {
     business_name: data.business_name as string,
     primary_color: data.primary_color as string,
     secondary_color: data.secondary_color as string,
+    splash_color: (data.splash_color as string | null) ?? null,
     logo_url: (data.logo_url as string | null) ?? null,
     font_family: (data.font_family as string | null) ?? null,
     status: data.status as string,

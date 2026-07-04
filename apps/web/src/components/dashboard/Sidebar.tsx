@@ -14,7 +14,6 @@ import {
   Scissors,
   Smartphone,
   Settings,
-  BarChart2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -45,7 +44,6 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: 'Loyalty', href: '/loyalty', icon: Trophy },
       { label: 'Marketing', href: '/marketing', icon: Megaphone },
-      { label: 'Analytics', href: '/analytics', icon: BarChart2 },
       { label: 'Team', href: '/team', icon: Users },
     ],
   },

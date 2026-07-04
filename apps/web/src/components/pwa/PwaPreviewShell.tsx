@@ -17,6 +17,7 @@ interface Props {
   logoUrl: string | null
   primaryColor: string | null
   secondaryColor: string | null
+  splashColor: string | null
   fontFamily: string | null
   clientName: string | null
   clientAvatarUrl: string | null
@@ -64,6 +65,7 @@ export function PwaPreviewShell({
   logoUrl,
   primaryColor,
   secondaryColor,
+  splashColor,
   fontFamily,
   clientName,
   clientAvatarUrl,
@@ -75,6 +77,7 @@ export function PwaPreviewShell({
   const activeBusinessName = preview.businessName ?? businessName
   const activeLogoUrl = preview.logoUrl ?? logoUrl
   const activePrimaryColor = preview.primaryColor ?? primaryColor ?? '#1A1A1A'
+  const activeSplashColor = splashColor ?? activePrimaryColor
   const activeSecondaryColor = secondaryColor ?? '#666666'
   const activeFontKey = (preview.fontFamily ?? fontFamily ?? 'outfit').toLowerCase()
   const activeFontFamily = resolveFontFamily(activeFontKey)
@@ -129,6 +132,7 @@ export function PwaPreviewShell({
         <PwaSplash
           businessName={activeBusinessName}
           primaryColor={activePrimaryColor}
+          splashColor={activeSplashColor}
           logoUrl={activeLogoUrl}
         />
       )}
