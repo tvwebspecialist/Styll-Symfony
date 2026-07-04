@@ -67,13 +67,25 @@ async function fetchSurfaceData(
   surface: 'website' | 'pwa',
   since: string,
 ): Promise<DailyRaw[]> {
-  const { data } = await db
+  const today = new Date().toISOString().slice(0, 10)
+  const { data, error } = await db
     .from('site_analytics_daily')
     .select('day,sessions,page_views,booking_started,booking_completed,conversion_rate,new_signups,logins,mobile_sessions,desktop_sessions')
     .eq('tenant_id', tenantId)
     .eq('app_surface', surface)
     .gte('day', since)
     .order('day', { ascending: true })
+
+  // DEBUG — remove before shipping
+  console.log('[analytics-debug] fetchSurfaceData', {
+    surface,
+    tenantId,
+    since,
+    today,
+    rowCount: data?.length ?? null,
+    firstRow: data?.[0] ?? null,
+    error,
+  })
 
   return (data ?? []).map((r) => ({
     day: str(r.day),
