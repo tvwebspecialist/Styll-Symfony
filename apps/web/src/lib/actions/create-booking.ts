@@ -11,6 +11,7 @@ import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
 import { sendTemplatedEmail } from '@/lib/email'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { buildTenantAppUrl } from '@/lib/auth/urls'
 import type { TablesInsert } from '@/types'
 import { getActiveOffersForBooking } from '@/lib/actions/offers'
 import { applyBestPromotion } from '@/lib/utils/offer-pricing'
@@ -39,6 +40,18 @@ const createGuestBookingSchema = z.object({
   rescheduleFromId: z.string().uuid().optional(),
 })
 
+const BOOKING_CONFIRMATION_TOKEN_TTL_MS = 48 * 60 * 60 * 1000
+
+type ClientLookupRow = {
+  id: string
+  profile_id: string | null
+}
+
+type AppointmentInsertWithConfirmation = TablesInsert<'appointments'> & {
+  booking_confirmation_token: string
+  booking_confirmation_token_expires_at: string
+}
+
 export interface CreateGuestBookingResult {
   success: boolean
   appointmentId?: string
@@ -50,6 +63,25 @@ function sanitizePhone(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+function buildBookingConfirmationToken(): string {
+  return `${crypto.randomUUID()}-${Date.now()}`
+}
+
+function buildBookingConfirmationTokenExpiresAt(): string {
+  return new Date(Date.now() + BOOKING_CONFIRMATION_TOKEN_TTL_MS).toISOString()
+}
+
+function buildBookingSuccessSearchParams(appointmentId: string, token: string): string {
+  return new URLSearchParams({ appointment: appointmentId, token }).toString()
+}
+
+function buildBookingSuccessRelativePath(slug: string, appointmentId: string, token: string): string {
+  return `/tenant/app/${slug}/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`
+}
+
+function buildBookingSuccessAbsoluteUrl(slug: string, appointmentId: string, token: string): string {
+  return buildTenantAppUrl(slug, `/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`)
+}
 
 function buildAppointmentDate(date: string, time: string, timezone: string = 'Europe/Rome'): Date {
   return localDatetimeToUtc(date, time, timezone)
@@ -159,18 +191,20 @@ export async function createGuestBooking(
   }
 
   // ── Lookup by profile_id for authenticated users (handles Google users with phone: null) ──
+  let authUserId: string | null = null
   let existingClientId: string | null = null
   {
     const supabase = await createServerClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (user?.id) {
+    authUserId = user?.id ?? null
+    if (authUserId) {
       const { data: byProfile } = await db
         .from('clients')
         .select('id')
         .eq('tenant_id', data.tenantId)
-        .eq('profile_id', user.id)
+        .eq('profile_id', authUserId)
         .is('deleted_at', null)
         .maybeSingle()
       if (byProfile) {
@@ -188,10 +222,10 @@ export async function createGuestBooking(
 
   const [{ data: clientRow }, { data: serviceRows }] = await Promise.all([
     existingClientId
-      ? db.from('clients').select('id').eq('id', existingClientId).maybeSingle()
+      ? db.from('clients').select('id, profile_id').eq('id', existingClientId).maybeSingle()
       : db
           .from('clients')
-          .select('id')
+          .select('id, profile_id')
           .eq('tenant_id', data.tenantId)
           .eq('phone', phone)
           .is('deleted_at', null)
@@ -204,6 +238,7 @@ export async function createGuestBooking(
       .in('id', data.serviceIds),
   ])
 
+  const matchedClient = (clientRow as ClientLookupRow | null) ?? null
   const services = (serviceRows ?? []) as Array<{
     id: string
     name: string
@@ -218,12 +253,37 @@ export async function createGuestBooking(
     }
   }
 
-  let clientId = (clientRow as { id: string } | null)?.id ?? null
+  let clientId = matchedClient?.id ?? null
+  if (clientId && authUserId) {
+    const matchedProfileId = matchedClient?.profile_id ?? null
+
+    if (matchedProfileId === null) {
+      const { error: linkClientError } = await db
+        .from('clients')
+        .update({
+          profile_id: authUserId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', clientId)
+        .is('profile_id', null)
+
+      if (linkClientError) {
+        return {
+          success: false,
+          error: linkClientError.message,
+        }
+      }
+    } else if (matchedProfileId !== authUserId) {
+      clientId = null
+    }
+  }
+
   const isNewClient = clientId === null
 
   if (!clientId) {
     const clientPayload: TablesInsert<'clients'> = {
       tenant_id: data.tenantId,
+      profile_id: authUserId,
       full_name: data.fullName,
       phone,
       email,
@@ -264,7 +324,10 @@ export async function createGuestBooking(
   const endDate = new Date(startDate)
   endDate.setMinutes(endDate.getMinutes() + totalMinutes)
 
-  const appointmentPayload: TablesInsert<'appointments'> = {
+  const bookingConfirmationToken = buildBookingConfirmationToken()
+  const bookingConfirmationTokenExpiresAt = buildBookingConfirmationTokenExpiresAt()
+
+  const appointmentPayload: AppointmentInsertWithConfirmation = {
     tenant_id: data.tenantId,
     client_id: clientId,
     staff_id: data.staffId,
@@ -274,10 +337,14 @@ export async function createGuestBooking(
     status: 'confirmed',
     booking_source: 'pwa',
     notes,
+    booking_confirmation_token: bookingConfirmationToken,
+    booking_confirmation_token_expires_at: bookingConfirmationTokenExpiresAt,
   }
 
   const { data: appointmentRow, error: appointmentError } = await db
     .from('appointments')
+    // Generated Supabase types are stale here: the DB includes the confirmation fields.
+    // @ts-expect-error booking_confirmation_* is missing from src/types/database.types.ts
     .insert(appointmentPayload)
     .select('id')
     .single()
@@ -421,6 +488,7 @@ export async function createGuestBooking(
     tenantId:     data.tenantId,
     slug:         data.slug,
     appointmentId,
+    bookingConfirmationToken,
     clientId,
     staffId:      data.staffId,
     startTime:    startDate.toISOString(),
@@ -440,6 +508,7 @@ async function sendBookingConfirmedNotification(params: {
   tenantId:      string
   slug:          string
   appointmentId: string
+  bookingConfirmationToken: string
   clientId:      string
   staffId:       string
   startTime:     string
@@ -468,6 +537,16 @@ async function sendBookingConfirmedNotification(params: {
 
   const date = new Date(params.startTime).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
   const time = new Date(params.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
+  const successRelativePath = buildBookingSuccessRelativePath(
+    params.slug,
+    params.appointmentId,
+    params.bookingConfirmationToken,
+  )
+  const successAbsoluteUrl = buildBookingSuccessAbsoluteUrl(
+    params.slug,
+    params.appointmentId,
+    params.bookingConfirmationToken,
+  )
 
   if (channel === 'push' && profileId) {
     const subs = await getSubscriptionsForProfile(params.tenantId, profileId)
@@ -475,7 +554,7 @@ async function sendBookingConfirmedNotification(params: {
       await sendPushToSubscriptions(subs, {
         title: '✅ Prenotazione confermata!',
         body:  `${date} alle ${time} da ${businessName}`,
-        url:   `/tenant/app/${params.slug}/prenota/successo?appointment=${params.appointmentId}`,
+        url:   successRelativePath,
         tag:   `booking-confirmed-${params.appointmentId}`,
       })
       await db.from('notification_log').upsert(
@@ -487,10 +566,19 @@ async function sendBookingConfirmedNotification(params: {
     await sendTemplatedEmail({
       to:           clientEmail,
       templateSlug: 'booking_confirmed',
-      variables:    { client_name: clientName, staff_name: staffName, date, time, services: params.serviceNames.join(', ') },
+      variables:    {
+        client_name: clientName,
+        staff_name: staffName,
+        date,
+        time,
+        services: params.serviceNames.join(', '),
+        confirmation_url: successAbsoluteUrl,
+      },
       tenant:       { business_name: businessName, primary_color: primaryColor },
       category:     'Prenotazione confermata',
       details:      { Data: date, Orario: time, Servizi: params.serviceNames.join(', '), Con: staffName },
+      ctaText:      'Vedi prenotazione',
+      ctaUrl:       successAbsoluteUrl,
     })
   }
 }

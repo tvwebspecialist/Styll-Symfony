@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -351,6 +352,29 @@ export function RegisterForm() {
           </span>
         )}
       </label>
+
+      <p
+        className="text-sm leading-6"
+        style={{ color: 'var(--color-fg-muted)' }}
+      >
+        Creando un account accetti i nostri{' '}
+        <Link
+          href="/termini"
+          className="font-medium underline underline-offset-2"
+          style={{ color: 'var(--color-fg)' }}
+        >
+          Termini di Servizio
+        </Link>{' '}
+        e la nostra{' '}
+        <Link
+          href="/privacy"
+          className="font-medium underline underline-offset-2"
+          style={{ color: 'var(--color-fg)' }}
+        >
+          Privacy Policy
+        </Link>
+        . Leggi come trattiamo i tuoi dati.
+      </p>
 
       <button
         type="submit"

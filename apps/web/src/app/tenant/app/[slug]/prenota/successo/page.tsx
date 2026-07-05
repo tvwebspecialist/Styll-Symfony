@@ -50,32 +50,131 @@ function buildGCalLink(title: string, startISO: string, endISO: string, location
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
+function buildRegisterHref(
+  tenantPath: (relativePath: string) => string,
+  appointmentId: string,
+  token: string | null
+): string {
+  const successParams = new URLSearchParams({ appointment: appointmentId })
+  if (token) {
+    successParams.set('token', token)
+  }
+
+  const accessParams = new URLSearchParams({
+    mode: 'register',
+    return_to: `/prenota/successo?${successParams.toString()}`,
+  })
+
+  return tenantPath(`/accesso?${accessParams.toString()}`)
+}
+
+function GenericSuccessPage({
+  brandColor,
+  businessName,
+  homeHref,
+}: {
+  brandColor: string
+  businessName: string
+  homeHref: string
+}) {
+  const pulseColor = `${brandColor}20`
+
+  return (
+    <main className="mx-auto max-w-md px-4 py-8">
+      <div
+        className="flex flex-col gap-5 pb-10"
+        style={{ animation: 'fadeSlideUp 0.45s ease both' }}
+      >
+        <div className="flex flex-col items-center gap-4 text-center pt-2">
+          <div className="relative flex items-center justify-center w-[120px] h-[120px]">
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out infinite' }}
+              aria-hidden="true"
+            />
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out 0.8s infinite' }}
+              aria-hidden="true"
+            />
+            <Image
+              src="/img/ceck.png"
+              alt="Prenotazione confermata"
+              width={110}
+              height={110}
+              className="relative z-10 object-contain"
+              priority
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <h1
+              className="text-[26px] font-bold tracking-tight text-gray-900"
+              style={{ fontFamily: 'var(--font-tenant, inherit)' }}
+            >
+              Prenotazione confermata
+            </h1>
+            <p className="text-[14px] text-gray-500">
+              La tua prenotazione da{' '}
+              <span className="font-medium text-gray-700">{businessName}</span> è andata a buon fine.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-center shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
+          <p className="text-[14px] leading-relaxed text-gray-600">
+            Per motivi di privacy i dettagli completi di questo appuntamento non sono disponibili da questo
+            link.
+          </p>
+        </div>
+
+        <Link
+          href={homeHref}
+          className="inline-flex min-h-[52px] items-center justify-center rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
+          style={{ backgroundColor: brandColor }}
+        >
+          Torna alla home
+        </Link>
+      </div>
+    </main>
+  )
+}
+
 export default async function SuccessoPage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const appointmentId = readParam(resolvedSearchParams.appointment)
+  const token = readParam(resolvedSearchParams.token)
   const tp = await createTenantPaths(slug)
 
   if (!appointmentId) redirect(tp(''))
 
-  const tenantPromise = getTenantBySlug(slug)
-  const appointmentPromise = tenantPromise.then((tenant) =>
-    tenant ? getAppointmentSummary(appointmentId, tenant.tenant_id) : Promise.resolve(null),
-  )
-  const loyaltyPromise = tenantPromise.then((tenant) =>
-    tenant ? getLoyaltyConfig(tenant.tenant_id) : Promise.resolve(null),
-  )
+  const tenant = await getTenantBySlug(slug)
+  if (!tenant || tenant.status !== 'active') notFound()
 
-  const [tenant, appointment, loyaltyConfig] = await Promise.all([
-    tenantPromise,
-    appointmentPromise,
-    loyaltyPromise,
-  ])
+  const appointment = await getAppointmentSummary(appointmentId, tenant.tenant_id, token)
+  const brandColor = tenant.primary_color ?? '#1a1a1a'
+
+  if (!appointment) {
+    return (
+      <GenericSuccessPage
+        brandColor={brandColor}
+        businessName={tenant.business_name}
+        homeHref={tp('')}
+      />
+    )
+  }
+
+  const createAccountHref = buildRegisterHref(tp, appointmentId, token)
   const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!tenant || tenant.status !== 'active' || !appointment) notFound()
+  const [
+    {
+      data: { user },
+    },
+    loyaltyConfig,
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    getLoyaltyConfig(tenant.tenant_id),
+  ])
 
   // Fetch post-booking product suggestions (products not yet in this appointment)
   let suggestedProducts: SuggestedProduct[] = []
@@ -124,7 +223,6 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
     }
   }
 
-  const brandColor = tenant.primary_color ?? '#1a1a1a'
   // Pulse ring colour: hex + 20 = ~12% opacity — same technique as BookingSuccessModal
   const pulseColor = `${brandColor}20`
 
@@ -366,7 +464,7 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
               </div>
             </div>
             <Link
-              href={tp(`/accesso?mode=register&return_to=/prenota/successo?appointment=${appointmentId}`)}
+              href={createAccountHref}
               className="inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
               style={{ backgroundColor: brandColor }}
             >

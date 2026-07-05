@@ -670,7 +670,7 @@ function Footer() {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Legale</div>
             {([
               { label: 'Privacy Policy', href: '/privacy' },
-              { label: 'Termini di servizio', href: '#' },
+              { label: 'Termini di servizio', href: '/termini' },
               { label: 'Cookie Policy', href: '/cookie' },
               { label: 'Sub-responsabili', href: '/sub-processor' },
             ] as const).map(({ label, href }) => (
