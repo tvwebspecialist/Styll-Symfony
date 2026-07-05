@@ -8,6 +8,7 @@ import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pw
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { hasAnalyticsConsent } from '@/lib/analytics-consent'
 import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
 import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
 import { buildRootAppUrl } from '@/lib/auth/urls'
@@ -201,8 +202,13 @@ export function EmailOtpForm({
       // Non-blocking — session works via cookies
     }
 
-    trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login', appSurface })
-    linkSessionByAuthUser(tenantId, getCurrentAnonymousId()).catch(() => {})
+    if (hasAnalyticsConsent()) {
+      trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login', appSurface })
+      const anonymousId = getCurrentAnonymousId()
+      if (anonymousId) {
+        linkSessionByAuthUser(tenantId, anonymousId).catch(() => {})
+      }
+    }
 
     if (onSuccess) {
       onSuccess({

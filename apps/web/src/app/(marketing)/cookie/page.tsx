@@ -43,6 +43,12 @@ function CookieTable() {
       type: 'Tecnico, necessario',
       duration: 'Temporaneo',
     },
+    {
+      name: 'styll_cookie_consent_v1',
+      purpose: 'Memorizza la tua scelta sugli analytics opzionali',
+      type: 'Tecnico di preferenza',
+      duration: 'Persistente',
+    },
   ]
 
   return (
@@ -114,16 +120,22 @@ export default function CookiePage() {
         </Section>
 
         <Section title="Cookie che usiamo">
-          <p>Su styll.it usiamo esclusivamente cookie tecnici necessari. Non installiamo cookie di profilazione,
-            tracciamento comportamentale o pubblicità.</p>
+          <p>
+            Su styll.it usiamo sempre solo cookie tecnici necessari al funzionamento del servizio.
+            Gli analytics non essenziali restano disattivati finché non dai un consenso esplicito.
+          </p>
           <CookieTable />
         </Section>
 
-        <Section title="Vercel Analytics">
+        <Section title="Analytics opzionali (solo dopo consenso)">
           <p>
-            Utilizziamo Vercel Analytics per misurare le performance del sito (tempi di caricamento, pagine visitate).
-            Vercel Analytics funziona <strong>senza cookie</strong> e senza identificatori persistenti — i dati
-            sono aggregati e anonimi. Non è richiesto alcun consenso.
+            Dopo il tuo consenso possiamo attivare strumenti analytics per misurare uso e performance
+            del sito e della PWA, ad esempio <strong>Vercel Analytics</strong>, <strong>PostHog</strong> e
+            analytics first-party di Styll. Senza consenso questi strumenti restano spenti.
+          </p>
+          <p>
+            Gli analytics vengono usati solo per migliorare prodotto e prestazioni, mai per pubblicità
+            comportamentale.
           </p>
         </Section>
 
@@ -132,7 +144,7 @@ export default function CookiePage() {
             {[
               'Cookie di profilazione o marketing',
               'Cookie di terze parti pubblicitari (Google Ads, Meta Pixel, ecc.)',
-              'Strumenti di tracciamento comportamentale',
+              'Strumenti di tracciamento comportamentale attivi senza consenso',
             ].map((item) => (
               <li key={item} style={{ marginBottom: 8 }}>{item}</li>
             ))}

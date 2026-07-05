@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Outfit, Poppins } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { ConsentAwareVercelAnalytics } from '@/components/shared/ConsentAwareVercelAnalytics'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -124,7 +124,7 @@ export default function RootLayout({
       >
         {children}
         <Toaster position="top-center" richColors />
-        <Analytics />
+        <ConsentAwareVercelAnalytics />
       </body>
     </html>
   )

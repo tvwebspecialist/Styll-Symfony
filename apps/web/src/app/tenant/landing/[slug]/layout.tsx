@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
+import { CookieBanner } from '@/components/shared/CookieBanner'
 import { getTenantBySlug } from '@/lib/tenant'
 import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
 
@@ -130,6 +131,10 @@ export default async function LandingLayout({ params, children }: Props) {
       />
       <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="website" />
       {children}
+      <CookieBanner
+        privacyPath="/cookie"
+        brandColor={tenant.primary_color ?? '#1a1a1a'}
+      />
     </div>
   )
 }
