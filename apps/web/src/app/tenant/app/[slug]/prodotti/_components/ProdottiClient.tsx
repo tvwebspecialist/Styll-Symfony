@@ -30,6 +30,12 @@ interface Props {
   initialWishlistIds: string[]
 }
 
+function haptic() {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate(12)
+  }
+}
+
 function formatPrice(price: number): string {
   return new Intl.NumberFormat('it-IT', {
     style: 'currency',
@@ -80,10 +86,15 @@ export function ProdottiClient({
         .prodotti-card { transition: transform 120ms ease, box-shadow 120ms ease; }
         .prodotti-card--pressed { transform: scale(0.965) !important; box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important; }
         .prodotti-filter-pill { transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
+        .prodotti-heart { transition: transform 120ms ease, background 150ms ease; }
+        .prodotti-heart:active { transform: scale(0.82) !important; }
+        .prodotti-card-link:focus-visible { outline: 2px solid var(--brand-primary, #111); outline-offset: 3px; border-radius: 44px; }
         @media (prefers-reduced-motion: reduce) {
           .prodotti-card { animation: none !important; opacity: 1 !important; transition: none !important; }
           .prodotti-card--pressed { transform: none !important; }
           .prodotti-filter-pill { transition: none !important; }
+          .prodotti-heart { transition: none !important; }
+          .prodotti-heart:active { transform: none !important; }
         }
         .prodotti-filters::-webkit-scrollbar { display: none; }
       `}</style>
@@ -147,7 +158,7 @@ export function ProdottiClient({
           <div
             key={`${product.id}-${animationEpoch}`}
             className={`prodotti-card${pressedCardId === product.id ? ' prodotti-card--pressed' : ''}`}
-            onPointerDown={() => setPressedCardId(product.id)}
+            onPointerDown={() => { setPressedCardId(product.id); haptic() }}
             onPointerUp={() => setPressedCardId(null)}
             onPointerCancel={() => setPressedCardId(null)}
             style={{
@@ -169,10 +180,12 @@ export function ProdottiClient({
             {/* Full-card link — behind everything */}
             <Link
               href={tenantPath(`/prodotti/${product.id}`)}
+              className="prodotti-card-link"
               style={{
                 position: 'absolute',
                 inset: 0,
                 zIndex: 0,
+                WebkitTapHighlightColor: 'transparent',
               }}
               aria-label={`Vedi dettagli ${product.name}`}
             />
@@ -236,6 +249,8 @@ export function ProdottiClient({
               {/* Heart favorites button */}
               <button
                 type="button"
+                className="prodotti-heart"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.preventDefault()
                   void toggle(product.id)
@@ -248,8 +263,8 @@ export function ProdottiClient({
                   top: 8,
                   right: 8,
                   zIndex: 2,
-                  width: 32,
-                  height: 32,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   border: 'none',
                   background: isFavorite(product.id)
@@ -260,8 +275,8 @@ export function ProdottiClient({
                   justifyContent: 'center',
                   cursor: 'pointer',
                   boxShadow: '0 1px 6px rgba(0,0,0,0.15)',
-                  transition: 'background 150ms',
                   pointerEvents: 'auto',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 <Heart
