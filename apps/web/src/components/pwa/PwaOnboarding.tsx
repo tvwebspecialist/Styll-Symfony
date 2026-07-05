@@ -660,14 +660,14 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
                 ))}
                 <div id="s1-logo" style={{
-                  position: 'absolute', top: 60, left: 60, width: 160, height: 160,
-                  borderRadius: 28, background: 'rgba(255,255,255,0.08)',
+                  position: 'absolute', top: 60, left: 60, width: 120, height: 120,
+                  borderRadius: 24, background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden',
+                  overflow: 'hidden', margin: '0 auto',
                 }}>
                   {logoUrl
-                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'cover', width: '100%', height: '100%' }} />
+                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain', width: '100%', height: '100%', padding: 12 }} />
                     : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
                   }
                 </div>
@@ -887,8 +887,8 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)' }}/>
                     <div id="bk-confirm-ring" style={{
                       width: 96, height: 96, borderRadius: '50%',
-                      background: '#4F6FE8',
-                      boxShadow: '0 20px 56px rgba(79, 111, 232, 0.5)',
+                      background: `linear-gradient(135deg, ${accent ?? '#5B6FE8'} 0%, ${accent ?? '#5B6FE8'}bb 100%)`,
+                      boxShadow: `0 20px 56px ${accent ?? '#5B6FE8'}66`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       position: 'relative', zIndex: 1,
                     }}>
