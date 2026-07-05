@@ -16,6 +16,7 @@ import {
 import { logoutClient } from '@/lib/actions/client-auth'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { createClient as createCookieClient } from '@/lib/supabase/client'
+import { clearSensitivePwaCaches } from '@/lib/pwa/clear-sensitive-caches'
 
 interface Props {
   appuntamentiPath: string
@@ -115,6 +116,7 @@ export function SettingsList({
         pwa.auth.signOut({ scope: 'local' }),
         cookie.auth.signOut({ scope: 'local' }),
       ])
+      await clearSensitivePwaCaches()
       router.push(basePath)
       router.refresh()
     })

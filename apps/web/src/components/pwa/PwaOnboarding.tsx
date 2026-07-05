@@ -117,7 +117,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
   const { subscribe } = usePushSubscription(tenantId)
 
-  const accent  = primaryColor || '#1A1A2E'
+  const accent  = primaryColor || '#5B6FE8'
   const initial = businessName.charAt(0).toUpperCase()
 
   const killTweens = React.useCallback(() => {
@@ -388,7 +388,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         tl.to('#bk-confirm-title', { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.22')
         tl.to('#bk-confirm-sub',   { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.1')
         tl.to('#bk-confirm-ring',  {
-          boxShadow: `0 0 0 14px ${accent}1a, 0 20px 56px ${accent}44`,
+          boxShadow: `0 0 0 14px ${accent ?? '#5B6FE8'}1a, 0 20px 56px ${accent ?? '#5B6FE8'}44`,
           duration: 0.9, yoyo: true, repeat: 1, ease: 'sine.inOut',
         }, '+=0.25')
 
@@ -717,7 +717,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         {!isFullScreen && (
           <>
             {/* Visual area — full screen transparent, padded to stay above bottom card */}
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 460 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 520 }}>
 
               {/* ── Step 1 — Booking cinematic animation ───────────────── */}
               {step === 1 && (
@@ -726,7 +726,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   {/* ── PHASE 1: Location ─────────────────────────────── */}
                   <div id="bk-ph-loc" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
                     <div id="bk-loc-glow" style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${accent}44 0%, transparent 68%)`, pointerEvents: 'none' }}/>
-                    <div style={{ display: 'flex', gap: 12, padding: '0 16px', justifyContent: 'center', width: '100%' }}>
+                    <div style={{ display: 'flex', gap: 10, padding: '0 20px', justifyContent: 'center', width: '100%', boxSizing: 'border-box' }}>
                       {displayLocations.map((loc, i) => (
                         <div
                           key={i}
@@ -735,7 +735,9 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                             position: 'relative',
                             borderRadius: 20,
                             overflow: 'hidden',
-                            flex: displayLocations.length === 1 ? '0 0 280px' : '0 0 200px',
+                            flex: '1 1 0',
+                            minWidth: 0,
+                            maxWidth: 160,
                             boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
                           }}
                         >
@@ -744,11 +746,11 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                             <img
                               src={loc.photo_url}
                               alt={loc.name}
-                              style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
+                              style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }}
                             />
                           ) : (
                             <div style={{
-                              width: '100%', height: 180,
+                              width: '100%', height: 130,
                               background: `linear-gradient(135deg, ${accent} 0%, rgba(0,0,0,0.6) 100%)`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
@@ -761,15 +763,15 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                           )}
                           <div style={{
                             position: 'absolute', bottom: 8, left: 8, right: 8,
-                            background: 'white', borderRadius: 16, padding: '10px 14px',
+                            background: 'white', borderRadius: 16, padding: '8px 12px',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                           }}>
                             <div style={{ minWidth: 0 }}>
-                              <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#222', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#222', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {loc.name}
                               </p>
                               {loc.address && (
-                                <p style={{ margin: '1px 0 0', fontSize: 12, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <p style={{ margin: '1px 0 0', fontSize: 11, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {loc.address}
                                 </p>
                               )}
@@ -864,8 +866,8 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)' }}/>
                     <div id="bk-confirm-ring" style={{
                       width: 96, height: 96, borderRadius: '50%',
-                      background: `linear-gradient(135deg, ${accent} 0%, ${accent}aa 100%)`,
-                      boxShadow: `0 20px 56px ${accent}66`,
+                      background: `linear-gradient(135deg, ${accent ?? '#5B6FE8'} 0%, ${accent ?? '#5B6FE8'}aa 100%)`,
+                      boxShadow: `0 20px 56px ${accent ?? '#5B6FE8'}66`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       position: 'relative', zIndex: 1,
                     }}>
