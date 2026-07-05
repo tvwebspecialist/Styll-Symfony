@@ -9,6 +9,21 @@ import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { FloatingCard } from '@/components/pwa/FloatingCard'
 import { getOnboardingData } from '@/lib/actions/onboarding-data'
 
+const checkDrawCSS = `
+  @keyframes drawCheck {
+    from { stroke-dashoffset: 45; }
+    to   { stroke-dashoffset: 0;  }
+  }
+  .bk-check-draw {
+    stroke-dasharray: 45;
+    stroke-dashoffset: 45;
+    animation: none;
+  }
+  .bk-check-draw.animate {
+    animation: drawCheck 0.52s ease-out forwards;
+  }
+`
+
 interface Props {
   primaryColor: string
   logoUrl?:     string | null
@@ -381,10 +396,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
         tl.to('#bk-confirm-ring',  { scale: 1, duration: 0.65, ease: 'back.out(1.6)' }, '+=0.05')
         tl.to('#bk-confirm-ring2', { scale: 2.5, opacity: 0, duration: 1.05, ease: 'power2.out' }, '<+0.15')
-        tl.fromTo('#bk-confirm-path',
-          { attr: { strokeDashoffset: 45 } },
-          { attr: { strokeDashoffset: 0 }, duration: 0.52, ease: 'power2.out' },
-          '<+0.1')
+        tl.call(() => {
+          const path = document.querySelector('.bk-check-draw')
+          if (path) path.classList.add('animate')
+        }, [], '<+0.1')
         tl.to('#bk-confirm-title', { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.22')
         tl.to('#bk-confirm-sub',   { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.1')
         tl.to('#bk-confirm-ring',  {
@@ -395,6 +410,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         tl.set({}, {}, '+=1.0')
         tl.to('#bk-ph-confirm', { opacity: 0, scale: 1.06, duration: 0.5, ease: 'power2.in' })
         tl.set('#bk-ph-confirm', { scale: 1 })
+        tl.call(() => {
+          const path = document.querySelector('.bk-check-draw')
+          if (path) path.classList.remove('animate')
+        })
         tl.set({}, {}, '+=0.2')
 
         track(tl)
@@ -620,6 +639,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
       fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)',
       overflow: 'hidden',
     }}>
+      <style dangerouslySetInnerHTML={{ __html: checkDrawCSS }} />
       <div ref={contentRef} style={{ height: '100%', position: 'relative' }}>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
@@ -640,13 +660,14 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
                 ))}
                 <div id="s1-logo" style={{
-                  position: 'absolute', top: 60, left: 60, width: 160, height: 120,
-                  borderRadius: 24, background: 'rgba(255,255,255,0.08)',
+                  position: 'absolute', top: 60, left: 60, width: 160, height: 160,
+                  borderRadius: 28, background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden',
                 }}>
                   {logoUrl
-                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain' }} />
+                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'cover', width: '100%', height: '100%' }} />
                     : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
                   }
                 </div>
@@ -880,14 +901,12 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                         style={{ position: 'relative', zIndex: 2 }}
                       >
                         <path
-                          id="bk-confirm-path"
+                          className="bk-check-draw"
                           d="M13 25L20 33L35 16"
                           stroke="#FFFFFF"
                           strokeWidth="4"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          strokeDasharray="45"
-                          strokeDashoffset="45"
                         />
                       </svg>
                     </div>
