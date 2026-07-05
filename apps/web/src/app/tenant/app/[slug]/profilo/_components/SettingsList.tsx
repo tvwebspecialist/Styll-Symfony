@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { logoutClient } from '@/lib/actions/client-auth'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
+import { createClient as createCookieClient } from '@/lib/supabase/client'
 
 interface Props {
   appuntamentiPath: string
@@ -108,7 +109,12 @@ export function SettingsList({
   function handleLogout() {
     startTransition(async () => {
       const pwa = createPwaClient()
-      await Promise.all([logoutClient(), pwa.auth.signOut({ scope: 'local' })])
+      const cookie = createCookieClient()
+      await Promise.all([
+        logoutClient(),
+        pwa.auth.signOut({ scope: 'local' }),
+        cookie.auth.signOut({ scope: 'local' }),
+      ])
       router.push(basePath)
       router.refresh()
     })

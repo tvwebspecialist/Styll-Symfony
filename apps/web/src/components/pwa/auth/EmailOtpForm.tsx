@@ -186,14 +186,16 @@ export function EmailOtpForm({
     try {
       const cookieClient = createClient()
       const pwaClient = createPwaClient()
-      const {
-        data: { session },
-      } = await cookieClient.auth.getSession()
-      if (session) {
-        await pwaClient.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        })
+      if (result.session) {
+        const sessionPayload = {
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        }
+
+        await Promise.all([
+          cookieClient.auth.setSession(sessionPayload),
+          pwaClient.auth.setSession(sessionPayload),
+        ])
       }
     } catch {
       // Non-blocking — session works via cookies
@@ -211,8 +213,10 @@ export function EmailOtpForm({
       return
     }
 
-    router.push(tenantPath(returnTo ?? '/profilo'))
-    router.refresh()
+    // After the server action verifies the OTP, Supabase writes the auth cookies
+    // on the response. A hard navigation is more reliable here than push+refresh:
+    // it lets the browser commit Set-Cookie before the protected route renders.
+    window.location.replace(tenantPath(returnTo ?? '/profilo'))
   }
 
   async function handleGoogleSignIn() {
