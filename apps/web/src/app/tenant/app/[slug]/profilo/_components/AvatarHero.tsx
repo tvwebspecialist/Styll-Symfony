@@ -6,13 +6,6 @@ import { uploadAvatar } from '@/lib/actions/profilo'
 
 type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
 
-const TIER_STYLES: Record<Tier, { bg: string; color: string }> = {
-  Bronze: { bg: '#fef3c7', color: '#b45309' },
-  Silver: { bg: '#e5e7eb', color: '#4b5563' },
-  Gold:   { bg: '#fef9c3', color: '#a16207' },
-  Platinum: { bg: '#f1f5f9', color: '#475569' },
-}
-
 const fmt = new Intl.NumberFormat('it-IT')
 
 const AVATAR_SIZE = 100
@@ -59,8 +52,6 @@ export function AvatarHero({
     .slice(0, 2)
     .map((w) => (w[0] ?? '').toUpperCase())
     .join('')
-
-  const tierStyle = TIER_STYLES[tierLabel] ?? TIER_STYLES.Bronze
 
   useEffect(() => {
     const bar = barRef.current
@@ -192,33 +183,17 @@ export function AvatarHero({
         backgroundColor: '#ffffff',
         borderRadius: 20,
         boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-        padding: '60px 16px 16px',
+        padding: '64px 16px 16px',
       }}>
 
-        {/* Riga: nome sx + badge tier dx */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: '#0a0a0a', margin: 0, lineHeight: 1.3 }}>
-            {fullName}
-          </p>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            borderRadius: 999,
-            padding: '4px 10px',
-            fontSize: 11,
-            fontWeight: 700,
-            backgroundColor: tierStyle.bg,
-            color: tierStyle.color,
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            marginLeft: 8,
-          }}>
-            {tierLabel} Member
-          </span>
-        </div>
+        {/* Name — centered, large, bold */}
+        <p style={{ fontSize: 22, fontWeight: 800, color: '#0a0a0a', margin: 0, lineHeight: 1.2, textAlign: 'center' }}>
+          {fullName}
+        </p>
 
+        {/* Email — centered, muted */}
         {email && (
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 0 0' }}>{email}</p>
+          <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0', textAlign: 'center', lineHeight: 1.4 }}>{email}</p>
         )}
 
         <div style={{ height: 1, backgroundColor: '#f3f4f6', margin: '12px 0' }} />
