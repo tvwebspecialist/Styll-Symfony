@@ -7,6 +7,7 @@ import { Star, Flame, Trophy, Zap } from 'lucide-react'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { FloatingCard } from '@/components/pwa/FloatingCard'
+import { getOnboardingData } from '@/lib/actions/onboarding-data'
 
 interface Props {
   primaryColor: string
@@ -160,20 +161,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   // ── Fetch tenant data for booking animation ──────────────────────────────
   React.useEffect(() => {
     if (!show) return
-    const pwa = createPwaClient()
     const timer = setTimeout(() => setTenantData(d => d ?? { locations: [], staff: [] }), 3000)
-    Promise.all([
-      pwa.from('locations').select('name, address, photo_url').eq('tenant_id', tenantId).eq('is_active', true).limit(3),
-      pwa.from('staff_members').select('photo_url, specialization, profiles!profile_id(full_name)').eq('tenant_id', tenantId).eq('is_active', true).limit(4),
-    ]).then(([locRes, staffRes]) => {
+    getOnboardingData(tenantId).then(({ locations, staff }) => {
       clearTimeout(timer)
-      type StaffRow = { photo_url: string | null; specialization: string | null; profiles: { full_name: string } | null }
-      const staff = ((staffRes.data ?? []) as StaffRow[]).map(s => ({
-        full_name:     s.profiles?.full_name ?? 'Barbiere',
-        photo_url:     s.photo_url,
-        specialization: s.specialization,
-      }))
-      setTenantData({ locations: locRes.data ?? [], staff })
+      setTenantData({ locations, staff })
     }).catch(() => { clearTimeout(timer); setTenantData({ locations: [], staff: [] }) })
     return () => clearTimeout(timer)
   }, [show, tenantId])
