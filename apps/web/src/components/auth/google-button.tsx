@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { buildRootAppUrl } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/client'
 
 interface GoogleButtonProps {
@@ -59,7 +60,7 @@ export function GoogleButton({
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
+            redirectTo: buildRootAppUrl('/auth/callback'),
             queryParams: {
               access_type: 'offline',
               prompt: 'consent',

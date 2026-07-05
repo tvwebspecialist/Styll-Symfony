@@ -10,6 +10,7 @@ import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
 import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
+import { buildRootAppUrl } from '@/lib/auth/urls'
 
 function GoogleIcon() {
   return (
@@ -220,8 +221,7 @@ export function EmailOtpForm({
     setError(null)
 
     try {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-      const callbackUrl = new URL(`https://${rootDomain}/auth/callback`)
+      const callbackUrl = new URL(buildRootAppUrl('/auth/callback'))
       callbackUrl.searchParams.set('next', 'pwa')
       callbackUrl.searchParams.set('tenantSlug', tenantSlug)
       callbackUrl.searchParams.set('tenantId', tenantId)
