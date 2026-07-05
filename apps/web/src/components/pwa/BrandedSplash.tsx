@@ -148,7 +148,6 @@ function FullscreenSplash({
   const textColor    = isLight ? '#111111'                    : '#FFFFFF'
   const subtextColor = isLight ? 'rgba(0,0,0,0.38)'          : 'rgba(255,255,255,0.38)'
   const glassBg      = isLight ? 'rgba(0,0,0,0.06)'          : 'rgba(255,255,255,0.09)'
-  const glassBorder  = isLight ? '1px solid rgba(0,0,0,0.10)': '1px solid rgba(255,255,255,0.18)'
   const ringColor    = isLight ? 'rgba(0,0,0,1)'             : 'rgba(255,255,255,1)'
   const initial      = businessName.charAt(0).toUpperCase() || 'S'
   const isExiting    = phase === 'exit'
@@ -213,7 +212,6 @@ function FullscreenSplash({
                 borderRadius: 28,
                 clipPath: 'inset(0 round 28px)',
                 background: glassBg,
-                border: glassBorder,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
