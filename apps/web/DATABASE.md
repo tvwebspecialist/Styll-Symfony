@@ -713,7 +713,7 @@
 | `badge_id` | `uuid` |  |
 | `unlocked_at` | `timestamptz` |  |
 
-## Table `tier_configs`
+## Tablee `tier_configs`
 
 ### Columns
 
