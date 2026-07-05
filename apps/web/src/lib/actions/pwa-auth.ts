@@ -328,7 +328,12 @@ export async function verifyEmailOtp(
   token: string,
   tenantId: string,
   profileData?: { fullName?: string; phone?: string; marketingConsent?: boolean },
-): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
+): Promise<{
+  success: boolean
+  isNewClient: boolean
+  error?: string
+  session?: { accessToken: string; refreshToken: string }
+}> {
   const db = createAdminClient()
 
   const { data: tenant } = await db
@@ -357,6 +362,10 @@ export async function verifyEmailOtp(
 
   if (!data.user) {
     return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (!data.session?.access_token || !data.session.refresh_token) {
+    return { success: false, isNewClient: false, error: 'Sessione non valida. Riprova.' }
   }
 
   const userId = data.user.id
@@ -400,7 +409,14 @@ export async function verifyEmailOtp(
   }
 
   if (byProfileRes.data) {
-    return { success: true, isNewClient: false }
+    return {
+      success: true,
+      isNewClient: false,
+      session: {
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+      },
+    }
   }
 
   if (byEmailRes.error) {
@@ -422,7 +438,14 @@ export async function verifyEmailOtp(
       return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
     }
 
-    return { success: true, isNewClient: false }
+    return {
+      success: true,
+      isNewClient: false,
+      session: {
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+      },
+    }
   }
 
   // No existing client — fetch profile full_name as fallback and insert
@@ -451,7 +474,14 @@ export async function verifyEmailOtp(
     return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
   }
 
-  return { success: true, isNewClient: true }
+  return {
+    success: true,
+    isNewClient: true,
+    session: {
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+    },
+  }
 }
 
 export async function setupPwaGoogleClient(

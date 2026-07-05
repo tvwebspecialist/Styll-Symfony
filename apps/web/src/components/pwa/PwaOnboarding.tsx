@@ -382,7 +382,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         tl.to('#bk-confirm-ring',  { scale: 1, duration: 0.65, ease: 'back.out(1.6)' }, '+=0.05')
         tl.to('#bk-confirm-ring2', { scale: 2.5, opacity: 0, duration: 1.05, ease: 'power2.out' }, '<+0.15')
         tl.fromTo('#bk-confirm-path',
-          { attr: { strokeDashoffset: 60 } },
+          { attr: { strokeDashoffset: 40 } },
           { attr: { strokeDashoffset: 0 }, duration: 0.52, ease: 'power2.out' },
           '<+0.1')
         tl.to('#bk-confirm-title', { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.22')
@@ -717,7 +717,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         {!isFullScreen && (
           <>
             {/* Visual area — full screen transparent, padded to stay above bottom card */}
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 380 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 460 }}>
 
               {/* ── Step 1 — Booking cinematic animation ───────────────── */}
               {step === 1 && (
@@ -726,33 +726,60 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   {/* ── PHASE 1: Location ─────────────────────────────── */}
                   <div id="bk-ph-loc" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
                     <div id="bk-loc-glow" style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${accent}44 0%, transparent 68%)`, pointerEvents: 'none' }}/>
-                    <div style={{ display: 'flex', gap: 12, padding: '0 28px', justifyContent: 'center', width: '100%' }}>
+                    <div style={{ display: 'flex', gap: 12, padding: '0 16px', justifyContent: 'center', width: '100%' }}>
                       {displayLocations.map((loc, i) => (
-                        <div key={i} id={`bk-loc-card-${i}`} style={{
-                          position: 'relative', borderRadius: 24, overflow: 'hidden',
-                          background: 'rgba(255,255,255,0.09)', border: '0.5px solid rgba(255,255,255,0.16)',
-                          flex: displayLocations.length === 1 ? '0 0 200px' : '0 0 160px',
-                          boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
-                        }}>
-                          {loc.photo_url
-                            ? <div style={{ position: 'relative', height: 120, borderRadius: '24px 24px 0 0', overflow: 'hidden' }}>
-                                <Image src={loc.photo_url} alt="" fill priority style={{ objectFit: 'cover' }} />
-                              </div>
-                            : <div style={{ width: '100%', height: 120, background: `linear-gradient(135deg, ${accent}88, ${darken(accent, 0.65)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                                </svg>
-                              </div>
-                          }
-                          <div style={{ padding: '10px 13px 12px' }}>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.name}</p>
-                            {loc.address && <p style={{ margin: '2px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{loc.address}</p>}
+                        <div
+                          key={i}
+                          id={`bk-loc-card-${i}`}
+                          style={{
+                            position: 'relative',
+                            borderRadius: 20,
+                            overflow: 'hidden',
+                            flex: displayLocations.length === 1 ? '0 0 280px' : '0 0 200px',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                          }}
+                        >
+                          {loc.photo_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={loc.photo_url}
+                              alt={loc.name}
+                              style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '100%', height: 180,
+                              background: `linear-gradient(135deg, ${accent} 0%, rgba(0,0,0,0.6) 100%)`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+                                stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                              </svg>
+                            </div>
+                          )}
+                          <div style={{
+                            position: 'absolute', bottom: 8, left: 8, right: 8,
+                            background: 'white', borderRadius: 16, padding: '10px 14px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          }}>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#222', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {loc.name}
+                              </p>
+                              {loc.address && (
+                                <p style={{ margin: '1px 0 0', fontSize: 12, color: '#71717A', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {loc.address}
+                                </p>
+                              )}
+                            </div>
                           </div>
                           {i === 0 && <>
-                            <div id="bk-loc-ring" style={{ position: 'absolute', inset: 0, borderRadius: 20, border: `1.5px solid ${accent}`, opacity: 0, pointerEvents: 'none' }}/>
-                            <div id="bk-loc-check" style={{ position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 2px 8px ${accent}88`, opacity: 0 }}>
-                              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                                <path d="M2.5 7 L5.5 10 L11.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <div id="bk-loc-ring" style={{ position: 'absolute', inset: 0, borderRadius: 20, border: `2px solid ${accent}`, opacity: 0, pointerEvents: 'none' }}/>
+                            <div id="bk-loc-check" style={{ position: 'absolute', top: 10, right: 10, width: 28, height: 28, borderRadius: '50%', background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M2.5 7L5.5 10L11.5 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
                             </div>
                           </>}
@@ -763,35 +790,33 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
                   {/* ── PHASE 2: Staff ─────────────────────────────────── */}
                   <div id="bk-ph-staff" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
-                    <div style={{ display: 'flex', gap: 18, alignItems: 'center', padding: '0 28px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, padding: '0 24px', maxWidth: 320 }}>
                       {displayStaff.slice(0, 4).map((s, i) => {
+                        const sz = i === 0 ? 88 : 72
                         const initials = s.full_name.split(' ').map((n: string) => n[0] ?? '').slice(0, 2).join('').toUpperCase()
-                        const size = i === 0 ? 88 : 64
                         return (
-                          <div key={i} id={`bk-staff-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0 }}>
+                          <div key={i} id={`bk-staff-${i}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: sz, opacity: 0 }}>
                             <div style={{ position: 'relative' }}>
                               {i === 0 && (
                                 <div id="bk-staff-halo" style={{
-                                  position: 'absolute', inset: -6, borderRadius: '50%',
+                                  position: 'absolute', inset: -4, borderRadius: '50%',
                                   border: `2px solid ${accent}`, opacity: 0,
-                                  boxShadow: `0 0 24px ${accent}55`,
+                                  boxShadow: `0 0 20px ${accent}44`,
                                 }}/>
                               )}
-                              <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.30)', flexShrink: 0, position: 'relative' }}>
+                              <div style={{ width: sz, height: sz, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.30)', flexShrink: 0, position: 'relative' }}>
                                 {s.photo_url
-                                  ? <Image src={s.photo_url} alt="" fill style={{ objectFit: 'cover' }} />
-                                  : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.72)})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                      <span style={{ fontSize: i === 0 ? 26 : 20, fontWeight: 800, color: '#fff' }}>{initials}</span>
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  ? <img src={s.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+                                  : <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${accent}, rgba(0,0,0,0.4))`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <span style={{ color: 'white', fontWeight: 700, fontSize: i === 0 ? 26 : 20 }}>{initials}</span>
                                     </div>
                                 }
                               </div>
                             </div>
-                            <div style={{ textAlign: 'center' }}>
-                              <p style={{ margin: 0, fontSize: i === 0 ? 14 : 12, fontWeight: i === 0 ? 700 : 600, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.85)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {s.full_name.split(' ')[0]}
-                              </p>
-                              {s.specialization && <p style={{ margin: '1px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{s.specialization}</p>}
-                            </div>
+                            <p style={{ margin: 0, fontSize: i === 0 ? 14 : 12, fontWeight: i === 0 ? 700 : 500, color: 'white', textAlign: 'center', opacity: i === 0 ? 1 : 0.85, lineHeight: 1.2, maxWidth: sz, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {s.full_name?.split(' ')[0] ?? 'Barbiere'}
+                            </p>
                           </div>
                         )
                       })}
@@ -800,7 +825,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
                   {/* ── PHASE 3: Calendar ──────────────────────────────── */}
                   <div id="bk-ph-cal" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, opacity: 0 }}>
-                    <div id="bk-cal-strip" style={{ width: '100%', overflow: 'hidden', padding: '0 24px' }}>
+                    <div id="bk-cal-strip" style={{ width: '100%', overflow: 'hidden', padding: '0 16px' }}>
                       <div id="bk-cal-inner" style={{ display: 'flex', gap: 8 }}>
                         {Array.from({ length: 14 }, (_, di) => {
                           const d = new Date(); d.setDate(d.getDate() - 3 + di)
@@ -809,13 +834,13 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                           const dow = d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)
                           return (
                             <div key={di} id={isSelected ? 'bk-cal-day-sel' : undefined} style={{
-                              flexShrink: 0, width: 52, borderRadius: 16, padding: '12px 0',
+                              flexShrink: 0, width: 56, borderRadius: 16, padding: '14px 0',
                               backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
                               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                               opacity: isPast ? 0.3 : 1,
                             }}>
                               <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: isSelected ? '#fff' : 'rgba(255,255,255,0.45)' }}>{dow}</span>
-                              <span style={{ fontSize: 17, fontWeight: 800, lineHeight: 1, color: isSelected ? '#fff' : 'rgba(255,255,255,0.65)' }}>{d.getDate()}</span>
+                              <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1, color: isSelected ? '#fff' : 'rgba(255,255,255,0.65)' }}>{d.getDate()}</span>
                             </div>
                           )
                         })}
@@ -824,10 +849,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                     <div id="bk-time-row" style={{ display: 'flex', gap: 8, opacity: 0 }}>
                       {['09:00', '10:00', '11:00', '15:00'].map((t, i) => (
                         <div key={i} id={i === 1 ? 'bk-time-pill' : undefined} style={{
-                          borderRadius: 20, padding: '10px 20px',
+                          borderRadius: 20, padding: '12px 22px',
                           backgroundColor: i === 1 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
                           border: `0.5px solid ${i === 1 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                          fontSize: 14, fontWeight: 700,
+                          fontSize: 15, fontWeight: 700,
                           color: i === 1 ? '#fff' : 'rgba(255,255,255,0.38)',
                         }}>{t}</div>
                       ))}
@@ -835,23 +860,31 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
 
                   {/* ── PHASE 4: Confirmed ─────────────────────────────── */}
-                  <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, opacity: 0 }}>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', opacity: 0 }}/>
-                      <div id="bk-confirm-ring" style={{
-                        width: 96, height: 96, borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${accent}, ${darken(accent, 0.68)})`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: `0 20px 56px ${accent}44`,
-                      }}>
-                        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <path id="bk-confirm-path" d="M4 13 L9 18 L20 7" strokeDasharray="60" strokeDashoffset="60"/>
-                        </svg>
-                      </div>
+                  <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0, gap: 20 }}>
+                    <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)' }}/>
+                    <div id="bk-confirm-ring" style={{
+                      width: 96, height: 96, borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${accent} 0%, ${accent}aa 100%)`,
+                      boxShadow: `0 20px 56px ${accent}66`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      position: 'relative', zIndex: 1,
+                    }}>
+                      <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          id="bk-confirm-path"
+                          d="M12 23L19 30L34 15"
+                          stroke="#FFFFFF"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="40"
+                          strokeDashoffset="40"
+                        />
+                      </svg>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <p id="bk-confirm-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', opacity: 0 }}>Sei nel calendario.</p>
-                      <p id="bk-confirm-sub" style={{ margin: '6px 0 0', fontSize: 14, color: 'rgba(255,255,255,0.95)', opacity: 0 }}>{businessName} ti aspetta.</p>
+                    <div style={{ textAlign: 'center', padding: '0 32px' }}>
+                      <p id="bk-confirm-title" style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em', opacity: 0 }}>Sei nel calendario.</p>
+                      <p id="bk-confirm-sub" style={{ margin: '6px 0 0', fontSize: 15, color: 'rgba(255,255,255,0.80)', opacity: 0 }}>{businessName} ti aspetta.</p>
                     </div>
                   </div>
 

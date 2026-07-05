@@ -25,6 +25,12 @@ import { getNotificationChannel } from '@/lib/notifications-channel'
 
 type ReminderType = 'reminder_3d' | 'reminder_1d' | 'reminder_day'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+interface NotificationLogRow {
+  appointment_id: string | null
+}
+
 interface RawAppointmentRow {
   id:         string
   start_time: string
@@ -64,14 +70,37 @@ function getTimeRange(type: ReminderType): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+function isUuid(value: string | null | undefined): value is string {
+  return !!value && UUID_RE.test(value)
+}
+
 async function processReminderWindow(
   type: ReminderType,
 ): Promise<{ processed: number; pushSent: number; emailSent: number }> {
   const db    = createAdminClient()
   const range = getTimeRange(type)
 
+  const { data: notifiedRows, error: notifiedError } = await db
+    .from('notification_log')
+    .select('appointment_id')
+    .in('type', [type, `${type}_email`])
+    .not('appointment_id', 'is', null)
+
+  if (notifiedError) {
+    console.error('[cron/reminders] notification_log query error', {
+      type,
+      message: notifiedError.message,
+      code: notifiedError.code,
+    })
+    throw new Error(`notification_log query failed for ${type}`)
+  }
+
+  const notifiedAppointmentIds = ((notifiedRows ?? []) as NotificationLogRow[])
+    .map((row) => row.appointment_id)
+    .filter(isUuid)
+
   // Exclude appointments already notified via ANY channel (old _email types included for migration safety)
-  const { data: appointments } = await db
+  let appointmentsQuery = db
     .from('appointments')
     .select(
       `id, start_time, tenant_id,
@@ -83,11 +112,27 @@ async function processReminderWindow(
     .is('deleted_at', null)
     .gte('start_time', range.from)
     .lte('start_time', range.to)
-    .not(
+
+  if (notifiedAppointmentIds.length > 0) {
+    appointmentsQuery = appointmentsQuery.not(
       'id',
       'in',
-      `(SELECT appointment_id FROM notification_log WHERE type IN ('${type}', '${type}_email') AND appointment_id IS NOT NULL)`
+      `(${notifiedAppointmentIds.join(',')})`
     )
+  }
+
+  const { data: appointments, error: appointmentsError } = await appointmentsQuery
+
+  if (appointmentsError) {
+    console.error('[cron/reminders] appointments query error', {
+      type,
+      range,
+      notifiedCount: notifiedAppointmentIds.length,
+      message: appointmentsError.message,
+      code: appointmentsError.code,
+    })
+    throw new Error(`appointments query failed for ${type}`)
+  }
 
   const rows = ((appointments ?? []) as unknown as RawAppointmentRow[])
   let pushSent  = 0
@@ -163,22 +208,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [r3d, r1d, rDay] = await Promise.all([
-    processReminderWindow('reminder_3d'),
-    processReminderWindow('reminder_1d'),
-    processReminderWindow('reminder_day'),
-  ])
+  try {
+    const [r3d, r1d, rDay] = await Promise.all([
+      processReminderWindow('reminder_3d'),
+      processReminderWindow('reminder_1d'),
+      processReminderWindow('reminder_day'),
+    ])
 
-  const summary = {
-    reminder_3d:    r3d,
-    reminder_1d:    r1d,
-    reminder_day:   rDay,
-    totalPushSent:  r3d.pushSent  + r1d.pushSent  + rDay.pushSent,
-    totalEmailSent: r3d.emailSent + r1d.emailSent + rDay.emailSent,
+    const summary = {
+      reminder_3d:    r3d,
+      reminder_1d:    r1d,
+      reminder_day:   rDay,
+      totalPushSent:  r3d.pushSent  + r1d.pushSent  + rDay.pushSent,
+      totalEmailSent: r3d.emailSent + r1d.emailSent + rDay.emailSent,
+    }
+
+    console.info('[cron/reminders]', JSON.stringify(summary))
+    return NextResponse.json(summary)
+  } catch (error) {
+    console.error('[cron/reminders] processing failed', error)
+    return NextResponse.json({ error: 'Reminder processing failed' }, { status: 500 })
   }
-
-  console.info('[cron/reminders]', JSON.stringify(summary))
-  return NextResponse.json(summary)
 }
 
 export async function GET() {
