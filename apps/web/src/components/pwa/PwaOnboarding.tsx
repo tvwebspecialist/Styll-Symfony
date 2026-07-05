@@ -661,13 +661,13 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                 ))}
                 <div id="s1-logo" style={{
                   position: 'absolute', top: 60, left: 60, width: 120, height: 120,
-                  borderRadius: 24, background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 28, background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden', margin: '0 auto',
+                  overflow: 'hidden',
                 }}>
                   {logoUrl
-                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain', width: '100%', height: '100%', padding: 12 }} />
+                    ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'cover', width: '100%', height: '100%', display: 'block' }} />
                     : <span style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{initial}</span>
                   }
                 </div>
