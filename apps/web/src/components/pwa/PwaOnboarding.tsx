@@ -726,14 +726,14 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         {!isFullScreen && (
           <>
             {/* Visual area — full screen transparent, padded to stay above bottom card */}
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 420 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', paddingBottom: 380 }}>
 
               {/* ── Step 1 — Booking cinematic animation ───────────────── */}
               {step === 1 && (
                 <div style={{ position: 'absolute', inset: 0 }}>
 
                   {/* ── PHASE 1: Location ─────────────────────────────── */}
-                  <div id="bk-ph-loc" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, opacity: 0 }}>
+                  <div id="bk-ph-loc" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
                     <div id="bk-loc-glow" style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${accent}44 0%, transparent 68%)`, pointerEvents: 'none' }}/>
                     <div style={{ display: 'flex', gap: 12, padding: '0 28px', justifyContent: 'center', width: '100%' }}>
                       {displayLocations.map((loc, i) => (
@@ -771,7 +771,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
 
                   {/* ── PHASE 2: Staff ─────────────────────────────────── */}
-                  <div id="bk-ph-staff" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, opacity: 0 }}>
+                  <div id="bk-ph-staff" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}>
                     <div style={{ display: 'flex', gap: 18, alignItems: 'center', padding: '0 28px' }}>
                       {displayStaff.slice(0, 4).map((s, i) => {
                         const initials = s.full_name.split(' ').map((n: string) => n[0] ?? '').slice(0, 2).join('').toUpperCase()
@@ -808,7 +808,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
 
                   {/* ── PHASE 3: Calendar ──────────────────────────────── */}
-                  <div id="bk-ph-cal" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, paddingTop: 32, opacity: 0 }}>
+                  <div id="bk-ph-cal" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, opacity: 0 }}>
                     <div id="bk-cal-strip" style={{ width: '100%', overflow: 'hidden', padding: '0 24px' }}>
                       <div id="bk-cal-inner" style={{ display: 'flex', gap: 8 }}>
                         {Array.from({ length: 14 }, (_, di) => {
@@ -844,7 +844,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
 
                   {/* ── PHASE 4: Confirmed ─────────────────────────────── */}
-                  <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, paddingTop: 48, opacity: 0 }}>
+                  <div id="bk-ph-confirm" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, opacity: 0 }}>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <div id="bk-confirm-ring2" style={{ position: 'absolute', width: 140, height: 140, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.12)', opacity: 0 }}/>
                       <div id="bk-confirm-ring" style={{
@@ -945,7 +945,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
             {/* ── Floating bottom card ──────────────────────────────────── */}
             <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0 }}>
-              <FloatingCard style={{ padding: '28px 24px 32px' }}>
+              <FloatingCard style={{ padding: '28px 24px' }}>
                 {/* 4-dot indicator */}
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginBottom: 22 }}>
                   {[1, 2, 3, 4].map(s => (

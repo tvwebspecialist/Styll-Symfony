@@ -1,31 +1,18 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 
+import { buildRootAppUrl } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/types/database'
 
-function getOrigin(): string {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  )
-}
-
-async function resolveOrigin(): Promise<string> {
-  const headerList = await headers()
-  return headerList.get('origin') ?? getOrigin()
-}
-
 export async function signInWithGoogle(): Promise<void> {
   const supabase = await createClient()
-  const origin = await resolveOrigin()
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: buildRootAppUrl('/auth/callback'),
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -48,12 +35,10 @@ export async function requestPasswordReset(
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { success: false, error: 'Email non valida' }
   }
-
   const supabase = await createClient()
-  const origin = await resolveOrigin()
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/reset-password`,
+    redirectTo: buildRootAppUrl('/auth/reset-password'),
   })
 
   if (error) {

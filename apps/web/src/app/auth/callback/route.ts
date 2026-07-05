@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
+import { buildRootAppUrl, buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -10,20 +11,22 @@ function redirect(url: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const errorDescription = searchParams.get('error_description')
 
   if (errorDescription) {
-    return redirect(`${origin}/login?error=${encodeURIComponent(errorDescription)}`)
+    const loginUrl = new URL(buildRootAppUrl('/login'))
+    loginUrl.searchParams.set('error', errorDescription)
+    return redirect(loginUrl.toString())
   }
 
   if (!code) {
-    return redirect(`${origin}/login`)
+    return redirect(buildRootAppUrl('/login'))
   }
 
   const supabase = await createClient()
-  const { data: { session: exchangedSession }, error } = await supabase.auth.exchangeCodeForSession(code)
+  const { error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
     console.error('[auth/callback] exchangeCodeForSession error:', error.message)
@@ -35,7 +38,9 @@ export async function GET(request: NextRequest) {
       ? 'Sessione scaduta o browser non supportato. Riprova il login. Se hai bloccato i cookie o usi la modalita privata, abilita i cookie per styll.it e riprova.'
       : error.message
 
-    return redirect(`${origin}/login?error=${encodeURIComponent(errorMsg)}`)
+    const loginUrl = new URL(buildRootAppUrl('/login'))
+    loginUrl.searchParams.set('error', errorMsg)
+    return redirect(loginUrl.toString())
   }
 
   const {
@@ -43,7 +48,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return redirect(`${origin}/login`)
+    return redirect(buildRootAppUrl('/login'))
   }
 
   // OAuth users (Google, etc.) skip email OTP — mark them as verified
@@ -59,31 +64,29 @@ export async function GET(request: NextRequest) {
 
   const isPwa = searchParams.get('next') === 'pwa'
   const tenantSlug = searchParams.get('tenantSlug')
-  const tenantId = searchParams.get('tenantId')
   const returnTo = searchParams.get('return_to')
 
   if (isPwa && tenantSlug) {
-    if (tenantId) await setupPwaGoogleClient(tenantId)
+    const adminDb = createAdminClient()
+    const { data: tenant } = await adminDb
+      .from('tenants')
+      .select('id')
+      .eq('slug', tenantSlug)
+      .eq('status', 'active')
+      .maybeSingle()
 
-    // Use tokens from exchangeCodeForSession directly — calling getSession()
-    // separately can trigger an internal token refresh, rotating the refresh_token
-    // and making it stale by the time session-transfer calls setSession().
-    if (!exchangedSession?.access_token || !exchangedSession?.refresh_token) {
-      return redirect(`https://${tenantSlug}-app.styll.it/accesso?error=session_failed`)
+    if (!tenant?.id) {
+      const loginUrl = new URL(buildRootAppUrl('/login'))
+      loginUrl.searchParams.set('error', 'Salone non valido o non disponibile. Riprova dal link corretto.')
+      return redirect(loginUrl.toString())
     }
 
-    const destination = (() => {
-      if (!returnTo || !returnTo.startsWith('/')) return '/profilo'
-      if (returnTo.includes('://')) return '/profilo'
-      return returnTo
-    })()
+    await setupPwaGoogleClient(tenant.id)
 
-    const transferUrl = new URL(`https://${tenantSlug}-app.styll.it/auth/session-transfer`)
-    transferUrl.searchParams.set('access_token', exchangedSession.access_token)
-    transferUrl.searchParams.set('refresh_token', exchangedSession.refresh_token)
-    transferUrl.searchParams.set('next', destination)
-
-    return redirect(transferUrl.toString())
+    const destination = sanitizeAppRelativePath(returnTo, '/profilo')
+    const destinationUrl = new URL(buildTenantAppUrl(tenantSlug, destination))
+    destinationUrl.searchParams.set('google_login', '1')
+    return redirect(destinationUrl.toString())
   }
 
   const { data: profile } = await supabase
@@ -96,7 +99,7 @@ export async function GET(request: NextRequest) {
   // directly. This handles tenants whose profile was created before the flag existed
   // or where a partial onboarding run left the flag unset.
   if (profile?.onboarding_completed) {
-    return redirect(`${origin}/dashboard`)
+    return redirect(buildRootAppUrl('/dashboard'))
   }
 
   const adminDb = createAdminClient()
@@ -116,8 +119,8 @@ export async function GET(request: NextRequest) {
       .from('profiles')
       .update({ onboarding_completed: true })
       .eq('id', user.id)
-    return redirect(`${origin}/dashboard`)
+    return redirect(buildRootAppUrl('/dashboard'))
   }
 
-  return redirect(`${origin}/onboarding/step-1`)
+  return redirect(buildRootAppUrl('/onboarding/step-1'))
 }
