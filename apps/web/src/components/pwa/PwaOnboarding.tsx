@@ -382,7 +382,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
         tl.to('#bk-confirm-ring',  { scale: 1, duration: 0.65, ease: 'back.out(1.6)' }, '+=0.05')
         tl.to('#bk-confirm-ring2', { scale: 2.5, opacity: 0, duration: 1.05, ease: 'power2.out' }, '<+0.15')
         tl.fromTo('#bk-confirm-path',
-          { attr: { strokeDashoffset: 40 } },
+          { attr: { strokeDashoffset: 45 } },
           { attr: { strokeDashoffset: 0 }, duration: 0.52, ease: 'power2.out' },
           '<+0.1')
         tl.to('#bk-confirm-title', { y: 0, opacity: 1, duration: 0.44, ease: 'power3.out' }, '<+0.22')
@@ -640,10 +640,10 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   </div>
                 ))}
                 <div id="s1-logo" style={{
-                  position: 'absolute', top: 60, left: 60, width: 120, height: 110,
-                  borderRadius: 28, background: 'rgba(255,255,255,0.08)',
+                  position: 'absolute', top: 60, left: 60, width: 160, height: 120,
+                  borderRadius: 24, background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {logoUrl
                     ? <Image src={logoUrl} alt={businessName} fill style={{ objectFit: 'contain' }} />
@@ -871,16 +871,23 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       position: 'relative', zIndex: 1,
                     }}>
-                      <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 48 48"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{ position: 'relative', zIndex: 2 }}
+                      >
                         <path
                           id="bk-confirm-path"
-                          d="M12 23L19 30L34 15"
+                          d="M13 25L20 33L35 16"
                           stroke="#FFFFFF"
-                          strokeWidth="3.5"
+                          strokeWidth="4"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          strokeDasharray="40"
-                          strokeDashoffset="40"
+                          strokeDasharray="45"
+                          strokeDashoffset="45"
                         />
                       </svg>
                     </div>

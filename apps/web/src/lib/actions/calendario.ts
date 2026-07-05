@@ -8,35 +8,173 @@ import { sendTemplatedEmail } from '@/lib/email'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { MANAGER_ROLES } from '@/lib/constants'
+
+type CalendarioRole = 'owner' | 'manager' | 'staff' | 'receptionist' | 'superadmin'
+
+interface CalendarioActorContext {
+  tenantId: string
+  db: ReturnType<typeof createAdminClient>
+  currentStaffId: string | null
+  role: CalendarioRole
+}
+
+type ScopedAppointmentRow = {
+  id: string
+  tenant_id: string
+  staff_id: string
+  location_id: string | null
+  status: string
+}
+
+function throwForbidden(): never {
+  const error = new Error('Forbidden')
+  ;(error as Error & { digest?: string }).digest = 'NEXT_HTTP_ERROR_FALLBACK;403'
+  throw error
+}
+
+function hasFullCalendarAccess(role: CalendarioRole): boolean {
+  return role === 'superadmin' || role === 'receptionist' || MANAGER_ROLES.includes(role as typeof MANAGER_ROLES[number])
+}
+
+function canCreateAppointments(role: CalendarioRole): boolean {
+  return hasFullCalendarAccess(role) || role === 'staff'
+}
+
+function canMutateOwnAppointment(role: CalendarioRole, currentStaffId: string | null, appointmentStaffId: string): boolean {
+  return hasFullCalendarAccess(role) || (role === 'staff' && currentStaffId === appointmentStaffId)
+}
+
+function canReassignAppointment(role: CalendarioRole): boolean {
+  return role === 'superadmin' || MANAGER_ROLES.includes(role as typeof MANAGER_ROLES[number])
+}
+
+function resolveDashboardBookingSource(role: CalendarioRole): string {
+  switch (role) {
+    case 'manager':
+      return 'dashboard_manager'
+    case 'staff':
+      return 'dashboard_staff'
+    case 'receptionist':
+      return 'dashboard_receptionist'
+    case 'superadmin':
+    case 'owner':
+    default:
+      return 'dashboard_owner'
+  }
+}
 
 /**
  * Verifica che l'utente autenticato sia staff (o superadmin) del tenant indicato.
  * Usato al posto del fragile getActiveTenantId() nei casi in cui tenantId
  * è già noto (passato dal caller) ma serve comunque la verifica lato server.
  */
-async function verifyUserTenantAccess(tenantId: string): Promise<void> {
+async function getCalendarioActorContext(tenantId: string): Promise<CalendarioActorContext | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
+  if (!user) return null
 
   const db = createAdminClient()
   const { data: staffRow } = await db
     .from('staff_members')
-    .select('id')
+    .select('id, role')
     .eq('tenant_id', tenantId)
     .eq('profile_id', user.id)
     .eq('is_active', true)
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!staffRow) {
-    const { data: profile } = await db
-      .from('profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (!profile?.is_superadmin) throw new Error('Non autorizzato')
+  if (staffRow) {
+    return {
+      tenantId,
+      db,
+      currentStaffId: (staffRow as { id: string }).id,
+      role: (staffRow as { role: CalendarioRole }).role,
+    }
   }
+
+  const { data: profile } = await db
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (!profile?.is_superadmin) return null
+
+  return {
+    tenantId,
+    db,
+    currentStaffId: null,
+    role: 'superadmin',
+  }
+}
+
+async function getTargetStaffRow(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  staffId: string,
+): Promise<{ id: string } | null> {
+  const { data: staffRow } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('id', staffId)
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return (staffRow as { id: string } | null) ?? null
+}
+
+async function getScopedAppointmentRow(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  appointmentId: string,
+): Promise<ScopedAppointmentRow | null> {
+  const { data: appointment } = await db
+    .from('appointments')
+    .select('id, tenant_id, staff_id, location_id, status')
+    .eq('id', appointmentId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!appointment || appointment.tenant_id !== tenantId) return null
+  return appointment as ScopedAppointmentRow
+}
+
+async function validateServiceIdsForTenant(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  serviceIds: string[],
+): Promise<Array<{ id: string; price: number }> | null> {
+  if (serviceIds.length === 0) return []
+
+  const uniqueServiceIds = [...new Set(serviceIds)]
+  const { data: services } = await db
+    .from('services')
+    .select('id, price')
+    .eq('tenant_id', tenantId)
+    .in('id', uniqueServiceIds)
+
+  const validServices = (services ?? []) as Array<{ id: string; price: number }>
+  return validServices.length === uniqueServiceIds.length ? validServices : null
+}
+
+async function validateLocationIdsForTenant(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  locationIds: string[],
+): Promise<boolean> {
+  if (locationIds.length === 0) return true
+
+  const uniqueLocationIds = [...new Set(locationIds)]
+  const { data: locations } = await db
+    .from('locations')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('id', uniqueLocationIds)
+
+  return (locations?.length ?? 0) === uniqueLocationIds.length
 }
 
 /**
@@ -44,16 +182,16 @@ async function verifyUserTenantAccess(tenantId: string): Promise<void> {
  * indicato. Previene la creazione di appuntamenti con foreign key cross-tenant.
  * Ritorna i servizi validati (id + price) per riuso dello snapshot prezzo.
  */
-async function verifyAppointmentRefs(input: {
+async function verifyAppointmentRefs(
+  db: ReturnType<typeof createAdminClient>,
+  input: {
   tenantId: string
   clientId: string
   staffId: string
   locationId: string
   serviceIds: string[]
 }): Promise<{ ok: true; services: Array<{ id: string; price: number }> } | { ok: false; error: string }> {
-  const db = createAdminClient()
-
-  const [clientRes, staffRes, locationRes, servicesRes] = await Promise.all([
+  const [clientRes, staffRes, locationRes, services] = await Promise.all([
     db
       .from('clients')
       .select('id')
@@ -75,22 +213,11 @@ async function verifyAppointmentRefs(input: {
       .eq('id', input.locationId)
       .eq('tenant_id', input.tenantId)
       .maybeSingle(),
-    input.serviceIds.length > 0
-      ? db
-          .from('services')
-          .select('id, price')
-          .eq('tenant_id', input.tenantId)
-          .in('id', input.serviceIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; price: number }> }),
+    validateServiceIdsForTenant(db, input.tenantId, input.serviceIds),
   ])
 
-  if (!clientRes.data) return { ok: false, error: 'Cliente non valido.' }
-  if (!staffRes.data) return { ok: false, error: 'Barbiere non valido.' }
-  if (!locationRes.data) return { ok: false, error: 'Sede non valida.' }
-
-  const services = (servicesRes.data ?? []) as Array<{ id: string; price: number }>
-  if (services.length !== input.serviceIds.length) {
-    return { ok: false, error: 'Uno o più servizi non sono validi.' }
+  if (!clientRes.data || !staffRes.data || !locationRes.data || services === null) {
+    return { ok: false, error: 'Non autorizzato' }
   }
 
   return { ok: true, services }
@@ -192,10 +319,26 @@ export async function getCalendarioData(
   weekStart: string,
   staffId?: string | null
 ): Promise<CalendarioData> {
-  await verifyUserTenantAccess(tenantId)
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) throwForbidden()
 
-  const db = createAdminClient()
+  const db = ctx.db
   const weekEnd = addDays(weekStart, 7)
+  const requestedStaffId = staffId ?? null
+
+  if (ctx.role === 'staff' && requestedStaffId && requestedStaffId !== ctx.currentStaffId) {
+    throwForbidden()
+  }
+
+  if (requestedStaffId) {
+    const targetStaff = await getTargetStaffRow(db, tenantId, requestedStaffId)
+    if (!targetStaff) throwForbidden()
+  }
+
+  const effectiveStaffId =
+    ctx.role === 'staff'
+      ? ctx.currentStaffId
+      : requestedStaffId
 
   let apptQuery = db
     .from('appointments')
@@ -208,8 +351,8 @@ export async function getCalendarioData(
     .lt('start_time', weekEnd + 'T00:00:00Z')
     .order('start_time', { ascending: true })
 
-  if (staffId) {
-    apptQuery = apptQuery.eq('staff_id', staffId)
+  if (effectiveStaffId) {
+    apptQuery = apptQuery.eq('staff_id', effectiveStaffId)
   }
 
   const [{ data: appts }, { data: staffRows }, { data: wh }, { data: ov }] = await Promise.all([
@@ -231,6 +374,20 @@ export async function getCalendarioData(
       .gte('date', weekStart)
       .lte('date', weekEnd),
   ])
+
+  const visibleStaffId = ctx.role === 'staff' ? ctx.currentStaffId : null
+  const filteredStaffRows =
+    visibleStaffId
+      ? ((staffRows ?? []) as Array<{ id: string }>).filter((row) => row.id === visibleStaffId)
+      : staffRows
+  const filteredWh =
+    visibleStaffId
+      ? ((wh ?? []) as Array<{ staff_id: string }>).filter((row) => row.staff_id === visibleStaffId)
+      : wh
+  const filteredOverrides =
+    visibleStaffId
+      ? ((ov ?? []) as Array<{ staff_id: string }>).filter((row) => row.staff_id === visibleStaffId)
+      : ov
 
   const appointments: CalendarioAppointment[] = (
     (appts ?? []) as unknown as RawAppt[]
@@ -262,7 +419,7 @@ export async function getCalendarioData(
       }),
   }))
 
-  const staff: CalendarioStaff[] = ((staffRows ?? []) as unknown as RawStaff[]).map((s) => ({
+  const staff: CalendarioStaff[] = ((filteredStaffRows ?? []) as unknown as RawStaff[]).map((s) => ({
     id: s.id,
     profile_id: s.profile_id,
     role: s.role,
@@ -273,8 +430,8 @@ export async function getCalendarioData(
   return {
     appointments,
     staff,
-    workingHours: (wh ?? []) as CalendarioWorkingHour[],
-    overrides: (ov ?? []) as CalendarioOverride[],
+    workingHours: (filteredWh ?? []) as CalendarioWorkingHour[],
+    overrides: (filteredOverrides ?? []) as CalendarioOverride[],
   }
 }
 
@@ -293,18 +450,19 @@ export async function updateAppointmentStatus(
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Non autenticato' }
 
-  const db = createAdminClient()
-  const { data: appt } = await db
-    .from('appointments')
-    .select('tenant_id, location_id')
-    .eq('id', appointmentId)
-    .maybeSingle()
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  if (!appt || appt.tenant_id !== tenantId) {
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentId)
+  if (!appt) {
     return { success: false, error: 'Non autorizzato' }
   }
 
-  const { error } = await db
+  if (!canMutateOwnAppointment(ctx.role, ctx.currentStaffId, appt.staff_id) || ctx.role === 'receptionist') {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const { error } = await ctx.db
     .from('appointments')
     .update({ status, notes })
     .eq('id', appointmentId)
@@ -313,13 +471,13 @@ export async function updateAppointmentStatus(
 
   // Fire-and-forget side-effects on completion
   if (status === 'completed') {
-    assignPointsOnCompletion(appointmentId, tenantId).catch((err) => {
+    assignPointsOnCompletion(appointmentId, ctx.tenantId).catch((err) => {
       console.error('[loyalty] assignPointsOnCompletion error:', err)
     })
-    decrementInventoryOnCompletion(appointmentId, tenantId, (appt as { location_id: string | null }).location_id).catch((err) => {
+    decrementInventoryOnCompletion(appointmentId, ctx.tenantId, appt.location_id).catch((err) => {
       console.error('[inventory] decrementInventoryOnCompletion error:', err)
     })
-    sendPostVisitNotifications(appointmentId, tenantId).catch((err) => {
+    sendPostVisitNotifications(appointmentId, ctx.tenantId).catch((err) => {
       console.error('[post-visit] sendPostVisitNotifications error:', err)
     })
   }
@@ -333,8 +491,9 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
   services: Array<{ id: string; name: string; duration_minutes: number; category: string | null; price: number; color: string | null }>
   products: Array<{ id: string; name: string; brand: string | null; price_sell: number }>
 }> {
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) throwForbidden()
+  const db = ctx.db
 
   const [{ data: clients }, { data: staffRows }, { data: services }, { data: products }] = await Promise.all([
     db
@@ -365,7 +524,9 @@ export async function getCalendarioFormOptions(tenantId: string): Promise<{
 
   return {
     clients: ((clients ?? []) as Array<{ id: string; full_name: string | null }>),
-    staff: ((staffRows ?? []) as unknown as RawStaffOption[]).map((s) => ({
+    staff: ((ctx.role === 'staff'
+      ? (staffRows ?? []).filter((row) => row.id === ctx.currentStaffId)
+      : (staffRows ?? [])) as unknown as RawStaffOption[]).map((s) => ({
       id: s.id,
       full_name: s.profiles?.full_name ?? null,
     })),
@@ -390,9 +551,14 @@ export async function getStaffLocations(
   staffId: string,
   tenantId: string,
 ): Promise<Array<{ id: string; name: string }>> {
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
-  const { data } = await db
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) throwForbidden()
+
+  const targetStaff = await getTargetStaffRow(ctx.db, tenantId, staffId)
+  if (!targetStaff) throwForbidden()
+  if (ctx.role === 'staff' && ctx.currentStaffId !== staffId) throwForbidden()
+
+  const { data } = await ctx.db
     .from('staff_locations')
     .select('locations(id, name)')
     .eq('staff_id', staffId)
@@ -406,13 +572,25 @@ export async function getStaffLocations(
 /** Returns the subset of the given staffIds that have at least one location row. */
 export async function getStaffIdsWithLocations(staffIds: string[], tenantId: string): Promise<string[]> {
   if (staffIds.length === 0) return []
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
-  const { data } = await db
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) throwForbidden()
+
+  if (ctx.role === 'staff') {
+    if (!ctx.currentStaffId || staffIds.some((id) => id !== ctx.currentStaffId)) throwForbidden()
+  } else {
+    const validStaffIds = await Promise.all(staffIds.map((staffId) => getTargetStaffRow(ctx.db, tenantId, staffId)))
+    if (validStaffIds.some((row) => row === null)) throwForbidden()
+  }
+
+  const requestedStaffIds = ctx.role === 'staff' && ctx.currentStaffId
+    ? [ctx.currentStaffId]
+    : staffIds
+
+  const { data } = await ctx.db
     .from('staff_locations')
     .select('staff_id')
     .eq('tenant_id', tenantId)
-    .in('staff_id', staffIds)
+    .in('staff_id', requestedStaffIds)
   if (!data) return []
   return [...new Set((data as Array<{ staff_id: string }>).map((r) => r.staff_id))]
 }
@@ -428,16 +606,17 @@ export async function createAppointment(input: {
   notes?: string | null
   status?: string
 }): Promise<{ success: boolean; appointmentId?: string; error?: string }> {
-  try {
-    await verifyUserTenantAccess(input.tenantId)
-  } catch {
+  const ctx = await getCalendarioActorContext(input.tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+  if (!canCreateAppointments(ctx.role)) return { success: false, error: 'Non autorizzato' }
+  if (ctx.role === 'staff' && input.staffId !== ctx.currentStaffId) {
     return { success: false, error: 'Non autorizzato' }
   }
   if (!input.locationId) {
     return { success: false, error: 'Location non selezionata' }
   }
 
-  const refs = await verifyAppointmentRefs({
+  const refs = await verifyAppointmentRefs(ctx.db, {
     tenantId: input.tenantId,
     clientId: input.clientId,
     staffId: input.staffId,
@@ -448,12 +627,10 @@ export async function createAppointment(input: {
     return { success: false, error: refs.error }
   }
 
-  const db = createAdminClient()
-
-  const { data: appt, error } = await db
+  const { data: appt, error } = await ctx.db
     .from('appointments')
     .insert({
-      tenant_id: input.tenantId,
+      tenant_id: ctx.tenantId,
       client_id: input.clientId,
       staff_id: input.staffId,
       location_id: input.locationId,
@@ -461,7 +638,7 @@ export async function createAppointment(input: {
       end_time: input.endTime,
       notes: input.notes ?? null,
       status: input.status ?? 'confirmed',
-      booking_source: 'dashboard_owner',
+      booking_source: resolveDashboardBookingSource(ctx.role),
     })
     .select('id')
     .single()
@@ -469,22 +646,22 @@ export async function createAppointment(input: {
   if (error || !appt) return { success: false, error: error?.message ?? 'Errore sconosciuto' }
 
   if (input.serviceIds.length > 0) {
-    const { error: asErr } = await db.from('appointment_services').insert(
+    const { error: asErr } = await ctx.db.from('appointment_services').insert(
       input.serviceIds.map((serviceId) => ({
         appointment_id: appt.id,
         service_id: serviceId,
-        tenant_id: input.tenantId,
+        tenant_id: ctx.tenantId,
         price_at_booking: refs.services.find((s) => s.id === serviceId)?.price ?? 0,
       }))
     )
 
     if (asErr) {
       // Compensating delete: remove the orphan appointment
-      await db
+      await ctx.db
         .from('appointments')
         .delete()
         .eq('id', appt.id)
-        .eq('tenant_id', input.tenantId)
+        .eq('tenant_id', ctx.tenantId)
 
       return {
         success: false,
@@ -503,32 +680,21 @@ export async function updateAppointmentStaff(
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Non autenticato' }
 
-  const db = createAdminClient()
-  const { data: appt } = await db
-    .from('appointments')
-    .select('tenant_id')
-    .eq('id', appointmentId)
-    .maybeSingle()
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx || !canReassignAppointment(ctx.role)) return { success: false, error: 'Non autorizzato' }
 
-  if (!appt || appt.tenant_id !== tenantId) {
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentId)
+  if (!appt) {
     return { success: false, error: 'Non autorizzato' }
   }
 
   // Verify the new staff member belongs to the same tenant
-  const { data: newStaff } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('id', staffId)
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
+  const newStaff = await getTargetStaffRow(ctx.db, ctx.tenantId, staffId)
   if (!newStaff) {
-    return { success: false, error: 'Barbiere non valido.' }
+    return { success: false, error: 'Non autorizzato' }
   }
 
-  const { error } = await db
+  const { error } = await ctx.db
     .from('appointments')
     .update({ staff_id: staffId })
     .eq('id', appointmentId)
@@ -542,49 +708,39 @@ export async function updateAppointmentServices(
   serviceIds: string[],
   tenantId: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    await verifyUserTenantAccess(tenantId)
-  } catch {
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentId)
+  if (!appt) {
     return { success: false, error: 'Non autorizzato' }
   }
 
-  const db = createAdminClient()
-
-  const { data: appt } = await db
-    .from('appointments')
-    .select('tenant_id')
-    .eq('id', appointmentId)
-    .maybeSingle()
-
-  if (!appt || appt.tenant_id !== tenantId) {
+  if (!canMutateOwnAppointment(ctx.role, ctx.currentStaffId, appt.staff_id) || ctx.role === 'receptionist') {
     return { success: false, error: 'Non autorizzato' }
   }
 
-  await db.from('appointment_services').delete().eq('appointment_id', appointmentId)
+  const validServices = await validateServiceIdsForTenant(ctx.db, ctx.tenantId, serviceIds)
+  if (validServices === null) return { success: false, error: 'Non autorizzato' }
+
+  await ctx.db
+    .from('appointment_services')
+    .delete()
+    .eq('tenant_id', ctx.tenantId)
+    .eq('appointment_id', appointmentId)
 
   if (serviceIds.length > 0) {
-    const { data: services } = await db
-      .from('services')
-      .select('id, price')
-      .eq('tenant_id', tenantId)
-      .in('id', serviceIds)
-
-    const validServices = (services ?? []) as Array<{ id: string; price: number }>
-    if (validServices.length !== serviceIds.length) {
-      return { success: false, error: 'Uno o più servizi non sono validi.' }
-    }
-
     const rows = serviceIds.map((serviceId) => {
       const service = validServices.find((s) => s.id === serviceId)
       return {
         appointment_id: appointmentId,
         service_id: serviceId,
         price_at_booking: service?.price ?? 0,
-        tenant_id: tenantId,
+        tenant_id: ctx.tenantId,
       }
     })
 
-    const { error } = await db.from('appointment_services').insert(rows)
+    const { error } = await ctx.db.from('appointment_services').insert(rows)
     if (error) return { success: false, error: error.message }
   }
 
@@ -614,9 +770,14 @@ export async function getAppointmentProducts(
   appointmentId: string,
   tenantId: string,
 ): Promise<AppointmentProductRow[]> {
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
-  const { data } = await db
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) throwForbidden()
+
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentId)
+  if (!appt) throwForbidden()
+  if (ctx.role === 'staff' && ctx.currentStaffId !== appt.staff_id) throwForbidden()
+
+  const { data } = await ctx.db
     .from('appointment_products')
     .select('id, product_id, quantity, price_at_sale, products(name, brand)')
     .eq('appointment_id', appointmentId)
@@ -639,18 +800,16 @@ export async function addProductToAppointmentByStaff(params: {
   quantity:      number
 }): Promise<{ success: boolean; alreadyExists?: boolean; error?: string }> {
   const { tenantId, appointmentId, productId, quantity } = params
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+  const db = ctx.db
 
   // Verify appointment belongs to tenant and is not completed/cancelled
-  const { data: appt } = await db
-    .from('appointments')
-    .select('id, status')
-    .eq('id', appointmentId)
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const appt = await getScopedAppointmentRow(db, ctx.tenantId, appointmentId)
   if (!appt) return { success: false, error: 'Appuntamento non trovato.' }
+  if (!canMutateOwnAppointment(ctx.role, ctx.currentStaffId, appt.staff_id) || ctx.role === 'receptionist') {
+    return { success: false, error: 'Non autorizzato' }
+  }
   if (appt.status === 'completed') return { success: false, error: 'Appuntamento già completato.' }
 
   // Verify product belongs to tenant
@@ -658,10 +817,10 @@ export async function addProductToAppointmentByStaff(params: {
     .from('products')
     .select('id, price_sell')
     .eq('id', productId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
     .eq('is_active', true)
     .maybeSingle()
-  if (!product) return { success: false, error: 'Prodotto non trovato.' }
+  if (!product) return { success: false, error: 'Non autorizzato' }
 
   // Prevent duplicate
   const { data: existing } = await db
@@ -673,7 +832,7 @@ export async function addProductToAppointmentByStaff(params: {
   if (existing) return { success: true, alreadyExists: true }
 
   const { error } = await db.from('appointment_products').insert({
-    tenant_id:      tenantId,
+    tenant_id:      ctx.tenantId,
     appointment_id: appointmentId,
     product_id:     productId,
     quantity,
@@ -687,13 +846,29 @@ export async function removeAppointmentProduct(
   appointmentProductId: string,
   tenantId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  await verifyUserTenantAccess(tenantId)
-  const db = createAdminClient()
-  const { error } = await db
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+
+  const { data: appointmentProduct } = await ctx.db
+    .from('appointment_products')
+    .select('id, appointment_id')
+    .eq('id', appointmentProductId)
+    .eq('tenant_id', ctx.tenantId)
+    .maybeSingle()
+
+  if (!appointmentProduct?.appointment_id) return { success: false, error: 'Non autorizzato' }
+
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentProduct.appointment_id)
+  if (!appt) return { success: false, error: 'Non autorizzato' }
+  if (!canMutateOwnAppointment(ctx.role, ctx.currentStaffId, appt.staff_id) || ctx.role === 'receptionist') {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const { error } = await ctx.db
     .from('appointment_products')
     .delete()
     .eq('id', appointmentProductId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
   if (error) return { success: false, error: error.message }
   return { success: true }
 }
@@ -708,30 +883,30 @@ export async function cancelCompletedAppointment(
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { success: false, error: 'Non autenticato' }
 
-  const db = createAdminClient()
-  const { data: appt } = await db
-    .from('appointments')
-    .select('tenant_id, location_id, status')
-    .eq('id', appointmentId)
-    .maybeSingle()
+  const ctx = await getCalendarioActorContext(tenantId)
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  if (!appt || appt.tenant_id !== tenantId) return { success: false, error: 'Non autorizzato' }
-  if ((appt as { status: string }).status !== 'completed') {
+  const appt = await getScopedAppointmentRow(ctx.db, ctx.tenantId, appointmentId)
+  if (!appt) return { success: false, error: 'Non autorizzato' }
+  if (!canMutateOwnAppointment(ctx.role, ctx.currentStaffId, appt.staff_id) || ctx.role === 'receptionist') {
+    return { success: false, error: 'Non autorizzato' }
+  }
+  if (appt.status !== 'completed') {
     return { success: false, error: 'Appuntamento non completato.' }
   }
 
-  const { error } = await db
+  const { error } = await ctx.db
     .from('appointments')
     .update({ status: 'cancelled', notes })
     .eq('id', appointmentId)
 
   if (error) return { success: false, error: error.message }
 
-  if (inventoryChoice === 'rollback' && (appt as { location_id: string | null }).location_id) {
+  if (inventoryChoice === 'rollback' && appt.location_id) {
     rollbackInventoryOnCancellation(
       appointmentId,
-      tenantId,
-      (appt as { location_id: string }).location_id,
+      ctx.tenantId,
+      appt.location_id,
     ).catch((err) => {
       console.error('[inventory] rollbackInventoryOnCancellation error:', err)
     })
@@ -886,4 +1061,3 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
     }
   }
 }
-
