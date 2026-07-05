@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { ArrowUpRight, Heart, ShoppingBag } from 'lucide-react'
 import { useFavoriteProducts } from '@/lib/hooks/use-favorite-products'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { formatCategoryLabel } from '@/lib/utils'
 
 export interface ProductListItem {
   id: string
@@ -104,7 +105,7 @@ export function ProdottiClient({
           {(['__all__', ...categories] as const).map((cat) => {
             const isAll = cat === '__all__'
             const active = isAll ? selectedCategory == null : selectedCategory === cat
-            const label = isAll ? 'Tutti' : cat
+            const label = isAll ? 'Tutti' : formatCategoryLabel(cat)
             return (
               <button
                 key={cat}
@@ -152,7 +153,7 @@ export function ProdottiClient({
             style={{
               position: 'relative',
               background: '#FFFFFF',
-              borderRadius: 20,
+              borderRadius: 44,
               border: '1px solid #F0F0F0',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               opacity: product.available ? 1 : 0.55,
@@ -181,7 +182,7 @@ export function ProdottiClient({
               style={{
                 position: 'relative',
                 margin: '8px 8px 0 8px',
-                borderRadius: 12,
+                borderRadius: 36,
                 overflow: 'hidden',
                 aspectRatio: '1 / 1',
                 background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',

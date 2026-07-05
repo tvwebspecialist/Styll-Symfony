@@ -7,12 +7,18 @@ import { Camera, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
-import { sendEmailVerificationOTP } from '@/lib/actions/email-verification'
 import { cn } from '@/lib/utils'
 import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { identifyLead } from '@/components/marketing/PostHogProvider'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
+const EMAIL_VERIFICATION_SEND_ERROR =
+  "Account creato, ma non siamo riusciti a inviare il codice. Richiedine uno dalla schermata successiva."
+
+type SendEmailVerificationResponse = {
+  success: boolean
+  error?: string
+}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -47,13 +53,6 @@ export function RegisterForm() {
   const [isPending, startTransition] = useTransition()
 
   const initials = useMemo(() => getInitials(fullName), [fullName])
-
-  const validation = useMemo(
-    () => validate(fullName, email, password, password2),
-    [fullName, email, password, password2]
-  )
-
-  const isValid = validation.length === 0
 
   function handleAvatarChange(file: File | undefined) {
     if (!file) return
@@ -95,6 +94,9 @@ export function RegisterForm() {
       const supabase = createClient()
       const cleanName = effectiveFullName.trim()
       const cleanEmail = effectiveEmail.trim().toLowerCase()
+
+      // Keep the lead capture on /register before sign-up creates an auth session.
+      await savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
 
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -139,12 +141,26 @@ export function RegisterForm() {
         return
       }
 
-      // PostHog identify + platform_leads (best-effort, non-blocking)
+      // PostHog identify stays client-side; OTP send uses an API route.
       identifyLead(cleanEmail, { full_name: cleanName, source: 'trial_signup' })
-      savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
 
-      // Send OTP and redirect to email verification
-      await sendEmailVerificationOTP(cleanEmail)
+      // Use an API route so the OTP POST does not go back through /register.
+      try {
+        const verificationResponse = await fetch('/api/email-verification/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail }),
+        })
+        const verificationResult =
+          (await verificationResponse.json()) as SendEmailVerificationResponse
+
+        if (!verificationResponse.ok || !verificationResult.success) {
+          toast.error(verificationResult.error || EMAIL_VERIFICATION_SEND_ERROR)
+        }
+      } catch {
+        toast.error(EMAIL_VERIFICATION_SEND_ERROR)
+      }
+
       router.push(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`)
       router.refresh()
     })

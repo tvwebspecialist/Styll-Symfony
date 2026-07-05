@@ -1,50 +1,15 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendVerificationCodeEmail } from '@/lib/email'
+import { sendEmailVerificationOtp } from '@/lib/email-verification'
 import type { TablesUpdate } from '@/types'
-
-function generateOtpCode(): string {
-  // Cryptographically secure 6-digit code
-  const array = new Uint32Array(1)
-  crypto.getRandomValues(array)
-  return String(100000 + (array[0] % 900000))
-}
 
 // ─── Send (or re-send) a verification code ───────────────────────────────────
 
 export async function sendEmailVerificationOTP(
   email: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createAdminClient()
-  const code = generateOtpCode()
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
-
-  // Invalidate any previous unused tokens for this address
-  await db
-    .from('email_verification_tokens')
-    .update({ used: true })
-    .eq('email', email)
-    .eq('used', false)
-
-  const { error: insertErr } = await db.from('email_verification_tokens').insert({
-    email,
-    code,
-    expires_at: expiresAt.toISOString(),
-    last_sent_at: new Date().toISOString(),
-  })
-
-  if (insertErr) {
-    console.error('[sendEmailVerificationOTP] insert error:', insertErr.message)
-    return { success: false, error: 'Errore interno. Riprova.' }
-  }
-
-  const emailResult = await sendVerificationCodeEmail({ email, code })
-  if (!emailResult.success) {
-    return { success: false, error: "Errore nell'invio dell'email. Riprova." }
-  }
-
-  return { success: true }
+  return sendEmailVerificationOtp(email)
 }
 
 // ─── Resend with 60-second server-side rate limit ────────────────────────────
@@ -73,7 +38,7 @@ export async function resendEmailOTP(
     }
   }
 
-  return sendEmailVerificationOTP(email)
+  return sendEmailVerificationOtp(email)
 }
 
 // ─── Validate the code the user entered ──────────────────────────────────────
