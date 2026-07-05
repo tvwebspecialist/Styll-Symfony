@@ -848,7 +848,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
                   {/* ── PHASE 3: Calendar ──────────────────────────────── */}
                   <div id="bk-ph-cal" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, opacity: 0 }}>
-                    <div id="bk-cal-strip" style={{ width: '100%', overflow: 'hidden', padding: '0 16px' }}>
+                    <div id="bk-cal-strip" style={{ width: '100%', padding: '0 16px' }}>
                       <div id="bk-cal-inner" style={{ display: 'flex', gap: 8 }}>
                         {Array.from({ length: 14 }, (_, di) => {
                           const d = new Date(); d.setDate(d.getDate() - 3 + di)
@@ -923,8 +923,8 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
               {step === 2 && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '0 24px', width: '100%' }}>
                   {/* Glow under badges */}
-                  <div id="s3-glow" style={{ position: 'absolute', width: 200, height: 80, borderRadius: '50%', background: accent, opacity: 0.2, filter: 'blur(40px)', pointerEvents: 'none' }}/>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, position: 'relative' }}>
+                  <div id="s3-glow" style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 240, height: 100, borderRadius: '50%', background: accent, opacity: 0.12, filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }}/>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, position: 'relative', zIndex: 1 }}>
                     <div id="s3-badge-0" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                       <div style={{ width: 70, height: 70, borderRadius: 20, background: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px ${accent}55` }}>
                         <Star className="badge-icon" size={28} color="white" fill="white" />

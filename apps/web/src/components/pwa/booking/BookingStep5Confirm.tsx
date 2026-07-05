@@ -6,6 +6,7 @@ import { Calendar, Clock, Loader2, MapPin, Scissors, ShoppingBag } from 'lucide-
 import { BookingUpsellDrawer } from './BookingUpsellDrawer'
 import BookingAuthModal from './BookingAuthModal'
 import BookingSuccessModal from './BookingSuccessModal'
+import { useAnalyticsConsent } from '@/hooks/use-analytics-consent'
 import { createGuestBooking } from '@/lib/actions/create-booking'
 import { getUpsellProductsAction } from '@/lib/actions/upsell-action'
 import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
@@ -89,6 +90,7 @@ export default function BookingStep5Confirm({
 }: Props) {
   const brandColor = primaryColor ?? '#1a1a1a'
   const { showToast } = useToast()
+  const { hasConsent: hasAnalyticsConsent } = useAnalyticsConsent()
 
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -133,9 +135,9 @@ export default function BookingStep5Confirm({
   }, [])
 
   useEffect(() => {
+    if (!hasAnalyticsConsent) return
     trackEvent({ tenantId, eventType: 'booking_started', appSurface })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [tenantId, appSurface, hasAnalyticsConsent])
 
   useEffect(() => {
     if (!googleLogin) return
@@ -199,10 +201,14 @@ export default function BookingStep5Confirm({
       setIsSubmitting(false)
       return
     }
-    trackEvent({ tenantId, eventType: 'booking_completed', appSurface })
-    if (result.clientId) {
+    if (hasAnalyticsConsent) {
+      trackEvent({ tenantId, eventType: 'booking_completed', appSurface })
+    }
+    if (hasAnalyticsConsent && result.clientId) {
       const anonymousId = getCurrentAnonymousId()
-      linkSessionToClient(tenantId, anonymousId, result.clientId).catch(() => {})
+      if (anonymousId) {
+        linkSessionToClient(tenantId, anonymousId, result.clientId).catch(() => {})
+      }
     }
     sessionStorage.removeItem('booking_upsell_ids')
     sessionStorage.removeItem('upsell_shown')
