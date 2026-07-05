@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { MANAGER_ROLES } from '@/lib/constants'
 import type { Json } from '@/types'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
@@ -67,6 +68,23 @@ interface ProductRow {
   quantity: number | null
 }
 
+type StaffRole = 'owner' | 'manager' | 'staff' | 'receptionist'
+
+interface ClientiActorContext {
+  tenantId: string
+  db: ReturnType<typeof createAdminClient>
+  currentStaff: {
+    id: string
+    role: StaffRole
+  }
+}
+
+function throwForbidden(): never {
+  const error = new Error('Forbidden')
+  ;(error as Error & { digest?: string }).digest = 'NEXT_HTTP_ERROR_FALLBACK;403'
+  throw error
+}
+
 function parseTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string')
   if (typeof raw === 'string') {
@@ -80,34 +98,241 @@ function parseTags(raw: unknown): string[] {
   return []
 }
 
+async function getClientiActorContext(): Promise<ClientiActorContext | null> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const db = createAdminClient()
+  const { data: currentStaff } = await db
+    .from('staff_members')
+    .select('id, role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!currentStaff) return null
+
+  return {
+    tenantId,
+    db,
+    currentStaff: currentStaff as ClientiActorContext['currentStaff'],
+  }
+}
+
+function hasFullCrmAccess(role: StaffRole): boolean {
+  return MANAGER_ROLES.includes(role as typeof MANAGER_ROLES[number])
+}
+
+function canCreateClient(role: StaffRole): boolean {
+  return hasFullCrmAccess(role) || role === 'receptionist'
+}
+
+function canWritePrivateNotes(role: StaffRole): boolean {
+  return hasFullCrmAccess(role) || role === 'staff'
+}
+
+async function getStaffClientIds(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  staffId: string,
+): Promise<Set<string>> {
+  const { data: appointments } = await db
+    .from('appointments')
+    .select('client_id')
+    .eq('tenant_id', tenantId)
+    .eq('staff_id', staffId)
+    .is('deleted_at', null)
+    .not('client_id', 'is', null)
+
+  return new Set(
+    ((appointments ?? []) as Array<{ client_id: string | null }>)
+      .map((row) => row.client_id)
+      .filter((id): id is string => !!id)
+  )
+}
+
+async function getClientTenantId(
+  db: ReturnType<typeof createAdminClient>,
+  clientId: string,
+): Promise<string | null> {
+  const { data: client } = await db
+    .from('clients')
+    .select('tenant_id')
+    .eq('id', clientId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return (client as { tenant_id?: string } | null)?.tenant_id ?? null
+}
+
+async function assertClientAccess(
+  ctx: ClientiActorContext,
+  clientId: string,
+): Promise<'full' | 'staff' | 'receptionist'> {
+  const tenantId = await getClientTenantId(ctx.db, clientId)
+  if (!tenantId) return throwForbidden()
+  if (tenantId !== ctx.tenantId) return throwForbidden()
+
+  if (hasFullCrmAccess(ctx.currentStaff.role)) return 'full'
+  if (ctx.currentStaff.role === 'receptionist') return 'receptionist'
+
+  const ownedClientIds = await getStaffClientIds(ctx.db, ctx.tenantId, ctx.currentStaff.id)
+  if (!ownedClientIds.has(clientId)) return throwForbidden()
+  return 'staff'
+}
+
+function redactClienteRowForReceptionist(row: ClienteRow): ClienteRow {
+  return {
+    ...row,
+    churn: 'inactive',
+    lastVisit: null,
+    daysSinceLastVisit: null,
+    visitFrequencyDays: null,
+    totalVisits: 0,
+    loyaltyPoints: 0,
+    totalSpent: 0,
+    tags: [],
+  }
+}
+
+function redactClienteDettaglioForReceptionist(
+  data: ClienteDettaglioData,
+): ClienteDettaglioData {
+  return {
+    cliente: {
+      ...data.cliente,
+      dateOfBirth: null,
+      preferredChannel: null,
+      marketingConsent: false,
+      tags: [],
+    },
+    analytics: {
+      totalVisits: 0,
+      completedVisits: 0,
+      cancelledVisits: 0,
+      noShowVisits: 0,
+      totalSpent: 0,
+      avgSpend: 0,
+      lastVisitDate: null,
+      daysSinceLastVisit: null,
+      avgDaysBetweenVisits: null,
+      churnStatus: 'unknown',
+      churnDelayDays: 0,
+      vipScore: 0,
+      lastApptTotal: 0,
+    },
+    preferenze: {
+      servizioPreferito: null,
+      servizioCount: null,
+      orarioPreferito: null,
+      prodottoPrincipale: null,
+      prodottoCount: null,
+    },
+    appuntamenti: data.appuntamenti.map((appointment) => ({
+      ...appointment,
+      total: 0,
+    })),
+    loyalty: {
+      totalPoints: 0,
+      availablePoints: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastVisitDate: null,
+      tier: 'bronze',
+      tierLabel: 'Bronzo',
+      progress: 0,
+      pointsToNextTier: 0,
+      nextTierLabel: null,
+      transactions: [],
+      rewards: [],
+      redemptions: [],
+    },
+    note: [],
+    vendite: [],
+  }
+}
+
 
 export async function getClienti(): Promise<{
   clienti: ClienteRow[]
   tenantId: string | null
 }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { clienti: [], tenantId: null }
+  const ctx = await getClientiActorContext()
+  if (!ctx) return { clienti: [], tenantId: null }
 
-  const db = createAdminClient()
+  const { tenantId, db } = ctx
+  const ownedClientIds =
+    ctx.currentStaff.role === 'staff'
+      ? await getStaffClientIds(db, tenantId, ctx.currentStaff.id)
+      : null
 
   const [clientsRes, apptRes, loyaltyRes, analyticsRes] = await Promise.all([
-    db
-      .from('clients')
-      .select('id, full_name, email, phone, tags')
-      .eq('tenant_id', tenantId)
-      .order('full_name', { ascending: true }),
+    ownedClientIds
+      ? ownedClientIds.size > 0
+        ? db
+            .from('clients')
+            .select('id, full_name, email, phone, tags')
+            .eq('tenant_id', tenantId)
+            .is('deleted_at', null)
+            .in('id', [...ownedClientIds])
+            .order('full_name', { ascending: true })
+        : Promise.resolve({ data: [] as ClientRow[] })
+      : db
+          .from('clients')
+          .select('id, full_name, email, phone, tags')
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .order('full_name', { ascending: true }),
     db
       .from('appointments')
       .select('id, client_id, status, start_time')
-      .eq('tenant_id', tenantId),
-    db
-      .from('client_loyalty')
-      .select('client_id, total_points, last_visit_date')
-      .eq('tenant_id', tenantId),
-    db
-      .from('client_analytics')
-      .select('client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits')
-      .eq('tenant_id', tenantId),
+      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
+      .then((result) => ({
+        ...result,
+        data: ownedClientIds
+          ? (result.data ?? []).filter((row) => row.client_id && ownedClientIds.has(row.client_id))
+          : result.data,
+      })),
+    ctx.currentStaff.role === 'receptionist'
+      ? Promise.resolve({ data: [] as LoyaltyRow[] })
+      : db
+          .from('client_loyalty')
+          .select('client_id, total_points, last_visit_date')
+          .eq('tenant_id', tenantId)
+          .then((result) => ({
+            ...result,
+            data: ownedClientIds
+              ? (result.data ?? []).filter((row) => ownedClientIds.has(row.client_id))
+              : result.data,
+          })),
+    ctx.currentStaff.role === 'receptionist'
+      ? Promise.resolve({ data: [] as Array<{
+          client_id: string
+          churn_status: string | null
+          days_since_last_visit: number | null
+          avg_frequency_days: number | null
+          last_visit_date: string | null
+          total_visits: number
+        }> })
+      : db
+          .from('client_analytics')
+          .select('client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits')
+          .eq('tenant_id', tenantId)
+          .then((result) => ({
+            ...result,
+            data: ownedClientIds
+              ? (result.data ?? []).filter((row) => ownedClientIds.has(row.client_id))
+              : result.data,
+          })),
   ])
 
   const clients = (clientsRes.data ?? []) as ClientRow[]
@@ -222,7 +447,12 @@ export async function getClienti(): Promise<{
     }
   })
 
-  return { clienti, tenantId }
+  return {
+    clienti: ctx.currentStaff.role === 'receptionist'
+      ? clienti.map(redactClienteRowForReceptionist)
+      : clienti,
+    tenantId,
+  }
 }
 
 // ─── Dettaglio cliente ────────────────────────────────────────────────────────
@@ -340,10 +570,11 @@ function computeTier(pts: number) {
 export async function getClienteDettaglio(
   clienteId: string,
 ): Promise<ClienteDettaglioData | null> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return null
+  const ctx = await getClientiActorContext()
+  if (!ctx) return null
 
-  const db = createAdminClient()
+  const accessLevel = await assertClientAccess(ctx, clienteId)
+  const { tenantId, db } = ctx
 
   // ── 1. Client base ──────────────────────────────────────────────────────────
   const { data: clientRow } = await db
@@ -649,7 +880,7 @@ export async function getClienteDettaglio(
     .map(([productId, v]) => ({ productId, productName: v.productName, brand: v.brand, totalQuantity: v.qty, totalSpent: v.spent, lastDate: v.lastDate }))
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
 
-  return {
+  const fullData: ClienteDettaglioData = {
     cliente: {
       id: clientRow.id,
       fullName: clientRow.full_name,
@@ -682,6 +913,10 @@ export async function getClienteDettaglio(
     note,
     vendite,
   }
+
+  return accessLevel === 'receptionist'
+    ? redactClienteDettaglioForReceptionist(fullData)
+    : fullData
 }
 
 // ─── addClienteNota ───────────────────────────────────────────────────────────
@@ -693,45 +928,27 @@ export async function addClienteNota(
   const trimmed = noteText.trim()
   if (!trimmed) return { error: 'La nota non può essere vuota' }
 
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { error: 'Tenant non trovato' }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non autenticato' }
-
-  const db = createAdminClient()
-
-  // Find staff_member for this user in this tenant (or fall back to tenant owner)
-  let { data: staffRow } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!staffRow) {
-    const { data: ownerRow } = await db
-      .from('staff_members')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('role', 'owner')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    staffRow = ownerRow
+  const ctx = await getClientiActorContext()
+  if (!ctx) return { error: 'Non autorizzato' }
+  if (!canWritePrivateNotes(ctx.currentStaff.role)) {
+    return { error: 'Non autorizzato' }
   }
 
-  if (!staffRow) return { error: 'Nessun membro dello staff trovato per questo tenant' }
+  const tenantId = await getClientTenantId(ctx.db, clienteId)
+  if (!tenantId) return { error: 'Cliente non trovato' }
+  if (tenantId !== ctx.tenantId) return { error: 'Non autorizzato' }
 
-  const { error } = await db.from('client_notes').insert({
-    tenant_id: tenantId,
+  if (ctx.currentStaff.role === 'staff') {
+    const ownedClientIds = await getStaffClientIds(ctx.db, ctx.tenantId, ctx.currentStaff.id)
+    if (!ownedClientIds.has(clienteId)) {
+      return { error: 'Non autorizzato' }
+    }
+  }
+
+  const { error } = await ctx.db.from('client_notes').insert({
+    tenant_id: ctx.tenantId,
     client_id: clienteId,
-    staff_id: staffRow.id,
+    staff_id: ctx.currentStaff.id,
     note_text: trimmed,
   })
 
@@ -751,12 +968,14 @@ export async function createCliente(input: {
   const trimmed = input.fullName?.trim()
   if (!trimmed) return { success: false, error: 'Nome obbligatorio' }
 
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getClientiActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+  if (!canCreateClient(ctx.currentStaff.role)) {
+    return { success: false, error: 'Non autorizzato' }
+  }
 
-  const db = createAdminClient()
-  const { data, error } = await db.from('clients').insert({
-    tenant_id: tenantId,
+  const { data, error } = await ctx.db.from('clients').insert({
+    tenant_id: ctx.tenantId,
     full_name: trimmed,
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
@@ -829,11 +1048,15 @@ export {
 export async function importClients(
   input: ImportClientsInput,
 ): Promise<ImportClientsResult> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) {
-    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+  const ctx = await getClientiActorContext()
+  if (!ctx) {
+    return { success: false, error: 'Non autorizzato', imported: 0, skipped: 0, errors: [] }
+  }
+  if (!hasFullCrmAccess(ctx.currentStaff.role)) {
+    return { success: false, error: 'Non autorizzato', imported: 0, skipped: 0, errors: [] }
   }
 
+  const { tenantId, db } = ctx
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -851,8 +1074,6 @@ export async function importClients(
   if (!hasName) {
     return { success: false, error: 'Devi mappare almeno la colonna Nome', imported: 0, skipped: 0, errors: [] }
   }
-
-  const db = createAdminClient()
 
   const { data: existing } = await db
     .from('clients')

@@ -15,7 +15,7 @@ const IS_DEV =
   self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 const OFFLINE_URL = '/offline'
-const PRECACHE = 'styll-offline-v3'
+const PRECACHE = 'styll-offline-v4'
 const PAGES_CACHE = 'styll-pages'
 const SUPABASE_API_CACHE = 'supabase-api'
 const SENSITIVE_CACHE_NAMES = [PAGES_CACHE, SUPABASE_API_CACHE]
