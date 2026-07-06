@@ -66,6 +66,8 @@ export function PwaShell({
   const isOfferDetail = pathname.startsWith(`${tenantPath('/offerte')}/`)
   // Edit profile is fullscreen — no bottom nav (BottomCTA handles its own bar)
   const isModificaProfilo = pathname.startsWith(tenantPath('/profilo/modifica'))
+  // Notifications page is a sub-page — no bottom nav (consistent with all other sub-pages)
+  const isNotifiche = pathname === tenantPath('/notifiche')
 
   if (isAuthPage) {
     return <>{children}</>
@@ -87,10 +89,10 @@ export function PwaShell({
           slug={slug}
         />
       )}
-      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo) ? 0 : 96 }}>
+      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) ? 0 : 96 }}>
         {children}
       </div>
-      {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo) && (
+      {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
         <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
       )}
       {isPrenotaSubroute && (

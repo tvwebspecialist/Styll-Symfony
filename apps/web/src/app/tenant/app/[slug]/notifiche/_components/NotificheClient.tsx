@@ -2,12 +2,13 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, CalendarCheck, Calendar, Clock, Tag, MessageSquare } from 'lucide-react'
+import { Bell, CalendarCheck, Calendar, Clock, Tag, MessageSquare, X, ChevronRight } from 'lucide-react'
 import type { ClientNotification } from '@/lib/actions/client-notifications'
 import {
   markNotificationRead,
   markAllNotificationsRead,
 } from '@/lib/actions/client-notifications'
+import { floatingCardShellStyle } from '@/components/pwa/FloatingCard'
 
 interface Props {
   notifications: ClientNotification[]
@@ -16,32 +17,29 @@ interface Props {
 
 type IconComponent = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>
 
-interface TypeCfg { Icon: IconComponent; color: string }
-
-const TYPE_CONFIG: Record<string, TypeCfg> = {
-  booking_confirmed:   { Icon: CalendarCheck, color: '#16a34a' },
-  reminder_3d:         { Icon: Calendar,      color: '#f97316' },
-  reminder_1d:         { Icon: Calendar,      color: '#f97316' },
-  reminder_day:        { Icon: Clock,         color: '#ef4444' },
-  promotion_published: { Icon: Tag,           color: '#9333ea' },
-  campaign:            { Icon: MessageSquare, color: '#2563eb' },
+const TYPE_ICONS: Record<string, IconComponent> = {
+  booking_confirmed:   CalendarCheck,
+  reminder_3d:         Calendar,
+  reminder_1d:         Calendar,
+  reminder_day:        Clock,
+  promotion_published: Tag,
+  campaign:            MessageSquare,
 }
-const DEFAULT_CFG: TypeCfg = { Icon: Bell, color: '#71717a' }
 
 function NotifIconBadge({ type }: { type: string }) {
-  const { Icon, color } = TYPE_CONFIG[type] ?? DEFAULT_CFG
+  const Icon = TYPE_ICONS[type] ?? Bell
   return (
     <div style={{
       width: 44,
       height: 44,
       borderRadius: '50%',
-      background: color,
+      background: 'color-mix(in srgb, var(--brand-primary) 14%, transparent)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
     }}>
-      <Icon size={20} color="#FFFFFF" strokeWidth={1.75} />
+      <Icon size={20} color="var(--brand-primary)" strokeWidth={1.75} />
     </div>
   )
 }
@@ -57,10 +55,23 @@ function formatRelative(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
 }
 
+function formatFullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('it-IT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Rome',
+  })
+}
+
 export function NotificheClient({ notifications: initial, tenantId }: Props) {
   const router = useRouter()
   const [items, setItems] = useState(initial)
   const [, startTransition] = useTransition()
+  const [selectedNotif, setSelectedNotif] = useState<ClientNotification | null>(null)
 
   const hasUnread = items.some(n => !n.is_read)
 
@@ -71,16 +82,13 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
     })
   }
 
-  // Ref keeps latest handleMarkAll for use in the event listener without stale closure
   const handleMarkAllRef = useRef(handleMarkAll)
   handleMarkAllRef.current = handleMarkAll
 
-  // Broadcast unread state to PwaTopBar (which renders the "mark all" icon button)
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('notifiche:unread-change', { detail: hasUnread }))
   }, [hasUnread])
 
-  // Respond to mark-all trigger from PwaTopBar
   useEffect(() => {
     const handler = () => handleMarkAllRef.current()
     window.addEventListener('notifiche:mark-all', handler)
@@ -94,8 +102,12 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
         await markNotificationRead(notif.id)
       })
     }
-    const url = (notif.meta as Record<string, unknown> | null)?.url
-    if (typeof url === 'string') router.push(url)
+    setSelectedNotif(notif)
+  }
+
+  function handlePopupNavigate(url: string) {
+    setSelectedNotif(null)
+    router.push(url)
   }
 
   if (items.length === 0) {
@@ -105,13 +117,13 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
           width: 72,
           height: 72,
           borderRadius: '50%',
-          background: '#F4F4F5',
+          background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           margin: '0 auto 16px',
         }}>
-          <Bell size={32} color="#A1A1AA" />
+          <Bell size={32} color="var(--brand-primary)" />
         </div>
         <p style={{ fontSize: 16, fontWeight: 700, color: '#18181B', margin: '0 0 6px' }}>
           Nessuna notifica
@@ -124,10 +136,9 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
   }
 
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {items.map(notif => {
-        const hasLink = typeof (notif.meta as Record<string, unknown> | null)?.url === 'string'
-        return (
+    <>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map(notif => (
           <button
             key={notif.id}
             type="button"
@@ -138,12 +149,14 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
               display: 'flex',
               alignItems: 'flex-start',
               gap: 12,
-              background: notif.is_read ? '#FAFAFA' : '#EFF6FF',
+              background: notif.is_read ? '#FAFAFA' : 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
               borderRadius: 20,
               padding: '14px 16px',
               boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-              border: notif.is_read ? '1.5px solid #F0F0F0' : '1.5px solid #BFDBFE',
-              cursor: hasLink ? 'pointer' : 'default',
+              borderWidth: '1.5px',
+              borderStyle: 'solid',
+              borderColor: notif.is_read ? '#F0F0F0' : 'color-mix(in srgb, var(--brand-primary) 30%, transparent)',
+              cursor: 'pointer',
               textAlign: 'left',
             }}
           >
@@ -165,11 +178,18 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
                   {notif.title}
                 </p>
                 {!notif.is_read && (
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', flexShrink: 0 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary)', flexShrink: 0 }} />
                 )}
               </div>
               {notif.body && (
-                <p style={{ margin: '0 0 4px', fontSize: 13, color: '#52525B', lineHeight: 1.45 }}>
+                <p style={{
+                  margin: '0 0 4px',
+                  fontSize: 13,
+                  color: '#52525B',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
                   {notif.body}
                 </p>
               )}
@@ -178,8 +198,88 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
               </p>
             </div>
           </button>
-        )
-      })}
-    </div>
+        ))}
+      </div>
+
+      {selectedNotif && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
+          <div
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }}
+            onClick={() => setSelectedNotif(null)}
+          />
+          <div style={{
+            position: 'absolute',
+            bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+            left: 8,
+            right: 8,
+          }}>
+            <div style={{ ...floatingCardShellStyle, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <NotifIconBadge type={selectedNotif.type} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#18181B', lineHeight: 1.3 }}>
+                    {selectedNotif.title}
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#A1A1AA', fontWeight: 500 }}>
+                    {formatFullDate(selectedNotif.created_at)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotif(null)}
+                  aria-label="Chiudi"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: '#F4F4F5',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={16} color="#71717A" />
+                </button>
+              </div>
+
+              {selectedNotif.body && (
+                <p style={{ margin: 0, fontSize: 14, color: '#52525B', lineHeight: 1.55 }}>
+                  {selectedNotif.body}
+                </p>
+              )}
+
+              {typeof (selectedNotif.meta as Record<string, unknown> | null)?.url === 'string' && (
+                <button
+                  type="button"
+                  className="pwa-pressable"
+                  onClick={() => handlePopupNavigate((selectedNotif.meta as Record<string, string>).url)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    width: '100%',
+                    height: 48,
+                    borderRadius: 14,
+                    background: 'var(--brand-primary)',
+                    border: 'none',
+                    color: '#FFFFFF',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Apri
+                  <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
