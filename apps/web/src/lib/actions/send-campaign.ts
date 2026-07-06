@@ -191,6 +191,20 @@ export async function sendCampaign({
           type:           'campaign',
           sent_at:        new Date().toISOString(),
         })
+        // Persist to notifications history for authenticated clients (push channel only).
+        // Email-only clients (no profile_id) have no PWA, so no history to show.
+        if (client.profile_id && channel === 'push') {
+          const { error: notifErr } = await db.from('notifications').insert({
+            tenant_id:  tenantId,
+            profile_id: client.profile_id,
+            type:       'campaign',
+            title:      `Messaggio da ${tenantMeta?.business_name ?? 'il tuo barbiere'}`,
+            body:       trimmed,
+            is_read:    false,
+            meta:       {},
+          })
+          if (notifErr) console.error('[sendCampaign] notifications insert failed:', notifErr.message)
+        }
       } else {
         failed++
       }

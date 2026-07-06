@@ -29,6 +29,14 @@ interface NavSection {
   items: NavItem[]
 }
 
+const OWNER_MANAGER_ITEM_HREFS = new Set([
+  '/vendite',
+  '/marketing',
+  '/catalogo',
+  '/app',
+  '/impostazioni',
+])
+
 const SECTIONS: NavSection[] = [
   {
     label: 'Operatività',
@@ -59,13 +67,23 @@ const SECTIONS: NavSection[] = [
 
 interface SidebarProps {
   currentPath?: string
+  canAccessManagementSurfaces?: boolean
 }
 
 export function Sidebar({
   currentPath,
+  canAccessManagementSurfaces = true,
 }: SidebarProps) {
   const pathname = usePathname()
   const path = currentPath ?? pathname ?? ''
+  const sections = SECTIONS
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        canAccessManagementSurfaces || !OWNER_MANAGER_ITEM_HREFS.has(item.href)
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
 
   return (
     <aside
@@ -90,7 +108,7 @@ export function Sidebar({
       }}
     >
       <nav style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
-        {SECTIONS.map((section, sectionIndex) => (
+        {sections.map((section, sectionIndex) => (
           <div key={section.label}>
             <div
               style={{
@@ -117,71 +135,73 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div
-        style={{
-          marginTop: 'auto',
-          position: 'relative',
-          overflow: 'hidden',
-          background: 'var(--sidebar-cta-bg)',
-          color: 'var(--sidebar-cta-text)',
-          borderRadius: 12,
-          padding: 16,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 24,
-              fontWeight: 700,
-              lineHeight: '26px',
-              letterSpacing: '-0.44px',
-              color: '#FBFBFB',
-              fontFamily: 'inherit',
-              marginBottom: 26,
-            }}
-          >
-            Passa al piano Growth.
-          </div>
-        </div>
-        <Link
-          href="/impostazioni/piano"
+      {canAccessManagementSurfaces && (
+        <div
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#FFFFFF',
-            color: '#111111',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: 8,
-            padding: '8px 12px',
-            fontSize: 12,
-            fontWeight: 600,
-            textDecoration: 'none',
-            width: '100%',
-            textAlign: 'center',
+            marginTop: 'auto',
             position: 'relative',
-            zIndex: 1,
+            overflow: 'hidden',
+            background: 'var(--sidebar-cta-bg)',
+            color: 'var(--sidebar-cta-text)',
+            borderRadius: 12,
+            padding: 16,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
           }}
         >
-          Scopri di più
-        </Link>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/img/Upgrade.png"
-          alt=""
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            right: -10,
-            width: 120,
-            height: 'auto',
-            pointerEvents: 'none',
-          }}
-        />
-      </div>
+          <div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: '26px',
+                letterSpacing: '-0.44px',
+                color: '#FBFBFB',
+                fontFamily: 'inherit',
+                marginBottom: 26,
+              }}
+            >
+              Passa al piano Growth.
+            </div>
+          </div>
+          <Link
+            href="/impostazioni/piano"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#FFFFFF',
+              color: '#111111',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: 'none',
+              width: '100%',
+              textAlign: 'center',
+              position: 'relative',
+              zIndex: 1,
+            }}
+          >
+            Scopri di più
+          </Link>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/img/Upgrade.png"
+            alt=""
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              right: -10,
+              width: 120,
+              height: 'auto',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
+      )}
     </aside>
   )
 }

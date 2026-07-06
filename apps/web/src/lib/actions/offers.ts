@@ -1,7 +1,10 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
+import {
+  requireTenantPermission,
+  TENANT_PERMISSIONS,
+} from '@/lib/tenant-role-guard'
 import { applyBestPromotion, type PromotionServicePricing } from '@/lib/utils/offer-pricing'
 import { sendPromotionPush } from '@/lib/push/promotion-push'
 
@@ -92,13 +95,18 @@ export interface CreatePromozionInput {
   product_discounts: PromotionProductDiscountInput[]
 }
 
+async function requireMarketingManagementContext(explicitTenantId?: string) {
+  return requireTenantPermission(
+    TENANT_PERMISSIONS.MANAGE_MARKETING,
+    explicitTenantId
+  )
+}
+
 // ── Dashboard: list promotions ────────────────────────────────────────────────
 
 export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return []
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
 
   // status is a new column not in generated types — cast to any
   const { data: rows } = await (db as any)
@@ -160,10 +168,8 @@ export async function getOfferte(tenantId: string): Promise<PromotionRow[]> {
 // ── Dashboard: catalog for form ───────────────────────────────────────────────
 
 export async function getCatalogoPerOfferta(tenantId: string): Promise<CatalogoItem[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return []
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
   const [{ data: services }, { data: products }] = await Promise.all([
     db.from('services').select('id, name, price, category').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
     db.from('products').select('id, name, price_sell, category').eq('tenant_id', tenantId).eq('is_active', true).order('display_order'),
@@ -180,12 +186,8 @@ export async function getCatalogoPerOfferta(tenantId: string): Promise<CatalogoI
 export async function createOfferta(
   input: CreatePromozionInput,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== input.tenantId) {
-    return { success: false, error: 'Non autorizzato' }
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(input.tenantId)
+  const db = ctx.db
   const isActive = input.status === 'active'
   const now = new Date().toISOString()
 
@@ -254,10 +256,8 @@ export async function updateOffertaStatus(
   status: PromotionStatus,
   tenantId: string,
 ): Promise<{ success: boolean }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
 
   // Keep is_active in sync for legacy readers (public-booking.ts, LandingPromo.tsx)
   const { error } = await (db as any)
@@ -281,10 +281,8 @@ export async function duplicateOfferta(
   promotionId: string,
   tenantId: string,
 ): Promise<{ success: boolean; id?: string }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
 
   const { data: original } = await (db as any)
     .from('promotions')
@@ -479,11 +477,8 @@ function detectImageMime(buf: ArrayBuffer): string | null {
 export async function uploadPromozioneCopertina(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) {
-    console.error('[uploadPromozioneCopertina] getActiveTenantId() returned null — utente non autenticato o cookie mancante')
-    return { ok: false, error: 'Non autenticato' }
-  }
+  const ctx = await requireMarketingManagementContext()
+  const tenantId = ctx.tenantId
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -497,7 +492,7 @@ export async function uploadPromozioneCopertina(
     return { ok: false, error: 'Formato non supportato (JPG, PNG, WebP)' }
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
   const extByType: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
   const ext = extByType[detectedMime] ?? 'jpg'
   const path = `${tenantId}/promotions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
@@ -521,12 +516,8 @@ export async function updateOfferta(
   promotionId: string,
   input: CreatePromozionInput,
 ): Promise<{ success: boolean; error?: string }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== input.tenantId) {
-    return { success: false, error: 'Non autorizzato' }
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(input.tenantId)
+  const db = ctx.db
   const isActive = input.status === 'active'
   const now = new Date().toISOString()
 
@@ -584,12 +575,8 @@ export async function getOffertaAnalytics(
   promotionId: string,
   tenantId: string,
 ): Promise<OffertaAnalytics> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    return { notificheInviate: 0, prenotazioniGenerate: 0, revenueGenerato: 0 }
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
 
   const [notifResult, prenResult, revenueResult] = await Promise.all([
     (db as any)
@@ -626,10 +613,8 @@ export async function resetNotificationIdempotenza(
   promotionId: string,
   tenantId: string,
 ): Promise<{ success: boolean }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
   await (db as any)
     .from('notification_log')
     .delete()
@@ -646,10 +631,8 @@ export async function deleteOfferta(
   promotionId: string,
   tenantId: string,
 ): Promise<{ success: boolean }> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return { success: false }
-
-  const db = createAdminClient()
+  const ctx = await requireMarketingManagementContext(tenantId)
+  const db = ctx.db
   await (db as any)
     .from('promotions')
     .delete()
