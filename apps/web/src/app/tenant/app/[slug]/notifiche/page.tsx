@@ -23,7 +23,7 @@ export default async function NotifichePage({ params }: Props) {
   const notifications = await getClientNotifications(tenant.tenant_id)
 
   return (
-    <main style={{ minHeight: '100vh', background: '#F2F2F7', paddingBottom: 100 }}>
+    <main style={{ minHeight: '100vh', background: '#FFFFFF', paddingBottom: 100 }}>
       <NotificheClient
         notifications={notifications}
         tenantId={tenant.tenant_id}

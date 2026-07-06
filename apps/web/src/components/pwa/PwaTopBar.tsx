@@ -5,7 +5,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, CheckCheck } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { PwaPageHeader } from './PwaPageHeader'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
@@ -115,6 +115,19 @@ function TopBarInner({
     checkUnread().catch(() => {})
     return () => { cancelled = true }
   }, [isHome, slug, clientName, pathname])
+
+  const [notificheHasUnread, setNotificheHasUnread] = useState(false)
+
+  useEffect(() => {
+    const onNotifiche = pathname.endsWith('/notifiche')
+    if (!onNotifiche) {
+      setNotificheHasUnread(false)
+      return
+    }
+    const handler = (e: Event) => setNotificheHasUnread((e as CustomEvent<boolean>).detail)
+    window.addEventListener('notifiche:unread-change', handler)
+    return () => window.removeEventListener('notifiche:unread-change', handler)
+  }, [pathname])
 
   const titleStyle = {
     position: 'absolute' as const,
@@ -363,7 +376,19 @@ function TopBarInner({
             <ChevronLeft size={20} color="#111111" strokeWidth={2.5} />
           </button>
           <span style={titleStyle}>{subPage.title}</span>
-          <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+          {segment === 'notifiche' && notificheHasUnread ? (
+            <button
+              type="button"
+              style={{ ...backBtnStyle, marginLeft: 'auto' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('notifiche:mark-all'))}
+              aria-label="Segna tutte come lette"
+              className="pwa-pressable"
+            >
+              <CheckCheck size={18} color="#3b82f6" strokeWidth={2.5} />
+            </button>
+          ) : (
+            <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
+          )}
         </div>
       </div>
     )

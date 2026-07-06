@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, CalendarCheck, Clock, Tag, CheckCheck } from 'lucide-react'
+import { Bell, CalendarCheck, Calendar, Clock, Tag, MessageSquare } from 'lucide-react'
 import type { ClientNotification } from '@/lib/actions/client-notifications'
 import {
   markNotificationRead,
@@ -14,11 +14,36 @@ interface Props {
   tenantId: string
 }
 
-function NotifIcon({ type }: { type: string }) {
-  if (type === 'booking_confirmed') return <CalendarCheck size={20} color="#22c55e" />
-  if (type.startsWith('reminder')) return <Clock size={20} color="#3b82f6" />
-  if (type === 'promotion_published') return <Tag size={20} color="#a855f7" />
-  return <Bell size={20} color="#6b7280" />
+type IconComponent = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>
+
+interface TypeCfg { Icon: IconComponent; color: string }
+
+const TYPE_CONFIG: Record<string, TypeCfg> = {
+  booking_confirmed:   { Icon: CalendarCheck, color: '#16a34a' },
+  reminder_3d:         { Icon: Calendar,      color: '#f97316' },
+  reminder_1d:         { Icon: Calendar,      color: '#f97316' },
+  reminder_day:        { Icon: Clock,         color: '#ef4444' },
+  promotion_published: { Icon: Tag,           color: '#9333ea' },
+  campaign:            { Icon: MessageSquare, color: '#2563eb' },
+}
+const DEFAULT_CFG: TypeCfg = { Icon: Bell, color: '#71717a' }
+
+function NotifIconBadge({ type }: { type: string }) {
+  const { Icon, color } = TYPE_CONFIG[type] ?? DEFAULT_CFG
+  return (
+    <div style={{
+      width: 44,
+      height: 44,
+      borderRadius: '50%',
+      background: color,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      <Icon size={20} color="#FFFFFF" strokeWidth={1.75} />
+    </div>
+  )
 }
 
 function formatRelative(dateStr: string): string {
@@ -39,6 +64,29 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
 
   const hasUnread = items.some(n => !n.is_read)
 
+  function handleMarkAll() {
+    setItems(prev => prev.map(n => ({ ...n, is_read: true })))
+    startTransition(async () => {
+      await markAllNotificationsRead(tenantId)
+    })
+  }
+
+  // Ref keeps latest handleMarkAll for use in the event listener without stale closure
+  const handleMarkAllRef = useRef(handleMarkAll)
+  handleMarkAllRef.current = handleMarkAll
+
+  // Broadcast unread state to PwaTopBar (which renders the "mark all" icon button)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('notifiche:unread-change', { detail: hasUnread }))
+  }, [hasUnread])
+
+  // Respond to mark-all trigger from PwaTopBar
+  useEffect(() => {
+    const handler = () => handleMarkAllRef.current()
+    window.addEventListener('notifiche:mark-all', handler)
+    return () => window.removeEventListener('notifiche:mark-all', handler)
+  }, [])
+
   function handleTap(notif: ClientNotification) {
     if (!notif.is_read) {
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n))
@@ -48,13 +96,6 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
     }
     const url = (notif.meta as Record<string, unknown> | null)?.url
     if (typeof url === 'string') router.push(url)
-  }
-
-  function handleMarkAll() {
-    setItems(prev => prev.map(n => ({ ...n, is_read: true })))
-    startTransition(async () => {
-      await markAllNotificationsRead(tenantId)
-    })
   }
 
   if (items.length === 0) {
@@ -84,31 +125,6 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
 
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {hasUnread && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 2 }}>
-          <button
-            type="button"
-            onClick={handleMarkAll}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#3b82f6',
-              background: 'none',
-              border: 'none',
-              padding: '4px 2px',
-              cursor: 'pointer',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            <CheckCheck size={14} />
-            Segna tutte come lette
-          </button>
-        </div>
-      )}
-
       {items.map(notif => {
         const hasLink = typeof (notif.meta as Record<string, unknown> | null)?.url === 'string'
         return (
@@ -122,27 +138,16 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
               display: 'flex',
               alignItems: 'flex-start',
               gap: 12,
-              background: notif.is_read ? '#FFFFFF' : '#EFF6FF',
+              background: notif.is_read ? '#FAFAFA' : '#EFF6FF',
               borderRadius: 20,
               padding: '14px 16px',
               boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-              border: notif.is_read ? '1.5px solid #F4F4F5' : '1.5px solid #BFDBFE',
+              border: notif.is_read ? '1.5px solid #F0F0F0' : '1.5px solid #BFDBFE',
               cursor: hasLink ? 'pointer' : 'default',
               textAlign: 'left',
             }}
           >
-            <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              background: notif.is_read ? '#F4F4F5' : '#DBEAFE',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <NotifIcon type={notif.type} />
-            </div>
+            <NotifIconBadge type={notif.type} />
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
