@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { buildPathWithTrialIntent, TRIAL_INTENT } from '@/lib/trial-intent'
 
 export const dynamic = 'force-static'
 
@@ -14,6 +15,8 @@ const C = {
   border: '#E2E8F0',
   success: '#10B981',
 }
+
+const TRIAL_REGISTER_HREF = buildPathWithTrialIntent('/register', TRIAL_INTENT)
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
@@ -31,7 +34,7 @@ function Nav() {
           <a href="#pricing" style={{ fontSize: 14, color: C.textMuted, textDecoration: 'none', fontWeight: 500 }}>Prezzi</a>
           <Link href="/login" style={{ fontSize: 14, color: C.textMuted, textDecoration: 'none', fontWeight: 500 }}>Accedi</Link>
           <Link
-            href="/onboarding/step-1"
+            href={TRIAL_REGISTER_HREF}
             style={{ fontSize: 14, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.primary, borderRadius: 8, padding: '8px 18px', whiteSpace: 'nowrap' }}
           >
             Prova gratis
@@ -64,7 +67,7 @@ function Hero() {
               Non ti portiamo clienti. Ti aiutiamo a non perderli. Prenotazioni, loyalty e churn detection per barbieri indipendenti.
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <Link href="/onboarding/step-1" style={{ fontSize: 16, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 12, padding: '14px 28px', display: 'inline-block' }}>
+              <Link href={TRIAL_REGISTER_HREF} style={{ fontSize: 16, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 12, padding: '14px 28px', display: 'inline-block' }}>
                 Prova gratis 14 giorni
               </Link>
               <a href="#come-funziona" style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.75)', textDecoration: 'none', borderRadius: 12, padding: '14px 28px', display: 'inline-block', border: '1px solid rgba(255,255,255,0.2)' }}>
@@ -599,7 +602,7 @@ function Pricing() {
                 ))}
               </ul>
               <Link
-                href="/onboarding/step-1"
+                href={TRIAL_REGISTER_HREF}
                 style={{
                   display: 'block',
                   textAlign: 'center',
@@ -636,7 +639,7 @@ function FinalCTA() {
           Nessuna carta di credito. Nessun contratto. Cancelli quando vuoi.
         </p>
         <Link
-          href="/onboarding/step-1"
+          href={TRIAL_REGISTER_HREF}
           style={{ display: 'inline-block', fontSize: 18, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 14, padding: '16px 40px' }}
         >
           Prova Styll gratis →

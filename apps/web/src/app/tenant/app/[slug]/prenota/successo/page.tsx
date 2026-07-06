@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { Calendar, CalendarPlus, MapPin, Scissors, ShoppingBag, User } from 'lucide-react'
 import { getAppointmentSummary, getLoyaltyConfig } from '@/lib/actions/public-booking'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -53,12 +53,9 @@ function buildGCalLink(title: string, startISO: string, endISO: string, location
 function buildRegisterHref(
   tenantPath: (relativePath: string) => string,
   appointmentId: string,
-  token: string | null
+  token: string
 ): string {
-  const successParams = new URLSearchParams({ appointment: appointmentId })
-  if (token) {
-    successParams.set('token', token)
-  }
+  const successParams = new URLSearchParams({ appointment: appointmentId, token })
 
   const accessParams = new URLSearchParams({
     mode: 'register',
@@ -67,103 +64,23 @@ function buildRegisterHref(
 
   return tenantPath(`/accesso?${accessParams.toString()}`)
 }
-
-function GenericSuccessPage({
-  brandColor,
-  businessName,
-  homeHref,
-}: {
-  brandColor: string
-  businessName: string
-  homeHref: string
-}) {
-  const pulseColor = `${brandColor}20`
-
-  return (
-    <main className="mx-auto max-w-md px-4 py-8">
-      <div
-        className="flex flex-col gap-5 pb-10"
-        style={{ animation: 'fadeSlideUp 0.45s ease both' }}
-      >
-        <div className="flex flex-col items-center gap-4 text-center pt-2">
-          <div className="relative flex items-center justify-center w-[120px] h-[120px]">
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out infinite' }}
-              aria-hidden="true"
-            />
-            <span
-              className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: pulseColor, animation: 'pulse-ring 2.4s ease-out 0.8s infinite' }}
-              aria-hidden="true"
-            />
-            <Image
-              src="/img/ceck.png"
-              alt="Prenotazione confermata"
-              width={110}
-              height={110}
-              className="relative z-10 object-contain"
-              priority
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <h1
-              className="text-[26px] font-bold tracking-tight text-gray-900"
-              style={{ fontFamily: 'var(--font-tenant, inherit)' }}
-            >
-              Prenotazione confermata
-            </h1>
-            <p className="text-[14px] text-gray-500">
-              La tua prenotazione da{' '}
-              <span className="font-medium text-gray-700">{businessName}</span> è andata a buon fine.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-center shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
-          <p className="text-[14px] leading-relaxed text-gray-600">
-            Per motivi di privacy i dettagli completi di questo appuntamento non sono disponibili da questo
-            link.
-          </p>
-        </div>
-
-        <Link
-          href={homeHref}
-          className="inline-flex min-h-[52px] items-center justify-center rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
-          style={{ backgroundColor: brandColor }}
-        >
-          Torna alla home
-        </Link>
-      </div>
-    </main>
-  )
-}
-
 export default async function SuccessoPage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const appointmentId = readParam(resolvedSearchParams.appointment)
   const token = readParam(resolvedSearchParams.token)
-  const tp = await createTenantPaths(slug)
-
-  if (!appointmentId) redirect(tp(''))
+  if (!appointmentId || !token) notFound()
 
   const tenant = await getTenantBySlug(slug)
   if (!tenant || tenant.status !== 'active') notFound()
 
+  const tp = await createTenantPaths(slug)
   const appointment = await getAppointmentSummary(appointmentId, tenant.tenant_id, token)
-  const brandColor = tenant.primary_color ?? '#1a1a1a'
 
   if (!appointment) {
-    return (
-      <GenericSuccessPage
-        brandColor={brandColor}
-        businessName={tenant.business_name}
-        homeHref={tp('')}
-      />
-    )
+    notFound()
   }
 
+  const brandColor = tenant.primary_color ?? '#1a1a1a'
   const createAccountHref = buildRegisterHref(tp, appointmentId, token)
   const supabase = await createServerClient()
   const [

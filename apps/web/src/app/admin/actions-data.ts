@@ -520,12 +520,10 @@ import type {
   ImportError,
 } from '@/lib/actions/clienti'
 import {
-  normalizePhone,
-  normalizeEmail,
-  parseDateOfBirth,
-  parseBooleanField,
-  parseCsvTags,
-} from '@/lib/utils/client-import-utils'
+  buildImportClientsResult,
+  prepareClientImportPlan,
+  type ClientImportUpdate,
+} from '@/lib/utils/client-import-core'
 
 /**
  * Variant of importClients for superadmin concierge mode.
@@ -538,20 +536,60 @@ export async function importClientsForTenant(
 ): Promise<ImportClientsResult> {
   const auth = await requireSuperadmin()
   if ('error' in auth) {
-    return { success: false, error: auth.error, imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: auth.error,
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   if (!tenantId) {
-    return { success: false, error: 'Tenant ID mancante', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Tenant ID mancante',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   if (!input.rows || input.rows.length === 0) {
-    return { success: false, error: 'Nessuna riga', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Nessuna riga',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   if (input.rows.length > 10_000) {
-    return { success: false, error: 'Massimo 10.000 righe', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Massimo 10.000 righe',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   const hasName = Object.values(input.mapping).includes('full_name')
   if (!hasName) {
-    return { success: false, error: 'Mappa la colonna Nome', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Mappa la colonna Nome',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
 
   const db = createAdminClient()
@@ -562,71 +600,60 @@ export async function importClientsForTenant(
     .eq('id', tenantId)
     .maybeSingle()
   if (!tenantRow) {
-    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Tenant non trovato',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
 
   const { data: existing } = await db
     .from('clients')
-    .select('id, email, phone')
+    .select('id, full_name, email, phone, date_of_birth, marketing_consent, tags')
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
 
-  const existingByEmail = new Map<string, string>()
-  const existingByPhone = new Map<string, string>()
-  ;(existing ?? []).forEach((c) => {
-    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
-    if (c.phone) { const norm = normalizePhone(c.phone); if (norm) existingByPhone.set(norm, c.id) }
+  const plan = prepareClientImportPlan({
+    tenantId,
+    existingClients: (existing ?? []) as Array<{
+      id: string
+      full_name: string | null
+      email: string | null
+      phone: string | null
+      date_of_birth: string | null
+      marketing_consent: boolean
+      tags: Json | null
+    }>,
+    rows: input.rows,
+    mapping: input.mapping,
+    duplicateStrategy: input.duplicateStrategy,
+    fallbackTags: ['imported'],
+    alwaysAddTags: ['concierge'],
   })
 
-  const errors: ImportError[] = []
-  const toInsert: TablesInsert<'clients'>[] = []
-  let skipped = 0
+  const errors: ImportError[] = [...plan.errors]
+  const toInsert: TablesInsert<'clients'>[] = plan.toInsert
+  const skipped = plan.skipped
+  const merged = plan.merged
 
-  const inv: Partial<Record<string, string>> = {}
-  for (const [orig, styll] of Object.entries(input.mapping)) {
-    if (styll !== 'ignore') inv[styll] = orig
+  async function applyClientUpdate(update: ClientImportUpdate): Promise<void> {
+    const { error } = await db
+      .from('clients')
+      .update({ ...update.patch })
+      .eq('tenant_id', tenantId)
+      .eq('id', update.id)
+
+    if (error) {
+      errors.push({ rowIndex: 0, message: `Errore DB (merge): ${error.message}` })
+    }
   }
 
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = input.rows[i]
-    const rowNum = i + 1
-
-    const rawName = inv.full_name ? row[inv.full_name] ?? '' : ''
-    const fullName = rawName.trim()
-    if (!fullName) { errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' }); continue }
-
-    const rawEmail = inv.email ? row[inv.email] ?? '' : ''
-    const email = rawEmail ? normalizeEmail(rawEmail) : null
-    if (rawEmail && !email) errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
-
-    const rawPhone = inv.phone ? row[inv.phone] ?? '' : ''
-    const phone = rawPhone ? normalizePhone(rawPhone) : null
-    if (rawPhone && !phone) errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
-
-    const dupId = (email && existingByEmail.get(email)) || (phone && existingByPhone.get(phone)) || null
-    if (dupId) { skipped++; continue }
-
-    const rawDob = inv.date_of_birth ? row[inv.date_of_birth] ?? '' : ''
-    const dob = rawDob ? parseDateOfBirth(rawDob) : null
-
-    const rawTags = inv.tags ? row[inv.tags] ?? '' : ''
-    const tagsArr = parseCsvTags(rawTags)
-    if (tagsArr.length === 0) tagsArr.push('imported')
-    if (!tagsArr.includes('concierge')) tagsArr.push('concierge')
-
-    const rawConsent = inv.marketing_consent ? row[inv.marketing_consent] ?? '' : ''
-    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
-
-    toInsert.push({
-      tenant_id: tenantId,
-      full_name: fullName,
-      email,
-      phone,
-      date_of_birth: dob,
-      marketing_consent: marketingConsent,
-      preferred_contact_channel: 'whatsapp',
-      tags: JSON.stringify(tagsArr),
-    })
+  for (const update of plan.toUpdate) {
+    await applyClientUpdate(update)
   }
 
   let imported = 0
@@ -639,8 +666,12 @@ export async function importClientsForTenant(
     }
   }
 
-  const status: 'completed' | 'partial' | 'failed' =
-    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+  const result = buildImportClientsResult({
+    imported,
+    merged,
+    skipped,
+    errors,
+  })
 
   const { data: jobRow } = await db
     .from('client_import_jobs')
@@ -651,10 +682,11 @@ export async function importClientsForTenant(
       filename: input.filename ?? null,
       total_rows: input.rows.length,
       imported_count: imported,
+      merged_count: merged,
       skipped_count: skipped,
       error_count: errors.length,
       errors: errors.slice(0, 100) as unknown as Json,
-      status,
+      status: result.status,
     })
     .select('id')
     .single()
@@ -665,6 +697,7 @@ export async function importClientsForTenant(
     filename: input.filename ?? null,
     total: input.rows.length,
     imported,
+    merged,
     skipped,
     errors: errors.length,
   })
@@ -673,11 +706,8 @@ export async function importClientsForTenant(
   revalidatePath(`/admin/tenants/${tenantId}/clients`)
 
   return {
-    success: imported > 0 || errors.length === 0,
+    ...result,
     jobId: jobRow?.id,
-    imported,
-    skipped,
-    errors,
   }
 }
 
@@ -687,6 +717,7 @@ export interface ImportJobRow {
   filename: string | null
   total_rows: number
   imported_count: number
+  merged_count: number
   skipped_count: number
   error_count: number
   status: string
@@ -704,7 +735,7 @@ export async function listTenantImportJobs(
   const db = createAdminClient()
   const { data, error } = await db
     .from('client_import_jobs')
-    .select('id, source, filename, total_rows, imported_count, skipped_count, error_count, status, initiated_by, created_at')
+    .select('id, source, filename, total_rows, imported_count, merged_count, skipped_count, error_count, status, initiated_by, created_at')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .limit(50)

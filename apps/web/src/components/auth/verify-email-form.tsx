@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
 import { verifyEmailOTP, resendEmailOTP } from '@/lib/actions/email-verification'
+import { buildPathWithTrialIntent } from '@/lib/trial-intent'
 
 interface Props {
   email: string
+  intent?: string | null
 }
 
-export function VerifyEmailForm({ email }: Props) {
+export function VerifyEmailForm({ email, intent = null }: Props) {
   const router = useRouter()
 
   const ref0 = useRef<HTMLInputElement>(null)
@@ -57,7 +59,7 @@ export function VerifyEmailForm({ email }: Props) {
     startTransition(async () => {
       const result = await verifyEmailOTP(email, code)
       if (result.success) {
-        router.push('/onboarding/step-1')
+        router.push(buildPathWithTrialIntent('/onboarding/step-1', intent))
         router.refresh()
       } else {
         setError(result.error ?? 'Codice non valido.')

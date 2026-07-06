@@ -349,7 +349,7 @@ function Step2Mapping({
           {(
             [
               { val: 'skip' as const, label: 'Salta i duplicati', sub: 'I clienti già presenti (per email o telefono) vengono ignorati', disabled: false },
-              { val: 'merge' as const, label: 'Aggiorna i duplicati', sub: 'In arrivo — disponibile nella prossima versione', disabled: true },
+              { val: 'merge' as const, label: 'Unisci i duplicati', sub: 'Aggiorna il cliente esistente con i campi non vuoti del CSV e unisce i tag', disabled: false },
             ]
           ).map(({ val, label, sub, disabled }) => (
             <label key={val} style={{
@@ -366,11 +366,6 @@ function Step2Mapping({
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#222222' }}>
                   {label}
-                  {disabled && (
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: '#B0B0B0', background: '#F0F0F0', padding: '2px 7px', borderRadius: 100 }}>
-                      In arrivo
-                    </span>
-                  )}
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#B0B0B0' }}>{sub}</p>
               </div>
@@ -476,9 +471,9 @@ function Step4Result({
   successExtraActions?: React.ReactNode
 }) {
   const [errorsOpen, setErrorsOpen] = React.useState(false)
-  const isSuccess = result.imported > 0 && result.errors.length === 0
-  const isPartial = result.imported > 0 && result.errors.length > 0
-  const isFailed  = result.imported === 0
+  const isSuccess = result.status === 'completed'
+  const isPartial = result.status === 'partial'
+  const isFailed  = result.status === 'failed'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '8px 0' }}>
@@ -492,18 +487,23 @@ function Step4Result({
           {isSuccess ? 'Import completato!' : isPartial ? 'Import completato con avvisi' : 'Import fallito'}
         </p>
         <p style={{ margin: '6px 0 0', fontSize: 13, color: '#B0B0B0' }}>
-          {isSuccess ? 'Tutti i clienti sono stati importati correttamente.' : isPartial ? 'Alcuni clienti sono stati importati, altri hanno avuto problemi.' : 'Nessun cliente è stato importato.'}
+          {isSuccess
+            ? 'Import completato: nuovi clienti, duplicati uniti o righe duplicate saltate correttamente.'
+            : isPartial
+              ? 'Alcune righe sono state elaborate correttamente, altre hanno avuto problemi.'
+              : 'Nessun cliente è stato importato o aggiornato.'}
         </p>
       </div>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, padding: '16px 20px', background: '#FAFAFA', borderRadius: 12, border: '1px solid #F0F0F0' }}>
         {[
           { emoji: '✅', label: `${result.imported} ${result.imported === 1 ? 'cliente importato' : 'clienti importati'}`, color: '#16A34A', show: result.imported > 0 },
+          { emoji: '🔄', label: `${result.merged} ${result.merged === 1 ? 'duplicato unito' : 'duplicati uniti'}`, color: '#2563EB', show: result.merged > 0 },
           { emoji: '⏭️', label: `${result.skipped} saltati (duplicati)`, color: '#888888', show: result.skipped > 0 },
           { emoji: '⚠️', label: `${result.errors.length} ${result.errors.length === 1 ? 'errore' : 'errori'}`, color: '#D97706', show: result.errors.length > 0 },
         ].filter((s) => s.show).map((s) => (
           <p key={s.label} style={{ margin: 0, fontSize: 14, fontWeight: 500, color: s.color }}>{s.emoji} {s.label}</p>
         ))}
-        {result.imported === 0 && result.skipped === 0 && result.errors.length === 0 && (
+        {result.imported === 0 && result.merged === 0 && result.skipped === 0 && result.errors.length === 0 && (
           <p style={{ margin: 0, fontSize: 14, color: '#B0B0B0' }}>Nessuna operazione eseguita.</p>
         )}
       </div>
@@ -580,8 +580,16 @@ export function ImportWizard({ onClose, onSubmit, banner, successExtraActions }:
       const res = await onSubmit({ source, filename, mapping, rows, duplicateStrategy })
       setResult(res)
       setStep(4)
-      if (res.imported > 0) toast.success(`${res.imported} clienti importati`)
-      else if (!res.success) toast.error(res.error ?? 'Import fallito')
+      if (res.success) {
+        const summary = [
+          res.imported > 0 ? `✅ ${res.imported} importati` : null,
+          res.merged > 0 ? `🔄 ${res.merged} uniti` : null,
+          res.skipped > 0 ? `⏭️ ${res.skipped} saltati` : null,
+        ].filter(Boolean).join(' · ')
+        toast.success(summary || 'Import completato')
+      } else {
+        toast.error(res.error ?? 'Import fallito')
+      }
     } catch {
       toast.error("Errore imprevisto durante l'import")
     } finally {
@@ -590,7 +598,7 @@ export function ImportWizard({ onClose, onSubmit, banner, successExtraActions }:
   }
 
   function handleClose() {
-    if (result?.imported && result.imported > 0) router.refresh()
+    if (result && (result.imported > 0 || result.merged > 0)) router.refresh()
     onClose()
   }
 

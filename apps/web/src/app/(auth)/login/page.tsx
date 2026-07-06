@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { GoogleButton } from '@/components/auth/google-button'
 import { LoginForm } from '@/components/auth/login-form'
+import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 
 export const metadata: Metadata = {
   title: 'Accedi — Styll',
@@ -24,13 +25,21 @@ function Divider() {
   )
 }
 
-export default function LoginPage() {
+interface PageProps {
+  searchParams: Promise<{ intent?: string | string[] | undefined }>
+}
+
+export default async function LoginPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const intent = readTrialIntent(params.intent)
+  const registerHref = buildPathWithTrialIntent('/register', intent)
+
   return (
     <AuthSplitLayout
       caption="Il tuo salone ti aspetta. Tutto pronto per la prossima prenotazione."
       mobileTopRight={
         <Link
-          href="/register"
+          href={registerHref}
           className="text-xs font-medium"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
@@ -100,7 +109,7 @@ export default function LoginPage() {
         </p>
       </header>
 
-      <GoogleButton label="Continua con Google" />
+      <GoogleButton label="Continua con Google" intent={intent} />
 
       <Divider />
 
@@ -114,7 +123,7 @@ export default function LoginPage() {
       >
         Non hai un account?{' '}
         <Link
-          href="/register"
+          href={registerHref}
           className="font-semibold underline-offset-2 hover:underline"
           style={{ color: 'var(--color-fg)' }}
         >

@@ -1,34 +1,37 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, User, Users } from 'lucide-react'
 
 import { NavFooter, OnboardingShell } from '@/components/onboarding/onboarding-shell'
 import { ForkIllustration } from '@/components/illustrations'
 import { onboardingStorage, totalSteps } from '@/lib/onboarding-storage'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 import type { WorkMode } from '@/types/database'
 
 export default function OnboardingStep2Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [workMode, setWorkMode] = useState<WorkMode>('solo')
   const [hydrated, setHydrated] = useState(false)
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
 
   useEffect(() => {
     const s = onboardingStorage.read()
     if (!s.step1.name.trim()) {
-      router.replace('/onboarding/step-1')
+      router.replace(buildPathWithTrialIntent('/onboarding/step-1', intent))
       return
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setWorkMode(s.step2.work_mode)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true)
-  }, [router])
+  }, [intent, router])
 
   function handleNext() {
     onboardingStorage.set('step2', { work_mode: workMode })
-    router.push('/onboarding/step-3')
+    router.push(buildPathWithTrialIntent('/onboarding/step-3', intent))
   }
 
   if (!hydrated) return null
@@ -41,7 +44,7 @@ export default function OnboardingStep2Page() {
       title="Come lavori?"
       subtitle="Scegli il tuo setup — l'onboarding si adatta."
       illustration={<ForkIllustration />}
-      footer={<NavFooter backHref="/onboarding/step-1" onNext={handleNext} />}
+      footer={<NavFooter backHref={buildPathWithTrialIntent('/onboarding/step-1', intent)} onNext={handleNext} />}
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <ModeCard

@@ -200,6 +200,8 @@ export type Database = {
       appointments: {
         Row: {
           booked_by: string | null
+          booking_confirmation_token_expires_at: string | null
+          booking_confirmation_token_hash: string | null
           booking_source: string
           client_id: string
           created_at: string
@@ -216,6 +218,8 @@ export type Database = {
         }
         Insert: {
           booked_by?: string | null
+          booking_confirmation_token_expires_at?: string | null
+          booking_confirmation_token_hash?: string | null
           booking_source?: string
           client_id: string
           created_at?: string
@@ -232,6 +236,8 @@ export type Database = {
         }
         Update: {
           booked_by?: string | null
+          booking_confirmation_token_expires_at?: string | null
+          booking_confirmation_token_hash?: string | null
           booking_source?: string
           client_id?: string
           created_at?: string
@@ -437,6 +443,7 @@ export type Database = {
           id: string
           imported_count: number
           initiated_by: string | null
+          merged_count: number
           skipped_count: number
           source: string | null
           status: string
@@ -451,6 +458,7 @@ export type Database = {
           id?: string
           imported_count?: number
           initiated_by?: string | null
+          merged_count?: number
           skipped_count?: number
           source?: string | null
           status?: string
@@ -465,6 +473,7 @@ export type Database = {
           id?: string
           imported_count?: number
           initiated_by?: string | null
+          merged_count?: number
           skipped_count?: number
           source?: string | null
           status?: string
