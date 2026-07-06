@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 
 import { NavFooter, OnboardingShell } from '@/components/onboarding/onboarding-shell'
 import { ShopSignIllustration } from '@/components/illustrations'
 import { onboardingStorage, type OnboardingState } from '@/lib/onboarding-storage'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 import type { BusinessType } from '@/types/database'
 
 const BUSINESS_TYPES: { value: BusinessType; label: string }[] = [
@@ -19,6 +20,7 @@ const BUSINESS_TYPES: { value: BusinessType; label: string }[] = [
 
 export default function OnboardingStep1Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [state, setState] = useState<OnboardingState['step1']>({
     name: '',
     business_type: '',
@@ -28,6 +30,7 @@ export default function OnboardingStep1Page() {
   })
   const [hydrated, setHydrated] = useState(false)
   const [showGmb, setShowGmb] = useState(false)
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
 
   useEffect(() => {
     const persisted = onboardingStorage.read().step1
@@ -52,7 +55,7 @@ export default function OnboardingStep1Page() {
   function handleNext() {
     if (!isValid) return
     onboardingStorage.set('step1', state)
-    router.push('/onboarding/step-2')
+    router.push(buildPathWithTrialIntent('/onboarding/step-2', intent))
   }
 
   if (!hydrated) return null

@@ -1,7 +1,15 @@
+import path from 'node:path'
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
+const repoRoot = path.resolve(__dirname, '..', '..')
+
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['localhost', '127.0.0.1', '*.localhost'],
+  outputFileTracingRoot: repoRoot,
+  turbopack: {
+    root: repoRoot,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '4mb',
@@ -27,13 +35,11 @@ const nextConfig: NextConfig = {
     const securityHeaders = [
       { key: 'ngrok-skip-browser-warning', value: '1' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
       { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-      // Content-Security-Policy is set in apps/web/src/proxy.ts (nonce-based,
-      // per-request). Keeping it there ensures every request gets a fresh nonce
-      // that Next.js can inject into framework and inline scripts.
+      // CSP and X-Frame-Options are set per-request in apps/web/src/proxy.ts so
+      // public tenant surfaces can stay embeddable while private/admin routes do not.
     ]
 
     return [{ source: '/(.*)', headers: securityHeaders }]

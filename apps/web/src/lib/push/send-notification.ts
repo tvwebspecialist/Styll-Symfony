@@ -22,7 +22,7 @@ export interface PushPayload {
   body:  string
   icon?: string
   badge?: string
-  /** URL relativo da aprire al click, es. "/tenant/app/mario/prenota/successo?appointment=xxx" */
+  /** URL relativo da aprire al click, es. "/tenant/app/mario/prenota/successo?appointment=xxx&token=yyy" */
   url?:  string
   tag?:  string
 }

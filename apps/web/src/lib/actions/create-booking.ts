@@ -15,6 +15,11 @@ import { buildTenantAppUrl } from '@/lib/auth/urls'
 import type { TablesInsert } from '@/types'
 import { getActiveOffersForBooking } from '@/lib/actions/offers'
 import { applyBestPromotion } from '@/lib/utils/offer-pricing'
+import {
+  buildBookingConfirmationTokenExpiresAt,
+  createBookingConfirmationToken,
+  hashBookingConfirmationToken,
+} from '@/lib/booking-confirmation-token'
 
 const createGuestBookingSchema = z.object({
   slug: z.string().min(1),
@@ -40,16 +45,9 @@ const createGuestBookingSchema = z.object({
   rescheduleFromId: z.string().uuid().optional(),
 })
 
-const BOOKING_CONFIRMATION_TOKEN_TTL_MS = 48 * 60 * 60 * 1000
-
 type ClientLookupRow = {
   id: string
   profile_id: string | null
-}
-
-type AppointmentInsertWithConfirmation = TablesInsert<'appointments'> & {
-  booking_confirmation_token: string
-  booking_confirmation_token_expires_at: string
 }
 
 export interface CreateGuestBookingResult {
@@ -61,14 +59,6 @@ export interface CreateGuestBookingResult {
 
 function sanitizePhone(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
-}
-
-function buildBookingConfirmationToken(): string {
-  return `${crypto.randomUUID()}-${Date.now()}`
-}
-
-function buildBookingConfirmationTokenExpiresAt(): string {
-  return new Date(Date.now() + BOOKING_CONFIRMATION_TOKEN_TTL_MS).toISOString()
 }
 
 function buildBookingSuccessSearchParams(appointmentId: string, token: string): string {
@@ -324,10 +314,11 @@ export async function createGuestBooking(
   const endDate = new Date(startDate)
   endDate.setMinutes(endDate.getMinutes() + totalMinutes)
 
-  const bookingConfirmationToken = buildBookingConfirmationToken()
+  const bookingConfirmationToken = createBookingConfirmationToken()
+  const bookingConfirmationTokenHash = hashBookingConfirmationToken(bookingConfirmationToken)
   const bookingConfirmationTokenExpiresAt = buildBookingConfirmationTokenExpiresAt()
 
-  const appointmentPayload: AppointmentInsertWithConfirmation = {
+  const appointmentPayload: TablesInsert<'appointments'> = {
     tenant_id: data.tenantId,
     client_id: clientId,
     staff_id: data.staffId,
@@ -337,14 +328,12 @@ export async function createGuestBooking(
     status: 'confirmed',
     booking_source: 'pwa',
     notes,
-    booking_confirmation_token: bookingConfirmationToken,
+    booking_confirmation_token_hash: bookingConfirmationTokenHash,
     booking_confirmation_token_expires_at: bookingConfirmationTokenExpiresAt,
   }
 
   const { data: appointmentRow, error: appointmentError } = await db
     .from('appointments')
-    // Generated Supabase types are stale here: the DB includes the confirmation fields.
-    // @ts-expect-error booking_confirmation_* is missing from src/types/database.types.ts
     .insert(appointmentPayload)
     .select('id')
     .single()

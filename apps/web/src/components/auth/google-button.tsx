@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { buildRootAppUrl } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/client'
+import { buildPathWithTrialIntent } from '@/lib/trial-intent'
 
 interface GoogleButtonProps {
   label?: string
@@ -14,6 +15,7 @@ interface GoogleButtonProps {
   className?: string
   ariaLabel?: string
   variant?: 'primary' | 'secondary'
+  intent?: string | null
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -50,6 +52,7 @@ export function GoogleButton({
   className,
   ariaLabel,
   variant = 'secondary',
+  intent,
 }: GoogleButtonProps) {
   const [isPending, startTransition] = useTransition()
 
@@ -57,10 +60,11 @@ export function GoogleButton({
     startTransition(async () => {
       try {
         const supabase = createClient()
+        const callbackPath = buildPathWithTrialIntent('/auth/callback', intent)
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: buildRootAppUrl('/auth/callback'),
+            redirectTo: buildRootAppUrl(callbackPath),
             queryParams: {
               access_type: 'offline',
               prompt: 'consent',

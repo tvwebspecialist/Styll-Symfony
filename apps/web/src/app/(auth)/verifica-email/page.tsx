@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { VerifyEmailForm } from '@/components/auth/verify-email-form'
+import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 
 export const metadata: Metadata = {
   title: 'Verifica email — Styll',
@@ -17,13 +18,14 @@ function maskEmail(email: string): string {
 }
 
 interface PageProps {
-  searchParams: Promise<{ email?: string }>
+  searchParams: Promise<{ email?: string; intent?: string | string[] | undefined }>
 }
 
 export default async function VerificaEmailPage({ searchParams }: PageProps) {
   const params = await searchParams
   const email = params.email?.trim().toLowerCase()
-  if (!email) redirect('/register')
+  const intent = readTrialIntent(params.intent)
+  if (!email) redirect(buildPathWithTrialIntent('/register', intent))
 
   const masked = maskEmail(email)
 
@@ -69,7 +71,7 @@ export default async function VerificaEmailPage({ searchParams }: PageProps) {
       caption="Il codice è valido per 15 minuti."
       mobileTopRight={
         <Link
-          href="/register"
+          href={buildPathWithTrialIntent('/register', intent)}
           className="text-xs font-medium"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
@@ -135,7 +137,7 @@ export default async function VerificaEmailPage({ searchParams }: PageProps) {
         </p>
       </header>
 
-      <VerifyEmailForm email={email} />
+      <VerifyEmailForm email={email} intent={intent} />
 
       <p
         className="mt-6 text-center text-sm"
@@ -143,7 +145,7 @@ export default async function VerificaEmailPage({ searchParams }: PageProps) {
       >
         Email sbagliata?{' '}
         <Link
-          href="/register"
+          href={buildPathWithTrialIntent('/register', intent)}
           className="font-semibold underline-offset-2 hover:underline"
           style={{ color: 'var(--color-fg)' }}
         >

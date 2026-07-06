@@ -11,6 +11,8 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { identifyLead } from '@/components/marketing/PostHogProvider'
+import { buildRootAppUrl } from '@/lib/auth/urls'
+import { buildPathWithTrialIntent } from '@/lib/trial-intent'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
 const EMAIL_VERIFICATION_SEND_ERROR =
@@ -37,8 +39,10 @@ function validate(fullName: string, email: string, password: string, password2: 
   return errs
 }
 
-export function RegisterForm() {
+export function RegisterForm({ intent = null }: { intent?: string | null }) {
   const router = useRouter()
+  const privacyHref = buildRootAppUrl('/privacy')
+  const termsHref = buildRootAppUrl('/termini')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const fullNameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
@@ -138,7 +142,7 @@ export function RegisterForm() {
       if (!hasSession) {
         // Supabase email confirmation disabled — shouldn't happen, but handle it
         toast.success('Account creato! Controlla la tua email per confermare.')
-        router.push('/login')
+        router.push(buildPathWithTrialIntent('/login', intent))
         return
       }
 
@@ -162,7 +166,9 @@ export function RegisterForm() {
         toast.error(EMAIL_VERIFICATION_SEND_ERROR)
       }
 
-      router.push(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`)
+      router.push(
+        buildPathWithTrialIntent(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`, intent)
+      )
       router.refresh()
     })
   }
@@ -359,7 +365,7 @@ export function RegisterForm() {
       >
         Creando un account accetti i nostri{' '}
         <Link
-          href="/termini"
+          href={termsHref}
           className="font-medium underline underline-offset-2"
           style={{ color: 'var(--color-fg)' }}
         >
@@ -367,7 +373,7 @@ export function RegisterForm() {
         </Link>{' '}
         e la nostra{' '}
         <Link
-          href="/privacy"
+          href={privacyHref}
           className="font-medium underline underline-offset-2"
           style={{ color: 'var(--color-fg)' }}
         >

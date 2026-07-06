@@ -5,7 +5,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { MANAGER_ROLES } from '@/lib/constants'
-import type { Json } from '@/types'
+import type { Json, TablesUpdate } from '@/types'
+import {
+  buildImportClientsResult,
+  prepareClientImportPlan,
+} from '@/lib/utils/client-import-core'
+import type {
+  ClientImportUpdate,
+  ImportClientsInput,
+  ImportClientsResult,
+  ImportError,
+  ImportColumn,
+  ImportRow,
+} from '@/lib/utils/client-import-core'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
 
@@ -992,43 +1004,6 @@ export async function createCliente(input: {
 
 // ─── Import clienti da CSV ─────────────────────────────────────
 
-export type ImportColumn =
-  | 'full_name'
-  | 'email'
-  | 'phone'
-  | 'date_of_birth'
-  | 'notes'
-  | 'tags'
-  | 'marketing_consent'
-  | 'ignore'
-
-export interface ImportRow {
-  [key: string]: string
-}
-
-export interface ImportClientsInput {
-  source: 'fresha' | 'treatwell' | 'booksy' | 'csv_generic'
-  filename?: string
-  mapping: Record<string, ImportColumn>
-  rows: ImportRow[]
-  duplicateStrategy: 'skip' | 'merge'
-}
-
-export interface ImportError {
-  rowIndex: number
-  field?: string
-  message: string
-}
-
-export interface ImportClientsResult {
-  success: boolean
-  error?: string
-  jobId?: string
-  imported: number
-  skipped: number
-  errors: ImportError[]
-}
-
 import {
   normalizePhone,
   normalizeEmail,
@@ -1038,6 +1013,11 @@ import {
 } from '@/lib/utils/client-import-utils'
 
 export {
+  type ImportClientsInput,
+  type ImportClientsResult,
+  type ImportError,
+  type ImportColumn,
+  type ImportRow,
   normalizePhone,
   normalizeEmail,
   parseDateOfBirth,
@@ -1050,119 +1030,74 @@ export async function importClients(
 ): Promise<ImportClientsResult> {
   const ctx = await getClientiActorContext()
   if (!ctx) {
-    return { success: false, error: 'Non autorizzato', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Non autorizzato', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
   if (!hasFullCrmAccess(ctx.currentStaff.role)) {
-    return { success: false, error: 'Non autorizzato', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Non autorizzato', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
   const { tenantId, db } = ctx
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    return { success: false, error: 'Non autenticato', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Non autenticato', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
   if (!input.rows || input.rows.length === 0) {
-    return { success: false, error: 'Nessuna riga da importare', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Nessuna riga da importare', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
   if (input.rows.length > 10_000) {
-    return { success: false, error: 'Massimo 10.000 righe per file', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Massimo 10.000 righe per file', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
   const hasName = Object.values(input.mapping).includes('full_name')
   if (!hasName) {
-    return { success: false, error: 'Devi mappare almeno la colonna Nome', imported: 0, skipped: 0, errors: [] }
+    return { success: false, status: 'failed', error: 'Devi mappare almeno la colonna Nome', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
   const { data: existing } = await db
     .from('clients')
-    .select('id, email, phone')
+    .select('id, full_name, email, phone, date_of_birth, marketing_consent, tags')
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
 
-  const existingByEmail = new Map<string, string>()
-  const existingByPhone = new Map<string, string>()
-  ;(existing ?? []).forEach((c) => {
-    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
-    if (c.phone) {
-      const norm = normalizePhone(c.phone)
-      if (norm) existingByPhone.set(norm, c.id)
-    }
+  const plan = prepareClientImportPlan({
+    tenantId,
+    existingClients: (existing ?? []) as Array<{
+      id: string
+      full_name: string | null
+      email: string | null
+      phone: string | null
+      date_of_birth: string | null
+      marketing_consent: boolean
+      tags: Json | null
+    }>,
+    rows: input.rows,
+    mapping: input.mapping,
+    duplicateStrategy: input.duplicateStrategy,
+    fallbackTags: ['imported'],
   })
 
-  const errors: ImportError[] = []
-  const toInsert: Array<{
-    tenant_id: string
-    full_name: string
-    email: string | null
-    phone: string | null
-    date_of_birth: string | null
-    marketing_consent: boolean
-    preferred_contact_channel: string
-    tags: string
-  }> = []
-  let skipped = 0
+  const errors: ImportError[] = [...plan.errors]
+  const toInsert = plan.toInsert
+  const skipped = plan.skipped
+  const merged = plan.merged
 
-  const inverseMapping: Partial<Record<ImportColumn, string>> = {}
-  for (const [orig, styll] of Object.entries(input.mapping)) {
-    if (styll !== 'ignore') inverseMapping[styll] = orig
+  async function applyClientUpdate(update: ClientImportUpdate): Promise<void> {
+    const patch: TablesUpdate<'clients'> = { ...update.patch }
+    const { error } = await db
+      .from('clients')
+      .update(patch)
+      .eq('tenant_id', tenantId)
+      .eq('id', update.id)
+
+    if (error) {
+      errors.push({ rowIndex: 0, message: `Errore DB (merge): ${error.message}` })
+    }
   }
 
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = input.rows[i]
-    const rowNum = i + 1
-
-    const rawName = inverseMapping.full_name ? row[inverseMapping.full_name] ?? '' : ''
-    const fullName = rawName.trim()
-    if (!fullName) {
-      errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' })
-      continue
-    }
-
-    const rawEmail = inverseMapping.email ? row[inverseMapping.email] ?? '' : ''
-    const email = rawEmail ? normalizeEmail(rawEmail) : null
-    if (rawEmail && !email) {
-      errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
-    }
-
-    const rawPhone = inverseMapping.phone ? row[inverseMapping.phone] ?? '' : ''
-    const phone = rawPhone ? normalizePhone(rawPhone) : null
-    if (rawPhone && !phone) {
-      errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
-    }
-
-    const dupId =
-      (email && existingByEmail.get(email)) ||
-      (phone && existingByPhone.get(phone)) ||
-      null
-    if (dupId) {
-      skipped++
-      continue
-    }
-
-    const rawDob = inverseMapping.date_of_birth ? row[inverseMapping.date_of_birth] ?? '' : ''
-    const dob = rawDob ? parseDateOfBirth(rawDob) : null
-
-    const rawTagsVal = inverseMapping.tags ? row[inverseMapping.tags] ?? '' : ''
-    const tagsArr = parseCsvTags(rawTagsVal)
-    if (tagsArr.length === 0) tagsArr.push('imported')
-
-    const rawConsent = inverseMapping.marketing_consent
-      ? row[inverseMapping.marketing_consent] ?? ''
-      : ''
-    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
-
-    toInsert.push({
-      tenant_id: tenantId,
-      full_name: fullName,
-      email,
-      phone,
-      date_of_birth: dob,
-      marketing_consent: marketingConsent,
-      preferred_contact_channel: 'whatsapp',
-      tags: JSON.stringify(tagsArr),
-    })
+  for (const update of plan.toUpdate) {
+    await applyClientUpdate(update)
   }
 
   let imported = 0
@@ -1180,8 +1115,12 @@ export async function importClients(
     }
   }
 
-  const status: 'completed' | 'partial' | 'failed' =
-    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+  const result = buildImportClientsResult({
+    imported,
+    merged,
+    skipped,
+    errors,
+  })
 
   const { data: jobRow } = await db
     .from('client_import_jobs')
@@ -1192,10 +1131,11 @@ export async function importClients(
       filename: input.filename ?? null,
       total_rows: input.rows.length,
       imported_count: imported,
+      merged_count: merged,
       skipped_count: skipped,
       error_count: errors.length,
       errors: errors.slice(0, 100) as unknown as Json,
-      status,
+      status: result.status,
     })
     .select('id')
     .single()
@@ -1203,10 +1143,7 @@ export async function importClients(
   revalidatePath('/dashboard/clienti')
 
   return {
-    success: imported > 0 || errors.length === 0,
+    ...result,
     jobId: jobRow?.id,
-    imported,
-    skipped,
-    errors,
   }
 }

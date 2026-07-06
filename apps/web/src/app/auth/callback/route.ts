@@ -3,6 +3,7 @@ import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 import { buildRootAppUrl, buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 
 function redirect(url: string) {
   const res = NextResponse.redirect(url)
@@ -14,15 +15,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const errorDescription = searchParams.get('error_description')
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
+
+  const rootLoginUrl = buildRootAppUrl('/login')
+  const rootRegisterUrl = buildRootAppUrl(buildPathWithTrialIntent('/register', intent))
+  const authFailureUrl = intent ? rootRegisterUrl : rootLoginUrl
 
   if (errorDescription) {
-    const loginUrl = new URL(buildRootAppUrl('/login'))
+    const loginUrl = new URL(authFailureUrl)
     loginUrl.searchParams.set('error', errorDescription)
     return redirect(loginUrl.toString())
   }
 
   if (!code) {
-    return redirect(buildRootAppUrl('/login'))
+    return redirect(authFailureUrl)
   }
 
   const supabase = await createClient()
@@ -38,7 +44,7 @@ export async function GET(request: NextRequest) {
       ? 'Sessione scaduta o browser non supportato. Riprova il login. Se hai bloccato i cookie o usi la modalita privata, abilita i cookie per styll.it e riprova.'
       : error.message
 
-    const loginUrl = new URL(buildRootAppUrl('/login'))
+    const loginUrl = new URL(authFailureUrl)
     loginUrl.searchParams.set('error', errorMsg)
     return redirect(loginUrl.toString())
   }
@@ -48,7 +54,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return redirect(buildRootAppUrl('/login'))
+    return redirect(authFailureUrl)
   }
 
   // OAuth users (Google, etc.) skip email OTP — mark them as verified
@@ -122,5 +128,5 @@ export async function GET(request: NextRequest) {
     return redirect(buildRootAppUrl('/dashboard'))
   }
 
-  return redirect(buildRootAppUrl('/onboarding/step-1'))
+  return redirect(buildRootAppUrl(buildPathWithTrialIntent('/onboarding/step-1', intent)))
 }

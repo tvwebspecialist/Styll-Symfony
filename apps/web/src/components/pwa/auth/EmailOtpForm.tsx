@@ -3,6 +3,7 @@
 import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/client'
@@ -45,6 +46,28 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+function SignupLegalNotice({
+  privacyHref,
+  termsHref,
+}: {
+  privacyHref: string
+  termsHref: string
+}) {
+  return (
+    <p className="text-[11px] leading-relaxed text-gray-500">
+      Continuando confermi di aver letto la{' '}
+      <Link href={privacyHref} className="font-medium underline underline-offset-2 text-gray-700">
+        Privacy Policy
+      </Link>{' '}
+      e i{' '}
+      <Link href={termsHref} className="font-medium underline underline-offset-2 text-gray-700">
+        Termini e condizioni
+      </Link>
+      .
+    </p>
+  )
+}
+
 export function EmailOtpForm({
   tenantId,
   tenantSlug,
@@ -59,6 +82,8 @@ export function EmailOtpForm({
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(tenantSlug)
+  const privacyHref = tenantPath('/privacy')
+  const termsHref = buildRootAppUrl('/termini')
 
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState(prefillEmail)
@@ -413,6 +438,7 @@ export function EmailOtpForm({
               Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
             </span>
           </label>
+          <SignupLegalNotice privacyHref={privacyHref} termsHref={termsHref} />
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
@@ -727,6 +753,9 @@ export function EmailOtpForm({
               Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
             </span>
           </label>
+          <div className="mt-3">
+            <SignupLegalNotice privacyHref={privacyHref} termsHref={termsHref} />
+          </div>
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}

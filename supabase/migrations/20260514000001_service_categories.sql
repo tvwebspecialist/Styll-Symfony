@@ -15,19 +15,27 @@ CREATE TABLE IF NOT EXISTS public.service_categories (
 -- Row-level security
 ALTER TABLE public.service_categories ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "service_categories_tenant_access"
-  ON public.service_categories
-  FOR ALL
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM public.profiles WHERE id = auth.uid()
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "service_categories_tenant_access"
+    ON public.service_categories
+    FOR ALL
+    USING (
+      tenant_id IN (
+        SELECT sm.tenant_id
+        FROM public.staff_members sm
+        WHERE sm.profile_id = auth.uid()
+          AND sm.is_active = true
+          AND sm.deleted_at IS NULL
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Admin/service-role can always bypass RLS
-CREATE POLICY "service_categories_admin_access"
-  ON public.service_categories
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  CREATE POLICY "service_categories_admin_access"
+    ON public.service_categories
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -23,7 +23,6 @@ FROM public.staff_members sm
 JOIN public.services s
   ON s.tenant_id = sm.tenant_id
   AND s.is_active = true
-  AND s.deleted_at IS NULL
 WHERE sm.is_active    = true
   AND sm.deleted_at   IS NULL
   -- only for staff with no service assignments at all

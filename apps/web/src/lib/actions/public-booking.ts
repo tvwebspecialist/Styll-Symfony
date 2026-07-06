@@ -1,7 +1,10 @@
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient as createServerClient } from '@/lib/supabase/server'
 import type { Tables } from '@/types'
+import {
+  hashBookingConfirmationToken,
+  isBookingConfirmationTokenExpired,
+} from '@/lib/booking-confirmation-token'
 
 export type PublicLocation = Pick<
   Tables<'locations'>,
@@ -174,10 +177,8 @@ type RawAppointmentSummary = {
   end_time: string
   status: string
   notes: string | null
-  booking_confirmation_token: string | null
   booking_confirmation_token_expires_at: string | null
   client: {
-    profile_id: string | null
     full_name: string | null
     phone: string | null
     email: string | null
@@ -234,23 +235,6 @@ function isPromotionCurrentlyActive(promotion: RawPromotion, now: Date): boolean
 function sortByRequestedIds<T extends { id: string }>(items: T[], ids: string[]): T[] {
   const order = new Map(ids.map((id, index) => [id, index]))
   return [...items].sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0))
-}
-
-function hasValidBookingConfirmationToken(
-  providedToken: string | null | undefined,
-  expectedToken: string | null,
-  expiresAt: string | null
-): boolean {
-  if (!providedToken || !expectedToken || providedToken !== expectedToken || !expiresAt) {
-    return false
-  }
-
-  const expiry = new Date(expiresAt)
-  if (Number.isNaN(expiry.getTime())) {
-    return false
-  }
-
-  return expiry.getTime() > Date.now()
 }
 
 export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> {
@@ -728,21 +712,23 @@ export function getTenantTimezone(tenantId: string): Promise<string> {
 export async function getAppointmentSummary(
   appointmentId: string,
   tenantId: string,
-  confirmationToken?: string | null
+  confirmationToken: string
 ): Promise<PublicAppointmentSummary | null> {
-  const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const normalizedToken = confirmationToken.trim()
+  if (!normalizedToken) {
+    return null
+  }
 
   const db = createAdminClient()
+  const tokenHash = hashBookingConfirmationToken(normalizedToken)
   const { data } = await db
     .from('appointments')
     .select(
-      'id, tenant_id, staff_id, location_id, start_time, end_time, status, notes, booking_confirmation_token, booking_confirmation_token_expires_at, client:clients(profile_id, full_name, phone, email), location:locations(name, address, city, phone), staff:staff_members(photo_url, profile:profiles(full_name)), appointment_services(price_at_booking, services(id, name)), appointment_products(id, price_at_sale, quantity, products(name, brand, photo_url))'
+      'id, tenant_id, staff_id, location_id, start_time, end_time, status, notes, booking_confirmation_token_expires_at, client:clients(full_name, phone, email), location:locations(name, address, city, phone), staff:staff_members(photo_url, profile:profiles(full_name)), appointment_services(price_at_booking, services(id, name)), appointment_products(id, price_at_sale, quantity, products(name, brand, photo_url))'
     )
     .eq('id', appointmentId)
     .eq('tenant_id', tenantId)
+    .eq('booking_confirmation_token_hash', tokenHash)
     .is('deleted_at', null)
     .maybeSingle()
 
@@ -751,16 +737,7 @@ export async function getAppointmentSummary(
   }
 
   const appointment = data as unknown as RawAppointmentSummary
-  const isOwnedByCurrentProfile = appointment.client?.profile_id === user?.id
-  const hasValidToken =
-    !user &&
-    hasValidBookingConfirmationToken(
-      confirmationToken,
-      appointment.booking_confirmation_token,
-      appointment.booking_confirmation_token_expires_at
-    )
-
-  if (!isOwnedByCurrentProfile && !hasValidToken) {
+  if (isBookingConfirmationTokenExpired(appointment.booking_confirmation_token_expires_at)) {
     return null
   }
 

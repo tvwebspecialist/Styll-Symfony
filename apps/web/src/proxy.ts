@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { applySecurityHeaders, type CspOptions } from '@/lib/security/csp'
 
 // ─── Subdomain routing ────────────────────────────────────────────────────────
 
@@ -9,6 +10,7 @@ const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 const SKIP_SUBDOMAINS = new Set(['www', 'admin'])
 
 type TenantType = 'landing' | 'app' | 'dashboard'
+type PublicTenantSurface = 'landing' | 'app'
 
 function parseTenant(subdomain: string): { type: TenantType; slug: string } | null {
   if (subdomain.endsWith('-dashboard')) {
@@ -68,38 +70,9 @@ function resolveTenantRewrite(request: NextRequest): URL | null {
   return null
 }
 
-// ─── CSP ──────────────────────────────────────────────────────────────────────
-
-/**
- * Build the Content-Security-Policy header for this request.
- *
- * - `script-src` uses `'self'` + `'unsafe-inline'` as a pragmatic production-safe
- *   fallback. The ideal nonce-based variant was not being propagated reliably to
- *   the inline scripts emitted by Next.js, which caused real breakage in prod.
- * - `style-src` keeps `'unsafe-inline'`: tenant brand colors and many components
- *   inject inline <style> blocks; tightening this would be a large refactor.
- * - `'unsafe-eval'` is dev-only — React uses eval to rebuild server stacks.
- * - `frame-ancestors` opens up only on public tenant surfaces (landing/app) so
- *   the dashboard can embed live previews; everywhere else stays `'none'`.
- */
-function buildCspHeader(allowEmbedding: boolean): string {
-  const isDev = process.env.NODE_ENV === 'development'
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' blob: https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ''}`,
-    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
-    "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://accounts.google.com https://www.google-analytics.com https://va.vercel-scripts.com",
-    "img-src 'self' https://*.supabase.co https://*.vercel.app data: blob:",
-    "worker-src 'self' blob:",
-    "manifest-src 'self'",
-    "frame-src 'self' https://accounts.google.com",
-    allowEmbedding
-      ? "frame-ancestors 'self' https://*.styll.it http://localhost:3000"
-      : "frame-ancestors 'none'",
-    "form-action 'self'",
-    "base-uri 'self'",
-  ].join('; ')
+function getPublicTenantSurface(pathname: string): PublicTenantSurface | null {
+  const match = pathname.match(/^\/tenant\/(landing|app)\/[^/]+/)
+  return (match?.[1] as PublicTenantSurface | undefined) ?? null
 }
 
 // ─── Auth guard (original proxy logic) ───────────────────────────────────────
@@ -109,6 +82,63 @@ const AUTH_PAGES = ['/login', '/register']
 const ONBOARDING_PREFIX = '/onboarding'
 const ONBOARDING_COMPLETE = '/onboarding/complete'
 const LEGACY_COMPLETE = '/register/complete'
+const BOOKING_SUCCESS_PATH = /^\/tenant\/app\/([^/]+)\/prenota\/successo$/
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function buildBookingTokenFailureResponse(
+  status: 404 | 410,
+  slug: string,
+  securityOptions: CspOptions
+) {
+  const title = 'Dettagli non disponibili'
+  const message =
+    status === 410
+      ? 'Il link di conferma e` scaduto. Richiedi una nuova conferma al salone se ti serve recuperare il riepilogo.'
+      : 'Questo link non e` valido oppure non contiene le informazioni necessarie per mostrare la prenotazione.'
+
+  const response = new NextResponse(
+    `<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>${title}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; color: #111827; }
+      main { max-width: 32rem; margin: 0 auto; padding: 3rem 1rem; }
+      .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+      h1 { margin: 0 0 .75rem; font-size: 1.75rem; }
+      p { margin: 0; line-height: 1.6; color: #4b5563; }
+      a { display: inline-flex; margin-top: 1rem; text-decoration: none; background: #111827; color: #fff; padding: .9rem 1.1rem; border-radius: .9rem; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <h1>${title}</h1>
+        <p>${message}</p>
+        <a href="/tenant/app/${slug}">Torna alla home</a>
+      </div>
+    </main>
+  </body>
+</html>`,
+    {
+      status,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    }
+  )
+  return applySecurityHeaders(response, securityOptions)
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
 
 export async function proxy(request: NextRequest) {
   // Resolve tenant rewrite before running auth guards
@@ -116,11 +146,18 @@ export async function proxy(request: NextRequest) {
 
   // Public tenant surfaces (landing + PWA app) must be embeddable in dashboard
   // previews — anything else stays locked down with `frame-ancestors 'none'`.
+  const rewrittenTenantSurface = tenantRewriteUrl?.pathname
+    ? getPublicTenantSurface(tenantRewriteUrl.pathname)
+    : null
+  const directTenantSurface = getPublicTenantSurface(request.nextUrl.pathname)
   const isEmbeddableTenantSurface =
-    tenantRewriteUrl?.pathname.startsWith('/tenant/landing/') === true
-    || tenantRewriteUrl?.pathname.startsWith('/tenant/app/') === true
+    rewrittenTenantSurface !== null || directTenantSurface !== null
 
-  const cspHeader = buildCspHeader(isEmbeddableTenantSurface)
+  const securityOptions: CspOptions = {
+    allowEmbedding: isEmbeddableTenantSurface,
+    isDev: process.env.NODE_ENV === 'development',
+    rootDomain: ROOT_DOMAIN,
+  }
 
   // On subdomain requests, skip auth-page redirects to avoid redirect loops.
   // Auth is enforced by the tenant layout itself.
@@ -134,8 +171,54 @@ export async function proxy(request: NextRequest) {
   const isPwaRoute = pathname.startsWith('/tenant/app/')
     || tenantRewriteUrl?.pathname.startsWith('/tenant/app/') === true
 
-  const response = NextResponse.next({ request })
-  response.headers.set('Content-Security-Policy', cspHeader)
+  const successPathname = tenantRewriteUrl?.pathname ?? pathname
+  const successMatch = successPathname.match(BOOKING_SUCCESS_PATH)
+  if (successMatch) {
+    const slug = successMatch[1]
+    const appointmentId = request.nextUrl.searchParams.get('appointment')
+    const token = request.nextUrl.searchParams.get('token')
+
+    if (!appointmentId || !UUID_PATTERN.test(appointmentId) || !token) {
+      return buildBookingTokenFailureResponse(404, slug, securityOptions)
+    }
+
+    const db = createAdminClient()
+    const { data: tenant } = await db
+      .from('tenants')
+      .select('id')
+      .eq('slug', slug)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!tenant?.id) {
+      return buildBookingTokenFailureResponse(404, slug, securityOptions)
+    }
+
+    const tokenHash = await sha256Hex(token)
+    const { data: appointment } = await db
+      .from('appointments')
+      .select('booking_confirmation_token_expires_at')
+      .eq('id', appointmentId)
+      .eq('tenant_id', tenant.id)
+      .eq('booking_confirmation_token_hash', tokenHash)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (!appointment) {
+      return buildBookingTokenFailureResponse(404, slug, securityOptions)
+    }
+
+    const expiresAt = appointment.booking_confirmation_token_expires_at
+    if (!expiresAt || Number.isNaN(new Date(expiresAt).getTime())) {
+      return buildBookingTokenFailureResponse(404, slug, securityOptions)
+    }
+
+    if (new Date(expiresAt).getTime() <= Date.now()) {
+      return buildBookingTokenFailureResponse(404, slug, securityOptions)
+    }
+  }
+
+  const response = applySecurityHeaders(NextResponse.next({ request }), securityOptions)
 
   if (!isPwaRoute) {
     const supabase = createServerClient(
@@ -180,9 +263,7 @@ export async function proxy(request: NextRequest) {
     // across the whole proxy surface (browsers don't enforce CSP on 30x bodies,
     // but this keeps audits and curl checks tidy).
     const redirectTo = (url: URL) => {
-      const r = NextResponse.redirect(url)
-      r.headers.set('Content-Security-Policy', cspHeader)
-      return r
+      return applySecurityHeaders(NextResponse.redirect(url), securityOptions)
     }
 
     // Rotte protette: richiedono auth
@@ -323,13 +404,13 @@ export async function proxy(request: NextRequest) {
 
   // Apply subdomain rewrite, carrying over Supabase session cookies
   if (tenantRewriteUrl) {
-    const rewriteResponse = NextResponse.rewrite(tenantRewriteUrl)
+    const rewriteResponse = applySecurityHeaders(
+      NextResponse.rewrite(tenantRewriteUrl),
+      securityOptions
+    )
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
     })
-    // Single CSP header — includes the embedding-friendly frame-ancestors for
-    // /tenant/landing/* and /tenant/app/* (decided up front via `isEmbeddableTenantSurface`).
-    rewriteResponse.headers.set('Content-Security-Policy', cspHeader)
     return rewriteResponse
   }
 

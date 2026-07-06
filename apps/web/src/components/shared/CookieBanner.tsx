@@ -6,6 +6,7 @@ import {
   getAnalyticsConsentState,
   setAnalyticsConsentState,
 } from '@/lib/analytics-consent'
+import { buildRootAppUrl } from '@/lib/auth/urls'
 
 interface CookieBannerProps {
   privacyPath: string
@@ -15,6 +16,7 @@ interface CookieBannerProps {
 export function CookieBanner({ privacyPath, brandColor = '#1A1A1A' }: CookieBannerProps) {
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
+  const infoHref = privacyPath.startsWith('/') ? buildRootAppUrl(privacyPath) : privacyPath
 
   useEffect(() => {
     if (getAnalyticsConsentState() !== 'unknown') return
@@ -47,7 +49,7 @@ export function CookieBanner({ privacyPath, brandColor = '#1A1A1A' }: CookieBann
       <p className="text-gray-500 text-sm mb-4 leading-relaxed">
         Usiamo sempre i cookie tecnici necessari. Solo se accetti attiviamo analytics per migliorare
         il servizio. Nessuna pubblicità.{' '}
-        <Link href={privacyPath} className="underline hover:text-gray-700 transition-colors">
+        <Link href={infoHref} className="underline hover:text-gray-700 transition-colors">
           Scopri di più
         </Link>
       </p>
