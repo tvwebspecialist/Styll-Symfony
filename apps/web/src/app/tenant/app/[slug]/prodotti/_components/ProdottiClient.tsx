@@ -88,7 +88,7 @@ export function ProdottiClient({
         .prodotti-filter-pill { transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
         .prodotti-heart { transition: transform 120ms ease, background 150ms ease; }
         .prodotti-heart:active { transform: scale(0.82) !important; }
-        .prodotti-card-link:focus-visible { outline: 2px solid var(--brand-primary, #111); outline-offset: 3px; border-radius: 12%; }
+        .prodotti-card-link:focus-visible { outline: 2px solid var(--brand-primary, #111); outline-offset: 3px; border-radius: 20px; }
         @media (prefers-reduced-motion: reduce) {
           .prodotti-card { animation: none !important; opacity: 1 !important; transition: none !important; }
           .prodotti-card--pressed { transform: none !important; }
@@ -164,7 +164,7 @@ export function ProdottiClient({
             style={{
               position: 'relative',
               background: '#FFFFFF',
-              borderRadius: '12%',
+              borderRadius: 20,
               border: '1px solid #F0F0F0',
               boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               opacity: product.available ? 1 : 0.55,
@@ -195,7 +195,7 @@ export function ProdottiClient({
               style={{
                 position: 'relative',
                 margin: '8px 8px 0 8px',
-                borderRadius: '8%',
+                borderRadius: 12,
                 overflow: 'hidden',
                 aspectRatio: '1 / 1',
                 background: 'linear-gradient(135deg, #f3f4f6, #e5e7eb)',
