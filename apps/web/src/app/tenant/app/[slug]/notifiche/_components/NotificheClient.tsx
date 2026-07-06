@@ -8,7 +8,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from '@/lib/actions/client-notifications'
-import { floatingCardShellStyle } from '@/components/pwa/FloatingCard'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface Props {
   notifications: ClientNotification[]
@@ -72,6 +72,7 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
   const [items, setItems] = useState(initial)
   const [, startTransition] = useTransition()
   const [selectedNotif, setSelectedNotif] = useState<ClientNotification | null>(null)
+  const [popupVisible, setPopupVisible] = useState(false)
 
   const hasUnread = items.some(n => !n.is_read)
 
@@ -95,7 +96,14 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
     return () => window.removeEventListener('notifiche:mark-all', handler)
   }, [])
 
-  function handleTap(notif: ClientNotification) {
+  // Drive popup slide-in animation: rAF ensures initial translateY renders before transition
+  useEffect(() => {
+    if (!selectedNotif) { setPopupVisible(false); return }
+    const id = requestAnimationFrame(() => setPopupVisible(true))
+    return () => cancelAnimationFrame(id)
+  }, [selectedNotif])
+
+  function openPopup(notif: ClientNotification) {
     if (!notif.is_read) {
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n))
       startTransition(async () => {
@@ -105,9 +113,14 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
     setSelectedNotif(notif)
   }
 
+  function closePopup() {
+    setPopupVisible(false)
+    setTimeout(() => setSelectedNotif(null), 300)
+  }
+
   function handlePopupNavigate(url: string) {
-    setSelectedNotif(null)
-    router.push(url)
+    closePopup()
+    setTimeout(() => router.push(url), 150)
   }
 
   if (items.length === 0) {
@@ -135,6 +148,10 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
     )
   }
 
+  const popupUrl = typeof (selectedNotif?.meta as Record<string, unknown> | null)?.url === 'string'
+    ? (selectedNotif?.meta as Record<string, string>).url
+    : null
+
   return (
     <>
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -142,12 +159,12 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
           <button
             key={notif.id}
             type="button"
-            onClick={() => handleTap(notif)}
+            onClick={() => openPopup(notif)}
             className="pwa-pressable"
             style={{
               width: '100%',
               display: 'flex',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               gap: 12,
               background: notif.is_read ? '#FAFAFA' : 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
               borderRadius: 20,
@@ -163,27 +180,21 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
             <NotifIconBadge type={notif.type} />
 
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: 14,
-                  fontWeight: notif.is_read ? 500 : 700,
-                  color: '#18181B',
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {notif.title}
-                </p>
-                {!notif.is_read && (
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary)', flexShrink: 0 }} />
-                )}
-              </div>
+              <p style={{
+                margin: 0,
+                fontSize: 14,
+                fontWeight: notif.is_read ? 500 : 700,
+                color: '#18181B',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                marginBottom: notif.body ? 3 : 0,
+              }}>
+                {notif.title}
+              </p>
               {notif.body && (
                 <p style={{
-                  margin: '0 0 4px',
+                  margin: 0,
                   fontSize: 13,
                   color: '#52525B',
                   overflow: 'hidden',
@@ -193,28 +204,55 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
                   {notif.body}
                 </p>
               )}
-              <p style={{ margin: 0, fontSize: 11, color: '#A1A1AA', fontWeight: 500 }}>
-                {formatRelative(notif.created_at)}
-              </p>
             </div>
+
+            {!notif.is_read && (
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-primary)', flexShrink: 0 }} />
+            )}
           </button>
         ))}
       </div>
 
       {selectedNotif && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'flex-end',
+        }}>
           <div
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }}
-            onClick={() => setSelectedNotif(null)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              opacity: popupVisible ? 1 : 0,
+              transition: 'opacity 290ms ease',
+            }}
+            onClick={closePopup}
           />
-          <div style={{
-            position: 'absolute',
-            bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
-            left: 8,
-            right: 8,
-          }}>
-            <div style={{ ...floatingCardShellStyle, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+
+          <FloatingCard
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              margin: 12,
+              width: 'calc(100% - 24px)',
+              maxHeight: '85dvh',
+              overflowY: 'auto',
+              transform: popupVisible ? 'translateY(0)' : 'translateY(110%)',
+              transition: 'transform 290ms cubic-bezier(0.32, 0.72, 0, 1)',
+              padding: 0,
+            }}
+          >
+            {/* Handle bar */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12, marginBottom: 4 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#e5e7eb' }} />
+            </div>
+
+            <div style={{ padding: 20, paddingBottom: 32 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
                 <NotifIconBadge type={selectedNotif.type} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#18181B', lineHeight: 1.3 }}>
@@ -226,7 +264,7 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedNotif(null)}
+                  onClick={closePopup}
                   aria-label="Chiudi"
                   style={{
                     width: 32,
@@ -246,16 +284,16 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
               </div>
 
               {selectedNotif.body && (
-                <p style={{ margin: 0, fontSize: 14, color: '#52525B', lineHeight: 1.55 }}>
+                <p style={{ margin: '0 0 20px', fontSize: 14, color: '#52525B', lineHeight: 1.55 }}>
                   {selectedNotif.body}
                 </p>
               )}
 
-              {typeof (selectedNotif.meta as Record<string, unknown> | null)?.url === 'string' && (
+              {popupUrl && (
                 <button
                   type="button"
                   className="pwa-pressable"
-                  onClick={() => handlePopupNavigate((selectedNotif.meta as Record<string, string>).url)}
+                  onClick={() => handlePopupNavigate(popupUrl)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -277,7 +315,7 @@ export function NotificheClient({ notifications: initial, tenantId }: Props) {
                 </button>
               )}
             </div>
-          </div>
+          </FloatingCard>
         </div>
       )}
     </>

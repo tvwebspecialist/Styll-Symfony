@@ -8,7 +8,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, CheckCheck } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { PwaPageHeader } from './PwaPageHeader'
-import { createPwaClient } from '@/lib/supabase/pwa-client'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 
 const PAGE_TITLES: Record<string, string> = {
   prodotti: 'Prodotti',
@@ -92,18 +92,21 @@ function TopBarInner({
     let cancelled = false
 
     async function checkUnread() {
-      const pwa = createPwaClient()
-      const { data: { user } } = await pwa.auth.getUser()
+      // Use the cookie-based browser client: always authenticated on mount
+      // (createPwaClient uses localStorage which PwaSessionRestorer syncs async —
+      // racing on first mount would leave getUser() returning null)
+      const supabase = createBrowserClient()
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user || cancelled) return
 
-      const { data: tenantRow } = await pwa
+      const { data: tenantRow } = await supabase
         .from('tenants')
         .select('id')
         .eq('slug', slug)
         .maybeSingle()
       if (!tenantRow || cancelled) return
 
-      const { count } = await pwa
+      const { count } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantRow.id)
