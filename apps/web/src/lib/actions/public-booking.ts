@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createPortfolioSignedUrl } from '@/lib/portfolio-storage'
 import type { Tables } from '@/types'
 import {
   hashBookingConfirmationToken,
@@ -338,12 +339,20 @@ export function getPublicPortfolioPhotos(tenantId: string): Promise<PublicPortfo
         .order('display_order', { ascending: true })
         .limit(12)
 
-      return ((data ?? []) as unknown as PublicPortfolioPhoto[]).map((photo) => ({
-        id: photo.id,
-        photo_url: photo.photo_url,
-        service_tags: photo.service_tags,
-        display_order: Number(photo.display_order ?? 0),
-      }))
+      const photos = await Promise.all(
+        ((data ?? []) as unknown as PublicPortfolioPhoto[]).map(async (photo) => {
+          const signedUrl = await createPortfolioSignedUrl(db, photo.photo_url)
+          if (!signedUrl) return null
+          return {
+            id: photo.id,
+            photo_url: signedUrl,
+            service_tags: photo.service_tags,
+            display_order: Number(photo.display_order ?? 0),
+          } satisfies PublicPortfolioPhoto
+        })
+      )
+
+      return photos.filter((photo): photo is PublicPortfolioPhoto => photo !== null)
     },
     [`public-portfolio-${tenantId}`],
     {

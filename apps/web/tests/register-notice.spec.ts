@@ -26,11 +26,15 @@ test.describe('register legal notice', () => {
       expect(new URL(privacyHref!, 'http://localhost').pathname).toBe(buildTenantAppPath(fixture.slug, '/privacy'))
       expect(new URL(termsHref!, 'http://localhost').pathname).toBe('/termini')
 
-      await page.goto(privacyHref!)
-      await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible()
+      const privacyResponse = await page.goto(privacyHref!)
+      expect(privacyResponse?.status()).toBe(200)
+      await expect(page.locator('body')).toContainText('Privacy Policy')
+      await expect(page.locator('body')).toContainText('Chi è il Titolare del trattamento')
 
-      await page.goto(termsHref!)
-      await expect(page.getByRole('heading', { name: 'Termini di Servizio per i barbieri' })).toBeVisible()
+      const termsResponse = await page.goto(termsHref!)
+      expect(termsResponse?.status()).toBe(200)
+      await expect(page.locator('body')).toContainText('Termini di Servizio per i barbieri')
+      await expect(page.locator('body')).toContainText('Oggetto del servizio')
     } finally {
       await fixture.cleanup()
     }
