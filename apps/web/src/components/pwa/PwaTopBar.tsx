@@ -384,7 +384,7 @@ function TopBarInner({
               aria-label="Segna tutte come lette"
               className="pwa-pressable"
             >
-              <CheckCheck size={18} color="#3b82f6" strokeWidth={2.5} />
+              <CheckCheck size={18} color="var(--brand-primary)" strokeWidth={2.5} />
             </button>
           ) : (
             <div style={{ width: 44, flexShrink: 0, marginLeft: 'auto' }} />
