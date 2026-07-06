@@ -3,6 +3,11 @@ import type { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPromotionPush } from '@/lib/push/promotion-push'
+import {
+  getTenantRoleContext,
+  hasTenantPermission,
+  TENANT_PERMISSIONS,
+} from '@/lib/tenant-role-guard'
 
 /**
  * POST /api/promotions/[id]/notify
@@ -42,18 +47,14 @@ export async function POST(
     return NextResponse.json({ error: 'Promotion is not active' }, { status: 400 })
   }
 
-  // Verifica ruolo owner o manager nel tenant
-  const { data: staffRow } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  const role = (staffRow as any)?.role
-  if (role !== 'owner' && role !== 'manager') {
+  const tenantRoleCtx = await getTenantRoleContext(tenantId)
+  if (
+    !tenantRoleCtx
+    || !hasTenantPermission(
+      tenantRoleCtx.role,
+      TENANT_PERMISSIONS.MANAGE_MARKETING
+    )
+  ) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

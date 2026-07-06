@@ -44,16 +44,34 @@ const DRAWER_GRID: NavItem[] = [
   { label: 'Impostazioni', href: '/impostazioni', icon: Settings },
 ]
 
+const OWNER_MANAGER_ITEM_HREFS = new Set([
+  '/vendite',
+  '/marketing',
+  '/catalogo',
+  '/app',
+  '/impostazioni',
+])
+
 function isActive(path: string, item: NavItem): boolean {
   return item.exact
     ? path === item.href
     : path === item.href || path.startsWith(item.href + '/')
 }
 
-export function BottomNav() {
+export function BottomNav({
+  canAccessManagementSurfaces = true,
+}: {
+  canAccessManagementSurfaces?: boolean
+}) {
   const pathname = usePathname() ?? ''
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
+  const mainItems = MAIN_ITEMS.filter((item) =>
+    canAccessManagementSurfaces || !OWNER_MANAGER_ITEM_HREFS.has(item.href)
+  )
+  const drawerItems = DRAWER_GRID.filter((item) =>
+    canAccessManagementSurfaces || !OWNER_MANAGER_ITEM_HREFS.has(item.href)
+  )
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -82,7 +100,7 @@ export function BottomNav() {
           boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
         }}
       >
-        {MAIN_ITEMS.map((item) => {
+        {mainItems.map((item) => {
           const active = isActive(pathname, item)
           const Icon = item.icon
           return (
@@ -244,7 +262,7 @@ export function BottomNav() {
             marginBottom: 16,
           }}
         >
-          {DRAWER_GRID.map((item) => {
+          {drawerItems.map((item) => {
             const Icon = item.icon
             return (
               <Link
@@ -320,4 +338,3 @@ export function BottomNav() {
     </>
   )
 }
-

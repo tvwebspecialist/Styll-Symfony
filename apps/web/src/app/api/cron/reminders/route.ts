@@ -245,6 +245,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json({ status: 'ok', message: 'Use POST to trigger reminders' })
+// Vercel Cron always calls GET — delegate to the same handler as POST.
+export async function GET(req: NextRequest) {
+  return POST(req)
 }

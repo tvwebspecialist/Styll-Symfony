@@ -196,44 +196,45 @@ async function replayCapturedAction(page: Page, captured: CapturedActionRequest)
 test.describe('owner-manager surface guard', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for role guard fixtures.')
 
-  test('receptionist cannot access owner-manager pages by URL while manager can', async ({ page }) => {
+  test('receptionist cannot access owner-manager pages by URL while owner and manager can', async ({ page }) => {
+    test.setTimeout(120_000)
     const fixture = await seedSurfaceFixture()
+    const protectedPaths = [
+      buildTenantDashboardPath(fixture.slug, '/marketing'),
+      buildTenantDashboardPath(fixture.slug, '/catalogo'),
+      buildTenantDashboardPath(fixture.slug, '/impostazioni'),
+      buildTenantDashboardPath(fixture.slug, '/vendite'),
+      buildTenantDashboardPath(fixture.slug, '/app'),
+    ]
 
     try {
       const receptionistLanding = buildTenantDashboardPath(fixture.slug, '/profilo')
       await loginAs(page, fixture.receptionist, receptionistLanding)
 
-      for (const path of [
-        buildTenantDashboardPath(fixture.slug, '/marketing'),
-        buildTenantDashboardPath(fixture.slug, '/catalogo'),
-        buildTenantDashboardPath(fixture.slug, '/impostazioni'),
-        buildTenantDashboardPath(fixture.slug, '/vendite'),
-        buildTenantDashboardPath(fixture.slug, '/app'),
-      ]) {
+      for (const path of protectedPaths) {
         const response = await page.goto(path)
         expect(response?.status()).toBe(403)
       }
 
       await resetSession(page)
-      const managerPaths = [
-        buildTenantDashboardPath(fixture.slug, '/marketing'),
-        buildTenantDashboardPath(fixture.slug, '/catalogo'),
-        buildTenantDashboardPath(fixture.slug, '/impostazioni'),
-        buildTenantDashboardPath(fixture.slug, '/vendite'),
-        buildTenantDashboardPath(fixture.slug, '/app'),
-      ]
-
-      for (const path of managerPaths) {
-        await loginAs(page, fixture.manager, path)
+      await loginAs(page, fixture.owner, protectedPaths[0])
+      for (const path of protectedPaths) {
+        await page.goto(path)
         expect(page.url()).toContain(path)
-        await resetSession(page)
+      }
+
+      await resetSession(page)
+      await loginAs(page, fixture.manager, protectedPaths[0])
+      for (const path of protectedPaths) {
+        await page.goto(path)
+        expect(page.url()).toContain(path)
       }
     } finally {
       await fixture.cleanup()
     }
   })
 
-  test('receptionist cannot replay forbidden settings, catalog, or marketing actions', async ({ page }) => {
+  test('receptionist cannot replay forbidden settings, catalog, or marketing server actions', async ({ page }) => {
     test.setTimeout(120_000)
     const fixture = await seedSurfaceFixture()
     const service = requireServiceClient()
@@ -246,7 +247,7 @@ test.describe('owner-manager surface guard', () => {
       const newLocationName = `Replay Location ${randomSuffix()}`
       const capturedSettingsAction = await captureNextActionRequest(page, async () => {
         await page.getByRole('button', { name: 'Sedi' }).click()
-        await page.getByRole('button', { name: 'Nuova sede' }).click()
+        await page.getByRole('button', { name: /Aggiungi sede|Nuova sede/ }).click()
         await page.getByLabel('Nome sede').fill(newLocationName)
         await page.getByRole('button', { name: 'Crea sede' }).click()
         await expect(page.getByText('Sede creata')).toBeVisible()
@@ -288,6 +289,48 @@ test.describe('owner-manager surface guard', () => {
       await assertNoSupabaseError('read services after blocked catalog replay', createdServiceRowsError)
       expect(createdServiceRows ?? []).toHaveLength(1)
 
+      await resetSession(page)
+      await loginAs(page, fixture.owner, marketingPath)
+      await expect(page.getByRole('switch').first()).toBeVisible()
+      const capturedMarketingAction = await captureNextActionRequest(page, async () => {
+        await page.getByRole('switch').first().click()
+      })
+
+      const { error: resetMarketingAutomationError } = await service
+        .from('message_automations')
+        .upsert(
+          {
+            tenant_id: fixture.tenantId,
+            type: 'reminder_1d',
+            enabled: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'tenant_id,type' }
+        )
+      await assertNoSupabaseError('reset marketing automation state', resetMarketingAutomationError)
+
+      await resetSession(page)
+      await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+      await replayCapturedAction(page, capturedMarketingAction)
+
+      const { data: marketingAutomationRow, error: marketingAutomationRowError } = await service
+        .from('message_automations')
+        .select('enabled')
+        .eq('tenant_id', fixture.tenantId)
+        .eq('type', 'reminder_1d')
+        .maybeSingle()
+      await assertNoSupabaseError('read marketing automation after blocked replay', marketingAutomationRowError)
+      expect(marketingAutomationRow?.enabled).toBe(true)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  test('receptionist cannot call marketing notify route handler', async ({ page }) => {
+    const fixture = await seedSurfaceFixture()
+    const service = requireServiceClient()
+
+    try {
       const { data: promotion, error: promotionError } = await service
         .from('promotions')
         .insert({
@@ -297,6 +340,7 @@ test.describe('owner-manager surface guard', () => {
           is_active: true,
           show_in_app: true,
           show_on_landing: true,
+          status: 'active',
           valid_from: new Date().toISOString(),
         })
         .select('id')
@@ -306,7 +350,6 @@ test.describe('owner-manager surface guard', () => {
       const promotionId = promotion?.id
       if (!promotionId) throw new Error('create marketing promotion seed: missing id')
 
-      await resetSession(page)
       await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
       const marketingResponse = await page.context().request.post(
         `/api/promotions/${promotionId}/notify`,

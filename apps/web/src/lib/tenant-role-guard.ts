@@ -4,12 +4,33 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 
 export type TenantRole = StaffRoleValue | 'superadmin'
+export const OWNER_MANAGER_TENANT_ROLES = ['owner', 'manager'] as const
+export type OwnerManagerTenantRole = typeof OWNER_MANAGER_TENANT_ROLES[number]
+
+export const TENANT_PERMISSIONS = {
+  MANAGE_MARKETING: 'manage_marketing',
+  MANAGE_CATALOG: 'manage_catalog',
+  MANAGE_APP: 'manage_app',
+  MANAGE_SETTINGS: 'manage_settings',
+  VIEW_SALES: 'view_sales',
+} as const
+
+export type TenantPermission =
+  typeof TENANT_PERMISSIONS[keyof typeof TENANT_PERMISSIONS]
 
 export interface TenantRoleContext {
   tenantId: string
   userId: string
   role: TenantRole
   db: ReturnType<typeof createAdminClient>
+}
+
+const TENANT_PERMISSION_ROLES: Record<TenantPermission, readonly OwnerManagerTenantRole[]> = {
+  [TENANT_PERMISSIONS.MANAGE_MARKETING]: OWNER_MANAGER_TENANT_ROLES,
+  [TENANT_PERMISSIONS.MANAGE_CATALOG]: OWNER_MANAGER_TENANT_ROLES,
+  [TENANT_PERMISSIONS.MANAGE_APP]: OWNER_MANAGER_TENANT_ROLES,
+  [TENANT_PERMISSIONS.MANAGE_SETTINGS]: OWNER_MANAGER_TENANT_ROLES,
+  [TENANT_PERMISSIONS.VIEW_SALES]: OWNER_MANAGER_TENANT_ROLES,
 }
 
 export function throwForbidden(): never {
@@ -19,7 +40,24 @@ export function throwForbidden(): never {
 }
 
 export function isOwnerManagerRole(role: TenantRole): boolean {
-  return role === 'superadmin' || MANAGER_ROLES.includes(role as typeof MANAGER_ROLES[number])
+  return hasTenantRole(role, OWNER_MANAGER_TENANT_ROLES)
+}
+
+export function hasTenantRole(
+  role: TenantRole,
+  allowedRoles: readonly StaffRoleValue[]
+): boolean {
+  return role === 'superadmin' || allowedRoles.includes(role as StaffRoleValue)
+}
+
+export function hasTenantPermission(
+  role: TenantRole,
+  permission: TenantPermission
+): boolean {
+  if (role === 'superadmin') return true
+
+  const allowedRoles = TENANT_PERMISSION_ROLES[permission]
+  return allowedRoles.includes(role as OwnerManagerTenantRole)
 }
 
 export async function getTenantRoleContext(
@@ -69,12 +107,30 @@ export async function getTenantRoleContext(
   }
 }
 
-export async function requireOwnerManagerTenantContext(
+export async function requireTenantRole(
+  allowedRoles: readonly StaffRoleValue[],
   explicitTenantId?: string
 ): Promise<TenantRoleContext> {
   const ctx = await getTenantRoleContext(explicitTenantId)
-  if (!ctx || !isOwnerManagerRole(ctx.role)) {
+  if (!ctx || !hasTenantRole(ctx.role, allowedRoles)) {
     throwForbidden()
   }
   return ctx
+}
+
+export async function requireTenantPermission(
+  permission: TenantPermission,
+  explicitTenantId?: string
+): Promise<TenantRoleContext> {
+  const ctx = await getTenantRoleContext(explicitTenantId)
+  if (!ctx || !hasTenantPermission(ctx.role, permission)) {
+    throwForbidden()
+  }
+  return ctx
+}
+
+export async function requireOwnerManagerTenantContext(
+  explicitTenantId?: string
+): Promise<TenantRoleContext> {
+  return requireTenantRole(OWNER_MANAGER_TENANT_ROLES, explicitTenantId)
 }

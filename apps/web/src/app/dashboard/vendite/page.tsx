@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { VenditeTabs } from '@/components/dashboard/vendite/VenditeTabs'
-import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
+import { requireTenantPermission, TENANT_PERMISSIONS } from '@/lib/tenant-role-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export default async function VenditePage() {
 
   const tenantId = await getActiveTenantId()
   if (!tenantId) redirect('/onboarding/step-1')
-  await requireOwnerManagerTenantContext(tenantId)
+  await requireTenantPermission(TENANT_PERMISSIONS.VIEW_SALES, tenantId)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
