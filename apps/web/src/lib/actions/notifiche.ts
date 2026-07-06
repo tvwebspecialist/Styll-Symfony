@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getActiveTenantId } from '@/lib/tenant-context'
 
 export interface NotifRow {
   id: string
@@ -14,21 +15,54 @@ export interface NotifRow {
   created_at: string
 }
 
+async function getStaffNotificationContext(expectedTenantId?: string): Promise<{
+  tenantId: string
+  userId: string
+  supabase: Awaited<ReturnType<typeof createClient>>
+} | null> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return null
+  if (expectedTenantId && expectedTenantId !== tenantId) return null
+
+  const db = createAdminClient()
+  const { data: membership } = await db
+    .from('staff_members')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!membership) return null
+
+  return {
+    tenantId,
+    userId: user.id,
+    supabase,
+  }
+}
+
 /**
  * Fetch le ultime 50 notifiche per lo staff.
  * Usa il client autenticato — RLS filtra per tenant e profilo.
  * Broadcast (profile_id IS NULL) + personali (profile_id = user.id) incluse.
  */
 export async function getNotifications(tenantId: string): Promise<NotifRow[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const ctx = await getStaffNotificationContext(tenantId)
+  if (!ctx) return []
 
-  const { data } = await supabase
+  const { data } = await ctx.supabase
     .from('notifications')
     .select('id, type, title, body, is_read, meta, created_at')
-    .eq('tenant_id', tenantId)
-    .or(`profile_id.is.null,profile_id.eq.${user.id}`)
+    .eq('tenant_id', ctx.tenantId)
+    .or(`profile_id.is.null,profile_id.eq.${ctx.userId}`)
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -40,16 +74,15 @@ export async function getNotifications(tenantId: string): Promise<NotifRow[]> {
  * Versione head-only — nessun dato trasferito, solo count.
  */
 export async function getUnreadCount(tenantId: string): Promise<number> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return 0
+  const ctx = await getStaffNotificationContext(tenantId)
+  if (!ctx) return 0
 
-  const { count } = await supabase
+  const { count } = await ctx.supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
     .eq('is_read', false)
-    .or(`profile_id.is.null,profile_id.eq.${user.id}`)
+    .or(`profile_id.is.null,profile_id.eq.${ctx.userId}`)
 
   return count ?? 0
 }
@@ -59,16 +92,25 @@ export async function markNotificationRead(
   tenantId: string,
   notifId: string,
 ): Promise<{ ok: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false }
+  const ctx = await getStaffNotificationContext(tenantId)
+  if (!ctx) return { ok: false }
 
-  const db = createAdminClient()
-  const { error } = await db
+  const { data: notification } = await ctx.supabase
+    .from('notifications')
+    .select('id')
+    .eq('id', notifId)
+    .eq('tenant_id', ctx.tenantId)
+    .or(`profile_id.is.null,profile_id.eq.${ctx.userId}`)
+    .maybeSingle()
+
+  if (!notification) return { ok: false }
+
+  const { error } = await ctx.supabase
     .from('notifications')
     .update({ is_read: true })
     .eq('id', notifId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
+    .or(`profile_id.is.null,profile_id.eq.${ctx.userId}`)
 
   if (error) {
     console.error('[notifiche] markRead error:', error.message)
@@ -81,16 +123,15 @@ export async function markNotificationRead(
 
 /** Marca tutte le notifiche non lette del tenant come lette. */
 export async function markAllNotificationsRead(tenantId: string): Promise<{ ok: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false }
+  const ctx = await getStaffNotificationContext(tenantId)
+  if (!ctx) return { ok: false }
 
-  const db = createAdminClient()
-  const { error } = await db
+  const { error } = await ctx.supabase
     .from('notifications')
     .update({ is_read: true })
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
     .eq('is_read', false)
+    .or(`profile_id.is.null,profile_id.eq.${ctx.userId}`)
 
   if (error) {
     console.error('[notifiche] markAllRead error:', error.message)

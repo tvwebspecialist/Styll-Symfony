@@ -1,13 +1,13 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import {
   getSubscriptionsForProfile,
   sendPushToSubscriptions,
 } from '@/lib/push/send-notification'
 import { sendTemplatedEmail } from '@/lib/email'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 type Segment = 'all' | 'rischio' | 'vip' | 'winback'
 
@@ -84,17 +84,14 @@ export async function sendCampaign({
   segment:  Segment
   message:  string
 }): Promise<CampaignResult> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized')
-  }
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
 
   const trimmed = message.trim()
   if (!trimmed || trimmed.length > 160) {
     throw new Error('Invalid message')
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
 
   // Anti-double-submit: reject if a campaign was already logged in the last 5 s
   const { count: recentCount } = await db

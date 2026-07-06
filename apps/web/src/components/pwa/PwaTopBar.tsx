@@ -2,12 +2,13 @@
 // shadow leggera, titolo 17px/600 — applicato globalmente su tutta la PWA
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { PwaPageHeader } from './PwaPageHeader'
+import { createPwaClient } from '@/lib/supabase/pwa-client'
 
 const PAGE_TITLES: Record<string, string> = {
   prodotti: 'Prodotti',
@@ -83,6 +84,37 @@ function TopBarInner({
   const isHome = pathname === homePath
   const isInSuccesso = pathname.startsWith(tenantPath('/prenota/successo'))
   const isInPrenota = pathname.startsWith(tenantPath('/prenota')) && !isInSuccesso
+
+  const [hasUnread, setHasUnread] = useState(false)
+
+  useEffect(() => {
+    if (!isHome || !clientName) return
+    let cancelled = false
+
+    async function checkUnread() {
+      const pwa = createPwaClient()
+      const { data: { user } } = await pwa.auth.getUser()
+      if (!user || cancelled) return
+
+      const { data: tenantRow } = await pwa
+        .from('tenants')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle()
+      if (!tenantRow || cancelled) return
+
+      const { count } = await pwa
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantRow.id)
+        .eq('profile_id', user.id)
+        .eq('is_read', false)
+      if (!cancelled) setHasUnread((count ?? 0) > 0)
+    }
+
+    checkUnread().catch(() => {})
+    return () => { cancelled = true }
+  }, [isHome, slug, clientName, pathname])
 
   const titleStyle = {
     position: 'absolute' as const,
@@ -179,8 +211,8 @@ function TopBarInner({
               variant="home"
               clientName={clientName}
               clientAvatarUrl={clientAvatarUrl}
-              hasUnreadNotifications={false}
-              onNotificationsPress={() => {}}
+              hasUnreadNotifications={hasUnread}
+              onNotificationsPress={() => router.push(tenantPath('/notifiche'))}
               fontFamily={fontFamily}
             />
           </div>
@@ -309,6 +341,7 @@ function TopBarInner({
     'preferiti': { title: 'Preferiti', backTo: tenantPath('/profilo') },
     'offerte': { title: 'Offerte', backTo: tenantPath('/') },
     'privacy': { title: 'Privacy Policy', backTo: tenantPath('/profilo') },
+    'notifiche': { title: 'Notifiche', backTo: tenantPath('') },
   }
   const PROFILO_SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'modifica': { title: 'Modifica profilo', backTo: tenantPath('/profilo') },

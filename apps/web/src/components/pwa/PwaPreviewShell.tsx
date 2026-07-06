@@ -118,14 +118,25 @@ export function PwaPreviewShell({
     >
       <style>{`
         /* PWA tap feedback — :active unlocked by touchstart listener above */
-        button:active:not(:disabled) { opacity: 0.72; }
+        button:active:not(:disabled) { transform: scale(0.97); opacity: 0.78; }
+        /* Shared pressable pattern for Link-cards and non-button interactives */
+        .pwa-pressable {
+          -webkit-tap-highlight-color: transparent;
+          transition: transform 130ms ease, opacity 130ms ease, background-color 150ms ease;
+        }
+        .pwa-pressable:active {
+          transform: scale(0.97);
+          opacity: 0.82;
+        }
         .pwa-nav-item:active > div {
           opacity: 0.65;
           transform: scale(0.91);
         }
         @media (prefers-reduced-motion: reduce) {
-          button:active:not(:disabled) { opacity: 0.72; transform: none !important; }
-          .pwa-nav-item:active > div { transform: none !important; }
+          button:active:not(:disabled) { transform: none !important; opacity: 0.78 !important; }
+          .pwa-pressable { transition: none !important; }
+          .pwa-pressable:active { transform: none !important; opacity: 0.82 !important; }
+          .pwa-nav-item:active > div { transform: none !important; opacity: 0.65 !important; }
         }
       `}</style>
       {!preview.enabled && (

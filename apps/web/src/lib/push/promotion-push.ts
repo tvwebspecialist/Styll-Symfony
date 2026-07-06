@@ -64,12 +64,13 @@ export async function sendPromotionPush(
     byProfile.set(sub.profile_id, arr)
   }
 
+  const promoUrl = `/tenant/app/${slug}/offerte/${promotionId}`
   const payload = {
     title: 'Nuova offerta per te 🎉',
     body:   (promo as any).title as string,
     icon,
     badge: '/icon-192.png',
-    url:   `/offerte/${promotionId}`,
+    url:   promoUrl,
     tag:   `promotion-${promotionId}`,
   }
 
@@ -91,6 +92,16 @@ export async function sendPromotionPush(
           appointment_id: null,
           promotion_id:   promotionId,
         })
+      const { error: notifErr } = await db.from('notifications').insert({
+        tenant_id: tenantId,
+        profile_id: profileId,
+        type: 'promotion_published',
+        title: payload.title,
+        body: payload.body,
+        is_read: false,
+        meta: { url: promoUrl, promotion_id: promotionId },
+      })
+      if (notifErr) console.error('[promotion-push] notifications insert failed:', notifErr.message)
     }
   }
 

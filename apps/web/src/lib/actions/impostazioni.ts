@@ -1,8 +1,9 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
+import { resolveActiveProfile } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,14 +50,15 @@ export interface ImpostazioniData {
 // ─── getImpostazioniData ──────────────────────────────────────────────────────
 
 export async function getImpostazioniData(): Promise<ImpostazioniData> {
-  const ctx = await resolveActiveProfile()
-  if (!ctx) return { profile: null, tenant: null, locations: [], subscription: null }
+  const profileCtx = await resolveActiveProfile()
+  if (!profileCtx) return { profile: null, tenant: null, locations: [], subscription: null }
 
-  const tenantId = await getActiveTenantId()
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const [profileRes, tenantRes, locationsRes, subscriptionRes] = await Promise.all([
-    db.from('profiles').select('id, full_name, email, avatar_url, phone').eq('id', ctx.profileId).maybeSingle(),
+    db.from('profiles').select('id, full_name, email, avatar_url, phone').eq('id', profileCtx.profileId).maybeSingle(),
     tenantId
       ? db.from('tenants').select('id, business_name, slug, primary_color, logo_url').eq('id', tenantId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -121,13 +123,14 @@ export async function updateProfile(data: {
   fullName?: string
   phone?: string
 }): Promise<{ success: boolean; error?: string }> {
-  const ctx = await resolveActiveProfile()
-  if (!ctx) return { success: false, error: 'Non autenticato' }
-  const db = createAdminClient()
+  const profileCtx = await resolveActiveProfile()
+  if (!profileCtx) return { success: false, error: 'Non autenticato' }
+  const ctx = await requireOwnerManagerTenantContext()
+  const db = ctx.db
   const { error } = await db
     .from('profiles')
     .update({ full_name: data.fullName ?? null, phone: data.phone ?? null, updated_at: new Date().toISOString() })
-    .eq('id', ctx.profileId)
+    .eq('id', profileCtx.profileId)
   if (error) return { success: false, error: error.message }
   revalidatePath('/dashboard/impostazioni')
   return { success: true }
@@ -140,9 +143,9 @@ export async function updateTenant(data: {
   primaryColor?: string | null
   logoUrl?: string | null
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const updates: TablesUpdate<'tenants'> = { updated_at: new Date().toISOString() }
   if (data.businessName !== undefined) updates.business_name = data.businessName
   if (data.primaryColor !== undefined) updates.primary_color = data.primaryColor
@@ -163,9 +166,9 @@ export async function upsertLocation(data: {
   isActive?: boolean
   photos?: string[]
 }): Promise<{ success: boolean; id?: string; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const now = new Date().toISOString()
   if (data.id) {
     const { error } = await db
@@ -207,9 +210,9 @@ export async function upsertLocation(data: {
 // ─── deleteLocation ───────────────────────────────────────────────────────────
 
 export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const { error } = await db.from('locations').delete().eq('id', id).eq('tenant_id', tenantId)
   if (error) return { success: false, error: error.message }
   revalidatePath('/dashboard/impostazioni')

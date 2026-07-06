@@ -56,7 +56,7 @@ function SettingRow({
   href?: string
   danger?: boolean
 }) {
-  const cls = `flex items-center gap-3 px-4 py-3.5 w-full text-left active:bg-neutral-50 transition-colors`
+  const cls = `pwa-pressable flex items-center gap-3 px-4 py-3.5 w-full text-left active:bg-neutral-100`
 
   const content = (
     <>

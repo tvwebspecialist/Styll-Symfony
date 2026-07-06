@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 function startOfDay(d: Date): Date {
   const x = new Date(d)
@@ -44,12 +44,8 @@ export interface RiepilogoData {
 }
 
 export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   const now = new Date()
   const todayStart = startOfDay(now).toISOString()
   const todayEnd = endOfDay(now).toISOString()
@@ -192,12 +188,8 @@ export async function getAppuntamentiVendite(
   tenantId: string,
   filters: AppuntamentiFilters = {},
 ): Promise<AppuntamentoVendita[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   let q = db
     .from('appointments')
     .select(
@@ -274,12 +266,8 @@ export async function getProdottiVenduti(
   tenantId: string,
   filters: ProdottiFilters = {},
 ): Promise<ProdottoVenduto[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   const now = new Date()
   const fromIso = filters.dateFrom
     ? startOfDay(new Date(filters.dateFrom)).toISOString()
@@ -378,12 +366,8 @@ export async function getPagamenti(
   tenantId: string,
   filters: PagamentiFilters = {},
 ): Promise<PagamentiResult> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   let q = db
     .from('payments')
     .select('id, paid_at, amount, payment_method, status, client:clients(full_name)')
