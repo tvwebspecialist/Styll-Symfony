@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { MarketingTabs } from '@/components/dashboard/marketing/MarketingTabs'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export default async function MarketingPage() {
 
   const tenantId = await getActiveTenantId()
   if (!tenantId) redirect('/onboarding/step-1')
+  await requireOwnerManagerTenantContext(tenantId)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

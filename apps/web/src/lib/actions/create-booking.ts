@@ -550,6 +550,16 @@ async function sendBookingConfirmedNotification(params: {
         { tenant_id: params.tenantId, profile_id: profileId, appointment_id: params.appointmentId, type: 'booking_confirmed' },
         { onConflict: 'appointment_id,type' }
       )
+      const { error: notifErr } = await db.from('notifications').insert({
+        tenant_id: params.tenantId,
+        profile_id: profileId,
+        type: 'booking_confirmed',
+        title: '✅ Prenotazione confermata!',
+        body: `${date} alle ${time} da ${businessName}`,
+        is_read: false,
+        meta: { url: successRelativePath, appointment_id: params.appointmentId },
+      })
+      if (notifErr) console.error('[booking-confirmed] notifications insert failed:', notifErr.message)
     }
   } else if (channel === 'email' && clientEmail) {
     await sendTemplatedEmail({

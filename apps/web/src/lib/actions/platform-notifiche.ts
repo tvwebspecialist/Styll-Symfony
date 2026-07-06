@@ -1,6 +1,5 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 export interface PlatformNotifRow {
@@ -21,13 +20,19 @@ async function requireSuperadmin(): Promise<string> {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthenticated')
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_superadmin')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (!profile?.is_superadmin) throw new Error('Forbidden')
   return user.id
 }
 
 export async function getPlatformNotifications(): Promise<PlatformNotifRow[]> {
   await requireSuperadmin()
-  const db = createAdminClient()
-  const { data } = await db
+  const supabase = await createClient()
+  const { data } = await supabase
     .from('platform_notifications')
     .select('id, type, title, body, tenant_id, related_profile_id, meta, is_read, created_at')
     .order('created_at', { ascending: false })
@@ -37,8 +42,8 @@ export async function getPlatformNotifications(): Promise<PlatformNotifRow[]> {
 
 export async function getPlatformUnreadCount(): Promise<number> {
   await requireSuperadmin()
-  const db = createAdminClient()
-  const { count } = await db
+  const supabase = await createClient()
+  const { count } = await supabase
     .from('platform_notifications')
     .select('id', { count: 'exact', head: true })
     .eq('is_read', false)
@@ -47,8 +52,8 @@ export async function getPlatformUnreadCount(): Promise<number> {
 
 export async function markPlatformNotificationRead(id: string): Promise<{ ok: boolean }> {
   await requireSuperadmin()
-  const db = createAdminClient()
-  const { error } = await db
+  const supabase = await createClient()
+  const { error } = await supabase
     .from('platform_notifications')
     .update({ is_read: true })
     .eq('id', id)
@@ -57,8 +62,8 @@ export async function markPlatformNotificationRead(id: string): Promise<{ ok: bo
 
 export async function markAllPlatformNotificationsRead(): Promise<{ ok: boolean }> {
   await requireSuperadmin()
-  const db = createAdminClient()
-  const { error } = await db
+  const supabase = await createClient()
+  const { error } = await supabase
     .from('platform_notifications')
     .update({ is_read: true })
     .eq('is_read', false)

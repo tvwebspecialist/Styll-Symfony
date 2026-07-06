@@ -170,8 +170,22 @@ async function processReminderWindow(
     if (channel === 'push' && profileId) {
       const subs = await getSubscriptionsForProfile(appt.tenant_id, profileId)
       if (subs.length > 0) {
-        const sent = await sendPushToSubscriptions(subs, buildPushPayload(type, businessName, appt.start_time, url))
-        if (sent > 0) { pushSent++; notifSent = true }
+        const pushPayload = buildPushPayload(type, businessName, appt.start_time, url)
+        const sent = await sendPushToSubscriptions(subs, pushPayload)
+        if (sent > 0) {
+          pushSent++
+          notifSent = true
+          const { error: notifErr } = await db.from('notifications').insert({
+            tenant_id: appt.tenant_id,
+            profile_id: profileId,
+            type,
+            title: pushPayload.title,
+            body: pushPayload.body ?? null,
+            is_read: false,
+            meta: { url, appointment_id: appt.id },
+          })
+          if (notifErr) console.error('[cron/reminders] notifications insert failed:', notifErr.message)
+        }
       }
     } else if (channel === 'email' && clientEmail) {
       const date = new Date(appt.start_time).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })

@@ -1,8 +1,8 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,10 +58,9 @@ export async function getCatalogoData(): Promise<{
   tenantId: string | null
   inventoryByProduct: Record<string, InventoryEntry[]>
 }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { servizi: [], prodotti: [], locations: [], dbCategories: [], tenantId: null, inventoryByProduct: {} }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const [serviziRes, prodottiRes, inventoryRes, locationsRes] = await Promise.all([
     db
@@ -163,10 +162,9 @@ export async function upsertServizio(data: {
   color?: string | null
   is_active: boolean
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const now = new Date().toISOString()
 
   if (data.id) {
@@ -218,10 +216,9 @@ export async function upsertServizio(data: {
 // ─── deleteServizio ───────────────────────────────────────────────────────────
 
 export async function deleteServizio(id: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const { error } = await db
     .from('services')
     .delete()
@@ -236,10 +233,9 @@ export async function deleteServizio(id: string): Promise<{ success: boolean; er
 // ─── reorderServizi ───────────────────────────────────────────────────────────
 
 export async function reorderServizi(ids: string[]): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const updates = ids.map((id, index) =>
     db
       .from('services')
@@ -273,10 +269,9 @@ export async function upsertProdotto(
   },
   inventoryEntries: InventoryEntry[]
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const now = new Date().toISOString()
   let productId = data.id
 
@@ -370,9 +365,9 @@ export async function bulkUpdateCategory(
   newName: string,
   color: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const trimmed = newName.trim() || oldName
   const { error } = await db
     .from('services')
@@ -390,9 +385,9 @@ export async function bulkUpdateCategory(
 export async function deleteCategory(
   name: string
 ): Promise<{ success: boolean; error?: string; serviceCount?: number }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   // Count services using this category
   const { count } = await db
     .from('services')
@@ -411,10 +406,9 @@ export async function deleteCategory(
 // ─── deleteProdotto ───────────────────────────────────────────────────────────
 
 export async function deleteProdotto(id: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   // Delete inventory first (cascade may not exist)
   await db.from('product_inventory').delete().eq('product_id', id).eq('tenant_id', tenantId)

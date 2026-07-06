@@ -72,6 +72,7 @@ export default async function OffertePage({ params }: Props) {
               <Link
                 key={offer.id}
                 href={tp(`/offerte/${offer.id}`)}
+                className="pwa-pressable"
                 style={{
                   display: 'block',
                   width: '100%',

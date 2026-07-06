@@ -133,6 +133,7 @@ function BookingCTACard({
       {/* CTA */}
       <Link
         href={bookingHref}
+        className="pwa-pressable"
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: '100%', minHeight: 52, borderRadius: 999, marginTop: 20,
@@ -295,6 +296,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               <Link
                 key={offer.id}
                 href={tp(`/offerte/${offer.id}`)}
+                className="pwa-pressable"
                 style={
                   {
                     display: 'block',
@@ -594,6 +596,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
                   <Link
                     key={service.id}
                     href={tp('/prenota')}
+                    className="pwa-pressable"
                     style={{
                       display: 'block',
                       flexShrink: 0,
@@ -679,6 +682,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               {/* CTA */}
               <Link
                 href={tp('/profilo')}
+                className="pwa-pressable"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -863,6 +867,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               {/* Arrow button */}
               <Link
                 href={tp('/appuntamenti')}
+                className="pwa-pressable"
                 style={{
                   width: 36,
                   height: 36,

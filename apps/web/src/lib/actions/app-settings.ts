@@ -1,8 +1,8 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,10 +67,9 @@ async function revalidateTenantApp(db: ReturnType<typeof createAdminClient>, ten
 // ─── getAppSettings ───────────────────────────────────────────────────────────
 
 export async function getAppSettings(): Promise<AppSettings | null> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return null
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const { data } = await db
     .from('tenants')
     .select('business_name, primary_color, secondary_color, splash_color, font_family, logo_url, settings, slug')
@@ -114,10 +113,9 @@ export async function getAppSettings(): Promise<AppSettings | null> {
 export async function updateAppSettings(
   settings: Partial<Omit<AppSettings, 'slug'>>,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const updates: TablesUpdate<'tenants'> = { updated_at: new Date().toISOString() }
 
   if (settings.businessName !== undefined) updates.business_name = settings.businessName
@@ -176,8 +174,8 @@ export async function updateAppSettings(
 export async function uploadTenantLogo(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -190,7 +188,7 @@ export async function uploadTenantLogo(
     return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP, SVG)' }
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
   const extByType: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -283,10 +281,9 @@ export interface WebsiteData {
 }
 
 export async function getWebsiteData(): Promise<WebsiteData> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { photos: [], staff: [], locations: [], services: [], products: [] }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const [{ data: photos }, { data: staffRows }, { data: locRows }, { data: svcRows }, { data: productRows }, { data: inventoryRows }] = await Promise.all([
     db.from('website_photos').select('id, url, sort_order').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
@@ -377,10 +374,9 @@ export async function updateShowOnWebsite(
   id: string,
   value: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const query =
     table === 'staff_members'
@@ -404,10 +400,9 @@ export async function updateProductShowOnSite(
   id: string,
   value: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { error } = await db
     .from('products')
@@ -424,8 +419,8 @@ export async function updateProductShowOnSite(
 export async function uploadAboutImage(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -438,7 +433,7 @@ export async function uploadAboutImage(
     return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP)' }
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
   const extByType: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -461,8 +456,8 @@ export async function uploadAboutImage(
 export async function uploadWebsitePhoto(
   formData: FormData,
 ): Promise<{ ok: boolean; photo?: WebsitePhoto; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -475,7 +470,7 @@ export async function uploadWebsitePhoto(
     return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP)' }
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
   const extByType: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -528,10 +523,9 @@ export async function uploadWebsitePhoto(
 export async function deleteWebsitePhoto(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const { error } = await db
     .from('website_photos')
     .delete()
@@ -547,10 +541,9 @@ export async function deleteWebsitePhoto(
 export async function reorderWebsitePhotos(
   orderedIds: string[],
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const results = await Promise.all(
     orderedIds.map((photoId, index) =>
       db.from('website_photos').update({ sort_order: index }).eq('id', photoId).eq('tenant_id', tenantId),
@@ -569,8 +562,8 @@ export async function reorderWebsitePhotos(
 export async function uploadHeroImage(
   formData: FormData,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
 
   const file = formData.get('file') as File | null
   if (!file) return { ok: false, error: 'Nessun file' }
@@ -583,7 +576,7 @@ export async function uploadHeroImage(
     return { ok: false, error: 'Formato non supportato (PNG, JPG, WebP)' }
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
   const extByType: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
@@ -629,10 +622,9 @@ export async function uploadHeroImage(
 // ─── clearHeroImage ───────────────────────────────────────────────────────────
 
 export async function clearHeroImage(): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: current, error: fetchError } = await db
     .from('tenants')
@@ -663,10 +655,9 @@ export async function updateHeroContent(
   tagline: string | null,
   description: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: current, error: fetchError } = await db
     .from('tenants')
@@ -700,10 +691,9 @@ export async function updateHeroContent(
 export async function saveSiteContent(
   content: SiteContent,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: current, error: fetchError } = await db
     .from('tenants')
@@ -752,10 +742,9 @@ export async function saveSiteContent(
 export async function updateTeamDescription(
   description: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { ok: false, error: 'Tenant non trovato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: current, error: fetchError } = await db
     .from('tenants')

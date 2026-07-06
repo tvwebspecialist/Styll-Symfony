@@ -1,8 +1,8 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
 import { MARKETING } from '@/lib/constants'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 export interface RetentionClient {
   id:             string
@@ -21,10 +21,7 @@ export interface RetentionData {
 const EMPTY: RetentionData = { rischio: [], winback: [], persi: [] }
 
 export async function getRetentionData(tenantId: string): Promise<RetentionData> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
+  await requireOwnerManagerTenantContext(tenantId)
 
   try {
     const db = createAdminClient()
@@ -173,10 +170,7 @@ export interface SegmentCounts {
 }
 
 export async function getSegmentCounts(tenantId: string): Promise<SegmentCounts> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
+  await requireOwnerManagerTenantContext(tenantId)
 
   try {
     const db = createAdminClient()
@@ -260,8 +254,7 @@ export async function getMessagesData(
   tenantId: string,
   days: number = 30,
 ): Promise<MessagesData> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) return EMPTY_MESSAGES
+  await requireOwnerManagerTenantContext(tenantId)
 
   try {
     const db = createAdminClient()
@@ -311,10 +304,9 @@ export async function toggleAutomation(
   type: string,
   enabled: boolean,
 ): Promise<{ success: boolean }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
   const { error } = await db
     .from('message_automations')
     .upsert(
@@ -346,6 +338,7 @@ export interface Promozione {
 }
 
 export async function getPromozioni(_tenantId: string): Promise<Promozione[]> {
+  await requireOwnerManagerTenantContext(_tenantId)
   // TABELLA NON TROVATA: promotions/offers/discounts/promo_codes — verifica DATABASE.md
   return []
 }
@@ -380,6 +373,7 @@ const EMPTY_REPUTAZIONE: ReputazioneData = {
 }
 
 export async function getReputazioneData(_tenantId: string): Promise<ReputazioneData> {
+  await requireOwnerManagerTenantContext(_tenantId)
   // TABELLA NON TROVATA: reviews — verifica DATABASE.md
   return EMPTY_REPUTAZIONE
 }
