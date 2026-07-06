@@ -308,6 +308,7 @@ function TopBarInner({
     'appuntamenti': { title: 'Appuntamenti', backTo: tenantPath('/profilo') },
     'preferiti': { title: 'Preferiti', backTo: tenantPath('/profilo') },
     'offerte': { title: 'Offerte', backTo: tenantPath('/') },
+    'privacy': { title: 'Privacy Policy', backTo: tenantPath('/profilo') },
   }
   const PROFILO_SUB_PAGES: Record<string, { title: string; backTo: string }> = {
     'modifica': { title: 'Modifica profilo', backTo: tenantPath('/profilo') },

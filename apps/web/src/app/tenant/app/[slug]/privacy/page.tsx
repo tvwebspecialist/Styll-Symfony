@@ -1,9 +1,6 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantBySlug } from '@/lib/tenant'
-import { createTenantPaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -49,25 +46,13 @@ export default async function PrivacyPage({ params }: Props) {
   const tenant = await getTenantBySlug(slug)
   if (!tenant || tenant.status !== 'active') notFound()
 
-  const tp = await createTenantPaths(slug)
   const ownerEmail = await getOwnerEmail(tenant.tenant_id)
 
   const contactEmail = ownerEmail ?? 'privacy@styll.it'
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+    <main className="min-h-screen bg-white pb-24">
       <div className="mx-auto max-w-xl px-4 pt-4">
-
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link
-            href={tp('/profilo/preferenze')}
-            className="flex items-center justify-center size-9 rounded-full bg-white shadow-sm border border-neutral-100 text-neutral-700"
-          >
-            <ChevronLeft className="size-5" />
-          </Link>
-          <h1 className="text-xl font-extrabold text-neutral-900">Privacy Policy</h1>
-        </div>
 
         <div className="rounded-[20px] bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] border border-neutral-100 p-5">
 

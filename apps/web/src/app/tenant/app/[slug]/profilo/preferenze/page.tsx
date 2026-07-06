@@ -34,7 +34,7 @@ export default async function PreferenzePage({ params }: Props) {
     clientRes.data?.churn_profiling_objected_at !== undefined
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+    <main className="min-h-screen bg-white pb-24">
       <div className="mx-auto max-w-xl">
         <PreferenzeClient
           tenantId={tenant.tenant_id}
