@@ -91,8 +91,8 @@ export async function generateMetadata({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      title: 'App cliente | Styll',
-      description: 'Prenota i tuoi appuntamenti con Styll.',
+      title: 'App del salone non disponibile',
+      description: 'Apri l’app del tuo salone per prenotare e gestire il tuo profilo.',
     }
   }
 

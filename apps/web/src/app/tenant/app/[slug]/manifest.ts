@@ -33,8 +33,8 @@ export default async function manifest(
     const defaultIconBase = `${baseUrl}/api/pwa-icon?slug=default&v=0`
 
     return {
-      name: 'Styll',
-      short_name: 'Styll',
+      name: 'App del salone',
+      short_name: 'App',
       theme_color: '#1a1a1a',
       background_color: '#1a1a1a',
       display: 'standalone',

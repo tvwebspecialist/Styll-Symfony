@@ -6,3 +6,7 @@ node_modules/
 .turbo/
 playwright-report/
 test-results/
+apps/web/.next/
+apps/web/.next-*/
+apps/web/test-results/
+apps/web/playwright-report/

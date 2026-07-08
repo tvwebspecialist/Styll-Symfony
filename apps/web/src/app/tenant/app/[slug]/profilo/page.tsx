@@ -204,7 +204,7 @@ export default async function ProfiloPage({ params }: Props) {
           />
 
           {/* Version footer */}
-          <p className="text-center text-[11px] text-neutral-300 pb-2 mt-1">Styll v1.0</p>
+          <p className="text-center text-[11px] text-neutral-300 pb-2 mt-1">Versione app 1.0</p>
 
         </div>
       </div>

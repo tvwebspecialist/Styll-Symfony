@@ -2,21 +2,39 @@ import type { MetadataRoute } from 'next'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'
+const SITEMAP_TENANT_TIMEOUT_MS = 3000
 
-async function getActiveTenantSlugs(): Promise<{ slug: string; updated_at: string }[]> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 3000),
-  )
-  const query = createAdminClient()
-    .from('tenants')
-    .select('slug, updated_at')
-    .eq('status', 'active')
-    .order('updated_at', { ascending: false })
+type TenantSlugRow = {
+  slug: string
+  updated_at: string | null
+}
 
-  const result = await Promise.race([query, timeout])
-  const { data, error } = result as Awaited<typeof query>
-  if (error || !data) return []
-  return data as { slug: string; updated_at: string }[]
+function isAbortLikeError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+async function getActiveTenantSlugs(): Promise<TenantSlugRow[]> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), SITEMAP_TENANT_TIMEOUT_MS)
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from('tenants')
+      .select('slug, updated_at')
+      .eq('status', 'active')
+      .abortSignal(controller.signal)
+
+    if (error || !data) return []
+
+    return (data as TenantSlugRow[])
+      .filter((tenant) => tenant.slug)
+      .sort((left, right) => left.slug.localeCompare(right.slug, 'en'))
+  } catch (error) {
+    if (isAbortLikeError(error)) return []
+    return []
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

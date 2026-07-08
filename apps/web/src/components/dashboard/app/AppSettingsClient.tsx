@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import { ImagePlus, Loader2, Globe, Smartphone } from 'lucide-react'
 import { updateAppSettings, uploadTenantLogo } from '@/lib/actions/app-settings'
 import type { AppSettings, WebsiteData } from '@/lib/actions/app-settings'
+import {
+  buildAppPublicUrls,
+  readRuntimeLocation,
+  type AppRuntimeLocation,
+} from '@/lib/app-public-urls'
 import { PWA_PREVIEW_PARAMS } from '@/lib/pwa-preview'
 import { WebsiteTabClient } from './WebsiteTabClient'
 
@@ -24,8 +29,6 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   playfair: 'Playfair+Display:wght@400;600;700;800',
   montserrat: 'Montserrat:wght@400;500;600;700;800',
 }
-
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 
 function getFontFamily(value: string | null): string {
   if (!value) return 'system-ui, sans-serif'
@@ -106,49 +109,6 @@ function SplashMiniPreview({ bgColor, logoUrl, businessName }: { bgColor: string
   )
 }
 
-function readRuntimeLocation() {
-  if (typeof window === 'undefined') return null
-
-  return {
-    protocol: window.location.protocol,
-    hostname: window.location.hostname,
-    port: window.location.port,
-  }
-}
-
-function buildAppPublicUrls(
-  slug: string,
-  runtimeLocation: ReturnType<typeof readRuntimeLocation>,
-  previewParams?: URLSearchParams,
-): { hostLabel: string; appUrl: string; previewUrl: string } {
-  if (runtimeLocation && (
-    runtimeLocation.hostname === 'localhost'
-    || runtimeLocation.hostname.endsWith('.localhost')
-  )) {
-    const portSuffix = runtimeLocation.port ? `:${runtimeLocation.port}` : ''
-    const baseUrl = `${runtimeLocation.protocol}//localhost${portSuffix}`
-    const appUrl = `${baseUrl}/?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app`
-    const previewSearch = new URLSearchParams(previewParams)
-    previewSearch.set('_tenant_slug', slug)
-    previewSearch.set('_tenant_type', 'app')
-
-    return {
-      hostLabel: `localhost${portSuffix} · ${slug} app`,
-      appUrl,
-      previewUrl: `${baseUrl}/?${previewSearch.toString()}`,
-    }
-  }
-
-  const baseUrl = `https://${slug}-app.${ROOT_DOMAIN}`
-  return {
-    hostLabel: `${slug}-app.${ROOT_DOMAIN}`,
-    appUrl: baseUrl,
-    previewUrl: previewParams?.toString()
-      ? `${baseUrl}/?${previewParams.toString()}`
-      : `${baseUrl}/`,
-  }
-}
-
 function readPhonePreviewScale(): number {
   if (typeof window === 'undefined') return 1
 
@@ -170,15 +130,14 @@ function PhonePreview({
   appUrl: string | null
 }) {
   const [loadedPreviewUrl, setLoadedPreviewUrl] = React.useState<string | null>(null)
-  const [mockupScale, setMockupScale] = React.useState(
-    typeof window !== 'undefined' ? readPhonePreviewScale() : 1,
-  )
+  const [mockupScale, setMockupScale] = React.useState(1)
   const isPreviewLoading = Boolean(previewUrl && loadedPreviewUrl !== previewUrl)
   const scaledFrameWidth = 430 * mockupScale
   const scaledFrameHeight = 900 * mockupScale
 
   React.useEffect(() => {
     const handleResize = () => setMockupScale(readPhonePreviewScale())
+    handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -378,9 +337,11 @@ function PhonePreview({
 export function AppSettingsClient({
   initialSettings,
   initialWebsiteData,
+  initialRuntimeLocation,
 }: {
   initialSettings: AppSettings | null
   initialWebsiteData: WebsiteData
+  initialRuntimeLocation: AppRuntimeLocation | null
 }) {
   const [activeTab, setActiveTab] = React.useState<'app' | 'website'>('app')
   const [businessName, setBusinessName] = React.useState(initialSettings?.businessName ?? '')
@@ -390,18 +351,35 @@ export function AppSettingsClient({
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
   const [saving, setSaving] = React.useState(false)
-  const [isMobile, setIsMobile] = React.useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
-  )
-  const [runtimeLocation] = React.useState<ReturnType<typeof readRuntimeLocation>>(
-    () => readRuntimeLocation(),
+  const [isMobile, setIsMobile] = React.useState(false)
+  const [runtimeLocation, setRuntimeLocation] = React.useState<AppRuntimeLocation | null>(
+    initialRuntimeLocation,
   )
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mql.matches)
     const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
     mql.addEventListener('change', h)
     return () => mql.removeEventListener('change', h)
+  }, [])
+
+  React.useEffect(() => {
+    const nextRuntimeLocation = readRuntimeLocation()
+    if (!nextRuntimeLocation) return
+
+    setRuntimeLocation((currentRuntimeLocation) => {
+      if (
+        currentRuntimeLocation &&
+        currentRuntimeLocation.protocol === nextRuntimeLocation.protocol &&
+        currentRuntimeLocation.hostname === nextRuntimeLocation.hostname &&
+        currentRuntimeLocation.port === nextRuntimeLocation.port
+      ) {
+        return currentRuntimeLocation
+      }
+
+      return nextRuntimeLocation
+    })
   }, [])
 
   React.useEffect(() => {
@@ -480,8 +458,7 @@ export function AppSettingsClient({
     ? buildAppPublicUrls(tenantSlug, runtimeLocation, previewSearchParams)
     : null
 
-  const appHost = publicAppUrls?.hostLabel
-    ?? (tenantSlug ? `${tenantSlug}-app.${ROOT_DOMAIN}` : 'App non configurata')
+  const appHost = publicAppUrls?.hostLabel ?? (tenantSlug ? 'App in configurazione' : 'App non configurata')
   const appUrl = publicAppUrls?.appUrl ?? null
   const appPreviewUrl = publicAppUrls?.previewUrl ?? null
 

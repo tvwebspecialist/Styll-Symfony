@@ -322,7 +322,7 @@ export function RegisterForm({ intent = null }: { intent?: string | null }) {
             type="button"
             onClick={() => setShowPw((v) => !v)}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 hover:bg-[color:var(--color-bg-secondary)]"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 styll-hover-color-bg-secondary"
             style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

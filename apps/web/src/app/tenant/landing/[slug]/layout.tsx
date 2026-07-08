@@ -30,7 +30,7 @@ export async function generateMetadata({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      title: 'Barbiere non trovato',
+      title: 'Salone non trovato',
       robots: { index: false },
     }
   }

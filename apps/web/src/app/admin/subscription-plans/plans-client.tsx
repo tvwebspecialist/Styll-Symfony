@@ -410,7 +410,7 @@ export function PlansClient({
                   <button
                     type="button"
                     onClick={() => openEdit(p)}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[var(--admin-hover-bg)]"
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors styll-hover-admin-hover-bg"
                     style={{ color: accent }}
                   >
                     Modifica

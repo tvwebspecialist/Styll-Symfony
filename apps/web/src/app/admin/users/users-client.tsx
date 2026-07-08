@@ -340,7 +340,7 @@ export function UsersClient({
             e.stopPropagation()
             openTenantsFor(r)
           }}
-          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors hover:bg-[var(--admin-hover-bg)]"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors styll-hover-admin-hover-bg"
           style={{ background: 'var(--admin-surface-2)', color: 'var(--admin-text-muted)' }}
         >
           <UsersIcon className="h-3 w-3" />

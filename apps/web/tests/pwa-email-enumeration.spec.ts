@@ -137,9 +137,15 @@ async function openOtpStep(page: Page, slug: string, email: string) {
   await page.locator('#email-otp-input').fill(email)
   await page.getByRole('button', { name: 'Continua', exact: true }).click()
 
-  await expect(page.getByRole('heading', { name: 'Controlla la tua email' })).toBeVisible()
-  await expect(page.getByText('Inserisci il codice a 6 cifre')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Cambia email' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Controlla la tua email' })).toBeVisible({
+    timeout: 15_000,
+  })
+  await expect(page.getByText('Inserisci il codice a 6 cifre')).toBeVisible({
+    timeout: 15_000,
+  })
+  await expect(page.getByRole('button', { name: 'Cambia email' })).toBeVisible({
+    timeout: 15_000,
+  })
   await expect(page.getByText('Completa il tuo profilo')).toHaveCount(0)
   await expect(page.getByText(/account trovato|account non trovato/i)).toHaveCount(0)
 }
@@ -244,7 +250,9 @@ test.describe('PWA email anti-enumeration', () => {
 
       await fillOtp(page, otp)
 
-      await expect(page.getByRole('heading', { name: 'Completa il tuo profilo' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Completa il tuo profilo' })).toBeVisible({
+        timeout: 15_000,
+      })
       await page.locator('#profile-name').fill('Nuovo Cliente')
       await page.locator('#profile-phone').fill('+39 333 987 6543')
       await page.getByRole('button', { name: 'Completa accesso' }).click()

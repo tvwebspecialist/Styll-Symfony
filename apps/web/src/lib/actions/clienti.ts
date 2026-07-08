@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import {
+  DEFAULT_CLIENTI_PAGE_SIZE,
+  MAX_CLIENTI_PAGE_SIZE,
+} from '@/lib/clienti-list'
+import type { ClientiCounts, ClientiFilter } from '@/lib/clienti-list'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { MANAGER_ROLES } from '@/lib/constants'
 import type { Json, TablesUpdate } from '@/types'
@@ -56,10 +61,9 @@ interface ClientRow {
   tags: unknown
 }
 
-interface AppointmentRow {
+interface ClientListAppointmentRow {
   id: string
-  client_id: string | null
-  status: string | null
+  client_id: string
   start_time: string
 }
 
@@ -78,6 +82,19 @@ interface ProductRow {
   appointment_id: string
   price_at_sale: number | null
   quantity: number | null
+}
+
+interface ClientAnalyticsListRow {
+  client_id: string
+  churn_status: string | null
+  days_since_last_visit: number | null
+  avg_frequency_days: number | null
+  last_visit_date: string | null
+  total_visits: number
+}
+
+interface ClientListQueryRow extends ClientRow {
+  client_analytics?: ClientAnalyticsListRow | null
 }
 
 type StaffRole = 'owner' | 'manager' | 'staff' | 'receptionist'
@@ -272,98 +289,286 @@ function redactClienteDettaglioForReceptionist(
   }
 }
 
+export interface GetClientiOptions {
+  page?: number | string | null
+  pageSize?: number | string | null
+  query?: string | null
+  filter?: string | ClientiFilter | null
+}
 
-export async function getClienti(): Promise<{
+export interface GetClientiResult {
   clienti: ClienteRow[]
   tenantId: string | null
-}> {
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+  query: string
+  filter: ClientiFilter
+  counts: ClientiCounts
+}
+
+const EMPTY_CLIENTI_COUNTS: ClientiCounts = {
+  all: 0,
+  active: 0,
+  warning: 0,
+  danger: 0,
+  inactive: 0,
+}
+
+const CLIENT_ANALYTICS_LIST_SELECT =
+  'client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits'
+
+const UI_TO_DB_CHURN: Record<Exclude<ClientiFilter, 'all' | 'inactive'>, Exclude<DbChurnStatus, 'unknown'>> = {
+  active: 'green',
+  warning: 'yellow',
+  danger: 'red',
+}
+
+function normalizePositiveInt(
+  value: number | string | null | undefined,
+  fallback: number,
+  max: number = Number.MAX_SAFE_INTEGER,
+): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback
+  return Math.min(Math.floor(parsed), max)
+}
+
+function normalizeClientiFilter(value: string | ClientiFilter | null | undefined): ClientiFilter {
+  switch (value) {
+    case 'active':
+    case 'warning':
+    case 'danger':
+    case 'inactive':
+    case 'all':
+      return value
+    default:
+      return 'all'
+  }
+}
+
+function normalizeClientiSearchQuery(value: string | null | undefined): string {
+  return value
+    ?.trim()
+    .replace(/[,%()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100) ?? ''
+}
+
+function buildClientSearchOrFilter(query: string): string | null {
+  if (!query) return null
+  return `full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`
+}
+
+async function countAccessibleClients(
+  ctx: ClientiActorContext,
+  churnStatus?: Exclude<DbChurnStatus, 'unknown'>,
+): Promise<number> {
+  const selectParts = ['id']
+  if (churnStatus) {
+    selectParts.push('client_analytics!inner(client_id)')
+  }
+  if (ctx.currentStaff.role === 'staff') {
+    selectParts.push('appointments!inner(id)')
+  }
+
+  let query = ctx.db
+    .from('clients')
+    .select(selectParts.join(', '), { count: 'exact', head: true })
+    .eq('tenant_id', ctx.tenantId)
+    .is('deleted_at', null)
+
+  if (ctx.currentStaff.role === 'staff') {
+    query = query
+      .eq('appointments.staff_id', ctx.currentStaff.id)
+      .eq('appointments.tenant_id', ctx.tenantId)
+      .is('appointments.deleted_at', null)
+  }
+
+  if (churnStatus) {
+    query = query.eq('client_analytics.churn_status', churnStatus)
+  }
+
+  const { count } = await query
+  return count ?? 0
+}
+
+
+export async function getClienti(options: GetClientiOptions = {}): Promise<GetClientiResult> {
+  const page = normalizePositiveInt(options.page, 1)
+  const pageSize = normalizePositiveInt(options.pageSize, DEFAULT_CLIENTI_PAGE_SIZE, MAX_CLIENTI_PAGE_SIZE)
+  const query = normalizeClientiSearchQuery(options.query)
+  const filter = normalizeClientiFilter(options.filter)
+
   const ctx = await getClientiActorContext()
-  if (!ctx) return { clienti: [], tenantId: null }
+  if (!ctx) {
+    return {
+      clienti: [],
+      tenantId: null,
+      page,
+      pageSize,
+      totalCount: 0,
+      totalPages: 1,
+      query,
+      filter,
+      counts: EMPTY_CLIENTI_COUNTS,
+    }
+  }
 
   const { tenantId, db } = ctx
-  const ownedClientIds =
-    ctx.currentStaff.role === 'staff'
-      ? await getStaffClientIds(db, tenantId, ctx.currentStaff.id)
-      : null
+  const counts: ClientiCounts = ctx.currentStaff.role === 'receptionist'
+    ? await countAccessibleClients(ctx).then((allCount) => ({
+        all: allCount,
+        active: 0,
+        warning: 0,
+        danger: 0,
+        inactive: allCount,
+      }))
+    : await Promise.all([
+        countAccessibleClients(ctx),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.active),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.warning),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.danger),
+      ]).then(([allCount, activeCount, warningCount, dangerCount]) => ({
+        all: allCount,
+        active: activeCount,
+        warning: warningCount,
+        danger: dangerCount,
+        inactive: Math.max(0, allCount - activeCount - warningCount - dangerCount),
+      }))
 
-  const [clientsRes, apptRes, loyaltyRes, analyticsRes] = await Promise.all([
-    ownedClientIds
-      ? ownedClientIds.size > 0
-        ? db
-            .from('clients')
-            .select('id, full_name, email, phone, tags')
-            .eq('tenant_id', tenantId)
-            .is('deleted_at', null)
-            .in('id', [...ownedClientIds])
-            .order('full_name', { ascending: true })
-        : Promise.resolve({ data: [] as ClientRow[] })
-      : db
-          .from('clients')
-          .select('id, full_name, email, phone, tags')
+  if (ctx.currentStaff.role === 'receptionist' && filter !== 'all' && filter !== 'inactive') {
+    return {
+      clienti: [],
+      tenantId,
+      page,
+      pageSize,
+      totalCount: 0,
+      totalPages: 1,
+      query,
+      filter,
+      counts,
+    }
+  }
+
+  const selectParts = ['id', 'full_name', 'email', 'phone', 'tags']
+  if (ctx.currentStaff.role !== 'receptionist') {
+    const analyticsRelation =
+      filter === 'active' || filter === 'warning' || filter === 'danger'
+        ? `client_analytics!inner(${CLIENT_ANALYTICS_LIST_SELECT})`
+        : `client_analytics(${CLIENT_ANALYTICS_LIST_SELECT})`
+    selectParts.push(analyticsRelation)
+    if (filter === 'inactive') {
+      selectParts.push('unknown_analytics:client_analytics()')
+      selectParts.push('any_analytics:client_analytics()')
+    }
+  }
+  if (ctx.currentStaff.role === 'staff') {
+    selectParts.push('appointments!inner(id)')
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const searchOr = buildClientSearchOrFilter(query)
+
+  let clientsQuery = db
+    .from('clients')
+    .select(selectParts.join(', '), { count: 'exact' })
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+
+  if (ctx.currentStaff.role === 'staff') {
+    clientsQuery = clientsQuery
+      .eq('appointments.staff_id', ctx.currentStaff.id)
+      .eq('appointments.tenant_id', tenantId)
+      .is('appointments.deleted_at', null)
+      .limit(1, { referencedTable: 'appointments' })
+  }
+
+  if (searchOr) {
+    clientsQuery = clientsQuery.or(searchOr)
+  }
+
+  if (ctx.currentStaff.role !== 'receptionist') {
+    if (filter === 'active' || filter === 'warning' || filter === 'danger') {
+      clientsQuery = clientsQuery.eq('client_analytics.churn_status', UI_TO_DB_CHURN[filter])
+    } else if (filter === 'inactive') {
+      // Use empty embed aliases so PostgREST can filter “unknown OR no analytics row”
+      // without collapsing the left join into a match-all predicate.
+      clientsQuery = clientsQuery
+        .eq('unknown_analytics.churn_status', 'unknown')
+        .or('unknown_analytics.not.is.null,any_analytics.is.null')
+    }
+  }
+
+  const { data: rawClients, count: totalCountFromQuery } = await clientsQuery
+    .order('full_name', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)
+
+  const totalCount = totalCountFromQuery ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const clients = (rawClients ?? []) as unknown as ClientListQueryRow[]
+
+  if (ctx.currentStaff.role === 'receptionist') {
+    return {
+      clienti: clients.map((client) =>
+        redactClienteRowForReceptionist({
+          id: client.id,
+          fullName: client.full_name,
+          email: client.email,
+          phone: client.phone,
+          churn: 'inactive',
+          lastVisit: null,
+          daysSinceLastVisit: null,
+          visitFrequencyDays: null,
+          totalVisits: 0,
+          loyaltyPoints: 0,
+          totalSpent: 0,
+          tags: parseTags(client.tags),
+        }),
+      ),
+      tenantId,
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+      query,
+      filter,
+      counts,
+    }
+  }
+
+  const analyticsMap = new Map<string, ClientAnalyticsListRow>()
+  for (const client of clients) {
+    if (client.client_analytics) {
+      analyticsMap.set(client.id, client.client_analytics)
+    }
+  }
+
+  const clientIds = clients.map((client) => client.id)
+  const [completedApptsRes, loyaltyRes] = await Promise.all([
+    clientIds.length > 0
+      ? db
+          .from('appointments')
+          .select('id, client_id, start_time')
           .eq('tenant_id', tenantId)
+          .eq('status', 'completed')
           .is('deleted_at', null)
-          .order('full_name', { ascending: true }),
-    db
-      .from('appointments')
-      .select('id, client_id, status, start_time')
-      .eq('tenant_id', tenantId)
-      .is('deleted_at', null)
-      .then((result) => ({
-        ...result,
-        data: ownedClientIds
-          ? (result.data ?? []).filter((row) => row.client_id && ownedClientIds.has(row.client_id))
-          : result.data,
-      })),
-    ctx.currentStaff.role === 'receptionist'
-      ? Promise.resolve({ data: [] as LoyaltyRow[] })
-      : db
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] as ClientListAppointmentRow[] }),
+    clientIds.length > 0
+      ? db
           .from('client_loyalty')
           .select('client_id, total_points, last_visit_date')
           .eq('tenant_id', tenantId)
-          .then((result) => ({
-            ...result,
-            data: ownedClientIds
-              ? (result.data ?? []).filter((row) => ownedClientIds.has(row.client_id))
-              : result.data,
-          })),
-    ctx.currentStaff.role === 'receptionist'
-      ? Promise.resolve({ data: [] as Array<{
-          client_id: string
-          churn_status: string | null
-          days_since_last_visit: number | null
-          avg_frequency_days: number | null
-          last_visit_date: string | null
-          total_visits: number
-        }> })
-      : db
-          .from('client_analytics')
-          .select('client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits')
-          .eq('tenant_id', tenantId)
-          .then((result) => ({
-            ...result,
-            data: ownedClientIds
-              ? (result.data ?? []).filter((row) => ownedClientIds.has(row.client_id))
-              : result.data,
-          })),
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] as LoyaltyRow[] }),
   ])
 
-  const clients = (clientsRes.data ?? []) as ClientRow[]
-  const appts = (apptRes.data ?? []) as AppointmentRow[]
-  const loyalty = (loyaltyRes.data ?? []) as LoyaltyRow[]
-
-  type AnalyticsRow = {
-    client_id: string
-    churn_status: string | null
-    days_since_last_visit: number | null
-    avg_frequency_days: number | null
-    last_visit_date: string | null
-    total_visits: number
-  }
-  const analyticsMap = new Map<string, AnalyticsRow>(
-    ((analyticsRes.data ?? []) as AnalyticsRow[]).map((a) => [a.client_id, a]),
-  )
-
-  const completedIds = appts.filter((a) => a.status === 'completed').map((a) => a.id)
+  const completedAppts = (completedApptsRes.data ?? []) as ClientListAppointmentRow[]
+  const completedIds = completedAppts.map((appointment) => appointment.id)
 
   const [servicesRes, productsRes] = await Promise.all([
     completedIds.length > 0
@@ -386,84 +591,86 @@ export async function getClienti(): Promise<{
   const products = (productsRes.data ?? []) as ProductRow[]
 
   const apptToClient = new Map<string, string>()
-  appts.forEach((a) => {
-    if (a.client_id) apptToClient.set(a.id, a.client_id)
+  completedAppts.forEach((appointment) => {
+    apptToClient.set(appointment.id, appointment.client_id)
   })
 
   const spentByClient = new Map<string, number>()
-  for (const s of services) {
-    const cid = apptToClient.get(s.appointment_id)
-    if (!cid) continue
-    spentByClient.set(cid, (spentByClient.get(cid) ?? 0) + Number(s.price_at_booking ?? 0))
+  for (const service of services) {
+    const clientId = apptToClient.get(service.appointment_id)
+    if (!clientId) continue
+    spentByClient.set(clientId, (spentByClient.get(clientId) ?? 0) + Number(service.price_at_booking ?? 0))
   }
-  for (const p of products) {
-    const cid = apptToClient.get(p.appointment_id)
-    if (!cid) continue
-    const v = Number(p.price_at_sale ?? 0) * Number(p.quantity ?? 1)
-    spentByClient.set(cid, (spentByClient.get(cid) ?? 0) + v)
+  for (const product of products) {
+    const clientId = apptToClient.get(product.appointment_id)
+    if (!clientId) continue
+    const value = Number(product.price_at_sale ?? 0) * Number(product.quantity ?? 1)
+    spentByClient.set(clientId, (spentByClient.get(clientId) ?? 0) + value)
   }
 
   const visitsByClient = new Map<string, Date[]>()
-  for (const a of appts) {
-    if (a.status !== 'completed' || !a.client_id) continue
-    const arr = visitsByClient.get(a.client_id) ?? []
-    arr.push(new Date(a.start_time))
-    visitsByClient.set(a.client_id, arr)
+  for (const appointment of completedAppts) {
+    const visits = visitsByClient.get(appointment.client_id) ?? []
+    visits.push(new Date(appointment.start_time))
+    visitsByClient.set(appointment.client_id, visits)
   }
 
   const loyaltyByClient = new Map<string, LoyaltyRow>()
-  loyalty.forEach((l) => loyaltyByClient.set(l.client_id, l))
+  ;(loyaltyRes.data ?? []).forEach((loyaltyRow) => {
+    loyaltyByClient.set(loyaltyRow.client_id, loyaltyRow as LoyaltyRow)
+  })
 
   const now = Date.now()
   const DAY = 86_400_000
 
-  const clienti: ClienteRow[] = clients.map((c) => {
-    const analytics = analyticsMap.get(c.id)
-    const visits = (visitsByClient.get(c.id) ?? []).sort((a, b) => a.getTime() - b.getTime())
-    const loyaltyRow = loyaltyByClient.get(c.id)
-
-    // Prefer pre-computed analytics when available; fall back to local calc for
-    // brand-new clients not yet processed by the trigger/cron.
-    const lastVisitDate =
-      analytics?.last_visit_date ??
-      (visits.length > 0 ? visits[visits.length - 1].toISOString() : loyaltyRow?.last_visit_date ?? null)
-
-    const daysSince =
-      analytics?.days_since_last_visit ??
-      (lastVisitDate ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY) : null)
-
-    const frequency =
-      analytics?.avg_frequency_days != null
-        ? Math.round(analytics.avg_frequency_days)
-        : visits.length >= 2
-          ? Math.round(
-              (visits[visits.length - 1].getTime() - visits[0].getTime()) / DAY / (visits.length - 1),
-            )
-          : null
-
-    const totalVisits = analytics?.total_visits ?? visits.length
-
-    return {
-      id: c.id,
-      fullName: c.full_name,
-      email: c.email,
-      phone: c.phone,
-      churn: mapDbChurnToUi(analytics?.churn_status),
-      lastVisit: lastVisitDate,
-      daysSinceLastVisit: daysSince,
-      visitFrequencyDays: frequency,
-      totalVisits,
-      loyaltyPoints: Number(loyaltyRow?.total_points ?? 0),
-      totalSpent: spentByClient.get(c.id) ?? 0,
-      tags: parseTags(c.tags),
-    }
-  })
-
   return {
-    clienti: ctx.currentStaff.role === 'receptionist'
-      ? clienti.map(redactClienteRowForReceptionist)
-      : clienti,
+    clienti: clients.map((client) => {
+      const analytics = analyticsMap.get(client.id)
+      const visits = (visitsByClient.get(client.id) ?? []).sort((a, b) => a.getTime() - b.getTime())
+      const loyaltyRow = loyaltyByClient.get(client.id)
+
+      const lastVisitDate =
+        analytics?.last_visit_date ??
+        (visits.length > 0
+          ? visits[visits.length - 1].toISOString()
+          : loyaltyRow?.last_visit_date ?? null)
+
+      const daysSince =
+        analytics?.days_since_last_visit ??
+        (lastVisitDate ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY) : null)
+
+      const frequency =
+        analytics?.avg_frequency_days != null
+          ? Math.round(analytics.avg_frequency_days)
+          : visits.length >= 2
+            ? Math.round(
+                (visits[visits.length - 1].getTime() - visits[0].getTime()) / DAY / (visits.length - 1),
+              )
+            : null
+
+      return {
+        id: client.id,
+        fullName: client.full_name,
+        email: client.email,
+        phone: client.phone,
+        churn: mapDbChurnToUi(analytics?.churn_status),
+        lastVisit: lastVisitDate,
+        daysSinceLastVisit: daysSince,
+        visitFrequencyDays: frequency,
+        totalVisits: analytics?.total_visits ?? visits.length,
+        loyaltyPoints: Number(loyaltyRow?.total_points ?? 0),
+        totalSpent: spentByClient.get(client.id) ?? 0,
+        tags: parseTags(client.tags),
+      }
+    }),
     tenantId,
+    page,
+    pageSize,
+    totalCount,
+    totalPages,
+    query,
+    filter,
+    counts,
   }
 }
 

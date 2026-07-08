@@ -436,7 +436,8 @@ export function EmailOtpForm({
               type="checkbox"
               checked={marketingConsent}
               onChange={(e) => setMarketingConsent(e.target.checked)}
-              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--brand-primary,#222222)]"
+              className="mt-0.5 size-4 shrink-0 rounded"
+              style={{ accentColor: 'var(--brand-primary, #222222)' }}
             />
             <span className="text-[11px] leading-relaxed text-gray-500">
               Voglio ricevere offerte e promozioni da{' '}
@@ -600,7 +601,7 @@ export function EmailOtpForm({
     return (
       <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="relative mb-8 mt-2">
-          <div className="flex size-28 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+          <div className="flex size-28 items-center justify-center rounded-full styll-bg-brand-primary-soft">
             <Mail className="size-12 text-[var(--brand-primary)]" strokeWidth={1.5} aria-hidden="true" />
           </div>
         </div>
@@ -630,10 +631,10 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && isValidEmail(email)) void handleEmailContinue()
             }}
-            className={`h-[54px] w-full rounded-2xl border px-4 text-neutral-950 outline-none transition focus:ring-2 focus:ring-[var(--brand-primary)]/30 ${
+            className={`h-[54px] w-full rounded-2xl border px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring ${
               error
                 ? 'border-red-400'
-                : 'border-neutral-200 focus:border-[var(--brand-primary)]'
+                : 'border-neutral-200'
             }`}
             style={{ fontSize: 16 }}
             aria-describedby={error ? 'email-otp-error' : undefined}
@@ -716,7 +717,7 @@ export function EmailOtpForm({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && fullName.trim()) void handleProfileDataContinue()
                 }}
-                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/30"
+                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring"
                 style={{ fontSize: 16 }}
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
@@ -736,7 +737,7 @@ export function EmailOtpForm({
                   setPhone(e.target.value)
                   setError(null)
                 }}
-                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/30"
+                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring"
                 style={{ fontSize: 16 }}
               />
             </div>
@@ -751,7 +752,8 @@ export function EmailOtpForm({
               type="checkbox"
               checked={marketingConsent}
               onChange={(e) => setMarketingConsent(e.target.checked)}
-              className="mt-0.5 size-4 shrink-0 rounded accent-[var(--brand-primary,#1a1a1a)]"
+              className="mt-0.5 size-4 shrink-0 rounded"
+              style={{ accentColor: 'var(--brand-primary, #1a1a1a)' }}
             />
             <span className="text-xs leading-relaxed text-neutral-500">
               Voglio ricevere offerte e promozioni da{' '}

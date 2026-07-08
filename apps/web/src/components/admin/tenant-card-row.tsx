@@ -116,7 +116,7 @@ export function TenantCardRow({ tenant, onEdit, onToggleStatus, onImpersonate }:
         <button
           type="button"
           onClick={() => onEdit(tenant.id)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--admin-hover-bg)]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors styll-hover-admin-hover-bg"
           aria-label="Modifica"
         >
           <Pencil size={14} style={{ color: 'var(--admin-text-muted)' }} />
@@ -125,7 +125,7 @@ export function TenantCardRow({ tenant, onEdit, onToggleStatus, onImpersonate }:
           type="button"
           onClick={() => onImpersonate(tenant.id)}
           disabled={tenant.active_staff_count === 0}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--admin-hover-bg)] disabled:opacity-30"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors styll-hover-admin-hover-bg disabled:opacity-30"
           aria-label="Shadow mode"
         >
           <LogIn size={14} style={{ color: 'var(--admin-text-muted)' }} />
@@ -133,7 +133,7 @@ export function TenantCardRow({ tenant, onEdit, onToggleStatus, onImpersonate }:
         <button
           type="button"
           onClick={() => onToggleStatus(tenant.id, tenant.status !== 'active')}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--admin-hover-bg)]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors styll-hover-admin-hover-bg"
           aria-label={tenant.status === 'active' ? 'Sospendi' : 'Riattiva'}
         >
           {tenant.status === 'active' ? (

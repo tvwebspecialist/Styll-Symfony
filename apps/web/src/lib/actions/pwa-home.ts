@@ -54,6 +54,7 @@ export type HomePageData = {
   } | null
   lastAppointmentServiceNames?: string[]
   lastAppointmentStaffName?: string | null
+  lastAppointmentStaffAvatarUrl?: string | null
   lastAppointmentDuration?: number | null
   lastAppointmentPrice?: number | null
   nextAppointmentIsImminent?: boolean
@@ -130,6 +131,13 @@ function extractStaffName(staffRelation: any): string | null {
   if (!staff) return null
   const profile = Array.isArray(staff.profiles) ? staff.profiles[0] : staff.profiles
   return profile?.full_name ?? null
+}
+
+function extractStaffAvatarUrl(staffRelation: any): string | null {
+  const staff = Array.isArray(staffRelation) ? staffRelation[0] : staffRelation
+  if (!staff) return null
+  const profile = Array.isArray(staff.profiles) ? staff.profiles[0] : staff.profiles
+  return (staff.photo_url as string | null) ?? (profile?.avatar_url as string | null) ?? null
 }
 
 function extractLocationAddress(locationsRelation: any): { address: string | null; city: string | null } {
@@ -282,7 +290,7 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
       db
         .from('appointments')
         .select(
-          'id, start_time, end_time, appointment_services(price_at_booking, services(name, duration_minutes)), staff_members(profiles(full_name))'
+          'id, start_time, end_time, appointment_services(price_at_booking, services(name, duration_minutes)), staff_members(photo_url, profiles(full_name, avatar_url))'
         )
         .eq('tenant_id', tenantId)
         .eq('client_id', client.id)
@@ -341,6 +349,7 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
       : null,
     lastAppointmentServiceNames: extractServiceNames(lastAppointment?.appointment_services as any[]),
     lastAppointmentStaffName: lastAppointment ? extractStaffName(lastAppointment.staff_members) : null,
+    lastAppointmentStaffAvatarUrl: lastAppointment ? extractStaffAvatarUrl(lastAppointment.staff_members) : null,
     lastAppointmentDuration: lastAppointment
       ? extractServiceDuration(lastAppointment.appointment_services as any[])
       : null,

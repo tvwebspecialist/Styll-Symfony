@@ -5,6 +5,7 @@ import { withSentryConfig } from '@sentry/nextjs'
 const repoRoot = path.resolve(__dirname, '..', '..')
 
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   allowedDevOrigins: ['localhost', '127.0.0.1', '*.localhost'],
   outputFileTracingRoot: repoRoot,
   turbopack: {
@@ -50,6 +51,10 @@ export default withSentryConfig(nextConfig, {
   silent: true,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
+  // Next 16 Turbopack builds in this repo do not emit the legacy
+  // `.next/server/pages-manifest.json` file expected by Sentry's
+  // runAfterProductionCompile hook, so keep that hook disabled.
+  useRunAfterProductionCompileHook: false,
   widenClientFileUpload: true,
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,

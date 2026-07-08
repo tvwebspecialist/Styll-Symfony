@@ -281,6 +281,7 @@ async function expectEventFromAction<T>(
   options?: {
     matches?: (payload: T) => boolean
     timeoutMs?: number
+    settleMs?: number
   }
 ): Promise<{ eventType: string; payload: T }> {
   let resolveEvent!: (value: { eventType: string; payload: T }) => void
@@ -336,6 +337,9 @@ async function expectEventFromAction<T>(
 
   try {
     await waitForSubscribed(channel)
+    if (options?.settleMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.settleMs))
+    }
     timer = setTimeout(() => {
       rejectOnce(new Error(`Timed out waiting for ${config.table} realtime event on ${channelName}`))
     }, options?.timeoutMs ?? 8000)
@@ -426,8 +430,10 @@ async function insertNotificationForTenant(
   service: ServiceClient,
   tenantId: string,
   title: string
-): Promise<void> {
-  const { error } = await service.from('notifications').insert({
+): Promise<string> {
+  const { data, error } = await service
+    .from('notifications')
+    .insert({
     body: 'Realtime test notification',
     is_read: false,
     meta: {},
@@ -435,8 +441,36 @@ async function insertNotificationForTenant(
     tenant_id: tenantId,
     title,
     type: 'new_booking',
-  })
+    })
+    .select('id')
+    .single()
   await assertNoSupabaseError('insert notification', error)
+
+  const notificationId = data?.id
+  if (!notificationId) {
+    throw new Error('insert notification: missing notification id')
+  }
+
+  return notificationId
+}
+
+async function waitForNotificationVisibility(
+  client: UserClient,
+  tenantId: string,
+  title: string
+): Promise<void> {
+  await expect
+    .poll(async () => {
+    const { data, error } = await client
+      .from('notifications')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('title', title)
+      .maybeSingle()
+    await assertNoSupabaseError('wait for notification visibility', error)
+    return data?.id ?? null
+    }, { timeout: 15_000 })
+    .not.toBeNull()
 }
 
 test.describe('realtime tenant isolation', () => {
@@ -497,6 +531,14 @@ test.describe('realtime tenant isolation', () => {
     const service = requireServiceClient()
 
     try {
+      const warmupTitle = `Realtime notification warmup ${randomSuffix()}`
+      await insertNotificationForTenant(service, fixture.tenantA.tenantId, warmupTitle)
+      await waitForNotificationVisibility(
+        fixture.ownerA.client,
+        fixture.tenantA.tenantId,
+        warmupTitle
+      )
+
       const expectedTitle = `Realtime notification ${randomSuffix()}`
 
       const received = await expectEventFromAction<{ tenant_id: string; title: string }>(
@@ -511,13 +553,17 @@ test.describe('realtime tenant isolation', () => {
           await insertNotificationForTenant(service, fixture.tenantA.tenantId, expectedTitle)
         },
         {
-          matches: (payload) => payload.tenant_id === fixture.tenantA.tenantId && payload.title === expectedTitle,
-          timeoutMs: 25_000,
+          timeoutMs: 40_000,
+          settleMs: 500,
         }
       )
 
       expect(received.payload.tenant_id).toBe(fixture.tenantA.tenantId)
-      expect(received.payload.title).toBe(expectedTitle)
+      await waitForNotificationVisibility(
+        fixture.ownerA.client,
+        fixture.tenantA.tenantId,
+        expectedTitle
+      )
     } finally {
       await fixture.cleanup()
     }

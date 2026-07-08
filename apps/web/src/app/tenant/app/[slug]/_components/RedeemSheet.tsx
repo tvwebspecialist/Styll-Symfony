@@ -46,7 +46,7 @@ export function RedeemSheet({ reward, children }: RedeemSheetProps) {
           </DialogHeader>
 
           <div className="flex flex-col items-center gap-4 pt-2 text-center">
-            <div className="flex size-20 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+            <div className="flex size-20 items-center justify-center rounded-full styll-bg-brand-primary-soft">
               <Gift className="size-10 text-[var(--brand-primary)]" aria-hidden="true" />
             </div>
 
@@ -74,7 +74,7 @@ export function RedeemSheet({ reward, children }: RedeemSheetProps) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="w-full rounded-2xl bg-[var(--brand-primary)] py-3.5 text-sm font-bold text-white"
+              className="w-full rounded-2xl styll-bg-brand-primary py-3.5 text-sm font-bold text-white"
             >
               Ho capito
             </button>

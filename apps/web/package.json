@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node -e \"require('node:fs').rmSync('.next',{ recursive: true, force: true })\" && next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "tsc --noEmit",
+    "type-check": "node -e \"require('node:fs').rmSync('.next-typecheck',{ recursive: true, force: true })\" && NEXT_DIST_DIR=.next-typecheck NODE_ENV=production next typegen && tsc --noEmit --project tsconfig.typecheck.json",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:ci": "playwright test --reporter=github"

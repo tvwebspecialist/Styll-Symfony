@@ -3,11 +3,15 @@
 import * as React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ChevronRight, MoreHorizontal, Plus, Search, Upload, FileDown, Code, Printer, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ChurnStatus, ClienteRow } from '@/lib/actions/clienti'
 import { createCliente } from '@/lib/actions/clienti'
+import {
+  DEFAULT_CLIENTI_PAGE_SIZE,
+} from '@/lib/clienti-list'
+import type { ClientiCounts, ClientiFilter } from '@/lib/clienti-list'
 import { ImportClientsModal } from './ImportClientsModal'
 
 const CHURN_IMG: Record<ChurnStatus, string> = {
@@ -24,7 +28,7 @@ const CHURN_LABEL: Record<ChurnStatus, string> = {
   inactive: 'Inattivo',
 }
 
-const FILTERS: { key: 'all' | ChurnStatus; label: string; color: string }[] = [
+const FILTERS: { key: ClientiFilter; label: string; color: string }[] = [
   { key: 'all',      label: 'Tutti',          color: '#222222' },
   { key: 'active',   label: 'Attivi',          color: '#16A34A' },
   { key: 'warning',  label: 'Da monitorare',   color: '#EAB308' },
@@ -131,12 +135,122 @@ const inputStyle: React.CSSProperties = {
   boxSizing:    'border-box',
 }
 
+interface ClientiClientProps {
+  clienti: ClienteRow[]
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+  query: string
+  filter: ClientiFilter
+  counts: ClientiCounts
+}
+
+interface PaginationControlsProps {
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+  compact?: boolean
+  onPageChange: (page: number) => void
+}
+
+function PaginationControls({
+  page,
+  pageSize,
+  totalCount,
+  totalPages,
+  compact = false,
+  onPageChange,
+}: PaginationControlsProps) {
+  if (totalCount === 0 || totalPages <= 1) return null
+
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, totalCount)
+
+  function renderButton(label: string, nextPage: number, disabled: boolean) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onPageChange(nextPage)}
+        style={{
+          height: compact ? 34 : 38,
+          padding: compact ? '0 12px' : '0 14px',
+          borderRadius: 10,
+          border: '1px solid var(--color-border, #E5E7EB)',
+          background: disabled ? '#F5F5F5' : '#FFFFFF',
+          color: disabled ? '#B0B0B0' : '#222222',
+          fontSize: compact ? 12 : 13,
+          fontWeight: 600,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: compact ? 'column' : 'row',
+        alignItems: compact ? 'stretch' : 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: compact ? '4px 2px 0' : '0 4px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: compact ? 12 : 13,
+          color: 'var(--color-fg-muted, #6B7280)',
+          textAlign: compact ? 'center' : 'left',
+        }}
+      >
+        Mostra {start}-{end} di {totalCount}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: compact ? 'space-between' : 'flex-end',
+          gap: 8,
+        }}
+      >
+        {renderButton('Precedente', page - 1, page <= 1)}
+        <span
+          style={{
+            minWidth: compact ? 'auto' : 92,
+            textAlign: 'center',
+            fontSize: compact ? 12 : 13,
+            fontWeight: 600,
+            color: '#222222',
+          }}
+        >
+          Pagina {page} di {totalPages}
+        </span>
+        {renderButton('Successiva', page + 1, page >= totalPages)}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Component ─────────────────────────────────────────────────────────── */
 
-export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
+export function ClientiClient({
+  clienti,
+  page,
+  pageSize,
+  totalCount,
+  totalPages,
+  query,
+  filter,
+  counts,
+}: ClientiClientProps) {
   const [isMobile,    setIsMobile]    = React.useState(false)
-  const [filter,      setFilter]      = React.useState<'all' | ChurnStatus>('all')
-  const [query,       setQuery]       = React.useState('')
+  const [queryInput,  setQueryInput]  = React.useState(query)
   const [optionsOpen, setOptionsOpen] = React.useState(false)
   const [createOpen,  setCreateOpen]  = React.useState(false)
   const [importOpen,  setImportOpen]  = React.useState(false)
@@ -149,8 +263,31 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
     marketingConsent:  true,
   })
 
-  const router     = useRouter()
+  const router = useRouter()
+  const pathname = usePathname() ?? ''
   const optionsRef = React.useRef<HTMLDivElement>(null)
+
+  const updateListing = React.useCallback((next: {
+    page?: number
+    pageSize?: number
+    query?: string
+    filter?: ClientiFilter
+  }) => {
+    const params = new URLSearchParams()
+    const nextPage = next.page ?? page
+    const nextPageSize = next.pageSize ?? pageSize
+    const nextFilter = next.filter ?? filter
+    const nextQuery = (next.query ?? queryInput).trim()
+
+    if (nextQuery) params.set('query', nextQuery)
+    if (nextFilter !== 'all') params.set('filter', nextFilter)
+    if (nextPage > 1) params.set('page', String(nextPage))
+    if (nextPageSize !== DEFAULT_CLIENTI_PAGE_SIZE) {
+      params.set('pageSize', String(nextPageSize))
+    }
+
+    router.replace(params.size > 0 ? `${pathname}?${params.toString()}` : pathname)
+  }, [filter, page, pageSize, pathname, queryInput, router])
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)')
@@ -185,6 +322,18 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
     return () => document.removeEventListener('keydown', handleEsc)
   }, [createOpen])
 
+  React.useEffect(() => {
+    setQueryInput(query)
+  }, [query])
+
+  React.useEffect(() => {
+    if (queryInput === query) return
+    const timeout = window.setTimeout(() => {
+      updateListing({ query: queryInput, page: 1 })
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [query, queryInput, updateListing])
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setCreating(true)
@@ -199,25 +348,6 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
       toast.error(res.error ?? 'Errore durante la creazione')
     }
   }
-
-  const counts = React.useMemo(() => {
-    const c: Record<'all' | ChurnStatus, number> = { all: clienti.length, active: 0, warning: 0, danger: 0, inactive: 0 }
-    clienti.forEach((cl) => { c[cl.churn] += 1 })
-    return c
-  }, [clienti])
-
-  const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return clienti.filter((c) => {
-      if (filter !== 'all' && c.churn !== filter) return false
-      if (!q) return true
-      return (
-        c.fullName.toLowerCase().includes(q) ||
-        (c.email ?? '').toLowerCase().includes(q) ||
-        (c.phone ?? '').toLowerCase().includes(q)
-      )
-    })
-  }, [clienti, filter, query])
 
   /* ── Dropdown item style ── */
   const [hovItem, setHovItem] = React.useState<string | null>(null)
@@ -267,7 +397,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                 background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
                 borderRadius: 100, padding: '2px 8px',
               }}>
-                {clienti.length}
+                {totalCount}
               </span>
             </div>
             <div ref={optionsRef} style={{ position: 'relative' }}>
@@ -311,16 +441,16 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
             <Search size={16} style={{ color: 'var(--color-fg-muted)', flexShrink: 0 }} />
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
               placeholder="Cerca cliente..."
               style={{
                 border: 'none', background: 'transparent', outline: 'none',
                 fontSize: 14, color: 'var(--color-fg)', width: '100%',
               }}
             />
-            {query && (
-              <button type="button" onClick={() => setQuery('')}
+            {queryInput && (
+              <button type="button" onClick={() => setQueryInput('')}
                 style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
                 <X size={14} color="var(--color-fg-muted)" />
               </button>
@@ -336,7 +466,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                 <button
                   key={f.key}
                   type="button"
-                  onClick={() => setFilter(f.key)}
+                  onClick={() => updateListing({ filter: f.key, page: 1 })}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
                     padding: '7px 14px', borderRadius: 100,
@@ -358,7 +488,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
 
           {/* Client list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.length === 0 ? (
+            {clienti.length === 0 ? (
               <div style={{
                 padding: 32, textAlign: 'center', color: 'var(--color-fg-muted)', fontSize: 14,
                 background: 'var(--color-bg)', borderRadius: 14, border: '1px solid var(--color-border)',
@@ -366,7 +496,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                 Nessun cliente trovato.
               </div>
             ) : (
-              filtered.map((c) => (
+              clienti.map((c) => (
                 <Link
                   key={c.id}
                   href={`/clienti/${c.id}`}
@@ -407,6 +537,15 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
             )}
           </div>
 
+          <PaginationControls
+            compact
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            totalPages={totalPages}
+            onPageChange={(nextPage) => updateListing({ page: nextPage })}
+          />
+
           {/* FAB — Aggiungi cliente */}
           <button
             type="button"
@@ -446,7 +585,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                 }}
               >
                 Elenco dei clienti
-                <span style={{ fontSize: 18, color: '#B0B0B0', fontWeight: 600 }}>{clienti.length}</span>
+                <span style={{ fontSize: 18, color: '#B0B0B0', fontWeight: 600 }}>{totalCount}</span>
               </h1>
               <p style={{ fontSize: 14, color: '#B0B0B0', margin: '4px 0 0' }}>
                 Gestisci i tuoi clienti, monitora il churn e fidelizzazione.
@@ -531,7 +670,7 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
                   <button
                     key={f.key}
                     type="button"
-                    onClick={() => setFilter(f.key)}
+                    onClick={() => updateListing({ filter: f.key, page: 1 })}
                     style={{
                       display:     'inline-flex',
                       alignItems:  'center',
@@ -585,8 +724,8 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
               <Search size={16} color="#B0B0B0" />
               <input
                 type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
                 placeholder="Cerca cliente..."
                 style={{
                   border:     'none',
@@ -629,12 +768,12 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
               <div></div>
             </div>
 
-            {filtered.length === 0 ? (
+            {clienti.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: '#B0B0B0', fontSize: 14 }}>
                 Nessun cliente trovato.
               </div>
             ) : (
-              filtered.map((c, i) => (
+              clienti.map((c, i) => (
                 <Link
                   key={c.id}
                   href={`/clienti/${c.id}`}
@@ -700,6 +839,13 @@ export function ClientiClient({ clienti }: { clienti: ClienteRow[] }) {
               ))
             )}
           </div>
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            totalPages={totalPages}
+            onPageChange={(nextPage) => updateListing({ page: nextPage })}
+          />
         </>
       )}
 

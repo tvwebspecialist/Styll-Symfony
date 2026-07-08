@@ -32,7 +32,7 @@ export function BadgeGrid({ badges, isVipClub }: BadgeGridProps) {
               <div key={badge.id} className="flex flex-col items-center gap-1.5">
                 <div
                   className={`flex size-14 items-center justify-center rounded-full text-2xl ${
-                    badge.isUnlocked ? 'bg-[var(--brand-primary)]/10' : 'bg-neutral-100 opacity-40'
+                    badge.isUnlocked ? 'styll-bg-brand-primary-soft' : 'bg-neutral-100 opacity-40'
                   }`}
                   title={
                     badge.isUnlocked

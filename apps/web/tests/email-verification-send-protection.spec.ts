@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto'
 import { expect, test } from 'playwright/test'
 import {
   handleSendEmailVerificationRequest,
-} from '../src/app/api/email-verification/send/route'
+} from '../src/lib/email-verification/send-route'
 import {
   sendEmailVerificationOtp,
   EMAIL_VERIFICATION_SEND_COOLDOWN_MS,

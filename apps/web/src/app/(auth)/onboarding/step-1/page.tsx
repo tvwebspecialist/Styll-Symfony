@@ -80,7 +80,7 @@ export default function OnboardingStep1Page() {
         <button
           type="button"
           onClick={() => setShowGmb(true)}
-          className="flex w-full items-center justify-center gap-3 rounded-[12px] border border-dashed bg-white px-4 py-3.5 text-sm font-medium transition-colors active:scale-[0.97] hover:bg-[color:var(--color-bg-secondary)]"
+          className="flex w-full items-center justify-center gap-3 rounded-[12px] border border-dashed bg-white px-4 py-3.5 text-sm font-medium transition-colors active:scale-[0.97] styll-hover-color-bg-secondary"
           style={{ borderColor: 'var(--color-fg-muted)', color: 'var(--color-fg)' }}
         >
           <GoogleIcon className="h-4 w-4" />
@@ -238,7 +238,7 @@ function GmbModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             aria-label="Chiudi"
-            className="rounded-md p-1 hover:bg-[color:var(--color-bg-secondary)]"
+            className="rounded-md p-1 styll-hover-color-bg-secondary"
             style={{ color: 'var(--color-fg-secondary)' }}
           >
             <X className="h-4 w-4" />
