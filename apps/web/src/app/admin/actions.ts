@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { clearAdminShadowCookie } from '@/lib/admin-shadow-cookie'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -108,6 +110,8 @@ export async function bumpAdmin() {
 }
 
 export async function signOutAction() {
+  const cookieStore = await cookies()
+  clearAdminShadowCookie(cookieStore)
   const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')

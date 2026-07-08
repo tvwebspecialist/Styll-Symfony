@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 
+import { setAdminShadowCookie } from '@/lib/admin-shadow-cookie'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
 import type { Json, TablesUpdate, TablesInsert } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
@@ -165,20 +165,8 @@ export async function impersonateUser(
     | null
   const tenant = Array.isArray(tenantRel) ? tenantRel[0] : tenantRel
 
-  const cookieDomain =
-    process.env.NODE_ENV === 'production'
-      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
-      : undefined
-
   const cookieStore = await cookies()
-  cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 60 * 60 * 4,
-    ...(cookieDomain ? { domain: cookieDomain } : {}),
-  })
+  setAdminShadowCookie(cookieStore, tenantId, auth.id)
 
   await logAdminAction(auth.id, 'user.impersonated', 'user', userId, tenantId, {
     business_name: tenant?.business_name ?? null,

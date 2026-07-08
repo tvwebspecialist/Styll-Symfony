@@ -65,8 +65,8 @@ function buildBookingSuccessSearchParams(appointmentId: string, token: string): 
   return new URLSearchParams({ appointment: appointmentId, token }).toString()
 }
 
-function buildBookingSuccessRelativePath(slug: string, appointmentId: string, token: string): string {
-  return `/tenant/app/${slug}/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`
+function buildBookingSuccessRelativePath(appointmentId: string, token: string): string {
+  return `/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`
 }
 
 function buildBookingSuccessAbsoluteUrl(slug: string, appointmentId: string, token: string): string {
@@ -527,7 +527,6 @@ async function sendBookingConfirmedNotification(params: {
   const date = new Date(params.startTime).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
   const time = new Date(params.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
   const successRelativePath = buildBookingSuccessRelativePath(
-    params.slug,
     params.appointmentId,
     params.bookingConfirmationToken,
   )

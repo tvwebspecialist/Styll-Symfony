@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,10 +147,9 @@ export async function saveLoyaltyConfig(input: {
   pointsPerEuro: number
   streakThresholdDays: number
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: existing } = await db
     .from('loyalty_configs')
@@ -211,10 +211,9 @@ export async function upsertReward(input: {
   rewardType: 'product' | 'service' | 'discount' | 'custom'
   isActive: boolean
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   // Count existing rewards (max 6)
   if (!input.id) {
@@ -260,10 +259,8 @@ export async function upsertReward(input: {
 }
 
 export async function deleteReward(rewardId: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db
     .from('rewards')
     .delete()
@@ -281,10 +278,8 @@ export async function toggleBadge(
   badgeId: string,
   isActive: boolean,
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db.from('badges').update({ is_active: isActive }).eq('id', badgeId).eq('tenant_id', tenantId)
 
   if (error) return { success: false, error: error.message }
@@ -298,10 +293,8 @@ export async function updateTierConfig(input: {
   minPoints: number
   benefits: TierBenefits
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db.from('tier_configs').update({ min_points: input.minPoints, benefits: input.benefits as unknown as import('@/types').Json }).eq('id', input.id).eq('tenant_id', tenantId)
 
   if (error) return { success: false, error: error.message }

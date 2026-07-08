@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+import {
+  ADMIN_SHADOW_COOKIE,
+  clearAdminShadowCookieOnResponse,
+  getValidatedAdminShadowContext,
+} from '@/lib/admin-shadow-cookie'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applySecurityHeaders, type CspOptions } from '@/lib/security/csp'
 
@@ -219,6 +224,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = applySecurityHeaders(NextResponse.next({ request }), securityOptions)
+  let shouldClearShadowCookie = false
 
   if (!isPwaRoute) {
     const supabase = createServerClient(
@@ -251,6 +257,17 @@ export async function proxy(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    const shadowCookieValue = request.cookies.get(ADMIN_SHADOW_COOKIE)?.value ?? null
+
+    if (shadowCookieValue) {
+      if (!user) {
+        shouldClearShadowCookie = true
+      } else {
+        const db = createAdminClient()
+        const shadowCtx = await getValidatedAdminShadowContext(db, user.id, shadowCookieValue)
+        shouldClearShadowCookie = !shadowCtx.tenantId
+      }
+    }
 
     const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
     const isAdmin = pathname.startsWith('/admin')
@@ -263,7 +280,11 @@ export async function proxy(request: NextRequest) {
     // across the whole proxy surface (browsers don't enforce CSP on 30x bodies,
     // but this keeps audits and curl checks tidy).
     const redirectTo = (url: URL) => {
-      return applySecurityHeaders(NextResponse.redirect(url), securityOptions)
+      const redirectResponse = applySecurityHeaders(NextResponse.redirect(url), securityOptions)
+      if (shouldClearShadowCookie) {
+        clearAdminShadowCookieOnResponse(redirectResponse)
+      }
+      return redirectResponse
     }
 
     // Rotte protette: richiedono auth
@@ -411,9 +432,15 @@ export async function proxy(request: NextRequest) {
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
     })
+    if (shouldClearShadowCookie) {
+      clearAdminShadowCookieOnResponse(rewriteResponse)
+    }
     return rewriteResponse
   }
 
+  if (shouldClearShadowCookie) {
+    clearAdminShadowCookieOnResponse(response)
+  }
   return response
 }
 

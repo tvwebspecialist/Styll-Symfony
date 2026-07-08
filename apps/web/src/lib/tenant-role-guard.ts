@@ -18,6 +18,8 @@ export const TENANT_PERMISSIONS = {
 export type TenantPermission =
   typeof TENANT_PERMISSIONS[keyof typeof TENANT_PERMISSIONS]
 
+export const FORBIDDEN_ERROR_DIGEST = 'NEXT_HTTP_ERROR_FALLBACK;403'
+
 export interface TenantRoleContext {
   tenantId: string
   userId: string
@@ -35,8 +37,17 @@ const TENANT_PERMISSION_ROLES: Record<TenantPermission, readonly OwnerManagerTen
 
 export function throwForbidden(): never {
   const error = new Error('Forbidden')
-  ;(error as Error & { digest?: string }).digest = 'NEXT_HTTP_ERROR_FALLBACK;403'
+  ;(error as Error & { digest?: string }).digest = FORBIDDEN_ERROR_DIGEST
   throw error
+}
+
+export function isForbiddenError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+
+  return (
+    error.message === 'Forbidden'
+    || (error as Error & { digest?: string }).digest === FORBIDDEN_ERROR_DIGEST
+  )
 }
 
 export function isOwnerManagerRole(role: TenantRole): boolean {

@@ -17,27 +17,6 @@ export async function sendEmailVerificationOTP(
 export async function resendEmailOTP(
   email: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createAdminClient()
-
-  const { data: latest } = await db
-    .from('email_verification_tokens')
-    .select('last_sent_at, used')
-    .eq('email', email)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (latest && !latest.used) {
-    const secondsSince = (Date.now() - new Date(latest.last_sent_at).getTime()) / 1000
-    if (secondsSince < 60) {
-      const remaining = Math.ceil(60 - secondsSince)
-      return {
-        success: false,
-        error: `Puoi richiedere un nuovo codice tra ${remaining} secondi.`,
-      }
-    }
-  }
-
   return sendEmailVerificationOtp(email)
 }
 

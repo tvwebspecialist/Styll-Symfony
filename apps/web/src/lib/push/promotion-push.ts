@@ -64,7 +64,7 @@ export async function sendPromotionPush(
     byProfile.set(sub.profile_id, arr)
   }
 
-  const promoUrl = `/tenant/app/${slug}/offerte/${promotionId}`
+  const promoUrl = `/offerte/${promotionId}`
   const payload = {
     title: 'Nuova offerta per te 🎉',
     body:   (promo as any).title as string,

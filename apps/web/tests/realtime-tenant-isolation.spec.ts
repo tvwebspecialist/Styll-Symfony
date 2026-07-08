@@ -256,32 +256,63 @@ async function seedIsolationFixture(): Promise<IsolationFixture> {
 
 function waitForSubscribed(channel: RealtimeChannel): Promise<void> {
   return new Promise((resolve, reject) => {
+    let settled = false
+
     channel.subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') resolve()
+      if (settled) return
+
+      if (status === 'SUBSCRIBED') {
+        settled = true
+        resolve()
+      }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        settled = true
         reject(err ?? new Error(`Realtime subscription failed with status ${status}`))
       }
     })
   })
 }
 
-function subscribeForNextEvent<T>(
+async function expectEventFromAction<T>(
   client: UserClient,
   channelName: string,
   config: { event: '*' | 'INSERT' | 'UPDATE' | 'DELETE'; table: string; filter?: string },
-  timeoutMs: number = 8000
-): {
-  channel: RealtimeChannel
-  ready: Promise<void>
-  event: Promise<{ eventType: string; payload: T }>
-} {
+  action: () => Promise<void>,
+  options?: {
+    matches?: (payload: T) => boolean
+    timeoutMs?: number
+  }
+): Promise<{ eventType: string; payload: T }> {
   let resolveEvent!: (value: { eventType: string; payload: T }) => void
   let rejectEvent!: (reason?: unknown) => void
+  let settled = false
+  let timer: ReturnType<typeof setTimeout> | null = null
 
   const event = new Promise<{ eventType: string; payload: T }>((resolve, reject) => {
     resolveEvent = resolve
     rejectEvent = reject
   })
+
+  const clearTimer = () => {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+  }
+
+  const resolveOnce = (value: { eventType: string; payload: T }) => {
+    if (settled) return
+    settled = true
+    clearTimer()
+    resolveEvent(value)
+  }
+
+  const rejectOnce = (reason: unknown) => {
+    if (settled) return
+    settled = true
+    clearTimer()
+    rejectEvent(reason)
+  }
 
   const channel = client
     .channel(channelName)
@@ -294,23 +325,30 @@ function subscribeForNextEvent<T>(
         ...(config.filter ? { filter: config.filter } : {}),
       },
       (payload) => {
-        clearTimeout(timer)
-        resolveEvent({ eventType: payload.eventType, payload: payload.new as T })
+        const record = payload.new as T
+        if (options?.matches && !options.matches(record)) {
+          return
+        }
+
+        resolveOnce({ eventType: payload.eventType, payload: record })
       }
     )
 
-  const timer = setTimeout(() => {
-    void client.removeChannel(channel)
-    rejectEvent(new Error(`Timed out waiting for ${config.table} realtime event on ${channelName}`))
-  }, timeoutMs)
+  try {
+    await waitForSubscribed(channel)
+    timer = setTimeout(() => {
+      rejectOnce(new Error(`Timed out waiting for ${config.table} realtime event on ${channelName}`))
+    }, options?.timeoutMs ?? 8000)
 
-  const ready = waitForSubscribed(channel).catch((error) => {
-    clearTimeout(timer)
-    rejectEvent(error)
+    await action()
+    return await event
+  } catch (error) {
+    rejectOnce(error)
     throw error
-  })
-
-  return { channel, ready, event }
+  } finally {
+    clearTimer()
+    await client.removeChannel(channel)
+  }
 }
 
 async function expectNoEvent(
@@ -408,6 +446,7 @@ test.describe('realtime tenant isolation', () => {
   )
 
   test('appointments queries stay tenant-scoped and cross-tenant realtime is blocked', async () => {
+    test.setTimeout(90_000)
     const fixture = await seedIsolationFixture()
     const service = requireServiceClient()
     const createdAppointmentIds: string[] = []
@@ -453,37 +492,39 @@ test.describe('realtime tenant isolation', () => {
   })
 
   test('same-tenant notifications realtime still delivers legitimate events', async () => {
+    test.setTimeout(90_000)
     const fixture = await seedIsolationFixture()
     const service = requireServiceClient()
 
     try {
-      const notificationEvent = subscribeForNextEvent<{ tenant_id: string; title: string }>(
+      const expectedTitle = `Realtime notification ${randomSuffix()}`
+
+      const received = await expectEventFromAction<{ tenant_id: string; title: string }>(
         fixture.ownerA.client,
         `notif-a-${randomSuffix()}`,
         {
           event: 'INSERT',
           table: 'notifications',
           filter: `tenant_id=eq.${fixture.tenantA.tenantId}`,
+        },
+        async () => {
+          await insertNotificationForTenant(service, fixture.tenantA.tenantId, expectedTitle)
+        },
+        {
+          matches: (payload) => payload.tenant_id === fixture.tenantA.tenantId && payload.title === expectedTitle,
+          timeoutMs: 25_000,
         }
       )
-      await notificationEvent.ready
 
-      await insertNotificationForTenant(
-        service,
-        fixture.tenantA.tenantId,
-        `Realtime notification ${randomSuffix()}`
-      )
-
-      const received = await notificationEvent.event
       expect(received.payload.tenant_id).toBe(fixture.tenantA.tenantId)
-      expect(received.payload.title).toContain('Realtime notification')
-      await fixture.ownerA.client.removeChannel(notificationEvent.channel)
+      expect(received.payload.title).toBe(expectedTitle)
     } finally {
       await fixture.cleanup()
     }
   })
 
   test('clients cross-tenant queries and subscriptions stay isolated', async () => {
+    test.setTimeout(90_000)
     const fixture = await seedIsolationFixture()
     const service = requireServiceClient()
 

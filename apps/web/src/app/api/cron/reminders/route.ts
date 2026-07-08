@@ -153,7 +153,7 @@ async function processReminderWindow(
     const businessName = appt.tenants?.business_name ?? 'il tuo salone'
     const primaryColor = appt.tenants?.primary_color ?? '#111111'
     const slug         = appt.tenants?.slug ?? ''
-    const url          = `/tenant/app/${slug}`
+    const url          = '/appuntamenti'
 
     // Determine channel — guest clients (no profile) get email directly
     let channel: 'push' | 'email' | 'none'

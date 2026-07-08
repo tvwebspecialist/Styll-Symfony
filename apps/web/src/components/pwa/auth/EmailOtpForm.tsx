@@ -5,7 +5,11 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pwa-auth'
+import {
+  completeEmailOtpProfile,
+  sendEmailOtp,
+  verifyEmailOtp,
+} from '@/lib/actions/pwa-auth'
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -89,7 +93,6 @@ export function EmailOtpForm({
   const [email, setEmail] = useState(prefillEmail)
   const [fullName, setFullName] = useState(prefillFullName)
   const [phone, setPhone] = useState(prefillPhone)
-  const [isNewUser, setIsNewUser] = useState(false)
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [otp, setOtp] = useState<string[]>(EMPTY_OTP)
   const [loading, setLoading] = useState(false)
@@ -120,43 +123,14 @@ export function EmailOtpForm({
     setLoading(true)
     setError(null)
 
-    const { isExisting } = await checkEmailExists(email)
-
-    if (isExisting) {
-      const result = await sendEmailOtp(email)
-      setLoading(false)
-      if (!result.success) {
-        setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
-        return
-      }
-      setIsNewUser(false)
-      setStep('otp')
-      setCountdown(60)
-    } else {
-      setLoading(false)
-      setIsNewUser(true)
-      setStep('profile-data')
-    }
-  }
-
-  async function handleProfileDataContinue() {
-    if (loading || !fullName.trim()) {
-      setError('Il nome è obbligatorio.')
-      return
-    }
-    if (!phone.trim()) {
-      setError('Il numero di telefono è obbligatorio.')
-      return
-    }
-    setLoading(true)
-    setError(null)
-
     const result = await sendEmailOtp(email)
     setLoading(false)
     if (!result.success) {
       setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
       return
     }
+    setOtp(EMPTY_OTP)
+    setOtpStatus('normal')
     setStep('otp')
     setCountdown(60)
   }
@@ -177,6 +151,27 @@ export function EmailOtpForm({
     setCountdown(60)
   }
 
+  async function finalizeAuthenticatedAccess(isSignup: boolean) {
+    if (hasAnalyticsConsent()) {
+      trackEvent({ tenantId, eventType: isSignup ? 'signup_completed' : 'login', appSurface })
+      const anonymousId = getCurrentAnonymousId()
+      if (anonymousId) {
+        linkSessionByAuthUser(tenantId, anonymousId).catch(() => {})
+      }
+    }
+
+    if (onSuccess) {
+      onSuccess({
+        email: email.trim().toLowerCase(),
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+      })
+      return
+    }
+
+    window.location.replace(tenantPath(returnTo ?? '/profilo'))
+  }
+
   const triggerShake = useCallback(() => {
     const el = otpContainerRef.current
     if (!el) return
@@ -191,10 +186,7 @@ export function EmailOtpForm({
     setError(null)
 
     const normalizedEmail = email.trim().toLowerCase()
-    const profileData = isNewUser
-      ? { fullName: fullName.trim() || undefined, phone: phone.trim() || undefined, marketingConsent }
-      : undefined
-    const result = await verifyEmailOtp(normalizedEmail, code, tenantId, profileData)
+    const result = await verifyEmailOtp(normalizedEmail, code, tenantId)
 
     if (!result.success) {
       setLoading(false)
@@ -227,27 +219,41 @@ export function EmailOtpForm({
       // Non-blocking — session works via cookies
     }
 
-    if (hasAnalyticsConsent()) {
-      trackEvent({ tenantId, eventType: isNewUser ? 'signup_completed' : 'login', appSurface })
-      const anonymousId = getCurrentAnonymousId()
-      if (anonymousId) {
-        linkSessionByAuthUser(tenantId, anonymousId).catch(() => {})
-      }
-    }
-
-    if (onSuccess) {
-      onSuccess({
-        email: normalizedEmail,
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-      })
+    if (result.isNewClient) {
+      setLoading(false)
+      setStep('profile-data')
       return
     }
 
-    // After the server action verifies the OTP, Supabase writes the auth cookies
-    // on the response. A hard navigation is more reliable here than push+refresh:
-    // it lets the browser commit Set-Cookie before the protected route renders.
-    window.location.replace(tenantPath(returnTo ?? '/profilo'))
+    setLoading(false)
+    await finalizeAuthenticatedAccess(false)
+  }
+
+  async function handleProfileDataContinue() {
+    if (loading || !fullName.trim()) {
+      setError('Il nome è obbligatorio.')
+      return
+    }
+    if (!phone.trim()) {
+      setError('Il numero di telefono è obbligatorio.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+
+    const result = await completeEmailOtpProfile(tenantId, {
+      fullName,
+      phone,
+      marketingConsent,
+    })
+
+    setLoading(false)
+    if (!result.success) {
+      setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
+      return
+    }
+
+    await finalizeAuthenticatedAccess(true)
   }
 
   async function handleGoogleSignIn() {
@@ -395,7 +401,7 @@ export function EmailOtpForm({
       return (
         <div className="flex flex-col gap-3">
           <p className="text-[13px] text-gray-500">
-            Benvenuto/a! Dicci come ti chiami prima di continuare.
+            Ti chiediamo questi dati solo per completare il tuo primo accesso.
           </p>
           <input
             type="text"
@@ -452,7 +458,7 @@ export function EmailOtpForm({
                 Invio in corso…
               </>
             ) : (
-              'Invia codice'
+              'Completa accesso'
             )}
           </button>
           <button
@@ -479,7 +485,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => {
-              setStep(isNewUser ? 'profile-data' : 'email')
+              setStep('email')
               setOtp(EMPTY_OTP)
               setError(null)
             }}
@@ -602,7 +608,7 @@ export function EmailOtpForm({
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-black text-neutral-950">Accedi con la tua email</h1>
           <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-neutral-500">
-            Niente password da ricordare — ti inviamo un codice a 6 cifre direttamente in email.
+            Niente password da ricordare — se l&apos;indirizzo è valido, riceverai un codice a 6 cifre direttamente in email.
           </p>
         </div>
 
@@ -685,9 +691,9 @@ export function EmailOtpForm({
     return (
       <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-black text-neutral-950">Come ti chiami?</h1>
+          <h1 className="text-2xl font-black text-neutral-950">Completa il tuo profilo</h1>
           <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-neutral-500">
-            Sarà il tuo nome sul profilo e visibile al salone.
+            Ti chiediamo questi dati solo per completare il tuo primo accesso nell&apos;app del salone.
           </p>
         </div>
 
@@ -772,7 +778,7 @@ export function EmailOtpForm({
                 Invio in corso…
               </span>
             ) : (
-              'Invia codice'
+              'Completa accesso'
             )}
           </button>
           <button
@@ -802,7 +808,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => {
-              setStep(isNewUser ? 'profile-data' : 'email')
+              setStep('email')
               setOtp(EMPTY_OTP)
               setError(null)
             }}

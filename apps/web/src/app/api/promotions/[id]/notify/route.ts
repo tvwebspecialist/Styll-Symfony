@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPromotionPush } from '@/lib/push/promotion-push'
 import {
-  getTenantRoleContext,
-  hasTenantPermission,
+  isForbiddenError,
+  requireTenantPermission,
   TENANT_PERMISSIONS,
 } from '@/lib/tenant-role-guard'
 
@@ -47,15 +47,13 @@ export async function POST(
     return NextResponse.json({ error: 'Promotion is not active' }, { status: 400 })
   }
 
-  const tenantRoleCtx = await getTenantRoleContext(tenantId)
-  if (
-    !tenantRoleCtx
-    || !hasTenantPermission(
-      tenantRoleCtx.role,
-      TENANT_PERMISSIONS.MANAGE_MARKETING
-    )
-  ) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  try {
+    await requireTenantPermission(TENANT_PERMISSIONS.MANAGE_MARKETING, tenantId)
+  } catch (error) {
+    if (isForbiddenError(error)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    throw error
   }
 
   // Rate limit: 1 push per promotion per hour
