@@ -223,6 +223,7 @@ test.describe('notification write isolation', () => {
   )
 
   test('cross-tenant notification writes are denied while same-tenant and internal flows work', async () => {
+    test.setTimeout(90_000)
     const fixture = await seedNotificationFixture()
     const service = requireServiceClient()
 

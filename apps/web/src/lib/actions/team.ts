@@ -28,13 +28,17 @@ export interface TeamData {
   currentStaff: { staffId: string; role: string } | null
 }
 
+type TeamRole = StaffMemberRow['role']
+type TeamActorRole = TeamRole | 'superadmin'
+
 type CurrentStaffRow = {
   id: string
-  role: StaffMemberRow['role']
+  role: TeamActorRole
 }
 
 type TargetStaffRow = {
   id: string
+  role: TeamRole
 }
 
 async function getTeamActorContext(): Promise<{
@@ -61,7 +65,24 @@ async function getTeamActorContext(): Promise<{
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!currentStaff) return null
+  if (!currentStaff) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile?.is_superadmin) return null
+
+    return {
+      tenantId,
+      db,
+      currentStaff: {
+        id: user.id,
+        role: 'superadmin',
+      },
+    }
+  }
 
   return {
     tenantId,
@@ -77,7 +98,7 @@ async function getTargetStaffInTenant(
 ): Promise<TargetStaffRow | null> {
   const { data: targetStaff } = await db
     .from('staff_members')
-    .select('id')
+    .select('id, role')
     .eq('id', staffId)
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
@@ -86,16 +107,36 @@ async function getTargetStaffInTenant(
   return (targetStaff as TargetStaffRow | null) ?? null
 }
 
+function isOwnerRole(role: TeamRole): boolean {
+  return role === 'owner'
+}
+
+function canAssignOwnerRole(
+  currentStaff: CurrentStaffRow,
+  role: TeamRole,
+): boolean {
+  return !isOwnerRole(role) || currentStaff.role === 'owner' || currentStaff.role === 'superadmin'
+}
+
+function hasTeamManagementPermissions(currentStaff: CurrentStaffRow): boolean {
+  return currentStaff.role === 'superadmin'
+    || MANAGER_ROLES.includes(currentStaff.role as typeof MANAGER_ROLES[number])
+}
+
 function canManageTargetStaff(
   currentStaff: CurrentStaffRow,
-  targetStaffId: string,
+  targetStaff: TargetStaffRow,
   allowStaffSelf = false,
 ): boolean {
-  if (MANAGER_ROLES.includes(currentStaff.role as typeof MANAGER_ROLES[number])) {
+  if (currentStaff.role === 'owner' || currentStaff.role === 'superadmin') {
     return true
   }
 
-  return allowStaffSelf && currentStaff.role === 'staff' && currentStaff.id === targetStaffId
+  if (currentStaff.role === 'manager') {
+    return !isOwnerRole(targetStaff.role)
+  }
+
+  return allowStaffSelf && currentStaff.role === 'staff' && currentStaff.id === targetStaff.id
 }
 
 async function validateServiceIdsForTenant(
@@ -143,7 +184,7 @@ export async function getTeamData(): Promise<TeamData> {
 
   const db = createAdminClient()
 
-  const [staffRes, locsRes, currentStaffRes] = await Promise.all([
+  const [staffRes, locsRes, currentStaffRes, currentProfileRes] = await Promise.all([
     db
       .from('staff_members')
       .select('id, profile_id, role, is_active, photo_url, profiles(full_name, email, avatar_url)')
@@ -159,6 +200,13 @@ export async function getTeamData(): Promise<TeamData> {
           .eq('profile_id', user.id)
           .eq('is_active', true)
           .is('deleted_at', null)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    user
+      ? db
+          .from('profiles')
+          .select('is_superadmin')
+          .eq('id', user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
@@ -197,6 +245,8 @@ export async function getTeamData(): Promise<TeamData> {
   const currentStaffData = currentStaffRes.data as any
   const currentStaff = currentStaffData
     ? { staffId: currentStaffData.id as string, role: currentStaffData.role as string }
+    : (currentProfileRes.data as { is_superadmin?: boolean } | null)?.is_superadmin
+      ? { staffId: user!.id, role: 'superadmin' }
     : null
 
   return { staffMembers, currentStaff }
@@ -209,7 +259,7 @@ export async function getStaffServices(staffId: string): Promise<{ serviceIds: s
   if (!ctx) return { serviceIds: [] }
 
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
-  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff.id, true)) {
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
     return { serviceIds: [] }
   }
 
@@ -232,7 +282,7 @@ export async function setStaffServices(
   if (!ctx) return { success: false, error: 'Non autorizzato' }
 
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
-  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff.id, true)) {
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
     return { success: false, error: 'Non autorizzato' }
   }
 
@@ -270,8 +320,11 @@ export async function inviteTeamMember(
   try {
     const ctx = await getTeamActorContext()
     if (!ctx) return { success: false, error: 'Non autorizzato' }
-    if (!MANAGER_ROLES.includes(ctx.currentStaff.role as typeof MANAGER_ROLES[number])) {
+    if (!hasTeamManagementPermissions(ctx.currentStaff)) {
       return { success: false, error: 'Non hai i permessi per invitare membri' }
+    }
+    if (!canAssignOwnerRole(ctx.currentStaff, role)) {
+      return { success: false, error: 'Solo il titolare può invitare un altro titolare' }
     }
 
     const tenantId = ctx.tenantId
@@ -405,8 +458,14 @@ export async function updateStaffRole(
     return { success: false, error: 'Non autorizzato' }
   }
 
-  if (!MANAGER_ROLES.includes(ctx.currentStaff.role as typeof MANAGER_ROLES[number])) {
+  if (!hasTeamManagementPermissions(ctx.currentStaff)) {
     return { success: false, error: 'Non hai i permessi per modificare i membri' }
+  }
+  if (!canManageTargetStaff(ctx.currentStaff, targetStaff)) {
+    return { success: false, error: 'Solo il titolare può modificare un titolare' }
+  }
+  if (!canAssignOwnerRole(ctx.currentStaff, role)) {
+    return { success: false, error: 'Solo il titolare può assegnare il ruolo di titolare' }
   }
 
   const updates: TablesUpdate<'staff_members'> = {
@@ -435,8 +494,8 @@ export async function removeStaffMember(staffId: string): Promise<{ success: boo
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
   if (!targetStaff) return { success: false, error: 'Non autorizzato' }
 
-  if (ctx.currentStaff.role !== 'owner') {
-    return { success: false, error: 'Solo il titolare può rimuovere i membri' }
+  if (ctx.currentStaff.role !== 'owner' && ctx.currentStaff.role !== 'superadmin') {
+    return { success: false, error: 'Solo il titolare o il superadmin possono rimuovere i membri' }
   }
   if (ctx.currentStaff.id === staffId) {
     return { success: false, error: 'Non puoi rimuovere te stesso' }
@@ -477,7 +536,7 @@ export async function getStaffAvailability(staffId: string): Promise<StaffAvaila
   if (!ctx) return { days: [], locations: [] }
 
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
-  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff.id, true)) {
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
     return { days: [], locations: [] }
   }
 
@@ -527,7 +586,7 @@ export async function saveStaffAvailability(
   if (!ctx) return { success: false, error: 'Non autorizzato' }
 
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
-  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff.id, true)) {
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
     return { success: false, error: 'Non autorizzato' }
   }
 
@@ -612,8 +671,8 @@ export async function startStaffView(
   const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
   if (!targetStaff) return { success: false, error: 'Non autorizzato' }
 
-  if (ctx.currentStaff.role !== 'owner') {
-    return { success: false, error: 'Solo il titolare può attivare la staff view' }
+  if (ctx.currentStaff.role !== 'owner' && ctx.currentStaff.role !== 'superadmin') {
+    return { success: false, error: 'Solo il titolare o il superadmin possono attivare la staff view' }
   }
 
   const cookieStore = await cookies()

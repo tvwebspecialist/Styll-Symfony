@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
+import { clearAdminShadowCookieOnResponse } from '@/lib/admin-shadow-cookie'
 import { buildRootAppUrl, buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -7,6 +8,7 @@ import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-inte
 
 function redirect(url: string) {
   const res = NextResponse.redirect(url)
+  clearAdminShadowCookieOnResponse(res)
   res.headers.set('Cache-Control', 'no-store')
   return res
 }

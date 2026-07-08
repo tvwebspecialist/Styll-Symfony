@@ -1,8 +1,45 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types'
+
+const RATE_LIMITED_MESSAGE = 'Troppe richieste. Riprova tra qualche minuto.'
+
+/**
+ * Best-effort caller IP from proxy headers. Used only as a secondary
+ * rate-limit dimension, never for auth decisions.
+ */
+async function getRequestIp(): Promise<string> {
+  const h = await headers()
+  return (
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    h.get('x-real-ip')?.trim() ||
+    'unknown'
+  )
+}
+
+/**
+ * Throttles OTP send/verify. NOTE: checkRateLimit is in-memory per serverless
+ * instance (see lib/rate-limit.ts), so this curbs — but does not globally
+ * guarantee against — SMS-pumping / brute-force. Move to a shared store
+ * (Redis/Upstash) for a hard guarantee.
+ */
+async function checkOtpRateLimit(
+  scope: string,
+  identifier: string,
+  limit: number,
+  windowMs: number,
+): Promise<boolean> {
+  const byId = checkRateLimit(`otp:${scope}:${identifier}`, limit, windowMs)
+  if (!byId.allowed) return false
+  const ip = await getRequestIp()
+  // A single IP cycling many identifiers is capped separately and higher.
+  const byIp = checkRateLimit(`otp:${scope}:ip:${ip}`, limit * 5, windowMs)
+  return byIp.allowed
+}
 
 type ProfileRow = Pick<Tables<'profiles'>, 'full_name' | 'avatar_url' | 'email' | 'phone'>
 type ClientRow = Pick<
@@ -38,8 +75,15 @@ function mapAuthError(message: string): string {
 }
 
 export async function sendOtp(phone: string): Promise<{ success: boolean; error?: string }> {
+  const normalizedPhone = normalizePhoneValue(phone)
+
+  // Rate limit BEFORE hitting Supabase/SMS provider — this is the paid path.
+  if (!(await checkOtpRateLimit('sms-send', normalizedPhone, 3, 15 * 60 * 1000))) {
+    return { success: false, error: RATE_LIMITED_MESSAGE }
+  }
+
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithOtp({ phone: normalizePhoneValue(phone) })
+  const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone })
 
   if (error) {
     return { success: false, error: mapAuthError(error.message) }
@@ -66,8 +110,14 @@ export async function verifyOtp(
     return { success: false, isNewClient: false, error: 'Salone non valido.' }
   }
 
-  const supabase = await createClient()
   const normalizedPhone = normalizePhoneValue(phone)
+
+  // Throttle code-guessing attempts (6-digit SMS token brute force).
+  if (!(await checkOtpRateLimit('sms-verify', normalizedPhone, 6, 10 * 60 * 1000))) {
+    return { success: false, isNewClient: false, error: RATE_LIMITED_MESSAGE }
+  }
+
+  const supabase = await createClient()
   const { data, error } = await supabase.auth.verifyOtp({
     phone: normalizedPhone,
     token,
@@ -304,23 +354,156 @@ function mapEmailAuthError(message: string): string {
 }
 
 export async function sendEmailOtp(email: string): Promise<{ success: boolean; error?: string }> {
+  const normalizedEmail = email.trim().toLowerCase()
+
+  if (!(await checkOtpRateLimit('email-send', normalizedEmail, 4, 15 * 60 * 1000))) {
+    return { success: false, error: RATE_LIMITED_MESSAGE }
+  }
+
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithOtp({
-    email: email.trim().toLowerCase(),
+    email: normalizedEmail,
     options: { shouldCreateUser: true },
   })
   if (error) return { success: false, error: mapEmailAuthError(error.message) }
   return { success: true }
 }
 
-export async function checkEmailExists(email: string): Promise<{ isExisting: boolean }> {
+export async function completeEmailOtpProfile(
+  tenantId: string,
+  profileData: { fullName: string; phone: string; marketingConsent?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  const fullName = profileData.fullName.trim()
+  const rawPhone = profileData.phone.trim()
+  if (!fullName) {
+    return { success: false, error: 'Il nome è obbligatorio.' }
+  }
+  if (!rawPhone) {
+    return { success: false, error: 'Il numero di telefono è obbligatorio.' }
+  }
+
   const db = createAdminClient()
-  const { data } = await db
-    .from('profiles')
+  const { data: tenant } = await db
+    .from('tenants')
     .select('id')
-    .eq('email', email.trim().toLowerCase())
+    .eq('id', tenantId)
+    .eq('status', 'active')
     .maybeSingle()
-  return { isExisting: !!data }
+
+  if (!tenant) {
+    return { success: false, error: 'Salone non valido.' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, error: 'Sessione non valida. Riprova.' }
+  }
+
+  const now = new Date().toISOString()
+  const normalizedPhone = normalizePhoneValue(rawPhone)
+  const normalizedEmail = user.email?.trim().toLowerCase() ?? null
+
+  const { error: profileUpdateError } = await db
+    .from('profiles')
+    .update({
+      full_name: fullName,
+      phone: normalizedPhone,
+      user_type: 'client',
+      updated_at: now,
+      ...(normalizedEmail ? { email: normalizedEmail } : {}),
+    })
+    .eq('id', user.id)
+
+  if (profileUpdateError) {
+    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  const clientPayload: TablesUpdate<'clients'> = {
+    full_name: fullName,
+    phone: normalizedPhone,
+    updated_at: now,
+    marketing_consent: profileData.marketingConsent ?? false,
+    ...(normalizedEmail ? { email: normalizedEmail } : {}),
+  }
+
+  const { data: linkedClient, error: linkedClientError } = await db
+    .from('clients')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (linkedClientError) {
+    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (linkedClient?.id) {
+    const { error: updateClientError } = await db
+      .from('clients')
+      .update(clientPayload)
+      .eq('id', linkedClient.id)
+      .eq('tenant_id', tenantId)
+
+    if (updateClientError) {
+      return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    return { success: true }
+  }
+
+  if (normalizedEmail) {
+    const { data: unlinkedClient, error: unlinkedClientError } = await db
+      .from('clients')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('email', normalizedEmail)
+      .is('profile_id', null)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (unlinkedClientError) {
+      return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    if (unlinkedClient?.id) {
+      const { error: linkClientError } = await db
+        .from('clients')
+        .update({
+          ...clientPayload,
+          profile_id: user.id,
+        })
+        .eq('id', unlinkedClient.id)
+        .eq('tenant_id', tenantId)
+
+      if (linkClientError) {
+        return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+      }
+
+      return { success: true }
+    }
+  }
+
+  const { error: insertClientError } = await db.from('clients').insert({
+    tenant_id: tenantId,
+    profile_id: user.id,
+    full_name: fullName,
+    phone: normalizedPhone,
+    email: normalizedEmail,
+    created_at: now,
+    updated_at: now,
+    marketing_consent: profileData.marketingConsent ?? false,
+    tags: [],
+  })
+
+  if (insertClientError) {
+    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  return { success: true }
 }
 
 export async function verifyEmailOtp(
@@ -347,8 +530,14 @@ export async function verifyEmailOtp(
     return { success: false, isNewClient: false, error: 'Salone non valido.' }
   }
 
-  const supabase = await createClient()
   const normalizedEmail = email.trim().toLowerCase()
+
+  // Throttle code-guessing attempts on the email OTP.
+  if (!(await checkOtpRateLimit('email-verify', normalizedEmail, 6, 10 * 60 * 1000))) {
+    return { success: false, isNewClient: false, error: RATE_LIMITED_MESSAGE }
+  }
+
+  const supabase = await createClient()
 
   const { data, error } = await supabase.auth.verifyOtp({
     email: normalizedEmail,

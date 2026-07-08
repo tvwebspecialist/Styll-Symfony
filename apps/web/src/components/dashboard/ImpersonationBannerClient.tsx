@@ -10,13 +10,15 @@ export function StopImpersonationButton() {
     startTransition(async () => {
       await stopTenantImpersonation()
       const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-      window.location.href = `https://${rootDomain}/admin`
+      const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
+      window.location.href = `${protocol}://${rootDomain}/admin`
     })
   }
 
   return (
     <button
       type="button"
+      aria-label="Esci da shadow mode"
       onClick={handle}
       disabled={pending}
       style={{

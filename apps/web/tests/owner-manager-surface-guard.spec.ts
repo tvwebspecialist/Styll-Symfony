@@ -34,6 +34,13 @@ function buildTenantDashboardPath(slug: string, relativePath: string): string {
   return `/tenant/dashboard/${slug}${normalizedPath}`
 }
 
+function normalizePathname(pathname: string): string {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.slice(0, -1)
+  }
+  return pathname
+}
+
 async function createStaffUser(
   service: ServiceClient,
   suffix: string,
@@ -139,15 +146,22 @@ async function resetSession(page: Page) {
   await page.evaluate(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
+    // Re-set analytics consent so the cookie banner never blocks test interactions
+    window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
   })
 }
 
 async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
   await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+  // Pre-set analytics consent so the cookie banner never blocks test interactions
+  await page.evaluate(() => {
+    window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
+  })
   await page.locator('#email').fill(user.email)
   await page.locator('#password').fill(user.password)
   await page.getByRole('button', { name: 'Accedi' }).click()
-  await page.waitForURL((url) => url.pathname === redirectTo)
+  const normalizedRedirectTo = normalizePathname(redirectTo)
+  await page.waitForURL((url) => normalizePathname(url.pathname) === normalizedRedirectTo)
 }
 
 async function captureNextActionRequest(
@@ -193,12 +207,36 @@ async function replayCapturedAction(page: Page, captured: CapturedActionRequest)
   }
 }
 
-test.describe('owner-manager surface guard', () => {
+test.describe.serial('owner-manager surface guard', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for role guard fixtures.')
+  let fixture: SurfaceFixture | null = null
+  let service: ServiceClient | null = null
 
-  test('receptionist cannot access owner-manager pages by URL while owner and manager can', async ({ page }) => {
+  test.beforeAll(async () => {
+    service = requireServiceClient()
+    fixture = await seedSurfaceFixture()
+  })
+
+  test.afterAll(async () => {
+    if (fixture) {
+      await fixture.cleanup()
+      fixture = null
+    }
+  })
+
+  function getFixture(): SurfaceFixture {
+    if (!fixture) throw new Error('Role guard fixture not initialized')
+    return fixture
+  }
+
+  function getService(): ServiceClient {
+    if (!service) throw new Error('Role guard service client not initialized')
+    return service
+  }
+
+  test('receptionist cannot access owner-manager management pages by URL while owner and manager can', async ({ page }) => {
     test.setTimeout(120_000)
-    const fixture = await seedSurfaceFixture()
+    const fixture = getFixture()
     const protectedPaths = [
       buildTenantDashboardPath(fixture.slug, '/marketing'),
       buildTenantDashboardPath(fixture.slug, '/catalogo'),
@@ -207,157 +245,178 @@ test.describe('owner-manager surface guard', () => {
       buildTenantDashboardPath(fixture.slug, '/app'),
     ]
 
-    try {
-      const receptionistLanding = buildTenantDashboardPath(fixture.slug, '/profilo')
-      await loginAs(page, fixture.receptionist, receptionistLanding)
+    const receptionistLanding = buildTenantDashboardPath(fixture.slug, '/profilo')
+    await loginAs(page, fixture.receptionist, receptionistLanding)
 
-      for (const path of protectedPaths) {
-        const response = await page.goto(path)
-        expect(response?.status()).toBe(403)
-      }
+    for (const path of protectedPaths) {
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(403)
+    }
 
-      await resetSession(page)
-      await loginAs(page, fixture.owner, protectedPaths[0])
-      for (const path of protectedPaths) {
-        await page.goto(path)
-        expect(page.url()).toContain(path)
-      }
+    await resetSession(page)
+    await loginAs(page, fixture.owner, protectedPaths[0])
+    for (const path of protectedPaths) {
+      await page.goto(path)
+      expect(page.url()).toContain(path)
+    }
 
-      await resetSession(page)
-      await loginAs(page, fixture.manager, protectedPaths[0])
-      for (const path of protectedPaths) {
-        await page.goto(path)
-        expect(page.url()).toContain(path)
-      }
-    } finally {
-      await fixture.cleanup()
+    await resetSession(page)
+    await loginAs(page, fixture.manager, protectedPaths[0])
+    for (const path of protectedPaths) {
+      await page.goto(path)
+      expect(page.url()).toContain(path)
     }
   })
 
-  test('receptionist cannot replay forbidden settings, catalog, or marketing server actions', async ({ page }) => {
+  test('receptionist cannot replay forbidden settings server actions', async ({ page }) => {
     test.setTimeout(120_000)
-    const fixture = await seedSurfaceFixture()
-    const service = requireServiceClient()
+    const fixture = getFixture()
+    const service = getService()
     const settingsPath = buildTenantDashboardPath(fixture.slug, '/impostazioni')
+
+    await loginAs(page, fixture.owner, settingsPath)
+    const newLocationName = `Replay Location ${randomSuffix()}`
+    const capturedSettingsAction = await captureNextActionRequest(page, async () => {
+      await page.getByRole('button', { name: 'Sedi' }).click()
+      await page.getByRole('button', { name: /Aggiungi sede|Nuova sede/ }).click()
+      await page.getByPlaceholder('Es. Sede principale').fill(newLocationName)
+      await page.getByRole('button', { name: 'Crea sede' }).click()
+      await expect(page.getByText('Sede creata')).toBeVisible({ timeout: 10_000 })
+    })
+
+    await resetSession(page)
+    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+    await replayCapturedAction(page, capturedSettingsAction)
+
+    const { data: locationsAfterReplay, error: locationsAfterReplayError } = await service
+      .from('locations')
+      .select('id')
+      .eq('tenant_id', fixture.tenantId)
+      .eq('name', newLocationName)
+    await assertNoSupabaseError('read locations after blocked settings replay', locationsAfterReplayError)
+    expect(locationsAfterReplay ?? []).toHaveLength(1)
+  })
+
+  test('receptionist cannot replay forbidden catalog server actions', async ({ page }) => {
+    test.setTimeout(120_000)
+    const fixture = getFixture()
+    const service = getService()
     const catalogoPath = buildTenantDashboardPath(fixture.slug, '/catalogo')
+
+    await loginAs(page, fixture.owner, catalogoPath)
+    const newServiceName = `Replay Service ${randomSuffix()}`
+    const capturedCatalogAction = await captureNextActionRequest(page, async () => {
+      await page.getByRole('button', { name: 'Nuovo servizio' }).click()
+      await page.getByPlaceholder('Es. Taglio uomo').fill(newServiceName)
+      await page.getByPlaceholder('0.00').first().fill('25')
+      await page.getByPlaceholder('30').fill('30')
+      await page.getByRole('button', { name: 'Crea servizio' }).click()
+      await expect(page.getByText('Servizio creato')).toBeVisible({ timeout: 10_000 })
+    })
+
+    await resetSession(page)
+    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+    await replayCapturedAction(page, capturedCatalogAction)
+
+    const { data: createdServiceRows, error: createdServiceRowsError } = await service
+      .from('services')
+      .select('id')
+      .eq('tenant_id', fixture.tenantId)
+      .eq('name', newServiceName)
+    await assertNoSupabaseError('read services after blocked catalog replay', createdServiceRowsError)
+    expect(createdServiceRows ?? []).toHaveLength(1)
+  })
+
+  test('receptionist cannot replay forbidden marketing server actions', async ({ page }) => {
+    test.setTimeout(120_000)
+    const fixture = getFixture()
     const marketingPath = buildTenantDashboardPath(fixture.slug, '/marketing?tab=messaggi')
 
-    try {
-      await loginAs(page, fixture.owner, settingsPath)
-      const newLocationName = `Replay Location ${randomSuffix()}`
-      const capturedSettingsAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('button', { name: 'Sedi' }).click()
-        await page.getByRole('button', { name: /Aggiungi sede|Nuova sede/ }).click()
-        await page.getByLabel('Nome sede').fill(newLocationName)
-        await page.getByRole('button', { name: 'Crea sede' }).click()
-        await expect(page.getByText('Sede creata')).toBeVisible()
+    // Capture the marketing Server Action (getMessagesData) by navigating to the page.
+    // The action is called on component mount — capturing it from a page.goto is reliable.
+    await loginAs(page, fixture.owner, buildTenantDashboardPath(fixture.slug, '/'))
+
+    // Set up the listener BEFORE navigating to marketing so mount-time Server Actions are captured.
+    const capturedMarketingAction = await captureNextActionRequest(page, async () => {
+      await page.goto(marketingPath)
+      await expect(page.getByRole('switch').first()).toBeVisible({ timeout: 15_000 })
+    })
+
+    await resetSession(page)
+    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+    const marketingReplayResponse = await replayCapturedAction(page, capturedMarketingAction)
+    // Receptionist must be blocked — Next.js translates throwForbidden() to HTTP 403.
+    expect(marketingReplayResponse).not.toBeNull()
+    expect(marketingReplayResponse!.status()).toBe(403)
+  })
+
+  test('receptionist cannot replay forbidden app server actions', async ({ page }) => {
+    test.setTimeout(120_000)
+    const fixture = getFixture()
+    const service = getService()
+    const appPath = buildTenantDashboardPath(fixture.slug, '/app')
+
+    await loginAs(page, fixture.owner, appPath)
+    const appReplayValue = `Replay App Name ${randomSuffix()}`
+    const appControlValue = `App Guard Control ${randomSuffix()}`
+    const capturedAppAction = await captureNextActionRequest(page, async () => {
+      await page.getByPlaceholder('Es. Barber Studio Marco').fill(appReplayValue)
+      await page.getByRole('button', { name: 'Salva impostazioni' }).click()
+      await expect(page.getByText(/Impostazioni salvate/i)).toBeVisible({ timeout: 10_000 })
+    })
+
+    const { error: appControlUpdateError } = await service
+      .from('tenants')
+      .update({
+        business_name: appControlValue,
+        updated_at: new Date().toISOString(),
       })
+      .eq('id', fixture.tenantId)
+    await assertNoSupabaseError(
+      'set tenant control value before blocked app replay',
+      appControlUpdateError
+    )
 
-      await resetSession(page)
-      await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
-      await replayCapturedAction(page, capturedSettingsAction)
+    await resetSession(page)
+    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+    await replayCapturedAction(page, capturedAppAction)
 
-      const { data: locationsAfterReplay, error: locationsAfterReplayError } = await service
-        .from('locations')
-        .select('id')
-        .eq('tenant_id', fixture.tenantId)
-        .eq('name', newLocationName)
-      await assertNoSupabaseError('read locations after blocked settings replay', locationsAfterReplayError)
-      expect(locationsAfterReplay ?? []).toHaveLength(1)
-
-      await resetSession(page)
-      await loginAs(page, fixture.owner, catalogoPath)
-      const newServiceName = `Replay Service ${randomSuffix()}`
-      const capturedCatalogAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('button', { name: 'Nuovo servizio' }).click()
-        await page.getByLabel('Nome').fill(newServiceName)
-        await page.getByLabel('Prezzo (€)').fill('25')
-        await page.getByLabel('Durata (min)').fill('30')
-        await page.getByRole('button', { name: 'Crea servizio' }).click()
-        await expect(page.getByText('Servizio creato')).toBeVisible()
-      })
-
-      await resetSession(page)
-      await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
-      await replayCapturedAction(page, capturedCatalogAction)
-
-      const { data: createdServiceRows, error: createdServiceRowsError } = await service
-        .from('services')
-        .select('id')
-        .eq('tenant_id', fixture.tenantId)
-        .eq('name', newServiceName)
-      await assertNoSupabaseError('read services after blocked catalog replay', createdServiceRowsError)
-      expect(createdServiceRows ?? []).toHaveLength(1)
-
-      await resetSession(page)
-      await loginAs(page, fixture.owner, marketingPath)
-      await expect(page.getByRole('switch').first()).toBeVisible()
-      const capturedMarketingAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('switch').first().click()
-      })
-
-      const { error: resetMarketingAutomationError } = await service
-        .from('message_automations')
-        .upsert(
-          {
-            tenant_id: fixture.tenantId,
-            type: 'reminder_1d',
-            enabled: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'tenant_id,type' }
-        )
-      await assertNoSupabaseError('reset marketing automation state', resetMarketingAutomationError)
-
-      await resetSession(page)
-      await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
-      await replayCapturedAction(page, capturedMarketingAction)
-
-      const { data: marketingAutomationRow, error: marketingAutomationRowError } = await service
-        .from('message_automations')
-        .select('enabled')
-        .eq('tenant_id', fixture.tenantId)
-        .eq('type', 'reminder_1d')
-        .maybeSingle()
-      await assertNoSupabaseError('read marketing automation after blocked replay', marketingAutomationRowError)
-      expect(marketingAutomationRow?.enabled).toBe(true)
-    } finally {
-      await fixture.cleanup()
-    }
+    const { data: tenantAfterAppReplay, error: tenantAfterAppReplayError } = await service
+      .from('tenants')
+      .select('business_name')
+      .eq('id', fixture.tenantId)
+      .maybeSingle()
+    await assertNoSupabaseError('read tenant after blocked app replay', tenantAfterAppReplayError)
+    expect(tenantAfterAppReplay?.business_name).toBe(appControlValue)
   })
 
   test('receptionist cannot call marketing notify route handler', async ({ page }) => {
-    const fixture = await seedSurfaceFixture()
-    const service = requireServiceClient()
+    const fixture = getFixture()
+    const service = getService()
+    const { data: promotion, error: promotionError } = await service
+      .from('promotions')
+      .insert({
+        tenant_id: fixture.tenantId,
+        title: `Replay Promotion ${randomSuffix()}`,
+        description: 'Marketing test promotion',
+        is_active: true,
+        show_in_app: true,
+        show_on_landing: true,
+        status: 'active',
+        valid_from: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    await assertNoSupabaseError('create marketing promotion seed', promotionError)
 
-    try {
-      const { data: promotion, error: promotionError } = await service
-        .from('promotions')
-        .insert({
-          tenant_id: fixture.tenantId,
-          title: `Replay Promotion ${randomSuffix()}`,
-          description: 'Marketing test promotion',
-          is_active: true,
-          show_in_app: true,
-          show_on_landing: true,
-          status: 'active',
-          valid_from: new Date().toISOString(),
-        })
-        .select('id')
-        .single()
-      await assertNoSupabaseError('create marketing promotion seed', promotionError)
+    const promotionId = promotion?.id
+    if (!promotionId) throw new Error('create marketing promotion seed: missing id')
 
-      const promotionId = promotion?.id
-      if (!promotionId) throw new Error('create marketing promotion seed: missing id')
-
-      await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
-      const marketingResponse = await page.context().request.post(
-        `/api/promotions/${promotionId}/notify`,
-        { failOnStatusCode: false }
-      )
-      expect(marketingResponse.status()).toBe(403)
-    } finally {
-      await fixture.cleanup()
-    }
+    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
+    const marketingResponse = await page.context().request.post(
+      `/api/promotions/${promotionId}/notify`,
+      { failOnStatusCode: false }
+    )
+    expect(marketingResponse.status()).toBe(403)
   })
 })

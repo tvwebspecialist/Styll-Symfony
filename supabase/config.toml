@@ -48,3 +48,6 @@ enabled = false
 account_sid = ""
 message_service_sid = ""
 auth_token = "env(TWILIO_AUTH_TOKEN)"
+
+[functions.loyalty-annual-reset]
+verify_jwt = false

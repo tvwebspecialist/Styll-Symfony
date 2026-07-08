@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2, Users, Eye, MoreHorizontal, UserPlus, Clock } from 'lucide-react'
 import { StyllModal } from '@/components/ui/styll-modal'
-import { CustomSelect } from '@/components/ui/custom-select'
+import { CustomSelect, type SelectOption } from '@/components/ui/custom-select'
 import { inviteTeamMember, updateStaffRole, removeStaffMember, startStaffView } from '@/lib/actions/team'
 import type { TeamData, StaffMemberRow } from '@/lib/actions/team'
 import { StaffAvailabilityEditor } from './StaffAvailabilityEditor'
@@ -41,12 +41,31 @@ const ROLE_STYLES: Record<string, { background: string; color: string; label: st
   receptionist: { background: '#EFF6FF', color: '#1D4ED8', label: 'Receptionist' },
 }
 
+function getTeamRoleOptions(canAssignOwnerRole: boolean): SelectOption[] {
+  return [
+    ...(canAssignOwnerRole ? [{ value: 'owner', label: 'Titolare' }] : []),
+    { value: 'manager', label: 'Manager' },
+    { value: 'staff', label: 'Staff' },
+    { value: 'receptionist', label: 'Receptionist' },
+  ]
+}
+
 // ─── Invite Modal ─────────────────────────────────────────────────────────────
 
-function InviteModal({ onClose }: { onClose: () => void }) {
+function InviteModal({
+  canAssignOwnerRole,
+  onClose,
+}: {
+  canAssignOwnerRole: boolean
+  onClose: () => void
+}) {
   const [email, setEmail] = React.useState('')
   const [role, setRole] = React.useState<string>('staff')
   const [loading, setLoading] = React.useState(false)
+  const roleOptions = React.useMemo(
+    () => getTeamRoleOptions(canAssignOwnerRole),
+    [canAssignOwnerRole]
+  )
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -96,12 +115,8 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         <CustomSelect
           value={role}
           onChange={setRole}
-          options={[
-            { value: 'owner', label: 'Titolare' },
-            { value: 'manager', label: 'Manager' },
-            { value: 'staff', label: 'Staff' },
-            { value: 'receptionist', label: 'Receptionist' },
-          ]}
+          options={roleOptions}
+          ariaLabel="Ruolo invito team"
         />
       </div>
       <div style={{ display: 'flex', gap: 10, paddingTop: 8, borderTop: '1px solid var(--color-border)', marginTop: 4 }}>
@@ -130,10 +145,22 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
-function EditModal({ member, onClose }: { member: StaffMemberRow; onClose: () => void }) {
+function EditModal({
+  member,
+  canAssignOwnerRole,
+  onClose,
+}: {
+  member: StaffMemberRow
+  canAssignOwnerRole: boolean
+  onClose: () => void
+}) {
   const [role, setRole] = React.useState<string>(member.role)
   const [isActive, setIsActive] = React.useState(member.isActive)
   const [loading, setLoading] = React.useState(false)
+  const roleOptions = React.useMemo(
+    () => getTeamRoleOptions(canAssignOwnerRole),
+    [canAssignOwnerRole]
+  )
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -162,12 +189,8 @@ function EditModal({ member, onClose }: { member: StaffMemberRow; onClose: () =>
         <CustomSelect
           value={role}
           onChange={setRole}
-          options={[
-            { value: 'owner', label: 'Titolare' },
-            { value: 'manager', label: 'Manager' },
-            { value: 'staff', label: 'Staff' },
-            { value: 'receptionist', label: 'Receptionist' },
-          ]}
+          options={roleOptions}
+          ariaLabel="Ruolo membro team"
         />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid var(--color-border)' }}>
@@ -257,7 +280,7 @@ function RemoveModal({ member, onClose }: { member: StaffMemberRow; onClose: () 
 function StaffCard({
   member,
   canEdit,
-  isOwner,
+  canImpersonate,
   isSelf,
   onEdit,
   onRemove,
@@ -266,7 +289,7 @@ function StaffCard({
 }: {
   member: StaffMemberRow
   canEdit: boolean
-  isOwner: boolean
+  canImpersonate: boolean
   isSelf: boolean
   onEdit: (m: StaffMemberRow) => void
   onRemove: (m: StaffMemberRow) => void
@@ -336,6 +359,7 @@ function StaffCard({
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(member) }}
           title="Modifica membro"
+          aria-label={`Modifica ${member.fullName ?? 'membro'}`}
           style={{
             position: 'absolute',
             top: 10,
@@ -397,6 +421,7 @@ function StaffCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onAvailability(member) }}
               title="Disponibilità & Sedi"
+              aria-label={`Disponibilità ${member.fullName ?? 'membro'}`}
               style={{
                 width: 36,
                 height: 36,
@@ -418,7 +443,7 @@ function StaffCard({
           )}
 
           {/* Eye button — impersonate (owner only, not self) */}
-          {isOwner && !isSelf && (
+          {canImpersonate && !isSelf && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onBecomeStaff(member) }}
@@ -466,8 +491,22 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
     return () => mql.removeEventListener('change', handler)
   }, [])
 
-  const canEdit = currentStaff?.role === 'owner' || currentStaff?.role === 'manager'
-  const isOwner = currentStaff?.role === 'owner'
+  const currentRole = currentStaff?.role ?? null
+  const canEditTeam = currentRole === 'owner' || currentRole === 'manager' || currentRole === 'superadmin'
+  const canAssignOwnerRole = currentRole === 'owner' || currentRole === 'superadmin'
+  const canImpersonateStaff = currentRole === 'owner' || currentRole === 'superadmin'
+
+  function canManageMember(member: StaffMemberRow): boolean {
+    if (currentRole === 'owner' || currentRole === 'superadmin') {
+      return true
+    }
+
+    if (currentRole === 'manager') {
+      return member.role !== 'owner'
+    }
+
+    return false
+  }
 
   async function handleBecomeStaff(member: StaffMemberRow) {
     const result = await startStaffView(member.id, member.fullName ?? 'Staff')
@@ -502,7 +541,7 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
             Gestisci i membri del tuo team e i loro servizi.
           </p>
         </div>
-        {canEdit && !isMobile && (
+        {canEditTeam && !isMobile && (
           <button
             type="button"
             onClick={() => setInviteOpen(true)}
@@ -569,8 +608,8 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
             <StaffCard
               key={member.id}
               member={member}
-              canEdit={canEdit}
-              isOwner={isOwner}
+              canEdit={canManageMember(member)}
+              canImpersonate={canImpersonateStaff}
               isSelf={currentStaff?.staffId === member.id}
               onEdit={setEditMember}
               onRemove={setRemoveMember}
@@ -589,7 +628,10 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
         description="Invia un invito via email a un nuovo membro del team."
         size="sm"
       >
-        <InviteModal onClose={() => setInviteOpen(false)} />
+        <InviteModal
+          canAssignOwnerRole={canAssignOwnerRole}
+          onClose={() => setInviteOpen(false)}
+        />
       </StyllModal>
 
       {/* Edit modal */}
@@ -601,7 +643,11 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
         size="sm"
       >
         {editMember && (
-          <EditModal member={editMember} onClose={() => setEditMember(null)} />
+          <EditModal
+            member={editMember}
+            canAssignOwnerRole={canAssignOwnerRole}
+            onClose={() => setEditMember(null)}
+          />
         )}
       </StyllModal>
 
@@ -635,7 +681,7 @@ export function TeamClient({ staffMembers, currentStaff }: Omit<TeamData, 'allSe
       </StyllModal>
 
       {/* Mobile FAB — invite member */}
-      {canEdit && isMobile && (
+      {canEditTeam && isMobile && (
         <button
           type="button"
           onClick={() => setInviteOpen(true)}

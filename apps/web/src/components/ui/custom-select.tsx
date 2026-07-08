@@ -14,6 +14,7 @@ interface CustomSelectProps {
   onChange: (value: string) => void
   options: SelectOption[]
   placeholder?: string
+  ariaLabel?: string
   /** Renders a smaller, inline variant (no full-width wrapper) */
   compact?: boolean
   /** Which edge of the trigger to align the panel to (default: 'start' = left) */
@@ -30,6 +31,7 @@ export function CustomSelect({
   onChange,
   options,
   placeholder = 'Seleziona…',
+  ariaLabel,
   compact = false,
   align = 'start',
 }: CustomSelectProps) {
@@ -117,6 +119,7 @@ export function CustomSelect({
         onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={active}
+        aria-label={ariaLabel}
         style={{
           width:        compact ? undefined : '100%',
           padding:      compact ? '6px 10px' : '14px 16px',
