@@ -32,7 +32,7 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors disabled:opacity-50 ${
-        checked ? 'bg-[var(--brand-primary)]' : 'bg-neutral-200'
+        checked ? 'styll-bg-brand-primary' : 'bg-neutral-200'
       }`}
     >
       <span
@@ -213,7 +213,7 @@ export function PreferenzeClient({
       <div className="mt-4 text-center">
         <p className="text-xs text-neutral-300 flex items-center justify-center gap-1">
           <Shield className="size-3" />
-          Styll v1.0
+          Versione app 1.0
         </p>
       </div>
     </div>

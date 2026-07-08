@@ -158,7 +158,7 @@ export default function OnboardingStaffPage() {
               onClick={() => remove(idx)}
               disabled={members.length === 1}
               aria-label="Rimuovi membro"
-              className="rounded-md p-2 transition-colors hover:bg-[color:var(--color-bg-secondary)] disabled:opacity-30"
+              className="rounded-md p-2 transition-colors styll-hover-color-bg-secondary disabled:opacity-30"
               style={{ color: 'var(--color-fg-secondary)' }}
             >
               <Trash2 className="h-4 w-4" />
@@ -171,7 +171,7 @@ export default function OnboardingStaffPage() {
         type="button"
         onClick={add}
         disabled={members.length >= 10}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-[12px] border border-dashed py-3 text-sm font-medium transition-colors hover:bg-[color:var(--color-bg-secondary)] disabled:opacity-50"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-[12px] border border-dashed py-3 text-sm font-medium transition-colors styll-hover-color-bg-secondary disabled:opacity-50"
         style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-fg)' }}
       >
         <Plus className="h-4 w-4" /> Aggiungi membro

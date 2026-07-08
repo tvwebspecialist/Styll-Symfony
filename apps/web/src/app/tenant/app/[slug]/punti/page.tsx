@@ -89,7 +89,7 @@ export default async function PuntiPage({ params }: Props) {
                         <p className="mt-1 text-sm text-neutral-500">{reward.description}</p>
                       )}
                     </div>
-                    <span className="shrink-0 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
+                    <span className="shrink-0 rounded-full styll-bg-brand-primary-soft px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
                       {reward.points_cost} pt
                     </span>
                   </div>
@@ -119,7 +119,7 @@ export default async function PuntiPage({ params }: Props) {
         <div className="sticky bottom-24 z-10 -mx-4 px-4">
           <div className="rounded-[28px] border border-neutral-200 bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+              <div className="flex size-10 items-center justify-center rounded-full styll-bg-brand-primary-soft">
                 <Lock className="size-5 text-[var(--brand-primary)]" />
               </div>
               <div>
@@ -203,7 +203,7 @@ export default async function PuntiPage({ params }: Props) {
           <progress
             value={progress}
             max={100}
-            className="mt-2 h-2 w-full overflow-hidden rounded-full accent-[var(--brand-primary)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-white/10 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--brand-primary)]"
+            className="mt-2 h-2 w-full overflow-hidden rounded-full styll-progress-brand"
           />
         </div>
       </section>
@@ -224,7 +224,7 @@ export default async function PuntiPage({ params }: Props) {
                       {reward.description || 'Premio disponibile nel programma fedeltà.'}
                     </p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[var(--brand-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
+                  <span className="shrink-0 rounded-full styll-bg-brand-primary-soft px-3 py-1 text-xs font-bold text-[var(--brand-primary)]">
                     {reward.points_cost} pt
                   </span>
                 </div>

@@ -4,6 +4,10 @@ import { defineConfig, devices } from 'playwright/test'
 loadEnvConfig(process.cwd())
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const webServerPort = new URL(baseURL).port || '3000'
+const webServerCommand =
+  `node -e "require('node:fs').rmSync('.next-playwright',{ recursive: true, force: true })" ` +
+  `&& NEXT_DIST_DIR=.next-playwright pnpm exec next dev --webpack --port ${webServerPort}`
 
 export default defineConfig({
   testDir: './tests',
@@ -20,10 +24,10 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: `node -e "require('node:fs').rmSync('.next/dev',{ recursive: true, force: true })" && pnpm dev`,
+        command: webServerCommand,
         url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 300_000,
       },
   projects: [
     {

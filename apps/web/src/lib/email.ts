@@ -233,6 +233,59 @@ export async function sendVerificationCodeEmail({
   }
 }
 
+export async function sendWelcomeEmail({
+  email,
+  businessName,
+  slug,
+  dashboardUrl,
+}: {
+  email: string
+  businessName: string
+  slug: string
+  dashboardUrl: string
+}): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    console.error('[sendWelcomeEmail] Resend not configured')
+    return { success: false, error: 'Email service not configured' }
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
+  const publicUrl = `${appUrl}/${slug}`
+
+  const html = buildEmailHtml({
+    body: `La tua app è live e i clienti possono già prenotare.\n\nCondividi il link con i tuoi clienti per iniziare a ricevere prenotazioni.\n\nPrimo step: aggiungi i tuoi clienti o prova tu stesso una prenotazione dalla dashboard.`,
+    tenant: { business_name: businessName, primary_color: '#111111' },
+    category: 'Benvenuto',
+    title: `Sei dentro! ${businessName} è online 🎉`,
+    details: {
+      'App clienti': publicUrl,
+      'Dashboard': dashboardUrl,
+    },
+    ctaText: 'Vai alla dashboard',
+    ctaUrl: dashboardUrl,
+  })
+
+  const text = `Benvenuto in Styll!\n\n${businessName} è online.\n\nApp clienti: ${publicUrl}\nDashboard: ${dashboardUrl}\n\nPrimo step: aggiungi i tuoi clienti o prova una prenotazione.\n\nStyll`
+
+  try {
+    const result = await resend.emails.send({
+      from: 'Styll <noreply@mail.styll.it>',
+      to: email,
+      subject: `${businessName} è online su Styll 🎉`,
+      html,
+      text,
+    })
+    if (result.error) {
+      console.error('[sendWelcomeEmail] Resend error:', result.error)
+      return { success: false, error: result.error.message }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('[sendWelcomeEmail] Exception:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
 /**
  * Send a team invitation email to a new member.
  * The invitation link includes a token that the user can click to join.

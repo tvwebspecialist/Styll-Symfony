@@ -69,7 +69,7 @@ export function RewardsList({ rewards, availablePoints, puntiPath }: RewardsList
             </div>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200">
               <div
-                className="h-full rounded-full bg-[var(--brand-primary)]"
+                className="h-full rounded-full styll-bg-brand-primary"
                 style={{
                   width: `${Math.min(100, Math.round((availablePoints / nextReward.points_cost) * 100))}%`,
                 }}
@@ -105,10 +105,10 @@ export function RewardsList({ rewards, availablePoints, puntiPath }: RewardsList
                     {reward.name}
                   </p>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="rounded-full bg-[var(--brand-primary)]/10 px-2.5 py-1 text-xs font-bold text-[var(--brand-primary)]">
+                    <span className="rounded-full styll-bg-brand-primary-soft px-2.5 py-1 text-xs font-bold text-[var(--brand-primary)]">
                       {fmt.format(reward.points_cost)} pt
                     </span>
-                    <span className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-bold text-white">
+                    <span className="rounded-xl styll-bg-brand-primary px-3 py-1.5 text-xs font-bold text-white">
                       Riscatta
                     </span>
                   </div>

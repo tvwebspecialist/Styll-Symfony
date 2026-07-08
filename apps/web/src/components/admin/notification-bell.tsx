@@ -180,7 +180,7 @@ export function NotificationBell({ initialUnreadCount = 0 }: Props) {
           type="button"
           onClick={() => handleClickNotif(n)}
           disabled={pending}
-          className="group relative flex w-full gap-3 border-b px-4 py-3 text-left transition-colors last:border-0 hover:bg-[var(--admin-hover-bg)] disabled:opacity-60"
+          className="group relative flex w-full gap-3 border-b px-4 py-3 text-left transition-colors last:border-0 styll-hover-admin-hover-bg disabled:opacity-60"
           style={{
             borderColor: 'var(--admin-border)',
             background: n.is_read ? 'transparent' : 'var(--admin-accent-subtle)',
@@ -256,12 +256,12 @@ export function NotificationBell({ initialUnreadCount = 0 }: Props) {
       <button
         type="button"
         onClick={handleOpen}
-        className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-[var(--admin-hover-bg)]"
+        className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors styll-hover-admin-hover-bg"
         aria-label="Notifiche piattaforma"
       >
         <Bell size={18} style={{ color: 'var(--admin-text-muted)' }} />
         {unreadCount > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--admin-accent)] text-[9px] font-bold text-white">
+          <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full styll-bg-admin-accent text-[9px] font-bold text-white">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -305,7 +305,7 @@ export function NotificationBell({ initialUnreadCount = 0 }: Props) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full hover:bg-[var(--admin-hover-bg)]"
+              className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full styll-hover-admin-hover-bg"
               aria-label="Chiudi"
             >
               <X size={14} style={{ color: 'var(--admin-text-muted)' }} />

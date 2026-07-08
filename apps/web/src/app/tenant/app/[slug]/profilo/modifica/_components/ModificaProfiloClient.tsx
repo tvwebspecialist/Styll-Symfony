@@ -95,7 +95,7 @@ export function ModificaProfiloClient({ tenantId, userId: _userId, initialData, 
     })
   }
 
-  const inputCls = 'h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm text-neutral-900 outline-none focus:border-[var(--brand-primary)] transition-colors'
+  const inputCls = 'h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm text-neutral-900 outline-none transition-colors styll-focus-brand-primary'
 
   return (
     <div className="px-4 pt-4">

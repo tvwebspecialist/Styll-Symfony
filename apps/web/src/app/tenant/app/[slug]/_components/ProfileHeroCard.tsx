@@ -43,7 +43,7 @@ export function ProfileHeroCard({
         <div
           className={[
             'flex size-[72px] shrink-0 items-center justify-center rounded-full',
-            'bg-[var(--brand-primary)]/10 text-[22px] font-black text-[var(--brand-primary)]',
+            'styll-bg-brand-primary-soft text-[22px] font-black text-[var(--brand-primary)]',
             cfg.ring,
           ]
             .filter(Boolean)

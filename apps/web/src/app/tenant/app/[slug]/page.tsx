@@ -11,6 +11,7 @@ import { daysUntil } from '@/lib/utils/offer-pricing'
 import { formatTimeInTimezone } from '@/lib/utils/timezone'
 import { AppointmentPill } from '@/components/pwa/AppointmentPill'
 import { PwaProductCard } from '@/components/pwa/PwaProductCard'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -46,10 +47,10 @@ function getTierInfo(totalPoints: number): { label: string; emoji: string; color
   return { label: 'Bronzo', emoji: '🥉', color: '#7C3016', bg: '#FEF0E6' }
 }
 
-// Scissors SVG icon — inline so no extra import
-function ScissorsIcon() {
+// Scissors SVG fallback for when staff photo is unavailable
+function ScissorsIcon({ stroke = '#6B7280' }: { stroke?: string }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
       <line x1="20" y1="4" x2="8.12" y2="15.88" />
       <line x1="14.47" y1="14.48" x2="20" y2="20" />
@@ -58,93 +59,149 @@ function ScissorsIcon() {
   )
 }
 
-// Unified booking CTA — replaces the old "È ora di un nuovo taglio" hero block
-// and "Riprenota l'ultima volta" row. Renders a single dark card with conditional
-// content based on whether the client has a previous appointment in history.
+// Returns relative luminance (0–1) for a CSS hex color.
+function hexLuminance(hex: string): number {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return 0.18
+  const r = parseInt(h.slice(0, 2), 16) / 255
+  const g = parseInt(h.slice(2, 4), 16) / 255
+  const b = parseInt(h.slice(4, 6), 16) / 255
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+}
+
+// Two-zone booking card:
+//  ┌──────────────────────────────┐
+//  │  [gradient — brand colors]   │  label + title + subtitle
+//  │      ╔══════════════════╗    │
+//  │      ║  [button pill]   ║    │  ← straddles the boundary
+//  │      ╚══════════════════╝    │
+//  │  [white zone]                │  staff avatar + details
+//  └──────────────────────────────┘
 function BookingCTACard({
   hasLastBooking,
   lastServiceNames,
   lastStaffName,
+  lastStaffAvatarUrl,
   lastDuration,
   lastPrice,
   lastVisitDate,
   bookingHref,
   primaryColor,
+  secondaryColor,
   style,
 }: {
   hasLastBooking: boolean
   lastServiceNames: string[]
   lastStaffName: string | null
+  lastStaffAvatarUrl: string | null
   lastDuration: number | null
   lastPrice: number | null
   lastVisitDate: string | null
   bookingHref: string
   primaryColor: string
+  secondaryColor: string
   style?: CSSProperties
 }) {
-  const detailParts = [
-    lastStaffName,
+  const lum = hexLuminance(primaryColor)
+  const onGradient = lum > 0.35 ? '#111111' : '#FFFFFF'
+  const onGradientSubtle = lum > 0.35 ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.65)'
+
+  const gradient = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+
+  const detailLine = [
     lastDuration ? `${lastDuration} min` : null,
     lastPrice != null ? formatPrice(lastPrice) : null,
-  ].filter(Boolean)
+  ].filter(Boolean).join(' · ')
+
+  const BUTTON_H = 52
+  const HALF_BTN = BUTTON_H / 2   // 26px — how much button overlaps the white zone
 
   return (
-    <section style={{ background: '#111111', borderRadius: 20, padding: 24, marginBottom: 16, ...style }}>
-      {/* Context label */}
-      <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.35)' }}>
-        {hasLastBooking ? 'Riprenota' : 'Prenota'}
-      </p>
-
-      {/* Main heading */}
-      <p style={{ margin: 0, fontSize: 21, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
-        {hasLastBooking
-          ? lastServiceNames.join(' + ') || 'Il tuo ultimo taglio'
-          : 'È ora di un nuovo appuntamento'}
-      </p>
-
-      {/* "X giorni fa" for no-history state with loyalty date */}
-      {!hasLastBooking && lastVisitDate && (
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-          Ultima visita: {daysAgo(lastVisitDate)} giorni fa
+    <FloatingCard style={{ padding: 0, overflow: 'hidden', marginBottom: 16, ...style }}>
+      {/* TOP — gradient zone */}
+      <div style={{ background: gradient, padding: '22px 22px 0' }}>
+        {/* Label */}
+        <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: onGradientSubtle }}>
+          {hasLastBooking ? 'Riprenota' : 'Prenota'}
         </p>
-      )}
 
-      {/* Last booking detail row — only when rebooking */}
+        {/* Service title */}
+        <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
+          {hasLastBooking
+            ? (lastServiceNames.join(' + ') || 'Il tuo ultimo taglio')
+            : 'È ora di un nuovo appuntamento'}
+        </p>
+
+        {/* Subtitle */}
+        {hasLastBooking && detailLine && (
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: onGradientSubtle }}>{detailLine}</p>
+        )}
+        {!hasLastBooking && lastVisitDate && (
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: onGradientSubtle }}>
+            Ultima visita: {daysAgo(lastVisitDate)} giorni fa
+          </p>
+        )}
+
+        {/* CTA button — straddles the two zones via negative margin-bottom */}
+        <Link
+          href={bookingHref}
+          className="pwa-pressable"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            minHeight: BUTTON_H, borderRadius: 999,
+            marginTop: 20, marginBottom: -HALF_BTN,
+            background: '#111111', color: '#FFFFFF',
+            textDecoration: 'none', fontSize: 15, fontWeight: 700,
+            position: 'relative', zIndex: 10,
+          }}
+        >
+          {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
+        </Link>
+      </div>
+
+      {/* BOTTOM — white zone */}
       {hasLastBooking && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '11px 14px', marginTop: 18 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: primaryColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <ScissorsIcon />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {detailParts.length > 0 && (
-              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
-                {detailParts.join(' · ')}
-              </p>
-            )}
-            {lastVisitDate && (
-              <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.28)', lineHeight: 1.5 }}>
-                {daysAgo(lastVisitDate)} giorni fa
-              </p>
-            )}
+        <div style={{ background: '#FFFFFF', padding: `${HALF_BTN + 14}px 22px 20px` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Staff avatar or scissors fallback */}
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+              overflow: 'hidden', background: '#F4F4F5',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {lastStaffAvatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={lastStaffAvatarUrl} alt={lastStaffName ?? 'Barbiere'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <ScissorsIcon stroke={primaryColor} />
+              }
+            </div>
+
+            {/* Detail text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {lastStaffName && (
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {lastStaffName}
+                </p>
+              )}
+              {detailLine && (
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#9CA3AF' }}>{detailLine}</p>
+              )}
+              {lastVisitDate && (
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#D1D5DB' }}>{daysAgo(lastVisitDate)} giorni fa</p>
+              )}
+            </div>
           </div>
         </div>
       )}
-
-      {/* CTA */}
-      <Link
-        href={bookingHref}
-        className="pwa-pressable"
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: '100%', minHeight: 52, borderRadius: 999, marginTop: 20,
-          background: hasLastBooking ? primaryColor : '#FFFFFF',
-          color: hasLastBooking ? '#FFFFFF' : '#111111',
-          textDecoration: 'none', fontSize: 15, fontWeight: 700,
-        }}
-      >
-        {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
-      </Link>
-    </section>
+      {!hasLastBooking && (
+        <div style={{ background: '#FFFFFF', padding: `${HALF_BTN + 14}px 22px 20px` }}>
+          <p style={{ margin: 0, fontSize: 13, color: '#9CA3AF', textAlign: 'center' }}>
+            Scopri i servizi e scegli il tuo appuntamento
+          </p>
+        </div>
+      )}
+    </FloatingCard>
   )
 }
 
@@ -718,11 +775,13 @@ export default async function AppHomePage({ params, searchParams }: Props) {
             hasLastBooking={!!(homeData.lastAppointmentServiceNames?.length)}
             lastServiceNames={homeData.lastAppointmentServiceNames ?? []}
             lastStaffName={homeData.lastAppointmentStaffName ?? null}
+            lastStaffAvatarUrl={homeData.lastAppointmentStaffAvatarUrl ?? null}
             lastDuration={homeData.lastAppointmentDuration ?? null}
             lastPrice={homeData.lastAppointmentPrice ?? null}
             lastVisitDate={homeData.loyalty?.lastVisitDate ?? null}
             bookingHref={tp('/prenota')}
-            primaryColor={tenant.primary_color ?? 'var(--brand-primary)'}
+            primaryColor={tenant.primary_color ?? '#111111'}
+            secondaryColor={tenant.secondary_color ?? tenant.primary_color ?? '#111111'}
             style={animated(activeOffers.length > 0 ? 60 : 0)}
           />
 

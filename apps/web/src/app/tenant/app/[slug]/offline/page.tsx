@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
 // Pagina di cortesia mostrata dal Service Worker quando una navigazione fallisce
 // offline e non esiste una versione cachata della pagina richiesta. È puramente
@@ -9,7 +10,15 @@ export const metadata = {
   robots: { index: false },
 }
 
-export default function OfflinePage() {
+interface OfflinePageProps {
+  params: Promise<{ slug: string }>
+}
+
+export default async function OfflinePage({ params }: OfflinePageProps) {
+  const { slug } = await params
+  const tenantPath = await createTenantPaths(slug)
+  const retryHref = slug ? tenantPath('') : '/'
+
   const iconWrapStyle: CSSProperties = {
     width: 72,
     height: 72,
@@ -71,7 +80,7 @@ export default function OfflinePage() {
       </p>
 
       <a
-        href="/"
+        href={retryHref}
         style={{
           marginTop: 24,
           display: 'inline-flex',

@@ -111,7 +111,7 @@ function SidebarNavItem({
       <Icon size={16} className="shrink-0" />
       <span className="flex-1 font-medium">{item.label}</span>
       {typeof count === 'number' && count > 0 && (
-        <span className="rounded-full bg-[var(--admin-accent)] px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
+        <span className="rounded-full styll-bg-admin-accent px-2 py-0.5 text-[10px] font-bold text-white tabular-nums">
           {count > 999 ? '999+' : count}
         </span>
       )}
@@ -173,7 +173,7 @@ export function AdminShell({
             >
               Styll
             </span>
-            <span className="rounded-md bg-[var(--admin-accent)] px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white">
+            <span className="rounded-md styll-bg-admin-accent px-1.5 py-0.5 text-[9px] font-bold tracking-widest text-white">
               ADMIN
             </span>
           </div>
@@ -228,7 +228,7 @@ export function AdminShell({
               type="button"
               onClick={handleSignOut}
               disabled={signingOut}
-              className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-colors hover:bg-[var(--admin-hover-bg)] disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-colors styll-hover-admin-hover-bg disabled:opacity-50"
               style={{ color: 'var(--admin-text-muted)' }}
             >
               <LogOut size={13} />
@@ -256,7 +256,7 @@ export function AdminShell({
             <span className="text-sm font-bold" style={{ color: 'var(--admin-text)' }}>
               Styll
             </span>
-            <span className="rounded bg-[var(--admin-accent)] px-1 py-0.5 text-[9px] font-bold tracking-widest text-white">
+            <span className="rounded styll-bg-admin-accent px-1 py-0.5 text-[9px] font-bold tracking-widest text-white">
               ADMIN
             </span>
           </div>

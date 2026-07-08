@@ -246,6 +246,71 @@
   border-color: var(--color-border-strong);
   background-color: var(--color-bg-secondary);
 }
+
+.styll-bg-admin-accent {
+  background-color: var(--admin-accent);
+}
+
+.styll-bg-brand-primary {
+  background-color: var(--brand-primary);
+}
+
+.styll-bg-brand-primary-soft {
+  background-color: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.styll-bg-color-bg {
+  background-color: var(--color-bg);
+}
+
+.styll-focus-brand-primary {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.styll-focus-brand-primary:focus,
+.styll-focus-brand-primary:focus-visible {
+  border-color: var(--brand-primary);
+}
+
+.styll-focus-brand-primary-ring {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.styll-focus-brand-primary-ring:focus,
+.styll-focus-brand-primary-ring:focus-visible {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 30%, transparent);
+}
+
+.styll-progress-brand {
+  accent-color: var(--brand-primary);
+}
+
+.styll-progress-brand::-webkit-progress-bar {
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 10%);
+}
+
+.styll-progress-brand::-webkit-progress-value {
+  border-radius: 9999px;
+  background-color: var(--brand-primary);
+}
+
+.styll-progress-brand::-moz-progress-bar {
+  border-radius: 9999px;
+  background-color: var(--brand-primary);
+}
+
+@media (hover: hover) {
+  .styll-hover-admin-hover-bg:hover {
+    background-color: var(--admin-hover-bg);
+  }
+
+  .styll-hover-color-bg-secondary:hover {
+    background-color: var(--color-bg-secondary);
+  }
+}
+
 :root {
   --sidebar-bg: #FBFBFB;
   --sidebar-width: 220px;

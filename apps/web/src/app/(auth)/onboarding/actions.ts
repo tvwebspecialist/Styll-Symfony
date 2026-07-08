@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { finalizeOnboardingSchema } from '@/lib/validations/auth'
+import { sendWelcomeEmail } from '@/lib/email'
 import type { Json, TablesUpdate } from '@/types'
 
 export interface FinalizeResult {
@@ -315,6 +316,18 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
     if (profileErr) throw new Error(profileErr.message)
 
     revalidatePath('/', 'layout')
+
+    // 8) Welcome email — awaited but never throws; failure only logs
+    if (user.email) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
+      await sendWelcomeEmail({
+        email: user.email,
+        businessName: step1.name,
+        slug,
+        dashboardUrl: `${appUrl}/dashboard`,
+      })
+    }
+
     return { success: true }
   } catch (err) {
     // Roll back the newly-created tenant (cascade deletes staff, locations,

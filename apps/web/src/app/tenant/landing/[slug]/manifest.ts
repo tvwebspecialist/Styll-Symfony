@@ -12,8 +12,8 @@ export default async function manifest({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      name: 'Styll',
-      short_name: 'Styll',
+      name: 'Sito del salone',
+      short_name: 'Salone',
       display: 'standalone',
       start_url: startUrl,
       scope: startUrl,

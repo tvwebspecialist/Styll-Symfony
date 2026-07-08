@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
 import { CopyButton } from '@/components/onboarding/copy-button'
+import { WhatsAppShareButton } from '@/components/onboarding/whatsapp-share-button'
 
 export default async function OnboardingCompletePage() {
   const supabase = await createClient()
@@ -276,43 +277,22 @@ export default async function OnboardingCompletePage() {
           )}
 
           {/* ── Share CTAs ── */}
-          <div
-            className="complete-anim"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 8,
-              width: '100%',
-              marginBottom: 20,
-              animationName: 'complete-fade-up',
-              animationDuration: '400ms',
-              animationDelay: '500ms',
-              animationTimingFunction: 'ease-out',
-              animationFillMode: 'both',
-            }}
-          >
-            {(['📸 Story', '📱 QR Code', '💬 WhatsApp'] as const).map((label) => (
-              <button
-                key={label}
-                type="button"
-                style={{
-                  borderRadius: 12,
-                  border: '1.5px solid var(--color-border)',
-                  padding: '10px 4px',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'var(--color-fg)',
-                  backgroundColor: '#ffffff',
-                  cursor: 'pointer',
-                  transition: 'background 150ms, border-color 150ms',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-bg-secondary)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ffffff' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {publicUrl && (
+            <div
+              className="complete-anim"
+              style={{
+                width: '100%',
+                marginBottom: 20,
+                animationName: 'complete-fade-up',
+                animationDuration: '400ms',
+                animationDelay: '500ms',
+                animationTimingFunction: 'ease-out',
+                animationFillMode: 'both',
+              }}
+            >
+              <WhatsAppShareButton businessName={businessName} publicUrl={publicUrl} />
+            </div>
+          )}
 
           {/* ── Checklist ── */}
           <ul
