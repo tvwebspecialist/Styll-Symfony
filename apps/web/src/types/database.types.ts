@@ -2216,6 +2216,9 @@ export type Database = {
           business_name: string
           created_at: string
           description: string | null
+          dpa_accepted_at: string | null
+          dpa_accepted_by: string | null
+          dpa_version: string | null
           font_family: string | null
           google_rating: number | null
           google_reviews_count: number | null
@@ -2238,6 +2241,9 @@ export type Database = {
           business_name: string
           created_at?: string
           description?: string | null
+          dpa_accepted_at?: string | null
+          dpa_accepted_by?: string | null
+          dpa_version?: string | null
           font_family?: string | null
           google_rating?: number | null
           google_reviews_count?: number | null
@@ -2260,6 +2266,9 @@ export type Database = {
           business_name?: string
           created_at?: string
           description?: string | null
+          dpa_accepted_at?: string | null
+          dpa_accepted_by?: string | null
+          dpa_version?: string | null
           font_family?: string | null
           google_rating?: number | null
           google_reviews_count?: number | null
@@ -2277,7 +2286,15 @@ export type Database = {
           timezone?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_dpa_accepted_by_fkey"
+            columns: ["dpa_accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tier_configs: {
         Row: {

@@ -89,7 +89,7 @@ export function PwaShell({
           slug={slug}
         />
       )}
-      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) ? 0 : 96 }}>
+      <div>
         {children}
         {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
           <footer style={{ fontSize: 11, color: '#CCCCCC', textAlign: 'center', padding: '24px 0 8px' }}>
