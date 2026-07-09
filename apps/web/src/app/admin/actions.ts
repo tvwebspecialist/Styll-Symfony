@@ -79,6 +79,7 @@ import {
 } from './actions-system'
 
 export type { AdminGlobalOverview, TenantInput, TenantSubscriptionInput, TopTenantRow } from './actions-tenants'
+export type { OnboardingToken } from './actions-onboarding'
 export type { DaySlot, LocationInput, ServiceInput, StaffInput } from './actions-content'
 export type { PlanOption, PlanWithStats, SubscriptionPlanInput, TenantOnPlan } from './actions-plans'
 export type { AppointmentFormOptions, ImportJobRow, TenantAppointmentDetailedRow, TenantAppointmentRow, TenantClientDetailedRow, TenantClientInput, TenantClientRow, TenantClientUpdateInput } from './actions-data'

@@ -23,6 +23,6 @@ test.describe('trial CTA from marketing', () => {
 
     await expect(page).toHaveURL(/\/register\?intent=trial$/)
     expect(page.url()).not.toContain('/login')
-    await expect(page.getByRole('heading', { name: 'Crea il tuo negozio digitale.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Registrazione su invito' })).toBeVisible()
   })
 })

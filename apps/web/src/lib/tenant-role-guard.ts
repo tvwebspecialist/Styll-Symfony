@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { MANAGER_ROLES, type StaffRoleValue } from '@/lib/constants'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { forbidden } from 'next/navigation'
 
 export type TenantRole = StaffRoleValue | 'superadmin'
 export const OWNER_MANAGER_TENANT_ROLES = ['owner', 'manager'] as const
@@ -36,9 +37,7 @@ const TENANT_PERMISSION_ROLES: Record<TenantPermission, readonly OwnerManagerTen
 }
 
 export function throwForbidden(): never {
-  const error = new Error('Forbidden')
-  ;(error as Error & { digest?: string }).digest = FORBIDDEN_ERROR_DIGEST
-  throw error
+  forbidden()
 }
 
 export function isForbiddenError(error: unknown): boolean {

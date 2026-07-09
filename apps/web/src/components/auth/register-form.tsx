@@ -13,6 +13,7 @@ import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { identifyLead } from '@/components/marketing/PostHogProvider'
 import { buildRootAppUrl } from '@/lib/auth/urls'
 import { buildPathWithTrialIntent } from '@/lib/trial-intent'
+import { markOnboardingTokenUsed } from '@/app/admin/actions-onboarding'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
 const EMAIL_VERIFICATION_SEND_ERROR =
@@ -39,7 +40,7 @@ function validate(fullName: string, email: string, password: string, password2: 
   return errs
 }
 
-export function RegisterForm({ intent = null }: { intent?: string | null }) {
+export function RegisterForm({ intent = null, token = null }: { intent?: string | null; token?: string | null }) {
   const router = useRouter()
   const privacyHref = buildRootAppUrl('/privacy')
   const termsHref = buildRootAppUrl('/termini')
@@ -144,6 +145,11 @@ export function RegisterForm({ intent = null }: { intent?: string | null }) {
         toast.success('Account creato! Controlla la tua email per confermare.')
         router.push(buildPathWithTrialIntent('/login', intent))
         return
+      }
+
+      // Mark onboarding token as used
+      if (token) {
+        await markOnboardingTokenUsed(token, cleanEmail).catch(() => {})
       }
 
       // PostHog identify stays client-side; OTP send uses an API route.

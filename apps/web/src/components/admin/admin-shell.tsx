@@ -14,6 +14,7 @@ import {
   Eye,
   X,
   BarChart2,
+  Key,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -49,6 +50,7 @@ const SECTIONS: NavSection[] = [
     label: 'Configurazione',
     items: [
       { label: 'Piani', href: '/admin/subscription-plans', icon: CreditCard },
+      { label: 'Onboarding', href: '/admin/onboarding-tokens', icon: Key },
       { label: 'Impostazioni', href: '/admin/settings', icon: Settings },
       { label: 'Aiuto', href: '/admin/help', icon: HelpCircle },
     ],
