@@ -277,25 +277,27 @@ export interface CalendarioData {
   overrides: CalendarioOverride[]
 }
 
+type Relation<T> = T | T[] | null | undefined
+
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
 }
 
-type RawApptService = {
-  price_at_booking: number
-  applied_promotion_id: string | null
-  services: {
-    id: string
-    name: string
-    category: string | null
-    color: string | null
-    duration_minutes: number
-  } | null
-  promotions: { title: string } | null
+function readRelation<T>(value: Relation<T>): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
 }
-type RawAppt = {
+
+type RawAppointmentClient = {
+  full_name: string | null
+}
+
+type RawAppointmentBase = {
   id: string
   start_time: string
   end_time: string
@@ -304,14 +306,27 @@ type RawAppt = {
   notes: string | null
   client_id: string
   staff_id: string
-  clients: { full_name: string } | null
-  appointment_services: RawApptService[]
+  clients: Relation<RawAppointmentClient>
+}
+
+type RawApptService = {
+  appointment_id: string
+  price_at_booking: number | null
+  applied_promotion_id: string | null
+  services: Relation<{
+    id: string
+    name: string
+    category: string | null
+    color: string | null
+    duration_minutes: number
+  }>
+  promotions: Relation<{ title: string | null }>
 }
 type RawStaff = {
   id: string
   profile_id: string
   role: string
-  profiles: { full_name: string | null; avatar_url: string | null } | null
+  profiles: Relation<{ full_name: string | null; avatar_url: string | null }>
 }
 
 export async function getCalendarioData(
@@ -343,7 +358,7 @@ export async function getCalendarioData(
   let apptQuery = db
     .from('appointments')
     .select(
-      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name), appointment_services(price_at_booking, applied_promotion_id, services(id, name, category, color, duration_minutes), promotions(title))'
+      'id, start_time, end_time, status, booking_source, notes, client_id, staff_id, clients(full_name)'
     )
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
@@ -355,83 +370,106 @@ export async function getCalendarioData(
     apptQuery = apptQuery.eq('staff_id', effectiveStaffId)
   }
 
-  const [{ data: appts }, { data: staffRows }, { data: wh }, { data: ov }] = await Promise.all([
+  let staffQuery = db
+    .from('staff_members')
+    .select('id, profile_id, role, profiles(full_name, avatar_url)')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+
+  if (effectiveStaffId) {
+    staffQuery = staffQuery.eq('id', effectiveStaffId)
+  }
+
+  const [{ data: rawAppts }, { data: rawStaffRows }] = await Promise.all([
     apptQuery,
-    db
-      .from('staff_members')
-      .select('id, profile_id, role, profiles(full_name, avatar_url)')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .is('deleted_at', null),
-    db
-      .from('working_hours')
-      .select('staff_id, day_of_week, start_time, end_time')
-      .eq('tenant_id', tenantId),
-    db
-      .from('working_hour_overrides')
-      .select('staff_id, date, is_closed, start_time, end_time, reason')
-      .eq('tenant_id', tenantId)
-      .gte('date', weekStart)
-      .lte('date', weekEnd),
+    staffQuery,
   ])
 
-  const visibleStaffId = ctx.role === 'staff' ? ctx.currentStaffId : null
-  const filteredStaffRows =
-    visibleStaffId
-      ? ((staffRows ?? []) as Array<{ id: string }>).filter((row) => row.id === visibleStaffId)
-      : staffRows
-  const filteredWh =
-    visibleStaffId
-      ? ((wh ?? []) as Array<{ staff_id: string }>).filter((row) => row.staff_id === visibleStaffId)
-      : wh
-  const filteredOverrides =
-    visibleStaffId
-      ? ((ov ?? []) as Array<{ staff_id: string }>).filter((row) => row.staff_id === visibleStaffId)
-      : ov
+  const appts = (rawAppts ?? []) as RawAppointmentBase[]
+  const staffRows = (rawStaffRows ?? []) as RawStaff[]
+  const visibleStaffIds = staffRows.map((row) => row.id)
+  const appointmentIds = appts.map((appointment) => appointment.id)
 
-  const appointments: CalendarioAppointment[] = (
-    (appts ?? []) as unknown as RawAppt[]
-  ).map((a) => ({
-    id: a.id,
-    start_time: a.start_time,
-    end_time: a.end_time,
-    status: a.status,
-    booking_source: a.booking_source,
-    notes: a.notes,
-    client_id: a.client_id,
-    staff_id: a.staff_id,
-    client_name: a.clients?.full_name ?? 'Cliente',
-    total_price: (a.appointment_services ?? []).reduce((sum, as) => sum + (as.price_at_booking ?? 0), 0),
-    services: (a.appointment_services ?? [])
-      .filter((as) => as.services !== null)
-      .map((as) => {
-        const promo = Array.isArray(as.promotions) ? as.promotions[0] : as.promotions
-        return {
-          id: as.services!.id,
-          name: as.services!.name,
-          category: as.services!.category,
-          color: as.services!.color,
-          duration_minutes: as.services!.duration_minutes,
-          price_at_booking: as.price_at_booking ?? 0,
-          applied_promotion_id: as.applied_promotion_id ?? null,
-          promotion_title: promo?.title ?? null,
-        }
-      }),
-  }))
+  const [apptServicesRes, whRes, ovRes] = await Promise.all([
+    appointmentIds.length > 0
+      ? db
+          .from('appointment_services')
+          .select(
+            'appointment_id, price_at_booking, applied_promotion_id, services(id, name, category, color, duration_minutes), promotions(title)',
+          )
+          .eq('tenant_id', tenantId)
+          .in('appointment_id', appointmentIds)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [] as RawApptService[] }),
+    visibleStaffIds.length > 0
+      ? db
+          .from('working_hours')
+          .select('staff_id, day_of_week, start_time, end_time')
+          .eq('tenant_id', tenantId)
+          .in('staff_id', visibleStaffIds)
+      : Promise.resolve({ data: [] as CalendarioWorkingHour[] }),
+    visibleStaffIds.length > 0
+      ? db
+          .from('working_hour_overrides')
+          .select('staff_id, date, is_closed, start_time, end_time, reason')
+          .eq('tenant_id', tenantId)
+          .in('staff_id', visibleStaffIds)
+          .gte('date', weekStart)
+          .lt('date', weekEnd)
+      : Promise.resolve({ data: [] as CalendarioOverride[] }),
+  ])
 
-  const staff: CalendarioStaff[] = ((filteredStaffRows ?? []) as unknown as RawStaff[]).map((s) => ({
+  const servicesByAppointment = new Map<string, CalendarioAppointment['services']>()
+  for (const row of (apptServicesRes.data ?? []) as RawApptService[]) {
+    const service = readRelation(row.services)
+    if (!service) continue
+
+    const promotion = readRelation(row.promotions)
+    const current = servicesByAppointment.get(row.appointment_id) ?? []
+    current.push({
+      id: service.id,
+      name: service.name,
+      category: service.category,
+      color: service.color,
+      duration_minutes: service.duration_minutes,
+      price_at_booking: row.price_at_booking ?? 0,
+      applied_promotion_id: row.applied_promotion_id ?? null,
+      promotion_title: promotion?.title ?? null,
+    })
+    servicesByAppointment.set(row.appointment_id, current)
+  }
+
+  const appointments: CalendarioAppointment[] = appts.map((appointment) => {
+    const services = servicesByAppointment.get(appointment.id) ?? []
+    return {
+      id: appointment.id,
+      start_time: appointment.start_time,
+      end_time: appointment.end_time,
+      status: appointment.status,
+      booking_source: appointment.booking_source,
+      notes: appointment.notes,
+      client_id: appointment.client_id,
+      staff_id: appointment.staff_id,
+      client_name: readRelation(appointment.clients)?.full_name ?? 'Cliente',
+      total_price: services.reduce((sum, service) => sum + service.price_at_booking, 0),
+      services,
+    }
+  })
+
+  const staff: CalendarioStaff[] = staffRows.map((s) => ({
     id: s.id,
     profile_id: s.profile_id,
     role: s.role,
-    full_name: s.profiles?.full_name ?? null,
-    avatar_url: s.profiles?.avatar_url ?? null,
+    full_name: readRelation(s.profiles)?.full_name ?? null,
+    avatar_url: readRelation(s.profiles)?.avatar_url ?? null,
   }))
 
   return {
     appointments,
     staff,
-    workingHours: (filteredWh ?? []) as CalendarioWorkingHour[],
-    overrides: (filteredOverrides ?? []) as CalendarioOverride[],
+    workingHours: (whRes.data ?? []) as CalendarioWorkingHour[],
+    overrides: (ovRes.data ?? []) as CalendarioOverride[],
   }
 }
 

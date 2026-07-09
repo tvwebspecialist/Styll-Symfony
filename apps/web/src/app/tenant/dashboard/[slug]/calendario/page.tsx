@@ -50,8 +50,10 @@ export default async function CalendarioPage({
   // Non-manager/owner staff can only see their own appointments
   const selectedStaffId = staffParam ?? (isManagerOrOwner ? null : (myStaff?.id ?? null))
 
-  const data = await getCalendarioData(tenantId, weekStart, selectedStaffId)
-  const timezone = await getTenantTimezone(tenantId)
+  const [data, timezone] = await Promise.all([
+    getCalendarioData(tenantId, weekStart, selectedStaffId),
+    getTenantTimezone(tenantId),
+  ])
 
   return (
     <CalendarioClient
