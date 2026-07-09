@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     root: repoRoot,
   },
   experimental: {
+    authInterrupts: true,
     serverActions: {
       bodySizeLimit: '4mb',
       allowedOrigins: [

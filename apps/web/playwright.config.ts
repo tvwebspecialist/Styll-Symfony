@@ -8,10 +8,15 @@ const webServerPort = new URL(baseURL).port || '3000'
 const webServerCommand =
   `node -e "require('node:fs').rmSync('.next-playwright',{ recursive: true, force: true })" ` +
   `&& NEXT_DIST_DIR=.next-playwright pnpm exec next dev --webpack --port ${webServerPort}`
+const configuredWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? '', 10)
+const workers = Number.isFinite(configuredWorkers) && configuredWorkers > 0
+  ? configuredWorkers
+  : 1
 
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
+  workers,
   outputDir: 'test-results',
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',

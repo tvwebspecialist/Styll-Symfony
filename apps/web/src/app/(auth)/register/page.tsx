@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { MessageCircle, Mail } from 'lucide-react'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { GoogleButton } from '@/components/auth/google-button'
 import { RegisterForm } from '@/components/auth/register-form'
 import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
+import { validateOnboardingToken } from '@/app/admin/actions-onboarding'
 
 export const metadata: Metadata = {
   title: 'Crea il tuo account — Styll',
@@ -24,12 +26,102 @@ function Divider() {
   )
 }
 
+// ─── Contact popup shown when no valid token ───────────────────
+function ContactGate({ reason }: { reason?: string }) {
+  return (
+    <AuthSplitLayout
+      caption="Zero commissioni. Il tuo brand. I tuoi dati. Sempre."
+    >
+      <div className="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
+        <div
+          className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
+          style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
+        >
+          <span style={{ fontSize: 28 }}>🔒</span>
+        </div>
+
+        <h1
+          className="text-2xl font-bold tracking-tight"
+          style={{ color: 'var(--color-fg)', letterSpacing: '-0.02em' }}
+        >
+          Registrazione su invito
+        </h1>
+        <p
+          className="mt-3 text-sm leading-relaxed max-w-xs"
+          style={{ color: 'var(--color-fg-secondary)' }}
+        >
+          {reason
+            ? reason
+            : 'La registrazione è disponibile solo tramite link privato.'}
+          {' '}Contattami per ricevere il tuo link personale.
+        </p>
+
+        <div className="mt-8 flex flex-col gap-3 w-full max-w-xs">
+          <a
+            href="https://wa.me/3770802075"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90"
+            style={{
+              background: '#25D366',
+              color: '#ffffff',
+            }}
+          >
+            <MessageCircle size={18} />
+            Scrivimi su WhatsApp
+          </a>
+
+          <a
+            href="mailto:t.v.webspecialist@gmail.com"
+            className="flex items-center justify-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold transition-colors"
+            style={{
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--color-fg)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            <Mail size={18} />
+            Invia un'email
+          </a>
+        </div>
+
+        <p
+          className="mt-8 text-xs"
+          style={{ color: 'var(--color-fg-muted)' }}
+        >
+          Già hai un link?{' '}
+          <Link
+            href="/register"
+            className="underline underline-offset-2"
+            style={{ color: 'var(--color-fg-secondary)' }}
+          >
+            Usa il link ricevuto
+          </Link>
+        </p>
+      </div>
+    </AuthSplitLayout>
+  )
+}
+
 interface PageProps {
-  searchParams: Promise<{ intent?: string | string[] | undefined; error?: string }>
+  searchParams: Promise<{ intent?: string | string[] | undefined; error?: string; token?: string }>
 }
 
 export default async function RegisterPage({ searchParams }: PageProps) {
   const params = await searchParams
+
+  // ── Token gating ────────────────────────────────────────────
+  const rawToken = params.token
+  if (!rawToken) {
+    return <ContactGate />
+  }
+
+  const validation = await validateOnboardingToken(rawToken)
+  if (!validation.valid) {
+    return <ContactGate reason={validation.error} />
+  }
+
+  // ── Valid token → show registration form ─────────────────────
   const intent = readTrialIntent(params.intent)
   const loginHref = buildPathWithTrialIntent('/login', intent)
   const initialError = params.error ? decodeURIComponent(params.error) : null
@@ -125,7 +217,7 @@ export default async function RegisterPage({ searchParams }: PageProps) {
 
       <Divider />
 
-      <RegisterForm intent={intent} />
+      <RegisterForm intent={intent} token={rawToken} />
 
       <p
         className="mt-6 text-center text-sm"
