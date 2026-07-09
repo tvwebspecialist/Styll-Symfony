@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { verifyEmailOTP, resendEmailOTP } from '@/lib/actions/email-verification'
 import { buildPathWithTrialIntent } from '@/lib/trial-intent'
+
+const MAX_RESENDS = 3
 
 interface Props {
   email: string
@@ -26,6 +29,7 @@ export function VerifyEmailForm({ email, intent = null }: Props) {
   const [values, setValues] = useState(['', '', '', '', '', ''])
   const [error, setError] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
+  const [resendCount, setResendCount] = useState(0)
   const [isPending, startTransition] = useTransition()
   const [isResending, startResendTransition] = useTransition()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -104,15 +108,18 @@ export function VerifyEmailForm({ email, intent = null }: Props) {
   }
 
   function handleResend() {
+    if (resendCount >= MAX_RESENDS) return
     setError(null)
     startResendTransition(async () => {
       const result = await resendEmailOTP(email)
       if (result.success) {
+        setResendCount((c) => c + 1)
         startCooldown(60)
         setValues(['', '', '', '', '', ''])
         ref0.current?.focus()
+        toast.success(`Nuovo codice inviato a ${email}`)
       } else {
-        setError(result.error ?? 'Errore durante il reinvio.')
+        toast.error(result.error ?? 'Errore durante il reinvio.')
       }
     })
   }
@@ -174,8 +181,10 @@ export function VerifyEmailForm({ email, intent = null }: Props) {
 
       <p className="text-center text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
         Non hai ricevuto l&apos;email?{' '}
-        {cooldown > 0 ? (
-          <span style={{ color: 'var(--color-fg-muted)' }}>Riprova tra {cooldown}s</span>
+        {resendCount >= MAX_RESENDS ? (
+          <span style={{ color: 'var(--color-fg-muted)' }}>Limite reinvii raggiunto</span>
+        ) : cooldown > 0 ? (
+          <span style={{ color: 'var(--color-fg-muted)' }}>Puoi reinviare tra {cooldown}s</span>
         ) : (
           <button
             type="button"
