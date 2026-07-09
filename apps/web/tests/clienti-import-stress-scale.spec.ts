@@ -1,12 +1,9 @@
 import { randomBytes } from 'crypto'
 import { expect, test } from 'playwright/test'
-import {
-  CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE,
-  fetchClientImportDuplicateCandidates,
-  importClientsForTenant,
-} from '../src/lib/actions/clienti'
+import { fetchClientImportDuplicateCandidates, importClientsForTenant } from '../src/lib/actions/clienti'
 import type { Json } from '../src/types'
 import {
+  CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE,
   collectImportLookupKeys,
   prepareClientImportPlan,
   type ImportColumn,

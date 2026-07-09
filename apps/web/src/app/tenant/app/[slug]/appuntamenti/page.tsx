@@ -95,7 +95,7 @@ export default async function AppuntamentiPage({ params }: Props) {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8] flex items-center justify-center">
+      <main className="min-h-screen bg-white flex items-center justify-center">
         <p className="text-sm text-neutral-500">Accedi per vedere i tuoi appuntamenti.</p>
       </main>
     )
@@ -112,7 +112,7 @@ export default async function AppuntamentiPage({ params }: Props) {
 
   if (!client) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8] px-4 pt-6">
+      <main className="min-h-screen bg-white px-4 pt-6">
         <p className="text-sm text-neutral-500">Nessun profilo associato a questo salone.</p>
       </main>
     )
@@ -146,7 +146,7 @@ export default async function AppuntamentiPage({ params }: Props) {
   const past = (pastRes.data ?? []).map((r) => parseApt(r as unknown as RawApt))
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+    <main className="min-h-screen bg-white pb-24">
       <div className="mx-auto max-w-xl px-4 pt-4">
         <AppuntamentiClient
           upcoming={upcoming}

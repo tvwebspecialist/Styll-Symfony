@@ -91,6 +91,18 @@ export function PwaShell({
       )}
       <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) ? 0 : 96 }}>
         {children}
+        {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
+          <footer style={{ fontSize: 11, color: '#CCCCCC', textAlign: 'center', padding: '24px 0 8px' }}>
+            <a
+              href="https://styll.it"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#CCCCCC', textDecoration: 'none' }}
+            >
+              Powered by Styll
+            </a>
+          </footer>
+        )}
       </div>
       {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
         <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
