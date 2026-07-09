@@ -96,6 +96,8 @@ export interface ClientImportLookupKeys {
   rawPhones: string[]
 }
 
+export const CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE = 200
+
 interface ParsedImportRow {
   rowIndex: number
   fullName: string

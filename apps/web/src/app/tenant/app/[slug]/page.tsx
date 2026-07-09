@@ -996,20 +996,6 @@ export default async function AppHomePage({ params, searchParams }: Props) {
         </>
       )}
 
-      <footer
-        style={{
-          ...animated(300),
-          fontSize: 11,
-          color: '#CCCCCC',
-          textAlign: 'center',
-          padding: '24px 0 8px',
-        }}
-      >
-        Powered by Styll ·{' '}
-        <Link href={tp('/privacy')} style={{ color: '#CCCCCC', textDecoration: 'underline' }}>
-          Privacy
-        </Link>
-      </footer>
     </main>
   )
 }

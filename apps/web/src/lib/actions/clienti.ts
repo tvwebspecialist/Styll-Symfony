@@ -14,6 +14,7 @@ import { MANAGER_ROLES } from '@/lib/constants'
 import type { Database, Json, TablesUpdate } from '@/types'
 import {
   buildImportClientsResult,
+  CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE,
   collectImportLookupKeys,
   prepareClientImportPlan,
 } from '@/lib/utils/client-import-core'
@@ -1251,7 +1252,6 @@ type ClientImportCandidateRow = {
 const CLIENT_IMPORT_SELECT =
   'id, full_name, email, phone, date_of_birth, marketing_consent, tags'
 
-const CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE = 200
 const CLIENT_IMPORT_INSERT_CHUNK_SIZE = 500
 const CLIENT_IMPORT_UPDATE_BATCH_SIZE = 100
 
