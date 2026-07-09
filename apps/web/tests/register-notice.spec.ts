@@ -10,7 +10,7 @@ import {
 test.describe('register legal notice', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for tenant fixtures.')
 
-  test('signup shows privacy and terms links before submitting profile data', async ({ page }) => {
+  test('signup and profile preferences use tenant-specific privacy and terms links', async ({ page }) => {
     const fixture = await createTenantFixture('register-notice')
     const service = requireServiceClient()
     const email = randomEmail('playwright-register')
@@ -76,17 +76,23 @@ test.describe('register legal notice', () => {
       const termsHref = await termsLink.getAttribute('href')
 
       expect(new URL(privacyHref!, 'http://localhost').pathname).toBe(buildTenantAppPath(fixture.slug, '/privacy'))
-      expect(new URL(termsHref!, 'http://localhost').pathname).toBe('/termini')
+      expect(new URL(termsHref!, 'http://localhost').pathname).toBe(buildTenantAppPath(fixture.slug, '/termini'))
 
-      const privacyResponse = await page.goto(privacyHref!)
-      expect(privacyResponse?.status()).toBe(200)
-      await expect(page.locator('body')).toContainText('Privacy Policy')
-      await expect(page.locator('body')).toContainText('Chi è il Titolare del trattamento')
+      await page.getByLabel('Nome e cognome').fill(`Playwright ${email}`)
+      await page.getByLabel('Numero di telefono').fill('+39 333 123 4567')
+      await page.getByRole('button', { name: 'Completa accesso' }).click()
 
-      const termsResponse = await page.goto(termsHref!)
-      expect(termsResponse?.status()).toBe(200)
-      await expect(page.locator('body')).toContainText('Termini di Servizio per i barbieri')
-      await expect(page.locator('body')).toContainText('Oggetto del servizio')
+      await page.waitForURL(/\/profilo$/, { timeout: 15_000 })
+
+      await page.goto(buildTenantAppPath(fixture.slug, '/profilo/preferenze'))
+
+      const preferencesTermsLink = page.getByRole('link', { name: 'Termini e condizioni' })
+      const preferencesPrivacyLink = page.getByRole('link', { name: 'Privacy policy' })
+
+      await expect(preferencesTermsLink).toBeVisible()
+      await expect(preferencesPrivacyLink).toBeVisible()
+      await expect(preferencesTermsLink).toHaveAttribute('href', buildTenantAppPath(fixture.slug, '/termini'))
+      await expect(preferencesPrivacyLink).toHaveAttribute('href', buildTenantAppPath(fixture.slug, '/privacy'))
     } finally {
       if (userId) {
         await service.auth.admin.deleteUser(userId)

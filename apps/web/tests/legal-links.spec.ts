@@ -25,4 +25,26 @@ test.describe('public legal links', () => {
       await fixture.cleanup()
     }
   })
+
+  test('tenant terms page renders B2C content for the current salon', async ({ page }) => {
+    const fixture = await createTenantFixture('legal-terms')
+
+    try {
+      const response = await page.goto(buildTenantAppPath(fixture.slug, '/termini'))
+
+      expect(response?.status()).toBe(200)
+      await expect(
+        page.getByRole('heading', {
+          name: `Termini e condizioni per l'uso dell'app di ${fixture.businessName}`,
+        })
+      ).toBeVisible()
+      await expect(page.locator('body')).toContainText(fixture.businessName)
+      await expect(page.locator('body')).toContainText('I servizi prenotabili tramite questa app sono offerti direttamente')
+      await expect(page.locator('body')).toContainText('Styll')
+      await expect(page.locator('body')).not.toContainText('Termini di Servizio per i barbieri')
+      await expect(page.locator('body')).not.toContainText('Condizioni B2B')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
 })

@@ -56,7 +56,7 @@ export default async function PuntiPage({ params }: Props) {
       .limit(4)
 
     return (
-      <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-4 pb-24">
+      <main className="mx-auto flex max-w-xl flex-col gap-4 px-4 py-4">
         {/* Blurred hero placeholder */}
         <section className="relative overflow-hidden rounded-[28px] bg-neutral-950 p-5 text-white shadow-xl shadow-black/20">
           <div className="flex items-center justify-between gap-4">

@@ -87,7 +87,7 @@ export function EmailOtpForm({
   const router = useRouter()
   const tenantPath = useTenantPath(tenantSlug)
   const privacyHref = tenantPath('/privacy')
-  const termsHref = buildRootAppUrl('/termini')
+  const termsHref = tenantPath('/termini')
 
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState(prefillEmail)
