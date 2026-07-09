@@ -53,10 +53,15 @@ export type HomePageData = {
     streakThresholdDays: number | null
   } | null
   lastAppointmentServiceNames?: string[]
+  lastAppointmentServiceIds?: string[]
   lastAppointmentStaffName?: string | null
   lastAppointmentStaffAvatarUrl?: string | null
+  lastAppointmentStaffId?: string | null
+  lastAppointmentLocationId?: string | null
   lastAppointmentDuration?: number | null
   lastAppointmentPrice?: number | null
+  lastAppointmentStaffIsActive?: boolean
+  lastAppointmentServicesAllActive?: boolean
   nextAppointmentIsImminent?: boolean
   nextAppointmentIsToday?: boolean
   products?: HomeProduct[]
@@ -70,6 +75,8 @@ type StaffWithProfile = Pick<Tables<'staff_members'>, 'id' | 'photo_url'> & {
 type ClientRow = Pick<Tables<'clients'>, 'id' | 'full_name'>
 
 type RawAppointment = Pick<Tables<'appointments'>, 'id' | 'start_time' | 'end_time'> & {
+  staff_id?: string | null
+  location_id?: string | null
   appointment_services: any[] | null
   locations: any | null
   staff_members: any | null
@@ -131,6 +138,28 @@ function extractStaffName(staffRelation: any): string | null {
   if (!staff) return null
   const profile = Array.isArray(staff.profiles) ? staff.profiles[0] : staff.profiles
   return profile?.full_name ?? null
+}
+
+function extractServiceIds(appointmentServices: any[]): string[] {
+  return (appointmentServices ?? []).map((as: any) => as.service_id).filter(Boolean)
+}
+
+function extractServicesAllActive(appointmentServices: any[]): boolean {
+  if (!appointmentServices?.length) return false
+  return appointmentServices.every((as: any) => {
+    const svc = Array.isArray(as.services) ? as.services[0] : as.services
+    return svc?.is_active === true
+  })
+}
+
+function extractStaffId(staffRelation: any): string | null {
+  const staff = Array.isArray(staffRelation) ? staffRelation[0] : staffRelation
+  return (staff?.id as string | null) ?? null
+}
+
+function extractStaffIsActive(staffRelation: any): boolean {
+  const staff = Array.isArray(staffRelation) ? staffRelation[0] : staffRelation
+  return staff?.is_active === true
 }
 
 function extractStaffAvatarUrl(staffRelation: any): string | null {
@@ -290,7 +319,7 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
       db
         .from('appointments')
         .select(
-          'id, start_time, end_time, appointment_services(price_at_booking, services(name, duration_minutes)), staff_members(photo_url, profiles(full_name, avatar_url))'
+          'id, staff_id, location_id, start_time, end_time, appointment_services(service_id, price_at_booking, services(name, duration_minutes, is_active)), staff_members(id, is_active, photo_url, profiles(full_name, avatar_url))'
         )
         .eq('tenant_id', tenantId)
         .eq('client_id', client.id)
@@ -348,14 +377,19 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
         }
       : null,
     lastAppointmentServiceNames: extractServiceNames(lastAppointment?.appointment_services as any[]),
+    lastAppointmentServiceIds: extractServiceIds(lastAppointment?.appointment_services as any[]),
     lastAppointmentStaffName: lastAppointment ? extractStaffName(lastAppointment.staff_members) : null,
     lastAppointmentStaffAvatarUrl: lastAppointment ? extractStaffAvatarUrl(lastAppointment.staff_members) : null,
+    lastAppointmentStaffId: lastAppointment ? extractStaffId(lastAppointment.staff_members) : null,
+    lastAppointmentLocationId: lastAppointment?.location_id ?? null,
     lastAppointmentDuration: lastAppointment
       ? extractServiceDuration(lastAppointment.appointment_services as any[])
       : null,
     lastAppointmentPrice: lastAppointment
       ? extractServicePrice(lastAppointment.appointment_services as any[])
       : null,
+    lastAppointmentStaffIsActive: lastAppointment ? extractStaffIsActive(lastAppointment.staff_members) : false,
+    lastAppointmentServicesAllActive: lastAppointment ? extractServicesAllActive(lastAppointment.appointment_services as any[]) : false,
     nextAppointmentIsImminent: nextAppointment
       ? new Date(nextAppointment.start_time).getTime() - Date.now() < 48 * 3600 * 1000
       : false,
