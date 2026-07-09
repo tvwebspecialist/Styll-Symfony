@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmailVerificationOtp } from '@/lib/email-verification'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { TablesUpdate } from '@/types'
 
 // ─── Send (or re-send) a verification code ───────────────────────────────────
@@ -17,6 +18,18 @@ export async function sendEmailVerificationOTP(
 export async function resendEmailOTP(
   email: string,
 ): Promise<{ success: boolean; error?: string }> {
+  const key = email.trim().toLowerCase()
+
+  const cooldown = checkRateLimit(`resend-otp:cooldown:${key}`, 1, 60_000)
+  if (!cooldown.allowed) {
+    return { success: false, error: `Attendi ${cooldown.retryAfterSec}s prima di reinviare.` }
+  }
+
+  const quota = checkRateLimit(`resend-otp:quota:${key}`, 3, 60 * 60_000)
+  if (!quota.allowed) {
+    return { success: false, error: 'Limite raggiunto. Riprova tra un\'ora.' }
+  }
+
   return sendEmailVerificationOtp(email)
 }
 
