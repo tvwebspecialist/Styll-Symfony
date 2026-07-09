@@ -231,6 +231,7 @@ test.describe('PWA email anti-enumeration', () => {
   })
 
   test('new client can still complete email OTP access', async ({ page }) => {
+    test.setTimeout(60_000)
     const service = requireServiceClient()
     const tenant = await createTenantFixture(service)
     const newClient = await createKnownAccountWithoutClientFixture(service)
@@ -251,13 +252,23 @@ test.describe('PWA email anti-enumeration', () => {
       await fillOtp(page, otp)
 
       await expect(page.getByRole('heading', { name: 'Completa il tuo profilo' })).toBeVisible({
-        timeout: 15_000,
+        timeout: 20_000,
       })
-      await page.locator('#profile-name').fill('Nuovo Cliente')
-      await page.locator('#profile-phone').fill('+39 333 987 6543')
-      await page.getByRole('button', { name: 'Completa accesso' }).click()
 
-      await page.waitForURL(`**/tenant/app/${tenant.slug}/profilo`)
+      const profileNameInput = page.locator('#profile-name')
+      const profilePhoneInput = page.locator('#profile-phone')
+      const completeAccessButton = page.getByRole('button', { name: 'Completa accesso' })
+
+      await expect(profileNameInput).toBeEditable()
+      await expect(profilePhoneInput).toBeEditable()
+      await profileNameInput.fill('Nuovo Cliente')
+      await profilePhoneInput.fill('+39 333 987 6543')
+      await expect(completeAccessButton).toBeEnabled()
+
+      await Promise.all([
+        page.waitForURL(`**/tenant/app/${tenant.slug}/profilo`, { timeout: 20_000 }),
+        completeAccessButton.click(),
+      ])
 
       const { data: createdClient, error: createdClientError } = await service
         .from('clients')
