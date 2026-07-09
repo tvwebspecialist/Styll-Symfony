@@ -1,5 +1,6 @@
 'use server'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -10,13 +11,16 @@ import {
 import type { ClientiCounts, ClientiFilter } from '@/lib/clienti-list'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { MANAGER_ROLES } from '@/lib/constants'
-import type { Json, TablesUpdate } from '@/types'
+import type { Database, Json, TablesUpdate } from '@/types'
 import {
   buildImportClientsResult,
+  collectImportLookupKeys,
   prepareClientImportPlan,
 } from '@/lib/utils/client-import-core'
 import type {
+  ClientImportLookupKeys,
   ClientImportUpdate,
+  ExistingImportClient,
   ImportClientsInput,
   ImportClientsResult,
   ImportError,
@@ -1232,6 +1236,286 @@ export {
   parseCsvTags,
 }
 
+type ClientImportDb = SupabaseClient<Database>
+
+type ClientImportCandidateRow = {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  date_of_birth: string | null
+  marketing_consent: boolean | null
+  tags: Json | null
+}
+
+const CLIENT_IMPORT_SELECT =
+  'id, full_name, email, phone, date_of_birth, marketing_consent, tags'
+
+const CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE = 200
+const CLIENT_IMPORT_INSERT_CHUNK_SIZE = 500
+const CLIENT_IMPORT_UPDATE_BATCH_SIZE = 100
+
+function chunkValues<T>(values: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize))
+  }
+
+  return chunks
+}
+
+function dedupeImportCandidateRows(
+  rows: ClientImportCandidateRow[],
+): ExistingImportClient[] {
+  const uniqueRows = new Map<string, ExistingImportClient>()
+
+  for (const row of rows) {
+    uniqueRows.set(row.id, {
+      id: row.id,
+      full_name: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      date_of_birth: row.date_of_birth,
+      marketing_consent: Boolean(row.marketing_consent),
+      tags: row.tags,
+    })
+  }
+
+  return [...uniqueRows.values()]
+}
+
+function isMissingClientImportCandidatesRpc(error: { message?: string } | null): boolean {
+  const message = error?.message?.toLowerCase() ?? ''
+
+  return (
+    message.includes('get_client_import_candidates')
+    && (
+      message.includes('could not find the function')
+      || message.includes('function public.get_client_import_candidates')
+      || message.includes('pgrst202')
+    )
+  )
+}
+
+async function fetchClientImportDuplicateCandidatesFallback(
+  db: ClientImportDb,
+  tenantId: string,
+  lookupKeys: ClientImportLookupKeys,
+): Promise<{ data: ExistingImportClient[]; error?: string }> {
+  const emailCandidates = [...new Set([...lookupKeys.emails, ...lookupKeys.rawEmails])]
+  const phoneCandidates = [...new Set([...lookupKeys.phones, ...lookupKeys.rawPhones])]
+  const rows: ClientImportCandidateRow[] = []
+
+  const [emailResults, phoneResults] = await Promise.all([
+    Promise.all(
+      chunkValues(emailCandidates, CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE).map((chunk) =>
+        db
+          .from('clients')
+          .select(CLIENT_IMPORT_SELECT)
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .in('email', chunk)
+      )
+    ),
+    Promise.all(
+      chunkValues(phoneCandidates, CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE).map((chunk) =>
+        db
+          .from('clients')
+          .select(CLIENT_IMPORT_SELECT)
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .in('phone', chunk)
+      )
+    ),
+  ])
+
+  for (const result of [...emailResults, ...phoneResults]) {
+    if (result.error) {
+      return { data: [], error: result.error.message }
+    }
+
+    rows.push(...((result.data ?? []) as ClientImportCandidateRow[]))
+  }
+
+  return {
+    data: dedupeImportCandidateRows(rows),
+  }
+}
+
+export async function fetchClientImportDuplicateCandidates(
+  db: ClientImportDb,
+  tenantId: string,
+  lookupKeys: ClientImportLookupKeys,
+): Promise<{ data: ExistingImportClient[]; error?: string }> {
+  if (lookupKeys.emails.length === 0 && lookupKeys.phones.length === 0) {
+    return { data: [] }
+  }
+
+  const { data, error } = await db.rpc('get_client_import_candidates', {
+    p_tenant_id: tenantId,
+    p_emails: lookupKeys.emails,
+    p_phones: lookupKeys.phones,
+  })
+
+  if (!error) {
+    return {
+      data: dedupeImportCandidateRows((data ?? []) as ClientImportCandidateRow[]),
+    }
+  }
+
+  if (!isMissingClientImportCandidatesRpc(error)) {
+    return { data: [], error: error.message }
+  }
+
+  return fetchClientImportDuplicateCandidatesFallback(db, tenantId, lookupKeys)
+}
+
+async function applyClientUpdatesInBatches(
+  db: ClientImportDb,
+  tenantId: string,
+  updates: ClientImportUpdate[],
+  errors: ImportError[],
+): Promise<void> {
+  for (let index = 0; index < updates.length; index += CLIENT_IMPORT_UPDATE_BATCH_SIZE) {
+    const batch = updates.slice(index, index + CLIENT_IMPORT_UPDATE_BATCH_SIZE)
+    const results = await Promise.all(
+      batch.map(async (update) => {
+        const patch: TablesUpdate<'clients'> = { ...update.patch }
+        const { error } = await db
+          .from('clients')
+          .update(patch)
+          .eq('tenant_id', tenantId)
+          .eq('id', update.id)
+
+        return error?.message ?? null
+      }),
+    )
+
+    for (const errorMessage of results) {
+      if (errorMessage) {
+        errors.push({ rowIndex: 0, message: `Errore DB (merge): ${errorMessage}` })
+      }
+    }
+  }
+}
+
+async function insertClientImportJob(params: {
+  db: ClientImportDb
+  tenantId: string
+  initiatedBy: string
+  input: ImportClientsInput
+  result: ImportClientsResult
+}): Promise<string | undefined> {
+  const { data, error } = await params.db
+    .from('client_import_jobs')
+    .insert({
+      tenant_id: params.tenantId,
+      initiated_by: params.initiatedBy,
+      source: params.input.source,
+      filename: params.input.filename ?? null,
+      total_rows: params.input.rows.length,
+      imported_count: params.result.imported,
+      merged_count: params.result.merged,
+      skipped_count: params.result.skipped,
+      error_count: params.result.errors.length,
+      errors: params.result.errors.slice(0, 100) as unknown as Json,
+      status: params.result.status,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    return undefined
+  }
+
+  return data?.id
+}
+
+export async function importClientsForTenant(params: {
+  db: ClientImportDb
+  tenantId: string
+  initiatedBy: string
+  input: ImportClientsInput
+}): Promise<ImportClientsResult> {
+  const { db, tenantId, initiatedBy, input } = params
+  const lookupKeys = collectImportLookupKeys(input.rows, input.mapping)
+  const existingLookup = await fetchClientImportDuplicateCandidates(db, tenantId, lookupKeys)
+
+  if (existingLookup.error) {
+    const result = buildImportClientsResult({
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [{ rowIndex: 0, message: `Errore DB (lookup): ${existingLookup.error}` }],
+    })
+    const jobId = await insertClientImportJob({
+      db,
+      tenantId,
+      initiatedBy,
+      input,
+      result,
+    })
+
+    return {
+      ...result,
+      jobId,
+    }
+  }
+
+  const plan = prepareClientImportPlan({
+    tenantId,
+    existingClients: existingLookup.data,
+    rows: input.rows,
+    mapping: input.mapping,
+    duplicateStrategy: input.duplicateStrategy,
+    fallbackTags: ['imported'],
+  })
+
+  const errors: ImportError[] = [...plan.errors]
+  const toInsert = plan.toInsert
+  const skipped = plan.skipped
+  const merged = plan.merged
+
+  await applyClientUpdatesInBatches(db, tenantId, plan.toUpdate, errors)
+
+  let imported = 0
+  if (toInsert.length > 0) {
+    for (let index = 0; index < toInsert.length; index += CLIENT_IMPORT_INSERT_CHUNK_SIZE) {
+      const chunk = toInsert.slice(index, index + CLIENT_IMPORT_INSERT_CHUNK_SIZE)
+      const { error, count } = await db
+        .from('clients')
+        .insert(chunk, { count: 'exact' })
+
+      if (error) {
+        errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
+        break
+      }
+
+      imported += count ?? chunk.length
+    }
+  }
+
+  const result = buildImportClientsResult({
+    imported,
+    merged,
+    skipped,
+    errors,
+  })
+  const jobId = await insertClientImportJob({
+    db,
+    tenantId,
+    initiatedBy,
+    input,
+    result,
+  })
+
+  return {
+    ...result,
+    jobId,
+  }
+}
+
 export async function importClients(
   input: ImportClientsInput,
 ): Promise<ImportClientsResult> {
@@ -1262,95 +1546,13 @@ export async function importClients(
     return { success: false, status: 'failed', error: 'Devi mappare almeno la colonna Nome', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
-  const { data: existing } = await db
-    .from('clients')
-    .select('id, full_name, email, phone, date_of_birth, marketing_consent, tags')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-
-  const plan = prepareClientImportPlan({
+  const result = await importClientsForTenant({
+    db,
     tenantId,
-    existingClients: (existing ?? []) as Array<{
-      id: string
-      full_name: string | null
-      email: string | null
-      phone: string | null
-      date_of_birth: string | null
-      marketing_consent: boolean
-      tags: Json | null
-    }>,
-    rows: input.rows,
-    mapping: input.mapping,
-    duplicateStrategy: input.duplicateStrategy,
-    fallbackTags: ['imported'],
+    initiatedBy: user.id,
+    input,
   })
-
-  const errors: ImportError[] = [...plan.errors]
-  const toInsert = plan.toInsert
-  const skipped = plan.skipped
-  const merged = plan.merged
-
-  async function applyClientUpdate(update: ClientImportUpdate): Promise<void> {
-    const patch: TablesUpdate<'clients'> = { ...update.patch }
-    const { error } = await db
-      .from('clients')
-      .update(patch)
-      .eq('tenant_id', tenantId)
-      .eq('id', update.id)
-
-    if (error) {
-      errors.push({ rowIndex: 0, message: `Errore DB (merge): ${error.message}` })
-    }
-  }
-
-  for (const update of plan.toUpdate) {
-    await applyClientUpdate(update)
-  }
-
-  let imported = 0
-  if (toInsert.length > 0) {
-    for (let i = 0; i < toInsert.length; i += 500) {
-      const chunk = toInsert.slice(i, i + 500)
-      const { error, count } = await db
-        .from('clients')
-        .insert(chunk, { count: 'exact' })
-      if (error) {
-        errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
-        break
-      }
-      imported += count ?? chunk.length
-    }
-  }
-
-  const result = buildImportClientsResult({
-    imported,
-    merged,
-    skipped,
-    errors,
-  })
-
-  const { data: jobRow } = await db
-    .from('client_import_jobs')
-    .insert({
-      tenant_id: tenantId,
-      initiated_by: user.id,
-      source: input.source,
-      filename: input.filename ?? null,
-      total_rows: input.rows.length,
-      imported_count: imported,
-      merged_count: merged,
-      skipped_count: skipped,
-      error_count: errors.length,
-      errors: errors.slice(0, 100) as unknown as Json,
-      status: result.status,
-    })
-    .select('id')
-    .single()
 
   revalidatePath('/dashboard/clienti')
-
-  return {
-    ...result,
-    jobId: jobRow?.id,
-  }
+  return result
 }

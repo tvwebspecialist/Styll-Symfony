@@ -2493,6 +2493,22 @@ export type Database = {
           tenant_name: string
         }[]
       }
+      get_client_import_candidates: {
+        Args: {
+          p_emails?: string[] | null
+          p_phones?: string[] | null
+          p_tenant_id: string
+        }
+        Returns: {
+          date_of_birth: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          marketing_consent: boolean
+          phone: string | null
+          tags: Json
+        }[]
+      }
       get_sales_appointments: {
         Args: {
           p_date_from?: string | null

@@ -90,7 +90,7 @@ export function PwaProductCard({
           position: 'relative',
           background: '#FFFFFF',
           borderRadius: 20,
-          boxShadow: pressed ? '0 2px 10px rgba(0,0,0,0.10)' : '0 8px 40px rgba(0,0,0,0.18)',
+          boxShadow: pressed ? '0 1px 4px rgba(0,0,0,0.04)' : '0 2px 10px rgba(0,0,0,0.06)',
           opacity: available ? 1 : 0.55,
           minWidth: 0,
           transform: pressed ? 'scale(0.965)' : undefined,
