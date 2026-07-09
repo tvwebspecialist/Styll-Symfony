@@ -240,7 +240,7 @@ export default async function AppLayout({ params, children }: Props) {
       ))}
 
       {/* position: relative wrapper allows PwaOnboarding to use position: absolute overlay */}
-      <div style={{ position: 'relative', minHeight: '100dvh' }}>
+      <div style={{ position: 'relative' }}>
         <PwaPreviewShell
           slug={slug}
           businessName={tenant.business_name}

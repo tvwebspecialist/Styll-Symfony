@@ -113,10 +113,12 @@ export function PwaPreviewShell({
 
   return (
     <div
-      style={{ ...brandVars, background: '#ffffff', minHeight: '100dvh' }}
+      style={{ ...brandVars, background: '#ffffff' }}
       className="text-foreground [font-family:var(--font-active)]"
     >
       <style>{`
+        /* White background fills viewport via body — no forced height on wrapper */
+        body { background: #ffffff; }
         /* Page height = content height — PwaShell owns bottom padding/nav clearance */
         main { min-height: 0; }
         /* PWA tap feedback — :active unlocked by touchstart listener above */

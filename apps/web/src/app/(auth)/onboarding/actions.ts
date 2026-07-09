@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  buildDpaAcceptanceFields,
+  ensureTenantDpaAcceptance,
+} from '@/lib/legal/dpa'
 import { finalizeOnboardingSchema } from '@/lib/validations/auth'
 import { sendWelcomeEmail } from '@/lib/email'
 import type { Json, TablesUpdate } from '@/types'
@@ -65,6 +69,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
 
   const db = createAdminClient()
   const { step1, step2, step3, step4, staff } = parsed.data
+  const dpaAcceptance = buildDpaAcceptanceFields({ acceptedBy: user.id })
 
   // Track any newly-created tenant so we can roll it back on failure.
   let createdTenantId: string | null = null
@@ -139,6 +144,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         .from('tenants')
         .insert({
           business_name: step1.name,
+          ...dpaAcceptance,
           slug,
           timezone: 'Europe/Rome',
           settings: tenantSettings as unknown as Json,
@@ -162,6 +168,8 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         ;(ownerStaff as typeof ownerStaff) = { id: newOwner.id, tenant_id: tenantId }
       }
     }
+
+    await ensureTenantDpaAcceptance(db, tenantId, dpaAcceptance)
 
     // 3) Location (single main location, upsert)
     const locationPayload = {
