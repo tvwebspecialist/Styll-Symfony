@@ -50,7 +50,7 @@ export default async function ConfermaPage({ params, searchParams }: Props) {
   const [services, location, staffMember, clientRecord] = await Promise.all([
     getPublicServicesByIds(tenant.tenant_id, serviceIds),
     getPublicLocationById(tenant.tenant_id, locationId),
-    getPublicStaffMemberById(tenant.tenant_id, staffId),
+    getPublicStaffMemberById(tenant.tenant_id, staffId, locationId),
     getMyClientRecord(tenant.tenant_id),
   ])
 

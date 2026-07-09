@@ -540,6 +540,7 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           ...animated(delay),
           background: '#FFFFFF',
           borderRadius: 20,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
           padding: 20,
           marginBottom: 16,
         }}
