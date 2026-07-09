@@ -107,100 +107,99 @@ function BookingCTACard({
   const onGradient = lum > 0.35 ? '#111111' : '#FFFFFF'
   const onGradientSubtle = lum > 0.35 ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.65)'
 
-  const gradient = `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+  // Diffused ambient glow: layered radials at different corners over a near-black base
+  const gradient = [
+    `radial-gradient(ellipse at 18% 82%, ${primaryColor}BF 0%, transparent 58%)`,
+    `radial-gradient(ellipse at 82% 12%, ${secondaryColor}8F 0%, transparent 52%)`,
+    `radial-gradient(ellipse at 50% 50%, ${primaryColor}38 0%, transparent 68%)`,
+    '#0d0d0f',
+  ].join(', ')
 
   const detailLine = [
     lastDuration ? `${lastDuration} min` : null,
     lastPrice != null ? formatPrice(lastPrice) : null,
   ].filter(Boolean).join(' · ')
 
-  const BUTTON_H = 52
-  const HALF_BTN = BUTTON_H / 2   // 26px — how much button overlaps the white zone
-
   return (
-    <FloatingCard style={{ padding: 0, overflow: 'hidden', marginBottom: 16, ...style }}>
-      {/* TOP — gradient zone */}
-      <div style={{ background: gradient, padding: '22px 22px 0' }}>
+    <FloatingCard style={{ padding: 16, marginBottom: 16, ...style }}>
+      {/* Inset gradient block — rounded, stacked inside the white card */}
+      <div style={{ background: gradient, borderRadius: 20, padding: '20px 18px 18px' }}>
         {/* Label */}
-        <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: onGradientSubtle }}>
+        <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: onGradientSubtle }}>
           {hasLastBooking ? 'Riprenota' : 'Prenota'}
         </p>
 
         {/* Service title */}
-        <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
+        <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
           {hasLastBooking
             ? (lastServiceNames.join(' + ') || 'Il tuo ultimo taglio')
             : 'È ora di un nuovo appuntamento'}
         </p>
 
-        {/* Subtitle */}
+        {/* Duration + price */}
         {hasLastBooking && detailLine && (
-          <p style={{ margin: '6px 0 0', fontSize: 13, color: onGradientSubtle }}>{detailLine}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: onGradientSubtle }}>{detailLine}</p>
         )}
+
+        {/* No-booking: last visit subtitle */}
         {!hasLastBooking && lastVisitDate && (
           <p style={{ margin: '6px 0 0', fontSize: 13, color: onGradientSubtle }}>
             Ultima visita: {daysAgo(lastVisitDate)} giorni fa
           </p>
         )}
 
-        {/* CTA button — straddles the two zones via negative margin-bottom */}
-        <Link
-          href={bookingHref}
-          className="pwa-pressable"
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            minHeight: BUTTON_H, borderRadius: 999,
-            marginTop: 20, marginBottom: -HALF_BTN,
-            background: '#111111', color: '#FFFFFF',
-            textDecoration: 'none', fontSize: 15, fontWeight: 700,
-            position: 'relative', zIndex: 10,
-          }}
-        >
-          {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
-        </Link>
-      </div>
-
-      {/* BOTTOM — white zone */}
-      {hasLastBooking && (
-        <div style={{ background: '#FFFFFF', padding: `${HALF_BTN + 14}px 22px 20px` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Staff avatar or scissors fallback */}
+        {/* Staff row — avatar + name + giorni fa */}
+        {hasLastBooking && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
             <div style={{
-              width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-              overflow: 'hidden', background: '#F4F4F5',
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              overflow: 'hidden',
+              background: lum > 0.35 ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 0 2px rgba(255,255,255,0.22)',
             }}>
               {lastStaffAvatarUrl
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={lastStaffAvatarUrl} alt={lastStaffName ?? 'Barbiere'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <ScissorsIcon stroke={primaryColor} />
+                : <ScissorsIcon stroke={onGradient} />
               }
             </div>
-
-            {/* Detail text */}
             <div style={{ flex: 1, minWidth: 0 }}>
               {lastStaffName && (
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: onGradient, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {lastStaffName}
                 </p>
               )}
-              {detailLine && (
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#9CA3AF' }}>{detailLine}</p>
-              )}
               {lastVisitDate && (
-                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#D1D5DB' }}>{daysAgo(lastVisitDate)} giorni fa</p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: onGradientSubtle }}>{daysAgo(lastVisitDate)} giorni fa</p>
               )}
             </div>
           </div>
-        </div>
-      )}
-      {!hasLastBooking && (
-        <div style={{ background: '#FFFFFF', padding: `${HALF_BTN + 14}px 22px 20px` }}>
-          <p style={{ margin: 0, fontSize: 13, color: '#9CA3AF', textAlign: 'center' }}>
+        )}
+
+        {/* No-booking: helper text */}
+        {!hasLastBooking && (
+          <p style={{ margin: '12px 0 0', fontSize: 13, color: onGradientSubtle, textAlign: 'center' }}>
             Scopri i servizi e scegli il tuo appuntamento
           </p>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* CTA button — standalone at bottom of card */}
+      <Link
+        href={bookingHref}
+        className="pwa-pressable"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: 52, borderRadius: 999,
+          marginTop: 12,
+          background: '#111111', color: '#FFFFFF',
+          textDecoration: 'none', fontSize: 15, fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.30)',
+        }}
+      >
+        {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
+      </Link>
     </FloatingCard>
   )
 }

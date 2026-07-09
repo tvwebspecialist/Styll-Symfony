@@ -152,16 +152,30 @@ async function resetSession(page: Page) {
 }
 
 async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
-  await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
-  // Pre-set analytics consent so the cookie banner never blocks test interactions
-  await page.evaluate(() => {
-    window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
-  })
-  await page.locator('#email').fill(user.email)
-  await page.locator('#password').fill(user.password)
-  await page.getByRole('button', { name: 'Accedi' }).click()
   const normalizedRedirectTo = normalizePathname(redirectTo)
-  await page.waitForURL((url) => normalizePathname(url.pathname) === normalizedRedirectTo)
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+    // Pre-set analytics consent so the cookie banner never blocks test interactions
+    await page.evaluate(() => {
+      window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
+    })
+    await expect(page.locator('#email')).toBeVisible()
+    await page.locator('#email').fill(user.email)
+    await page.locator('#password').fill(user.password)
+    await page.getByRole('button', { name: 'Accedi' }).click()
+
+    try {
+      await page.waitForURL(
+        (url) => normalizePathname(url.pathname) === normalizedRedirectTo,
+        { timeout: 15_000 },
+      )
+      return
+    } catch (error) {
+      if (attempt === 1) throw error
+      await resetSession(page)
+    }
+  }
 }
 
 async function captureNextActionRequest(

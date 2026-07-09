@@ -15,5 +15,4 @@ CREATE INDEX idx_onboarding_tokens_token ON onboarding_tokens(token);
 CREATE INDEX idx_onboarding_tokens_active ON onboarding_tokens(active, expires_at);
 CREATE INDEX idx_onboarding_tokens_created_by ON onboarding_tokens(created_by, created_at);
 
-ALTER TABLE onboarding_tokens ENABLE ROW LEVEL SECURITY;
--- All access via service_role (bypasses RLS); anon/auth users have no direct access
+ALTER TABLE onboarding_tokens ENABLE ROW LEVEL SECURITY;;

@@ -2493,12 +2493,70 @@ export type Database = {
           tenant_name: string
         }[]
       }
+      get_sales_appointments: {
+        Args: {
+          p_date_from?: string | null
+          p_date_to?: string | null
+          p_status?: string | null
+          p_tenant_id: string
+        }
+        Returns: {
+          client_name: string
+          id: string
+          paid_amount: number
+          service_names: string[]
+          staff_name: string
+          start_time: string
+          status: string
+          total_amount: number
+        }[]
+      }
+      get_sales_products: {
+        Args: { p_from: string; p_tenant_id: string; p_to: string }
+        Returns: {
+          brand: string | null
+          current_stock: number
+          low_stock_alert: boolean
+          product_id: string
+          product_name: string
+          total_qty: number
+          total_revenue: number
+        }[]
+      }
+      get_sales_summary: {
+        Args: {
+          p_month_end: string
+          p_month_start: string
+          p_prev_month_end: string
+          p_prev_month_start: string
+          p_tenant_id: string
+          p_today_end: string
+          p_today_start: string
+          p_week_start: string
+        }
+        Returns: {
+          appointments_completed_month: number
+          appointments_completed_today: number
+          revenue_month: number
+          revenue_previous_month: number
+          revenue_products_month: number
+          revenue_services_month: number
+          revenue_today: number
+          revenue_week: number
+          top_service_count: number | null
+          top_service_name: string | null
+        }[]
+      }
       get_my_tenant_id: { Args: never; Returns: string }
       is_superadmin: { Args: never; Returns: boolean }
       recompute_all_client_analytics: { Args: never; Returns: number }
       recompute_client_analytics: {
         Args: { p_client_id: string }
         Returns: undefined
+      }
+      recompute_tenant_client_analytics: {
+        Args: { p_tenant_id: string }
+        Returns: number
       }
     }
     Enums: {
