@@ -13,6 +13,7 @@ interface Props {
   initialChurnObjected: boolean
   primaryColor: string
   privacyPath: string
+  termsPath: string
 }
 
 function Toggle({
@@ -92,6 +93,7 @@ export function PreferenzeClient({
   initialChurnObjected,
   primaryColor: _primaryColor,
   privacyPath,
+  termsPath,
 }: Props) {
   const { status, subscribe, unsubscribe } = usePushSubscription(tenantId)
   const [, startTransition] = useTransition()
@@ -202,7 +204,7 @@ export function PreferenzeClient({
         />
         <LinkRow
           label="Termini e condizioni"
-          href="https://styll.it/termini"
+          href={termsPath}
         />
         <LinkRow
           label="Privacy policy"

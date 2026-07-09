@@ -42,7 +42,7 @@ export default async function OffertePage({ params }: Props) {
     : []
 
   return (
-    <main style={{ minHeight: '100vh', background: '#FFFFFF', paddingBottom: 100 }}>
+    <main style={{ background: '#FFFFFF' }}>
       {offers.length === 0 ? (
         <div style={{ padding: '60px 16px', textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏷️</div>

@@ -117,6 +117,8 @@ export function PwaPreviewShell({
       className="text-foreground [font-family:var(--font-active)]"
     >
       <style>{`
+        /* Page height = content height — PwaShell owns bottom padding/nav clearance */
+        main { min-height: 0; }
         /* PWA tap feedback — :active unlocked by touchstart listener above */
         button:active:not(:disabled) { transform: scale(0.97); opacity: 0.78; }
         /* Shared pressable pattern for Link-cards and non-button interactives */

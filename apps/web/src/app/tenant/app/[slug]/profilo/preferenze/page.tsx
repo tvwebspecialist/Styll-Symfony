@@ -34,7 +34,7 @@ export default async function PreferenzePage({ params }: Props) {
     clientRes.data?.churn_profiling_objected_at !== undefined
 
   return (
-    <main className="min-h-screen bg-white pb-24">
+    <main className="bg-white">
       <div className="mx-auto max-w-xl">
         <PreferenzeClient
           tenantId={tenant.tenant_id}
@@ -43,6 +43,7 @@ export default async function PreferenzePage({ params }: Props) {
           initialChurnObjected={churnObjected}
           primaryColor={tenant.primary_color ?? '#1a1a1a'}
           privacyPath={tp('/privacy')}
+          termsPath={tp('/termini')}
         />
       </div>
     </main>

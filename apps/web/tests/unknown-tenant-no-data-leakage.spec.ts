@@ -21,4 +21,20 @@ test.describe('unknown tenant safety', () => {
       await fixture.cleanup()
     }
   })
+
+  test('unknown tenant terms page returns 404 without leaking other tenant data', async ({ page }) => {
+    const fixture = await createTenantFixture('no-leak-terms')
+    const unknownSlug = `unknown-tenant-${randomSuffix()}`
+
+    try {
+      const response = await page.goto(buildTenantAppPath(unknownSlug, '/termini'))
+
+      expect(response?.status()).toBe(404)
+      await expect(page.getByText('Pagina non trovata.')).toBeVisible()
+      await expect(page.getByText(fixture.businessName)).toHaveCount(0)
+      await expect(page.getByText("Termini e condizioni per l'uso dell'app di")).toHaveCount(0)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
 })

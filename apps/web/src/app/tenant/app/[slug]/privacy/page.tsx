@@ -51,7 +51,7 @@ export default async function PrivacyPage({ params }: Props) {
   const contactEmail = ownerEmail ?? 'privacy@styll.it'
 
   return (
-    <main className="min-h-screen bg-white pb-24">
+    <main className="bg-white">
       <div className="mx-auto max-w-xl px-4 pt-4">
 
         <div className="rounded-[20px] bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] border border-neutral-100 p-5">
