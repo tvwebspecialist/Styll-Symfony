@@ -275,6 +275,12 @@ test.describe('SECURITY DEFINER RPC privilege hardening', () => {
       )
       expect(authenticatedAdminError).toBeTruthy()
 
+      const { error: authenticatedTenantRecomputeError } = await fixture.actor.client.rpc(
+        'recompute_tenant_client_analytics',
+        { p_tenant_id: fixture.tenantA.tenantId }
+      )
+      expect(authenticatedTenantRecomputeError).toBeTruthy()
+
       const { error: authenticatedOwnTenantError } = await fixture.actor.client.rpc(
         'decrement_product_inventory',
         {
@@ -321,6 +327,13 @@ test.describe('SECURITY DEFINER RPC privilege hardening', () => {
       )
       await assertNoSupabaseError('service-role recompute_all_client_analytics', serviceRoleRecomputeError)
       expect(typeof recomputeResult).toBe('number')
+
+      const { data: tenantRecomputeResult, error: serviceRoleTenantRecomputeError } = await service.rpc(
+        'recompute_tenant_client_analytics',
+        { p_tenant_id: fixture.tenantA.tenantId }
+      )
+      await assertNoSupabaseError('service-role recompute_tenant_client_analytics', serviceRoleTenantRecomputeError)
+      expect(typeof tenantRecomputeResult).toBe('number')
     } finally {
       await fixture.cleanup()
     }
