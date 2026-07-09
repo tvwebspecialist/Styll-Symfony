@@ -89,6 +89,13 @@ export interface ClientImportPlan {
   errors: ImportError[]
 }
 
+export interface ClientImportLookupKeys {
+  emails: string[]
+  phones: string[]
+  rawEmails: string[]
+  rawPhones: string[]
+}
+
 interface ParsedImportRow {
   rowIndex: number
   fullName: string
@@ -168,6 +175,48 @@ function buildInverseMapping(mapping: Record<string, ImportColumn>): Partial<Rec
   }
 
   return inverseMapping
+}
+
+export function collectImportLookupKeys(
+  rows: ImportRow[],
+  mapping: Record<string, ImportColumn>,
+): ClientImportLookupKeys {
+  const inverseMapping = buildInverseMapping(mapping)
+  const emails = new Set<string>()
+  const phones = new Set<string>()
+  const rawEmails = new Set<string>()
+  const rawPhones = new Set<string>()
+
+  for (const row of rows) {
+    const rawEmail = inverseMapping.email ? row[inverseMapping.email] ?? '' : ''
+    const trimmedEmail = rawEmail.trim()
+    if (trimmedEmail) {
+      rawEmails.add(trimmedEmail)
+    }
+
+    const normalizedEmail = rawEmail ? normalizeEmail(rawEmail) : null
+    if (normalizedEmail) {
+      emails.add(normalizedEmail)
+    }
+
+    const rawPhone = inverseMapping.phone ? row[inverseMapping.phone] ?? '' : ''
+    const trimmedPhone = rawPhone.trim()
+    if (trimmedPhone) {
+      rawPhones.add(trimmedPhone)
+    }
+
+    const normalizedPhone = rawPhone ? normalizePhone(rawPhone) : null
+    if (normalizedPhone) {
+      phones.add(normalizedPhone)
+    }
+  }
+
+  return {
+    emails: [...emails],
+    phones: [...phones],
+    rawEmails: [...rawEmails],
+    rawPhones: [...rawPhones],
+  }
 }
 
 function buildRowTags(

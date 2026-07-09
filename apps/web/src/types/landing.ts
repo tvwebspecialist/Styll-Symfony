@@ -81,8 +81,6 @@ export interface LandingService {
   price: number
   duration_minutes: number
   category: string | null
-  display_order: number
-  color: string | null
 }
 
 export interface LandingProduct {
@@ -93,7 +91,6 @@ export interface LandingProduct {
   price_sell: number
   photo_url: string | null
   description: string | null
-  display_order: number
   /** Whether the product is in stock. No exact counts or per-location data exposed. */
   available: boolean
 }

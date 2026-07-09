@@ -9,10 +9,6 @@ import {
 } from '@/lib/actions/public-booking'
 import type {
   LandingTenant,
-  LandingLocation,
-  LandingStaffMember,
-  LandingService,
-  LandingProduct,
   LandingSections,
 } from '@/types/landing'
 import AnimatedSection from '@/components/landing/AnimatedSection'
@@ -88,51 +84,11 @@ export default async function LandingPage({ params }: Props) {
     },
   }
 
-  // ── Build typed arrays ────────────────────────────────────────────────────
-  const locations: LandingLocation[] = rawLocations.map((loc) => ({
-    id: loc.id,
-    name: loc.name,
-    address: loc.address ?? null,
-    city: loc.city ?? null,
-    zip_code: null,
-    phone: loc.phone ?? null,
-    email: loc.email ?? null,
-    latitude: loc.latitude ?? null,
-    longitude: loc.longitude ?? null,
-    photo_url: loc.photo_url ?? null,
-    photos: Array.isArray(loc.photos) ? (loc.photos as string[]) : [],
-  }))
-
-  const staff: LandingStaffMember[] = rawTeam.map((m) => ({
-    id: m.id,
-    full_name: m.full_name ?? 'Barbiere',
-    photo_url: m.photo_url,
-    role: m.role,
-    bio: m.bio,
-  }))
-
-  const services: LandingService[] = rawServices.map((svc) => ({
-    id: svc.id,
-    name: svc.name,
-    description: svc.description ?? null,
-    price: Number(svc.price ?? 0),
-    duration_minutes: Number(svc.duration_minutes ?? 0),
-    category: svc.category ?? null,
-    display_order: Number(svc.display_order ?? 0),
-    color: svc.color ?? null,
-  }))
-
-  const products: LandingProduct[] = rawProducts.map((p) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand ?? null,
-    category: p.category ?? null,
-    price_sell: Number(p.price_sell ?? 0),
-    photo_url: p.photo_url ?? null,
-    description: p.description ?? null,
-    display_order: Number(p.display_order ?? 0),
-    available: p.available ?? false,
-  }))
+  // ── Reuse normalized query results ───────────────────────────────────────
+  const locations = rawLocations
+  const staff = rawTeam
+  const services = rawServices
+  const products = rawProducts
 
   // ── Section flags ─────────────────────────────────────────────────────────
   const sections: LandingSections = {

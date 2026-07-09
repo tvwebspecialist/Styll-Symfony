@@ -243,8 +243,6 @@ export function useLandingData(slug: string): UseLandingDataResult {
           price: Number(svc.price ?? 0),
           duration_minutes: Number(svc.duration_minutes ?? 0),
           category: svc.category,
-          display_order: Number(svc.display_order ?? 0),
-          color: svc.color,
         }))
 
         // ── Mapping products ───────────────────────────────────────────────
@@ -266,7 +264,6 @@ export function useLandingData(slug: string): UseLandingDataResult {
             price_sell: Number(p.price_sell ?? 0),
             photo_url: (p.photo_url as string | null) ?? null,
             description: (p.description as string | null) ?? null,
-            display_order: Number(p.display_order ?? 0),
             available,
           }
         })

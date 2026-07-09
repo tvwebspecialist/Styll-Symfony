@@ -8,10 +8,19 @@ import {
   isBookingConfirmationTokenExpired,
 } from '@/lib/booking-confirmation-token'
 
-export type PublicLocation = Pick<
-  Tables<'locations'>,
-  'id' | 'name' | 'address' | 'city' | 'phone' | 'photo_url' | 'photos' | 'email' | 'latitude' | 'longitude'
->
+export interface PublicLocation {
+  id: string
+  name: string
+  address: string | null
+  city: string | null
+  zip_code: string | null
+  phone: string | null
+  photo_url: string | null
+  photos: string[]
+  email: string | null
+  latitude: number | null
+  longitude: number | null
+}
 
 export interface PublicProduct {
   id: string
@@ -21,7 +30,6 @@ export interface PublicProduct {
   photo_url: string | null
   category: string | null
   description: string | null
-  display_order: number
   /** Whether the product is in stock anywhere. No exact counts or per-location
    *  breakdown are exposed publicly (avoids leaking internal inventory data). */
   available: boolean
@@ -37,13 +45,16 @@ export interface PublicPortfolioPhoto {
 export interface PublicWebsitePhoto {
   id: string
   url: string
-  sort_order: number
 }
 
-export type PublicService = Pick<
-  Tables<'services'>,
-  'id' | 'name' | 'description' | 'price' | 'duration_minutes' | 'category' | 'display_order' | 'color'
->
+export interface PublicService {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  duration_minutes: number
+  category: string | null
+}
 
 export interface PublicStaffMember {
   id: string
@@ -125,11 +136,36 @@ export interface PublicAppointmentSummary {
 
 type RawProfileRelation = { full_name: string | null } | Array<{ full_name: string | null }> | null
 
-type RawPublicStaffMember = {
+type RawPublicLocationRow = {
   id: string
-  bio: string | null
+  name: string
+  address: string | null
+  city: string | null
+  phone: string | null
   photo_url: string | null
-  profile: RawProfileRelation
+  photos: string[] | null
+  email: string | null
+  latitude: number | null
+  longitude: number | null
+}
+
+type RawPublicServiceRow = {
+  id: string
+  name: string
+  description: string | null
+  price: number | string | null
+  duration_minutes: number | string | null
+  category: string | null
+}
+
+type RawPublicProductRow = {
+  id: string
+  name: string
+  brand: string | null
+  price_sell: number | string | null
+  photo_url: string | null
+  category: string | null
+  description: string | null
 }
 
 type RawProfileWithAvatar =
@@ -251,11 +287,12 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
         .eq('show_on_website', true)
         .order('name', { ascending: true })
 
-      return ((data ?? []) as unknown as PublicLocation[]).map((location) => ({
+      return ((data ?? []) as RawPublicLocationRow[]).map((location) => ({
         id: location.id,
         name: location.name,
         address: location.address,
         city: location.city,
+        zip_code: null,
         phone: location.phone,
         photo_url: location.photo_url,
         photos: location.photos ?? [],
@@ -274,7 +311,7 @@ export function getPublicLocations(tenantId: string): Promise<PublicLocation[]> 
 
 export interface PublicTeamMember {
   id: string
-  full_name: string | null
+  full_name: string
   bio: string | null
   photo_url: string | null
   role: string
@@ -313,7 +350,7 @@ export function getPublicTeam(tenantId: string): Promise<PublicTeamMember[]> {
         const photo_url = member.photo_url || profile?.avatar_url || null
         return {
           id: member.id,
-          full_name: profile?.full_name ?? null,
+          full_name: profile?.full_name?.trim() || 'Barbiere',
           bio: member.bio ?? null,
           photo_url,
           role: member.role,
@@ -369,15 +406,14 @@ export function getPublicWebsitePhotos(tenantId: string): Promise<PublicWebsiteP
       const db = createAdminClient()
       const { data } = await db
         .from('website_photos')
-        .select('id, url, sort_order')
+        .select('id, url')
         .eq('tenant_id', tenantId)
         .order('sort_order', { ascending: true })
-        .limit(12)
+        .limit(9)
 
-      return ((data ?? []) as unknown as PublicWebsitePhoto[]).map((photo) => ({
+      return ((data ?? []) as PublicWebsitePhoto[]).map((photo) => ({
         id: photo.id,
         url: photo.url,
-        sort_order: Number(photo.sort_order ?? 0),
       }))
     },
     [`public-website-photos-${tenantId}`],
@@ -407,12 +443,13 @@ export function getPublicLocationById(
         return null
       }
 
-      const location = data as unknown as PublicLocation
+      const location = data as RawPublicLocationRow
       return {
         id: location.id,
         name: location.name,
         address: location.address,
         city: location.city,
+        zip_code: null,
         phone: location.phone,
         photo_url: location.photo_url,
         photos: location.photos ?? [],
@@ -435,21 +472,19 @@ export function getPublicServices(tenantId: string): Promise<PublicService[]> {
       const db = createAdminClient()
       const { data } = await db
         .from('services')
-        .select('id, name, description, price, duration_minutes, category, color, display_order')
+        .select('id, name, description, price, duration_minutes, category')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_website', true)
         .order('display_order', { ascending: true })
 
-      return ((data ?? []) as unknown as PublicService[]).map((service) => ({
+      return ((data ?? []) as RawPublicServiceRow[]).map((service) => ({
         id: service.id,
         name: service.name,
         description: service.description,
         price: Number(service.price ?? 0),
         duration_minutes: Number(service.duration_minutes ?? 0),
         category: service.category,
-        color: service.color ?? null,
-        display_order: Number(service.display_order ?? 0),
       }))
     },
     [`public-services-${tenantId}`],
@@ -471,20 +506,18 @@ export async function getPublicServicesByIds(
   const db = createAdminClient()
   const { data } = await db
     .from('services')
-    .select('id, name, description, price, duration_minutes, category, color, display_order')
+    .select('id, name, description, price, duration_minutes, category')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .in('id', serviceIds)
 
-  const services = ((data ?? []) as unknown as PublicService[]).map((service) => ({
+  const services = ((data ?? []) as RawPublicServiceRow[]).map((service) => ({
     id: service.id,
     name: service.name,
     description: service.description,
     price: Number(service.price ?? 0),
     duration_minutes: Number(service.duration_minutes ?? 0),
     category: service.category,
-    color: service.color ?? null,
-    display_order: Number(service.display_order ?? 0),
   }))
 
   return sortByRequestedIds(services, serviceIds)
@@ -1074,39 +1107,42 @@ export function getPublicProducts(tenantId: string): Promise<PublicProduct[]> {
   return unstable_cache(
     async () => {
       const db = createAdminClient()
-      const { data } = await db
+      const { data: productRows } = await db
         .from('products')
-        .select(
-          'id, name, brand, price_sell, photo_url, category, description, display_order, product_inventory(quantity)',
-        )
+        .select('id, name, brand, price_sell, photo_url, category, description')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .eq('show_on_site', true)
         .order('display_order', { ascending: true })
         .order('name', { ascending: true })
 
-      return ((data ?? []) as unknown[]).map((row) => {
-        const p = row as Record<string, unknown>
-        const invRaw = p.product_inventory
-        const available = Array.isArray(invRaw)
-          ? invRaw.some((invRow: unknown) => {
-              const inv = invRow as Record<string, unknown>
-              return Number(inv.quantity ?? 0) > 0
-            })
-          : false
+      const products = (productRows ?? []) as RawPublicProductRow[]
+      if (products.length === 0) {
+        return []
+      }
 
-        return {
-          id: p.id as string,
-          name: p.name as string,
-          brand: (p.brand as string | null) ?? null,
-          price_sell: Number(p.price_sell ?? 0),
-          photo_url: (p.photo_url as string | null) ?? null,
-          category: (p.category as string | null) ?? null,
-          description: (p.description as string | null) ?? null,
-          display_order: Number(p.display_order ?? 0),
-          available,
-        }
-      })
+      // Landing only needs a boolean availability badge, not every per-location quantity row.
+      const { data: inventoryRows } = await db
+        .from('product_inventory')
+        .select('product_id')
+        .eq('tenant_id', tenantId)
+        .in('product_id', products.map((product) => product.id))
+        .gt('quantity', 0)
+
+      const availableProductIds = new Set(
+        ((inventoryRows ?? []) as Array<{ product_id: string }>).map((row) => row.product_id),
+      )
+
+      return products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        brand: product.brand ?? null,
+        price_sell: Number(product.price_sell ?? 0),
+        photo_url: product.photo_url ?? null,
+        category: product.category ?? null,
+        description: product.description ?? null,
+        available: availableProductIds.has(product.id),
+      }))
     },
     [`public-products-${tenantId}`],
     {
