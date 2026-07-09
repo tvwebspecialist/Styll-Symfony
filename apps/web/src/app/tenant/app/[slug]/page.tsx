@@ -121,9 +121,9 @@ function BookingCTACard({
   ].filter(Boolean).join(' · ')
 
   return (
-    <FloatingCard style={{ padding: 16, margin: 0, marginBottom: 16, ...style }}>
+    <FloatingCard style={{ padding: 16, margin: 0, marginBottom: 16, borderRadius: 28, ...style }}>
       {/* Inset gradient block — rounded, stacked inside the white card */}
-      <div style={{ background: gradient, borderRadius: 20, padding: '20px 18px 18px' }}>
+      <div style={{ background: gradient, borderRadius: 12, padding: '20px 18px 18px' }}>
         {/* Service title */}
         <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
           {hasLastBooking
@@ -509,7 +509,14 @@ export default async function AppHomePage({ params, searchParams }: Props) {
               gap: 10,
               overflowX: 'auto',
               scrollSnapType: 'x mandatory',
-              paddingBottom: 8,
+              // negative margin + matching padding gives shadow room on all sides
+              // without disturbing the section header alignment above
+              marginLeft: -4,
+              marginRight: -4,
+              paddingTop: 12,
+              paddingBottom: 20,
+              paddingLeft: 4,
+              paddingRight: 4,
               msOverflowStyle: 'none',
               scrollbarWidth: 'none',
             } as CSSProperties
