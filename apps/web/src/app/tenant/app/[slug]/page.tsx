@@ -121,14 +121,9 @@ function BookingCTACard({
   ].filter(Boolean).join(' · ')
 
   return (
-    <FloatingCard style={{ padding: 16, marginBottom: 16, ...style }}>
+    <FloatingCard style={{ padding: 16, margin: 0, marginBottom: 16, ...style }}>
       {/* Inset gradient block — rounded, stacked inside the white card */}
       <div style={{ background: gradient, borderRadius: 20, padding: '20px 18px 18px' }}>
-        {/* Label */}
-        <p style={{ margin: '0 0 6px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: onGradientSubtle }}>
-          {hasLastBooking ? 'Riprenota' : 'Prenota'}
-        </p>
-
         {/* Service title */}
         <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
           {hasLastBooking
@@ -278,6 +273,27 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           .join(', ')
       )}`
     : null
+
+  // ── Prefill href for "Prenota di nuovo" ─────────────────────────────────────
+  const hasLastBooking = !!(homeData.lastAppointmentServiceNames?.length)
+  const _lastStaffId = homeData.lastAppointmentStaffId ?? null
+  const _lastLocationId = homeData.lastAppointmentLocationId ?? null
+  const _lastServiceIds = homeData.lastAppointmentServiceIds ?? []
+  const _staffOk = homeData.lastAppointmentStaffIsActive === true
+  const _servicesOk = homeData.lastAppointmentServicesAllActive === true
+
+  const rebookHref = (() => {
+    if (hasLastBooking && _lastLocationId && _lastStaffId && _staffOk && _servicesOk && _lastServiceIds.length > 0) {
+      return tp(`/prenota/data?location=${_lastLocationId}&staff=${_lastStaffId}&services=${_lastServiceIds.join(',')}&_skip=sede,barbiere,servizi`)
+    }
+    if (hasLastBooking && _lastLocationId && _lastStaffId && _staffOk) {
+      return tp(`/prenota/servizi?location=${_lastLocationId}&staff=${_lastStaffId}&_skip=sede,barbiere`)
+    }
+    if (hasLastBooking && _lastLocationId) {
+      return tp(`/prenota/barbiere?location=${_lastLocationId}&_skip=sede`)
+    }
+    return tp('/prenota')
+  })()
 
   // ── Shared blocks ────────────────────────────────────────────────────────────
 
@@ -769,20 +785,30 @@ export default async function AppHomePage({ params, searchParams }: Props) {
           {/* Offerte */}
           {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
 
-          {/* Unified booking CTA — prenota or riprenota based on history */}
-          <BookingCTACard
-            hasLastBooking={!!(homeData.lastAppointmentServiceNames?.length)}
-            lastServiceNames={homeData.lastAppointmentServiceNames ?? []}
-            lastStaffName={homeData.lastAppointmentStaffName ?? null}
-            lastStaffAvatarUrl={homeData.lastAppointmentStaffAvatarUrl ?? null}
-            lastDuration={homeData.lastAppointmentDuration ?? null}
-            lastPrice={homeData.lastAppointmentPrice ?? null}
-            lastVisitDate={homeData.loyalty?.lastVisitDate ?? null}
-            bookingHref={tp('/prenota')}
-            primaryColor={tenant.primary_color ?? '#111111'}
-            secondaryColor={tenant.secondary_color ?? tenant.primary_color ?? '#111111'}
-            style={animated(activeOffers.length > 0 ? 60 : 0)}
-          />
+          {/* Appuntamenti section */}
+          <section style={{ ...animated(activeOffers.length > 0 ? 60 : 0) }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Appuntamenti</h2>
+              <Link
+                href={tp('/appuntamenti')}
+                style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+              >
+                Vedi tutte
+              </Link>
+            </div>
+            <BookingCTACard
+              hasLastBooking={hasLastBooking}
+              lastServiceNames={homeData.lastAppointmentServiceNames ?? []}
+              lastStaffName={homeData.lastAppointmentStaffName ?? null}
+              lastStaffAvatarUrl={homeData.lastAppointmentStaffAvatarUrl ?? null}
+              lastDuration={homeData.lastAppointmentDuration ?? null}
+              lastPrice={homeData.lastAppointmentPrice ?? null}
+              lastVisitDate={homeData.loyalty?.lastVisitDate ?? null}
+              bookingHref={rebookHref}
+              primaryColor={tenant.primary_color ?? '#111111'}
+              secondaryColor={tenant.secondary_color ?? tenant.primary_color ?? '#111111'}
+            />
+          </section>
 
           {/* Loyalty */}
           {loyaltySection(activeOffers.length > 0 ? 120 : 60)}
