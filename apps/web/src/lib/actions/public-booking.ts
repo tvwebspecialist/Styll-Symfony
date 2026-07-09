@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createPortfolioSignedUrl } from '@/lib/portfolio-storage'
+import { getLocationScopedBookingStaffSnapshot } from '@/lib/actions/booking-public'
 import type { Tables } from '@/types'
 import {
   hashBookingConfirmationToken,
@@ -608,67 +609,47 @@ export async function getAvailableStaff(
   locationId: string,
   serviceIds: string[]
 ): Promise<PublicStaffMember[]> {
-  const db = createAdminClient()
-  const { data: locationRows } = await db
-    .from('staff_locations')
-    .select('staff_id')
-    .eq('tenant_id', tenantId)
-    .eq('location_id', locationId)
-
-  const locationStaffIds = ((locationRows ?? []) as Array<{ staff_id: string }>).map((row) => row.staff_id)
-
-  if (locationStaffIds.length === 0) {
+  const staffSnapshot = await getLocationScopedBookingStaffSnapshot(tenantId, locationId)
+  if (staffSnapshot.length === 0) {
     return []
   }
 
-  let qualifiedIds = new Set(locationStaffIds)
-
-  if (serviceIds.length > 0) {
-    const { data: staffServiceRows } = await db
-      .from('staff_services')
-      .select('staff_id, service_id')
-      .eq('tenant_id', tenantId)
-      .in('staff_id', locationStaffIds)
-      .in('service_id', serviceIds)
-
-    const counts = new Map<string, Set<string>>()
-    for (const row of (staffServiceRows ?? []) as Array<{ staff_id: string; service_id: string }>) {
-      const current = counts.get(row.staff_id) ?? new Set<string>()
-      current.add(row.service_id)
-      counts.set(row.staff_id, current)
-    }
-
-    qualifiedIds = new Set(
-      locationStaffIds.filter((staffId) => counts.get(staffId)?.size === serviceIds.length)
-    )
-  }
-
-  if (qualifiedIds.size === 0) {
-    return []
-  }
-
-  const { data: staffRows } = await db
-    .from('staff_members')
-    .select('id, bio, photo_url, profile:profiles(full_name)')
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .in('id', Array.from(qualifiedIds))
-
-  return ((staffRows ?? []) as unknown as RawPublicStaffMember[])
+  const requiredServiceIds = new Set(serviceIds)
+  return staffSnapshot
+    .filter((member) => (
+      requiredServiceIds.size === 0
+        ? true
+        : requiredServiceIds.size === member.services.filter((service) => requiredServiceIds.has(service.id)).length
+    ))
     .map((member) => ({
       id: member.id,
-      full_name: readProfileFullName(member.profile),
+      full_name: member.full_name,
       bio: member.bio,
-      photo_url: member.photo_url,
+      photo_url: member.avatar_url,
     }))
-    .sort((left, right) => (left.full_name ?? '').localeCompare(right.full_name ?? '', 'it'))
 }
 
 export async function getPublicStaffMemberById(
   tenantId: string,
-  staffId: string
+  staffId: string,
+  locationId?: string
 ): Promise<PublicStaffMember | null> {
+  if (locationId) {
+    const staffSnapshot = await getLocationScopedBookingStaffSnapshot(tenantId, locationId)
+    const scopedMember = staffSnapshot.find((member) => member.id === staffId)
+
+    if (scopedMember) {
+      return {
+        id: scopedMember.id,
+        full_name: scopedMember.full_name,
+        bio: scopedMember.bio,
+        photo_url: scopedMember.avatar_url,
+      }
+    }
+
+    return null
+  }
+
   const db = createAdminClient()
   const { data } = await db
     .from('staff_members')
@@ -874,8 +855,57 @@ export async function getStaffForBooking(
 
 export async function getServicesForStaff(
   tenantId: string,
-  staffId: string
+  staffId: string,
+  locationId?: string
 ): Promise<{ services: ServiceForStaff[] }> {
+  if (locationId) {
+    const staffSnapshot = await getLocationScopedBookingStaffSnapshot(tenantId, locationId)
+
+    if (staffId === 'any') {
+      const servicesById = new Map<string, ServiceForStaff & { display_order: number }>()
+
+      for (const member of staffSnapshot) {
+        for (const service of member.services) {
+          if (!servicesById.has(service.id)) {
+            servicesById.set(service.id, {
+              id: service.id,
+              name: service.name,
+              price: service.price,
+              duration_minutes: service.duration_minutes,
+              category: service.category,
+              display_order: service.display_order,
+            })
+          }
+        }
+      }
+
+      const services = Array.from(servicesById.values())
+        .sort((left, right) => (
+          left.display_order === right.display_order
+            ? left.name.localeCompare(right.name, 'it')
+            : left.display_order - right.display_order
+        ))
+        .map(({ display_order: _displayOrder, ...service }) => service)
+
+      return { services }
+    }
+
+    const scopedMember = staffSnapshot.find((member) => member.id === staffId)
+    if (!scopedMember) {
+      return { services: [] }
+    }
+
+    return {
+      services: scopedMember.services.map((service) => ({
+        id: service.id,
+        name: service.name,
+        price: service.price,
+        duration_minutes: service.duration_minutes,
+        category: service.category,
+      })),
+    }
+  }
+
   const db = createAdminClient()
 
   if (staffId === 'any') {

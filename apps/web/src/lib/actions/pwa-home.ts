@@ -1,10 +1,12 @@
 'use server'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Tables } from '@/types'
+import type { Database } from '@/types/database.types'
 
 export type HomeStaffMember = { id: string; fullName: string | null; avatarUrl: string | null }
 export type HomeNextAppointment = {
@@ -73,6 +75,8 @@ type StaffWithProfile = Pick<Tables<'staff_members'>, 'id' | 'photo_url'> & {
 }
 
 type ClientRow = Pick<Tables<'clients'>, 'id' | 'full_name'>
+type HomeProductRow = Pick<Tables<'products'>, 'id' | 'name' | 'brand' | 'photo_url' | 'price_sell'>
+type ProductInventoryRow = Pick<Tables<'product_inventory'>, 'product_id' | 'quantity'>
 
 type RawAppointment = Pick<Tables<'appointments'>, 'id' | 'start_time' | 'end_time'> & {
   staff_id?: string | null
@@ -174,6 +178,48 @@ function extractLocationAddress(locationsRelation: any): { address: string | nul
   return { address: loc?.address ?? null, city: loc?.city ?? null }
 }
 
+export async function getVisibleHomeProducts(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+): Promise<HomeProduct[]> {
+  const { data: rawProducts } = await db
+    .from('products')
+    .select('id, name, brand, photo_url, price_sell')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .eq('show_on_site', true)
+    .order('display_order', { ascending: true })
+    .limit(8)
+
+  const visibleProducts = (rawProducts ?? []) as HomeProductRow[]
+  const productIds = visibleProducts.map((product) => product.id)
+
+  if (productIds.length === 0) {
+    return []
+  }
+
+  const { data: inventoryRows } = await db
+    .from('product_inventory')
+    .select('product_id, quantity')
+    .eq('tenant_id', tenantId)
+    .in('product_id', productIds)
+
+  const inventoryMap = new Map<string, number>()
+  for (const row of (inventoryRows ?? []) as ProductInventoryRow[]) {
+    inventoryMap.set(row.product_id, (inventoryMap.get(row.product_id) ?? 0) + row.quantity)
+  }
+
+  return visibleProducts
+    .filter((product) => (inventoryMap.get(product.id) ?? 0) > 0)
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      brand: product.brand,
+      photo_url: product.photo_url,
+      price_sell: product.price_sell,
+    }))
+}
+
 export async function getHomePageData(tenantId: string): Promise<HomePageData> {
   const supabase = await createClient()
   const {
@@ -182,22 +228,12 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
 
   const db = createAdminClient()
 
-  // Fetch public data in parallel: staff (cached) + products + inventory + services
-  const [{ rawStaffMembers, count }, productsResult, inventoryResult, servicesResult] =
+  // Fetch public data in parallel. Products stay bounded by first selecting the
+  // visible slice and then loading inventory only for those product IDs.
+  const [{ rawStaffMembers, count }, products, servicesResult] =
     await Promise.all([
       getCachedStaffMembers(tenantId),
-      db
-        .from('products')
-        .select('id, name, brand, photo_url, price_sell')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .eq('show_on_site', true)
-        .order('display_order', { ascending: true })
-        .limit(8),
-      db
-        .from('product_inventory')
-        .select('product_id, quantity')
-        .eq('tenant_id', tenantId),
+      getVisibleHomeProducts(db, tenantId),
       db
         .from('services')
         .select('id, name, price, duration_minutes')
@@ -206,30 +242,6 @@ export async function getHomePageData(tenantId: string): Promise<HomePageData> {
         .order('display_order', { ascending: true })
         .limit(8),
     ])
-
-  // Build inventory map (sum quantities across locations)
-  const inventoryMap = new Map<string, number>()
-  for (const row of ((inventoryResult.data ?? []) as { product_id: string; quantity: number }[])) {
-    inventoryMap.set(row.product_id, (inventoryMap.get(row.product_id) ?? 0) + row.quantity)
-  }
-
-  const products: HomeProduct[] = (
-    (productsResult.data ?? []) as {
-      id: string
-      name: string
-      brand: string | null
-      photo_url: string | null
-      price_sell: number
-    }[]
-  )
-    .filter((p) => (inventoryMap.get(p.id) ?? 0) > 0)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      brand: p.brand,
-      photo_url: p.photo_url,
-      price_sell: p.price_sell,
-    }))
 
   const services: HomeService[] = (
     (servicesResult.data ?? []) as {
