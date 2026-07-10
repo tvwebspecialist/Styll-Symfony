@@ -2,6 +2,13 @@
 
 import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  applyClientConsentEvents,
+  buildMarketingConsentEvents,
+  extractConsentRequestContext,
+  seedClientConsentState,
+} from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types'
@@ -19,6 +26,10 @@ async function getRequestIp(): Promise<string> {
     h.get('x-real-ip')?.trim() ||
     'unknown'
   )
+}
+
+async function getConsentRequestContext() {
+  return extractConsentRequestContext(await headers())
 }
 
 /**
@@ -190,9 +201,39 @@ export async function verifyOtp(
       tags: [],
     }
 
-    const { error: insertError } = await db.from('clients').insert(insertPayload)
+    const { data: insertedClient, error: insertError } = await db
+      .from('clients')
+      .insert(insertPayload)
+      .select('id')
+      .single()
 
     if (insertError) {
+      return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    if (!insertedClient?.id) {
+      return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    try {
+      const requestContext = await getConsentRequestContext()
+      await seedClientConsentState(db, {
+        tenantId,
+        clientId: insertedClient.id,
+        marketingAllowed: false,
+        churnAllowed: true,
+        actor: CONSENT_ACTOR.CLIENT_PROFILE,
+        actorProfileId: userId,
+        source: CONSENT_SOURCE.PHONE_OTP_BOOTSTRAP,
+        occurredAt: now,
+        ipAddress: requestContext.ipAddress ?? null,
+        userAgent: requestContext.userAgent ?? null,
+        metadata: {
+          surface: 'phone_otp_signup',
+        },
+      })
+    } catch {
+      await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
       return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
     }
 
@@ -385,7 +426,7 @@ export async function completeEmailOtpProfile(
   const db = createAdminClient()
   const { data: tenant } = await db
     .from('tenants')
-    .select('id')
+    .select('id, business_name')
     .eq('id', tenantId)
     .eq('status', 'active')
     .maybeSingle()
@@ -403,8 +444,10 @@ export async function completeEmailOtpProfile(
   }
 
   const now = new Date().toISOString()
+  const requestContext = await getConsentRequestContext()
   const normalizedPhone = normalizePhoneValue(rawPhone)
   const normalizedEmail = user.email?.trim().toLowerCase() ?? null
+  const marketingAllowed = profileData.marketingConsent ?? false
 
   const { error: profileUpdateError } = await db
     .from('profiles')
@@ -425,7 +468,6 @@ export async function completeEmailOtpProfile(
     full_name: fullName,
     phone: normalizedPhone,
     updated_at: now,
-    marketing_consent: profileData.marketingConsent ?? false,
     ...(normalizedEmail ? { email: normalizedEmail } : {}),
   }
 
@@ -450,6 +492,32 @@ export async function completeEmailOtpProfile(
 
     if (updateClientError) {
       return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+    }
+
+    try {
+      await applyClientConsentEvents(db, {
+        tenantId,
+        clientId: linkedClient.id,
+        actor: CONSENT_ACTOR.CLIENT_PROFILE,
+        actorProfileId: user.id,
+        source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
+        events: buildMarketingConsentEvents({
+          allowed: marketingAllowed,
+          businessName: tenant.business_name ?? 'il salone',
+          channel: CONSENT_CHANNEL.PWA,
+          source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
+          occurredAt: now,
+          ipAddress: requestContext.ipAddress ?? null,
+          metadata: {
+            surface: 'email_otp_profile_completion',
+            ip_address: requestContext.ipAddress ?? null,
+            user_agent: requestContext.userAgent ?? null,
+          },
+          userAgent: requestContext.userAgent ?? null,
+        }),
+      })
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
     }
 
     return { success: true }
@@ -483,24 +551,80 @@ export async function completeEmailOtpProfile(
         return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
       }
 
+      try {
+        await applyClientConsentEvents(db, {
+          tenantId,
+          clientId: unlinkedClient.id,
+          actor: CONSENT_ACTOR.CLIENT_PROFILE,
+          actorProfileId: user.id,
+          source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
+          events: buildMarketingConsentEvents({
+            allowed: marketingAllowed,
+            businessName: tenant.business_name ?? 'il salone',
+            channel: CONSENT_CHANNEL.PWA,
+            source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
+            occurredAt: now,
+            ipAddress: requestContext.ipAddress ?? null,
+            metadata: {
+              surface: 'email_otp_profile_completion',
+              ip_address: requestContext.ipAddress ?? null,
+              user_agent: requestContext.userAgent ?? null,
+            },
+            userAgent: requestContext.userAgent ?? null,
+          }),
+        })
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
+      }
+
       return { success: true }
     }
   }
 
-  const { error: insertClientError } = await db.from('clients').insert({
-    tenant_id: tenantId,
-    profile_id: user.id,
-    full_name: fullName,
-    phone: normalizedPhone,
-    email: normalizedEmail,
-    created_at: now,
-    updated_at: now,
-    marketing_consent: profileData.marketingConsent ?? false,
-    tags: [],
-  })
+  const { data: insertedClient, error: insertClientError } = await db
+    .from('clients')
+    .insert({
+      tenant_id: tenantId,
+      profile_id: user.id,
+      full_name: fullName,
+      phone: normalizedPhone,
+      email: normalizedEmail,
+      created_at: now,
+      updated_at: now,
+      marketing_consent: marketingAllowed,
+      tags: [],
+    })
+    .select('id')
+    .single()
 
   if (insertClientError) {
     return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (!insertedClient?.id) {
+    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  try {
+    await seedClientConsentState(db, {
+      tenantId,
+      clientId: insertedClient.id,
+      marketingAllowed,
+      churnAllowed: true,
+      businessName: tenant.business_name ?? 'il salone',
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: user.id,
+      source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
+      occurredAt: now,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'email_otp_profile_completion',
+      },
+    })
+  } catch (error) {
+    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
+    return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
   }
 
   return { success: true }
@@ -644,22 +768,52 @@ export async function verifyEmailOtp(
     .eq('id', userId)
     .maybeSingle()
 
-  const { error: insertError } = await db.from('clients').insert({
-    tenant_id: tenantId,
-    profile_id: userId,
-    full_name:
-      profileData?.fullName?.trim() ||
-      (profile?.full_name as string | null | undefined)?.trim() ||
-      'Cliente',
-    phone: profileData?.phone?.trim() ? normalizePhoneValue(profileData.phone.trim()) : undefined,
-    email: normalizedEmail,
-    created_at: now,
-    updated_at: now,
-    marketing_consent: profileData?.marketingConsent ?? false,
-    tags: [],
-  })
+  const { data: insertedClient, error: insertError } = await db
+    .from('clients')
+    .insert({
+      tenant_id: tenantId,
+      profile_id: userId,
+      full_name:
+        profileData?.fullName?.trim() ||
+        (profile?.full_name as string | null | undefined)?.trim() ||
+        'Cliente',
+      phone: profileData?.phone?.trim() ? normalizePhoneValue(profileData.phone.trim()) : undefined,
+      email: normalizedEmail,
+      created_at: now,
+      updated_at: now,
+      marketing_consent: profileData?.marketingConsent ?? false,
+      tags: [],
+    })
+    .select('id')
+    .single()
 
   if (insertError) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  if (!insertedClient?.id) {
+    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+  }
+
+  try {
+    const requestContext = await getConsentRequestContext()
+    await seedClientConsentState(db, {
+      tenantId,
+      clientId: insertedClient.id,
+      marketingAllowed: profileData?.marketingConsent ?? false,
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: userId,
+      source: CONSENT_SOURCE.PWA_EMAIL_OTP_BOOTSTRAP,
+      occurredAt: now,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'email_otp_bootstrap',
+      },
+    })
+  } catch {
+    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
     return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
   }
 
@@ -738,23 +892,53 @@ export async function setupPwaGoogleClient(
     .eq('id', userId)
     .maybeSingle()
 
-  const { error: insertError } = await db.from('clients').insert({
-    tenant_id: tenantId,
-    profile_id: userId,
-    full_name:
-      (profile?.full_name as string | null | undefined)?.trim() ||
-      (user.user_metadata?.full_name as string | undefined) ||
-      'Cliente',
-    email: normalizedEmail,
-    phone: null as string | null,
-    created_at: now,
-    updated_at: now,
-    marketing_consent: false,
-    tags: [],
-  })
+  const { data: insertedClient, error: insertError } = await db
+    .from('clients')
+    .insert({
+      tenant_id: tenantId,
+      profile_id: userId,
+      full_name:
+        (profile?.full_name as string | null | undefined)?.trim() ||
+        (user.user_metadata?.full_name as string | undefined) ||
+        'Cliente',
+      email: normalizedEmail,
+      phone: null as string | null,
+      created_at: now,
+      updated_at: now,
+      marketing_consent: false,
+      tags: [],
+    })
+    .select('id')
+    .single()
 
   if (insertError) {
     console.error('[setupPwaGoogleClient] insert failed:', insertError.message, insertError.details)
+    return { success: false, isNewClient: false }
+  }
+
+  if (!insertedClient?.id) {
+    return { success: false, isNewClient: false }
+  }
+
+  try {
+    const requestContext = await getConsentRequestContext()
+    await seedClientConsentState(db, {
+      tenantId,
+      clientId: insertedClient.id,
+      marketingAllowed: false,
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: userId,
+      source: CONSENT_SOURCE.GOOGLE_AUTH_BOOTSTRAP,
+      occurredAt: now,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'google_auth_bootstrap',
+      },
+    })
+  } catch {
+    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
     return { success: false, isNewClient: false }
   }
 

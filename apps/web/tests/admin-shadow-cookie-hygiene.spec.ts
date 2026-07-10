@@ -200,9 +200,13 @@ async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
   })
   await page.locator('#email').fill(user.email)
   await page.locator('#password').fill(user.password)
-  await page.getByRole('button', { name: 'Accedi' }).click()
   const normalizedRedirectTo = normalizePathname(redirectTo)
-  await page.waitForURL((url) => normalizePathname(url.pathname) === normalizedRedirectTo)
+  await Promise.all([
+    page.waitForURL((url) => normalizePathname(url.pathname) === normalizedRedirectTo, {
+      waitUntil: 'commit',
+    }),
+    page.getByRole('button', { name: 'Accedi' }).click(),
+  ])
 }
 
 async function setShadowCookie(context: BrowserContext, actorId: string, tenantId: string) {
@@ -299,9 +303,18 @@ test.describe.serial('admin shadow cookie hygiene', () => {
     await page.goto(tenantARoot)
     await expect(page.getByText(/come Admin\./)).toBeVisible({ timeout: 10_000 })
 
+    const reachedAdmin = page
+      .waitForURL((url) => normalizePathname(url.pathname) === '/admin', { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false)
+
     await page.getByRole('button', { name: 'Esci da shadow mode' }).click()
-    await page.waitForURL((url) => normalizePathname(url.pathname) === '/admin')
     await expectShadowCookieCleared(page.context())
+    if (!(await reachedAdmin)) {
+      await expect
+        .poll(() => normalizePathname(new URL(page.url()).pathname), { timeout: 15_000 })
+        .toBe('/admin')
+    }
   })
 
   test('invalid shadow cookie is ignored and cleared', async ({ page }) => {

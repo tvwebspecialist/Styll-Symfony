@@ -132,14 +132,16 @@ test.describe('email verification send protections', () => {
 
       const { data: token, error: tokenError } = await service
         .from('email_verification_tokens')
-        .select('id, code, used, last_sent_at')
+        .select('id, code_hash, used, last_sent_at')
         .eq('email', fixture.email)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
       await assertNoSupabaseError('read first email verification token', tokenError)
       expect(token?.used).toBe(false)
-      expect(token?.code).toBe(sentEmails[0].code)
+      // code_hash must be a 64-char hex string (HMAC-SHA-256), never the plaintext code
+      expect(token?.code_hash).toMatch(/^[0-9a-f]{64}$/)
+      expect(token?.code_hash).not.toBe(sentEmails[0].code)
     } finally {
       await fixture.cleanup()
     }
@@ -173,7 +175,7 @@ test.describe('email verification send protections', () => {
 
       const { data: firstToken, error: firstTokenError } = await service
         .from('email_verification_tokens')
-        .select('id, code, used')
+        .select('id, code_hash, used')
         .eq('email', fixture.email)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -197,7 +199,7 @@ test.describe('email verification send protections', () => {
 
       const { data: tokens, error: tokensError } = await service
         .from('email_verification_tokens')
-        .select('id, code, used')
+        .select('id, code_hash, used')
         .eq('email', fixture.email)
         .order('created_at', { ascending: false })
       await assertNoSupabaseError('read tokens after cooldown rejection', tokensError)
@@ -205,7 +207,7 @@ test.describe('email verification send protections', () => {
       expect(tokens ?? []).toHaveLength(1)
       expect(tokens?.[0]?.id).toBe(firstToken?.id)
       expect(tokens?.[0]?.used).toBe(false)
-      expect(tokens?.[0]?.code).toBe(firstToken?.code)
+      expect(tokens?.[0]?.code_hash).toBe(firstToken?.code_hash)
       expect(sentEmails).toHaveLength(1)
     } finally {
       await fixture.cleanup()

@@ -1,15 +1,18 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { extractConsentRequestContext, seedClientConsentState } from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import { buildTenantAppUrl } from '@/lib/auth/urls'
 import type { TablesInsert } from '@/types'
@@ -296,6 +299,31 @@ export async function createGuestBooking(
     }
 
     clientId = (insertedClient as { id: string }).id
+
+    try {
+      const requestContext = extractConsentRequestContext(await headers())
+      await seedClientConsentState(db, {
+        tenantId: data.tenantId,
+        clientId,
+        marketingAllowed: Boolean(data.marketingConsent),
+        churnAllowed: true,
+        actor: authUserId ? CONSENT_ACTOR.CLIENT_PROFILE : CONSENT_ACTOR.GUEST_SUBMISSION,
+        actorProfileId: authUserId ?? null,
+        source: CONSENT_SOURCE.GUEST_BOOKING,
+        occurredAt: new Date().toISOString(),
+        ipAddress: requestContext.ipAddress ?? null,
+        userAgent: requestContext.userAgent ?? null,
+        metadata: {
+          surface: 'guest_booking',
+        },
+      })
+    } catch (error) {
+      await db.from('clients').delete().eq('id', clientId).eq('tenant_id', data.tenantId)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Impossibile creare il profilo cliente.',
+      }
+    }
   }
 
   const totalMinutes = services.reduce(
@@ -572,7 +600,11 @@ async function sendBookingConfirmedNotification(params: {
         services: params.serviceNames.join(', '),
         confirmation_url: successAbsoluteUrl,
       },
-      tenant:       { business_name: businessName, primary_color: primaryColor },
+      tenant:       buildClientFacingEmailTenantBranding({
+        business_name: businessName,
+        primary_color: primaryColor,
+        slug: params.slug,
+      }),
       category:     'Prenotazione confermata',
       details:      { Data: date, Orario: time, Servizi: params.serviceNames.join(', '), Con: staffName },
       ctaText:      'Vedi prenotazione',

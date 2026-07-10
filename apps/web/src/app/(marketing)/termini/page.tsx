@@ -1,5 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getCurrentDpaDocumentMetadata } from '@/lib/legal/dpa'
+import {
+  PUBLIC_B2B_COMPANY_NAME,
+  PUBLIC_B2B_CONTACT_EMAIL,
+  PUBLIC_B2B_DOCS,
+  PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_REVIEW_NOTE,
+  PUBLIC_DPA_SECTION_ID,
+} from '@/lib/legal/public-b2b'
 
 export const dynamic = 'force-static'
 
@@ -17,11 +26,9 @@ const C = {
   border: '#E2E8F0',
 }
 
-const LAST_UPDATED = '5 luglio 2026'
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section style={{ marginBottom: 32 }}>
+    <section id={id} style={{ marginBottom: 32 }}>
       <h2
         style={{
           fontSize: 18,
@@ -38,6 +45,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function TermsPage() {
+  const doc = PUBLIC_B2B_DOCS.terms
+  const dpa = getCurrentDpaDocumentMetadata()
+
   return (
     <main
       style={{
@@ -66,7 +76,7 @@ export default function TermsPage() {
               textDecoration: 'none',
             }}
           >
-            Styll
+            {PUBLIC_B2B_COMPANY_NAME}
           </Link>
           <Link
             href="/"
@@ -96,29 +106,47 @@ export default function TermsPage() {
             Termini di Servizio per i barbieri
           </h1>
           <p style={{ fontSize: 14, color: C.textMuted, margin: 0 }}>
-            Aggiornati il <strong>{LAST_UPDATED}</strong> · Condizioni B2B per l&apos;uso di Styll.
+            Aggiornati il <strong>{doc.lastUpdated}</strong> · Versione <strong>{doc.version}</strong> ·
+            Condizioni B2B per l&apos;uso di {PUBLIC_B2B_COMPANY_NAME}.
           </p>
         </div>
 
         <div
           style={{
-            background: 'rgba(233,69,96,0.08)',
-            border: `1px solid rgba(233,69,96,0.18)`,
+            background: C.white,
+            border: `1px solid ${C.border}`,
             borderRadius: 18,
-            padding: '18px 20px',
+            padding: '20px 24px',
             marginBottom: 32,
           }}
         >
           <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.primary }}>
-            Documento in fase di revisione legale.
+            Versione pubblica pre-commerciale del pacchetto legale B2B.
           </p>
           <p style={{ margin: '8px 0 0', fontSize: 14, color: C.textMuted, lineHeight: 1.7 }}>
-            La versione definitiva potrà essere aggiornata prima del rilascio commerciale finale, ma i
-            principi qui sotto restano il perimetro del rapporto tra Styll e il barbiere.
+            {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
           </p>
         </div>
 
-        <Section title="1. Oggetto del servizio">
+        <Section title="1. Identità del fornitore e stato del documento">
+          <p>
+            Il fornitore del servizio descritto in questa pagina è{' '}
+            <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>.
+          </p>
+          <p>{PUBLIC_B2B_IDENTITY_NOTE}</p>
+          <p>
+            Per chiarimenti contrattuali o privacy puoi scrivere a{' '}
+            <a
+              href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`}
+              style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
+            >
+              {PUBLIC_B2B_CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+        </Section>
+
+        <Section title="2. Oggetto del servizio">
           <p>
             Styll è una piattaforma SaaS white-label pensata per barbieri e piccoli saloni. Ti permette di
             gestire prenotazioni, CRM clienti, loyalty, retention e presenza digitale con il tuo brand.
@@ -129,7 +157,7 @@ export default function TermsPage() {
           </p>
         </Section>
 
-        <Section title="2. Obblighi del barbiere">
+        <Section title="3. Attivazione account e uso corretto della piattaforma">
           <ul style={{ margin: 0, paddingLeft: 20 }}>
             {[
               'Fornire dati account e aziendali accurati e aggiornati.',
@@ -145,58 +173,109 @@ export default function TermsPage() {
           </ul>
         </Section>
 
-        <Section title="3. Pricing e pagamenti">
+        <Section title="4. Piani, prezzi e attivazione commerciale">
           <p>
-            <strong style={{ color: C.primary }}>Placeholder temporaneo:</strong> piani, canoni, rinnovi,
-            periodi di prova, modalità di fatturazione e conseguenze del mancato pagamento saranno
-            dettagliati nell&apos;offerta commerciale, nella sezione billing e nella versione finale di questo
-            documento.
+            Eventuali piani, canoni, periodi di prova, modalità di fatturazione e conseguenze del mancato
+            pagamento vengono comunicati nelle superfici di onboarding, nel billing e nell&apos;offerta
+            commerciale applicabile al tuo account.
           </p>
           <p>
-            Fino ad allora, fanno fede le condizioni economiche comunicate da Styll e accettate dal
-            barbiere in fase di onboarding, attivazione o accordo commerciale scritto.
-          </p>
-        </Section>
-
-        <Section title="4. Limitazioni di responsabilità">
-          <p>
-            Facciamo il possibile per mantenere Styll affidabile, veloce e sicuro, ma non possiamo
-            garantire assenza totale di interruzioni, bug o indisponibilità di servizi terzi.
-          </p>
-          <p>
-            Nei limiti massimi consentiti dalla legge italiana, Styll non risponde di danni indiretti,
-            perdita di profitto, perdita di opportunità commerciali o uso improprio della piattaforma da
-            parte del barbiere o del suo staff.
-          </p>
-          <p>
-            Resti responsabile dei contenuti, dei dati e delle comunicazioni che inserisci o invii tramite
-            la piattaforma nel tuo rapporto con i clienti finali.
+            Prima dell&apos;attivazione commerciale con clienti paganti, il pacchetto pubblico verrà aggiornato
+            con i dati societari definitivi e con la versione contrattuale B2B finalizzata.
           </p>
         </Section>
 
-        <Section title="5. Durata e recesso">
+        <Section title="5. Durata, sospensione e recesso">
           <p>
-            Il rapporto dura dalla data di attivazione dell&apos;account fino a cessazione del piano o chiusura
-            del servizio, secondo le condizioni economiche applicabili.
+            Il rapporto dura dalla data di attivazione del tuo account fino a chiusura del servizio o
+            cessazione del piano applicabile.
           </p>
           <p>
-            Il barbiere può recedere secondo le modalità previste dal piano attivo. Styll può sospendere o
-            limitare l&apos;accesso in caso di uso illecito, violazione grave dei presenti termini, rischi di
-            sicurezza o mancato pagamento.
-          </p>
-        </Section>
-
-        <Section title="6. Legge applicabile">
-          <p>
-            I presenti termini sono regolati dalla <strong style={{ color: C.primary }}>legge italiana</strong>.
+            {PUBLIC_B2B_COMPANY_NAME} può sospendere o limitare l&apos;accesso in caso di uso illecito,
+            violazione grave di questi termini, rischi di sicurezza, mancato pagamento o richieste
+            dell&apos;autorità competente.
           </p>
         </Section>
 
-        <Section title="7. Foro competente">
+        <Section title="6. Sicurezza, dati e sub-responsabili">
           <p>
-            Per ogni controversia relativa a questi termini è competente in via esclusiva il{' '}
-            <strong style={{ color: C.primary }}>Foro di Brescia</strong>, salvo diversa inderogabile previsione
-            di legge.
+            {PUBLIC_B2B_COMPANY_NAME} adotta misure tecniche e organizzative per erogare il servizio e si
+            avvale di fornitori terzi necessari al funzionamento della piattaforma.
+          </p>
+          <p>
+            L&apos;elenco pubblico dei provider attivi è disponibile nella pagina{' '}
+            <Link href="/sub-processor" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+              Sub-responsabili
+            </Link>
+            .
+          </p>
+        </Section>
+
+        <Section title="7. Limitazioni di responsabilità">
+          <p>
+            {PUBLIC_B2B_COMPANY_NAME} si impegna a mantenere la piattaforma ragionevolmente affidabile e
+            sicura, ma non garantisce assenza assoluta di interruzioni, bug o indisponibilità di servizi
+            terzi.
+          </p>
+          <p>
+            Nei limiti consentiti dalla legge applicabile, resti responsabile dei contenuti, dei dati e
+            delle comunicazioni che inserisci o invii tramite la piattaforma nel tuo rapporto con i clienti
+            finali.
+          </p>
+          <p>
+            Eventuali clausole amministrative aggiuntive o limitazioni di responsabilità definitive saranno
+            incluse nella versione commerciale finale dei documenti.
+          </p>
+        </Section>
+
+        <Section title="8. Legge applicabile e interpretazione">
+          <p>
+            I presenti termini sono regolati dalla <strong style={{ color: C.primary }}>legge italiana</strong>,
+            fatti salvi eventuali diritti inderogabili e le integrazioni che verranno pubblicate nella
+            versione commerciale definitiva del pacchetto legale.
+          </p>
+        </Section>
+
+        <Section title="9. Contatti e finalizzazione legale">
+          <p>
+            Prima dell&apos;attivazione commerciale con clienti paganti, {PUBLIC_B2B_COMPANY_NAME} pubblicherà
+            i dati societari definitivi, gli eventuali estremi fiscali e le clausole amministrative
+            integrative.
+          </p>
+          <p>
+            Nel frattempo, il riferimento operativo per questo pacchetto legale resta{' '}
+            <a
+              href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`}
+              style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
+            >
+              {PUBLIC_B2B_CONTACT_EMAIL}
+            </a>
+            .
+          </p>
+        </Section>
+
+        <Section
+          id={PUBLIC_DPA_SECTION_ID}
+          title="10. Trattamento dati e Accordo sul Trattamento dei Dati (DPA)"
+        >
+          <p>
+            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_COMPANY_NAME} opera come{' '}
+            <strong style={{ color: C.primary }}>Responsabile del trattamento</strong> ai sensi dell&apos;Art.
+            28 GDPR, mentre il barbiere resta il Titolare.
+          </p>
+          <p>
+            L&apos;<strong style={{ color: C.primary }}>Accordo sul Trattamento dei Dati</strong> è allegato ai
+            presenti Termini come parte integrante del rapporto contrattuale. La versione corrente del DPA è
+            la <strong>{dpa.version}</strong> del <strong>{dpa.publishedAt}</strong>.
+          </p>
+          <p>
+            L&apos;accettazione del DPA è registrata per tenant durante l&apos;onboarding, con versione,
+            timestamp e soggetto accettante. L&apos;elenco dei sub-responsabili richiamato dal DPA è
+            disponibile nella pagina{' '}
+            <Link href="/sub-processor" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+              Sub-responsabili
+            </Link>
+            .
           </p>
         </Section>
 
@@ -211,6 +290,14 @@ export default function TermsPage() {
         >
           <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
             Link utili:{' '}
+            <Link href={`/termini#${PUBLIC_DPA_SECTION_ID}`} style={{ color: C.accent, textDecoration: 'none' }}>
+              Accordo trattamento dati (DPA)
+            </Link>
+            {' · '}
+            <Link href="/sub-processor" style={{ color: C.accent, textDecoration: 'none' }}>
+              Sub-responsabili
+            </Link>
+            {' · '}
             <Link href="/privacy" style={{ color: C.accent, textDecoration: 'none' }}>
               Privacy Policy
             </Link>
@@ -218,6 +305,8 @@ export default function TermsPage() {
             <Link href="/cookie" style={{ color: C.accent, textDecoration: 'none' }}>
               Cookie Policy
             </Link>
+            {' · '}
+            <span>Versione {doc.version}</span>
           </p>
         </div>
       </div>

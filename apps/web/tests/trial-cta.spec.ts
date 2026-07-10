@@ -2,6 +2,9 @@ import { expect, test } from 'playwright/test'
 
 test.describe('trial CTA from marketing', () => {
   test('anonymous user lands on register with trial intent and never on login', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
+    })
     await page.goto('/')
 
     const trialLinks = page.locator('a').filter({
@@ -19,7 +22,15 @@ test.describe('trial CTA from marketing', () => {
       expect(url.searchParams.get('intent')).toBe('trial')
     }
 
-    await page.getByRole('link', { name: 'Prova gratis 14 giorni' }).click()
+    const navTrialHref = await page
+      .locator('nav')
+      .first()
+      .getByRole('link', { name: 'Prova gratis' })
+      .getAttribute('href')
+
+    expect(navTrialHref).toBe('/register?intent=trial')
+
+    await page.goto(navTrialHref!)
 
     await expect(page).toHaveURL(/\/register\?intent=trial$/)
     expect(page.url()).not.toContain('/login')

@@ -3,6 +3,12 @@
 import Link from 'next/link'
 import { ExternalLink, FileText, Shield } from 'lucide-react'
 import { updateNotificationPreferences, updateMarketingConsent, updateChurnProfilingConsent } from '@/lib/actions/pwa-client-actions'
+import {
+  CHURN_PROFILING_DESCRIPTION,
+  CHURN_PROFILING_LABEL,
+  MARKETING_PREFERENCES_LABEL,
+  MARKETING_PREFERENCES_SUBLABEL,
+} from '@/lib/consent-copy'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { useOptimistic, useTransition } from 'react'
 
@@ -137,8 +143,8 @@ export function PreferenzeClient({
           onChange={(v) => updatePref('reminders', v)}
         />
         <PrefRow
-          label="Offerte e promozioni"
-          sublabel="Promozioni del salone"
+          label={MARKETING_PREFERENCES_LABEL}
+          sublabel={MARKETING_PREFERENCES_SUBLABEL}
           checked={marketing}
           onChange={updateMarketing}
         />
@@ -182,10 +188,9 @@ export function PreferenzeClient({
       <SectionCard title="Analisi delle visite">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex-1 pr-4">
-            <p className="text-sm font-medium text-neutral-800">Analisi della frequenza</p>
+            <p className="text-sm font-medium text-neutral-800">{CHURN_PROFILING_LABEL}</p>
             <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
-              Il tuo barbiere può vedere quanto tempo è passato dall&apos;ultima visita per capire quando
-              contattarti. Puoi disattivare questa analisi in qualsiasi momento.
+              {CHURN_PROFILING_DESCRIPTION}
             </p>
           </div>
           <Toggle

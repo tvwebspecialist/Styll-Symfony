@@ -208,6 +208,10 @@ Se Styll utilizza servizi con server al di fuori dello Spazio Economico Europeo 
 
 **Raccomandazione per Styll**: Configurare Supabase con **regione EU** (es. `eu-west-1` su AWS Frankfurt) per evitare trasferimenti extra-UE per i dati principali.
 
+### 3.8 Incident response e data breach
+
+La sola formula "notifica entro 72 ore" non e sufficiente. Styll deve mantenere una procedura operativa con ruoli, escalation, checklist, template e registro incidenti. Il riferimento operativo interno e il [runbook data breach](../legal/data-breach-runbook.md), da usare insieme a DPA e ROPA.
+
 ---
 
 ## 4. Privacy Policy
@@ -259,7 +263,7 @@ Informativa resa dal barbiere (Titolare) al proprio cliente, **tramite Styll** (
 | **Oggetto del contratto** | Licenza d'uso della piattaforma Styll in modalità SaaS |
 | **Durata e rinnovo** | Abbonamento mensile, rinnovo automatico, cancellazione in qualsiasi momento |
 | **Pricing e pagamenti** | Tier 1/2/3, commissioni su transazioni (2,5-2,9%), fatturazione, IVA |
-| **Livelli di servizio (SLA)** | Uptime garantito, tempi di risposta supporto (vedi Sezione 9) |
+| **Livelli di servizio (SLA)** | Struttura SLA da formalizzare e pubblicare solo quando operativa (vedi Sezione 9) |
 | **Proprietà dei dati** | I dati dei clienti finali sono del barbiere; export gratuito in qualsiasi momento |
 | **Proprietà intellettuale** | La piattaforma è di Styll; il brand del barbiere è del barbiere |
 | **Responsabilità e limitazioni** | Limitazione di responsabilità di Styll, esclusione danni indiretti |
@@ -440,24 +444,26 @@ Stipulare NDA con:
 
 ## 9. Contratti e SLA
 
-### 9.1 Service Level Agreement (SLA) per Styll
+### 9.1 Schema di SLA da contrattualizzare
+
+> **Nota operativa:** la tabella seguente descrive una **struttura commerciale da formalizzare**, non una promessa oggi attiva o pubblicabile. Qualunque SLA verso clienti deve essere pubblicato solo quando monitoring, supporto e procedure interne coerenti sono realmente operativi; per la gestione incidenti/privacy il riferimento attuale e il [runbook data breach](../legal/data-breach-runbook.md).
 
 | Metrica | Tier 1 (Starter) | Tier 2 (Growth) | Tier 3 (Pro) |
 |---------|-----------------|-----------------|-------------|
-| **Uptime garantito** | 99,5% | 99,9% | 99,95% |
-| **Tempo di risposta supporto** | 24h (email) | 12h (email) + chat | 4h (email + chat + priorità) |
+| **Target uptime** | 99,5% | 99,9% | 99,95% |
+| **Target risposta supporto** | 24h (email) | 12h (email) + chat | 4h (email + chat + priorità) |
 | **Finestra di manutenzione** | Notte (01:00-05:00 CET) | Notte (01:00-05:00 CET) | Notte, con preavviso 48h |
-| **Backup dati** | Giornaliero | Giornaliero | Giornaliero + point-in-time recovery |
+| **Obiettivo backup/restore** | Giornaliero | Giornaliero | Giornaliero + point-in-time recovery |
 | **Crediti SLA** | — | Credito proporzionale per downtime | Credito proporzionale + escalation |
 
 ### 9.2 Elementi contrattuali B2B essenziali
 
 | Elemento | Descrizione |
 |----------|-------------|
-| **Onboarding** | Setup guidato incluso, migrazione concierge gratuita in 24h |
+| **Onboarding** | Setup guidato incluso; eventuale migrazione assistita da offrire solo con capacita operativa esplicita e tempi dichiarati nel piano commerciale |
 | **Formazione** | Documentazione online, video tutorial, supporto umano |
 | **Exit strategy** | Export dati gratuito in CSV/JSON in qualsiasi momento — nessun lock-in |
-| **Penali per downtime** | Crediti sul canone mensile in caso di violazione SLA |
+| **Penali per downtime** | Da definire solo insieme a SLA effettivamente monitorati, pubblicati e contrattualizzati |
 | **Riservatezza** | Styll non accede ai dati dei clienti finali se non per assistenza tecnica, su richiesta del barbiere |
 | **Assicurazione** | Valutare polizza RC professionale e cyber insurance |
 
@@ -530,7 +536,7 @@ Styll deve stipulare contratti scritti con tutti i fornitori critici:
 - [ ] 🟡 **NDA** — con sviluppatori, consulenti, beta tester
 - [ ] 🟡 **Contratti di cessione IP** — con tutti gli sviluppatori (interni/esterni)
 - [ ] 🟡 **Audit licenze open source** — verifica compatibilità licenze delle librerie utilizzate
-- [ ] 🟡 **Procedura data breach** — protocollo interno per notifica al Garante entro 72h
+- [x] 🟡 **Procedura data breach** — runbook operativo attivo: [docs/legal/data-breach-runbook.md](../legal/data-breach-runbook.md)
 - [ ] 🟡 **SLA documentato** — per ogni tier di abbonamento
 - [ ] 🟡 **Cyber insurance** — polizza assicurativa per rischio cyber
 - [ ] 🟡 **Documentazione accessibilità** — dichiarazione di conformità WCAG 2.1 AA

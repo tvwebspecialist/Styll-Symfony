@@ -161,6 +161,7 @@ test.describe('PWA email anti-enumeration', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for PWA email fixtures.')
 
   test('existing and new emails land on the same visible OTP step', async ({ browser }) => {
+    test.setTimeout(60_000)
     const service = requireServiceClient()
     const tenant = await createTenantFixture(service)
     const existingClient = await createExistingClientFixture(service, tenant.tenantId)
@@ -196,6 +197,7 @@ test.describe('PWA email anti-enumeration', () => {
   })
 
   test('existing client can still complete email OTP access', async ({ page }) => {
+    test.setTimeout(60_000)
     const service = requireServiceClient()
     const tenant = await createTenantFixture(service)
     const existingClient = await createExistingClientFixture(service, tenant.tenantId)

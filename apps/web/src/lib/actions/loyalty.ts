@@ -6,7 +6,11 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
+import {
+  buildMarketingEmailLinks,
+  issueMarketingUnsubscribeToken,
+} from '@/lib/marketing-unsubscribe'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
@@ -638,7 +642,7 @@ async function sendLoyaltyNotifications(params: {
     rewardEnabled,
   ] = await Promise.all([
     db.from('clients').select('email, full_name, profile_id, marketing_consent').eq('id', clientId).maybeSingle(),
-    db.from('tenants').select('business_name, primary_color').eq('id', tenantId).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color, slug').eq('id', tenantId).maybeSingle(),
     getAutomationEnabled(tenantId, 'loyalty_points'),
     getAutomationEnabled(tenantId, 'loyalty_streak'),
     getAutomationEnabled(tenantId, 'loyalty_reward'),
@@ -651,7 +655,22 @@ async function sendLoyaltyNotifications(params: {
   const profileId    = client.profile_id ?? null
   const businessName = tenant?.business_name ?? 'il tuo salone'
   const primaryColor = tenant?.primary_color ?? '#111111'
-  const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
+  const tenantSlug = tenant?.slug ?? ''
+  const tenantMeta   = buildClientFacingEmailTenantBranding({
+    business_name: businessName,
+    primary_color: primaryColor,
+    slug: tenantSlug,
+  })
+  const unsubscribeToken = await issueMarketingUnsubscribeToken(db, {
+    tenantId,
+    clientId,
+  })
+  const marketingLinks = buildMarketingEmailLinks(tenantSlug, unsubscribeToken)
+  const marketingEmail = {
+    unsubscribeUrl: marketingLinks.unsubscribeUrl,
+    oneClickUrl: marketingLinks.oneClickUrl,
+    managePreferencesUrl: marketingLinks.managePreferencesUrl,
+  }
 
   // One channel determination — reused across all 3 loyalty events
   const channel = !profileId
@@ -681,6 +700,7 @@ async function sendLoyaltyNotifications(params: {
         templateSlug: 'loyalty_points',
         variables:    { client_name: clientName, business_name: businessName, points: String(pointsEarned), total_points: String(newTotal) },
         tenant:       tenantMeta,
+        marketing:    marketingEmail,
         category:     'Punti guadagnati',
         details:      { 'Punti guadagnati': String(pointsEarned), Totale: String(newTotal) },
       })
@@ -701,6 +721,7 @@ async function sendLoyaltyNotifications(params: {
         templateSlug: 'loyalty_streak',
         variables:    { client_name: clientName, business_name: businessName, streak: String(newStreak) },
         tenant:       tenantMeta,
+        marketing:    marketingEmail,
         category:     'Streak',
         details:      { 'Visite consecutive': String(newStreak) },
       })
@@ -734,6 +755,7 @@ async function sendLoyaltyNotifications(params: {
           templateSlug: 'loyalty_reward',
           variables:    { client_name: clientName, business_name: businessName, reward_name: unlockedReward.name },
           tenant:       tenantMeta,
+          marketing:    marketingEmail,
           category:     'Premio sbloccato',
           details:      { Premio: unlockedReward.name },
         })

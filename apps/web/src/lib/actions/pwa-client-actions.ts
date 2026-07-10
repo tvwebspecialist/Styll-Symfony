@@ -1,7 +1,15 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  applyClientConsentEvents,
+  buildChurnProfilingEvent,
+  buildMarketingConsentEvents,
+  extractConsentRequestContext,
+} from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/server'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
@@ -321,19 +329,36 @@ export async function updateMarketingConsent(
   consent: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: 'Non autenticato' }
+    const ctx = await getAuthenticatedClientId(tenantId)
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
 
     const db = createAdminClient()
-    const { error } = await db
-      .from('clients')
-      .update({ marketing_consent: consent, updated_at: new Date().toISOString() })
-      .eq('tenant_id', tenantId)
-      .eq('profile_id', user.id)
-      .is('deleted_at', null)
-
-    if (error) return { ok: false, error: error.message }
+    const requestContext = extractConsentRequestContext(await headers())
+    await applyClientConsentEvents(db, {
+      tenantId,
+      clientId: ctx.clientId,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: ctx.userId,
+      source: CONSENT_SOURCE.PWA_PROFILE_PREFERENCES,
+      events: buildMarketingConsentEvents({
+        allowed: consent,
+        channel: CONSENT_CHANNEL.PWA,
+        source: CONSENT_SOURCE.PWA_PROFILE_PREFERENCES,
+        occurredAt: new Date().toISOString(),
+        ipAddress: requestContext.ipAddress ?? null,
+        metadata: {
+          surface: 'pwa_profile_preferences',
+        },
+        userAgent: requestContext.userAgent ?? null,
+      }).map((event) => ({
+        ...event,
+        metadata: {
+          ...(event.metadata ?? {}),
+          ip_address: requestContext.ipAddress ?? null,
+          user_agent: requestContext.userAgent ?? null,
+        },
+      })),
+    })
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -345,22 +370,38 @@ export async function updateChurnProfilingConsent(
   objected: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: 'Non autenticato' }
+    const ctx = await getAuthenticatedClientId(tenantId)
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
 
     const db = createAdminClient()
-    const { error } = await db
-      .from('clients')
-      .update({
-        churn_profiling_objected_at: objected ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('tenant_id', tenantId)
-      .eq('profile_id', user.id)
-      .is('deleted_at', null)
-
-    if (error) return { ok: false, error: error.message }
+    const requestContext = extractConsentRequestContext(await headers())
+    await applyClientConsentEvents(db, {
+      tenantId,
+      clientId: ctx.clientId,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: ctx.userId,
+      source: CONSENT_SOURCE.PWA_PROFILE_PREFERENCES,
+      events: [
+        {
+          ...buildChurnProfilingEvent({
+            allowed: !objected,
+            channel: CONSENT_CHANNEL.PWA,
+            source: CONSENT_SOURCE.PWA_PROFILE_PREFERENCES,
+            occurredAt: new Date().toISOString(),
+            ipAddress: requestContext.ipAddress ?? null,
+            metadata: {
+              surface: 'pwa_profile_preferences',
+            },
+            userAgent: requestContext.userAgent ?? null,
+          }),
+          metadata: {
+            surface: 'pwa_profile_preferences',
+            ip_address: requestContext.ipAddress ?? null,
+            user_agent: requestContext.userAgent ?? null,
+          },
+        },
+      ],
+    })
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }

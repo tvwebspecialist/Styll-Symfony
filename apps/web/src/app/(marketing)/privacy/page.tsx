@@ -1,5 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import {
+  PUBLIC_B2B_COMPANY_NAME,
+  PUBLIC_B2B_CONTACT_EMAIL,
+  PUBLIC_B2B_DOCS,
+  PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_REVIEW_NOTE,
+  PUBLIC_B2B_SUBPROCESSORS,
+  PUBLIC_DPA_SECTION_ID,
+} from '@/lib/legal/public-b2b'
 
 export const dynamic = 'force-static'
 
@@ -17,8 +26,6 @@ const C = {
   textMuted: '#64748B',
   border: '#E2E8F0',
 }
-
-const LAST_UPDATED = '5 luglio 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -76,6 +83,8 @@ function DataCard({
 }
 
 export default function PrivacyPage() {
+  const doc = PUBLIC_B2B_DOCS.privacy
+
   return (
     <main
       style={{
@@ -104,7 +113,7 @@ export default function PrivacyPage() {
               textDecoration: 'none',
             }}
           >
-            Styll
+            {PUBLIC_B2B_COMPANY_NAME}
           </Link>
           <Link
             href="/"
@@ -134,8 +143,8 @@ export default function PrivacyPage() {
             Privacy Policy per i barbieri
           </h1>
           <p style={{ fontSize: 14, color: C.textMuted, margin: 0 }}>
-            Aggiornata il <strong>{LAST_UPDATED}</strong> · Informativa B2B per titolari e staff che
-            usano Styll come piattaforma.
+            Aggiornata il <strong>{doc.lastUpdated}</strong> · Versione <strong>{doc.version}</strong> ·
+            Informativa B2B per titolari e staff che usano {PUBLIC_B2B_COMPANY_NAME} come piattaforma.
           </p>
         </div>
 
@@ -149,35 +158,55 @@ export default function PrivacyPage() {
           }}
         >
           <p style={{ fontSize: 16, color: C.primary, lineHeight: 1.8, margin: 0 }}>
-            Se usi Styll per gestire il tuo barbershop, questa informativa riguarda <strong>te</strong>{' '}
-            come cliente business della piattaforma. Zero legalese inutile: qui trovi cosa raccogliamo,
-            perché lo facciamo e quali diritti puoi esercitare in ogni momento.
+            Se usi {PUBLIC_B2B_COMPANY_NAME} per gestire il tuo barbershop, questa informativa riguarda{' '}
+            <strong>te</strong> come cliente business della piattaforma.
           </p>
           <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.8, margin: '14px 0 0' }}>
-            Se invece sei un cliente finale che prenota dal tuo barbiere, questa non è la privacy che
-            ti riguarda: la tua informativa è quella pubblicata nella PWA del salone.
+            Se invece sei un cliente finale che prenota dal tuo barbiere, questa non è la privacy che ti
+            riguarda: la tua informativa è quella pubblicata nella PWA del salone.
+          </p>
+          <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.8, margin: '14px 0 0' }}>
+            {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
           </p>
         </div>
 
-        <Section title="1. Chi siamo">
+        <Section title="1. Titolare del trattamento e contatti">
           <p>
-            Il titolare del trattamento per questa informativa è <strong style={{ color: C.primary }}>Styll</strong>,
-            la piattaforma SaaS che aiuta i barbieri a gestire prenotazioni, clienti e retention in modo
-            white-label.
+            Il titolare del trattamento per questa informativa è{' '}
+            <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>.
           </p>
+          <p>{PUBLIC_B2B_IDENTITY_NOTE}</p>
           <p>
             Per domande privacy puoi scriverci a{' '}
             <a
-              href="mailto:privacy@styll.it"
+              href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`}
               style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
             >
-              privacy@styll.it
+              {PUBLIC_B2B_CONTACT_EMAIL}
             </a>
             .
           </p>
         </Section>
 
-        <Section title="2. Quali dati raccogliamo">
+        <Section title="2. Ambito della presente informativa">
+          <p>
+            Questa informativa descrive il trattamento dei dati di barbieri, titolari, manager e membri staff
+            che usano {PUBLIC_B2B_COMPANY_NAME} come clienti business.
+          </p>
+          <p>
+            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_COMPANY_NAME} opera come Responsabile del
+            trattamento nei termini previsti dall&apos;Accordo sul Trattamento dei Dati richiamato nei{' '}
+            <Link
+              href={`/termini#${PUBLIC_DPA_SECTION_ID}`}
+              style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
+            >
+              Termini di Servizio
+            </Link>
+            .
+          </p>
+        </Section>
+
+        <Section title="3. Quali dati raccogliamo">
           <div
             style={{
               display: 'grid',
@@ -195,7 +224,7 @@ export default function PrivacyPage() {
             />
             <DataCard
               title="Dati di utilizzo"
-              items={['Accessi, log tecnici e eventi di prodotto', 'Configurazioni usate', 'Stato onboarding e attivazione funzioni']}
+              items={['Accessi, log tecnici, eventi di prodotto', 'Configurazioni usate', 'Stato onboarding e attivazione funzioni']}
             />
             <DataCard
               title="Dati operativi"
@@ -204,7 +233,7 @@ export default function PrivacyPage() {
           </div>
         </Section>
 
-        <Section title="3. Perché li usiamo">
+        <Section title="4. Finalità e basi giuridiche">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div
               style={{
@@ -216,9 +245,9 @@ export default function PrivacyPage() {
             >
               <strong style={{ color: C.primary }}>Per attivare e gestire il tuo account</strong>
               <p style={{ margin: '8px 0 0' }}>
-                Usiamo i dati account e aziendali per creare il workspace del tuo salone, farti accedere
-                alla dashboard e configurare la tua app brandizzata. Base giuridica:{' '}
-                <em>esecuzione del contratto</em>.
+                Usiamo i dati account e aziendali per creare il workspace del tuo salone, farti accedere alla
+                dashboard e configurare la tua app brandizzata. Base giuridica: <em>esecuzione del
+                contratto</em>.
               </p>
             </div>
             <div
@@ -232,8 +261,7 @@ export default function PrivacyPage() {
               <strong style={{ color: C.primary }}>Per erogare il servizio e mantenerlo sicuro</strong>
               <p style={{ margin: '8px 0 0' }}>
                 Usiamo log tecnici, eventi di utilizzo e dati operativi per prevenire abusi, risolvere
-                problemi e migliorare stabilità e performance. Base giuridica:{' '}
-                <em>legittimo interesse</em>.
+                problemi e migliorare stabilità e performance. Base giuridica: <em>legittimo interesse</em>.
               </p>
             </div>
             <div
@@ -247,36 +275,57 @@ export default function PrivacyPage() {
               <strong style={{ color: C.primary }}>Per assistenza, comunicazioni di servizio e compliance</strong>
               <p style={{ margin: '8px 0 0' }}>
                 Ti contattiamo quando serve per supporto, sicurezza account, aggiornamenti importanti e
-                adempimenti amministrativi o fiscali. Base giuridica: <em>contratto</em> e, quando
-                richiesto, <em>obbligo di legge</em>.
+                adempimenti amministrativi o fiscali. Base giuridica: <em>contratto</em> e, quando richiesto,{' '}
+                <em>obbligo di legge</em>.
               </p>
             </div>
           </div>
         </Section>
 
-        <Section title="4. Con chi condividiamo i dati">
+        <Section title="5. Sub-responsabili e destinatari">
           <p>
             Condividiamo i dati solo con fornitori necessari a far funzionare Styll: hosting, database,
-            autenticazione, invio email e monitoraggio tecnico. Non vendiamo i tuoi dati. Mai.
+            autenticazione, invio email, monitoraggio tecnico, analytics opzionali del sito marketing e
+            funzioni AI attivate su richiesta. Non vendiamo i tuoi dati. Mai.
+          </p>
+          <p>
+            I provider attivi oggi includono {PUBLIC_B2B_SUBPROCESSORS.map((provider) => provider.name).join(', ')}.
           </p>
           <p>
             L&apos;elenco aggiornato dei fornitori che trattano dati per nostro conto è disponibile qui:{' '}
             <Link href="/sub-processor" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
-              Sub-processor
+              Sub-responsabili
             </Link>
             .
           </p>
         </Section>
 
-        <Section title="5. Per quanto tempo li conserviamo">
+        <Section title="6. Trasferimenti fuori dal SEE">
           <p>
-            Teniamo i dati del tuo account finché il rapporto con Styll è attivo. Alcuni log tecnici
-            vengono conservati per periodi più brevi, solo quanto basta per sicurezza e troubleshooting.
-            I dati amministrativi e fiscali vengono tenuti per i tempi richiesti dalla legge.
+            La configurazione primaria della piattaforma usa una regione EU per i dati applicativi più
+            sensibili, ma alcuni fornitori possono comunque comportare trattamenti o telemetria fuori dal
+            SEE.
+          </p>
+          <p>
+            Quando ciò avviene, {PUBLIC_B2B_COMPANY_NAME} fa riferimento alla documentazione contrattuale del
+            fornitore e ai meccanismi di trasferimento applicabili (es. SCC o DPF ove dichiarati dal
+            provider). Il dettaglio per singolo fornitore è riepilogato nella pagina{' '}
+            <Link href="/sub-processor" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+              Sub-responsabili
+            </Link>
+            .
           </p>
         </Section>
 
-        <Section title="6. I tuoi diritti">
+        <Section title="7. Per quanto tempo li conserviamo">
+          <p>
+            Teniamo i dati del tuo account finché il rapporto con Styll è attivo. Alcuni log tecnici vengono
+            conservati per periodi più brevi, solo quanto basta per sicurezza e troubleshooting. I dati
+            amministrativi e fiscali vengono tenuti per i tempi richiesti dalla legge.
+          </p>
+        </Section>
+
+        <Section title="8. I tuoi diritti e reclamo al Garante">
           <p>
             Puoi chiederci accesso, rettifica, cancellazione, limitazione del trattamento, portabilità o
             opposizione quando applicabile. Se qualcosa non ti torna, scrivici e lo affrontiamo in modo
@@ -285,16 +334,28 @@ export default function PrivacyPage() {
           <p>
             Contatto dedicato:{' '}
             <a
-              href="mailto:privacy@styll.it"
+              href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`}
               style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
             >
-              privacy@styll.it
+              {PUBLIC_B2B_CONTACT_EMAIL}
             </a>
             .
           </p>
+          <p>
+            Hai inoltre diritto di proporre reclamo al{' '}
+            <a
+              href="https://www.garanteprivacy.it/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
+            >
+              Garante per la protezione dei dati personali
+            </a>
+            , se ritieni che un trattamento violi la normativa applicabile.
+          </p>
         </Section>
 
-        <Section title="7. Cookie e strumenti tecnici">
+        <Section title="9. Cookie, analytics e riferimenti utili">
           <p>
             Usiamo cookie tecnici e preferenze essenziali per autenticazione, sessione e funzionamento del
             servizio. I dettagli sono nella nostra{' '}
@@ -302,6 +363,10 @@ export default function PrivacyPage() {
               Cookie Policy
             </Link>
             .
+          </p>
+          <p>
+            Se attivi analytics opzionali sul sito marketing, il trattamento resta separato dal servizio base
+            e viene gestito secondo le scelte di consenso e la relativa documentazione.
           </p>
         </Section>
 
@@ -316,6 +381,10 @@ export default function PrivacyPage() {
         >
           <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
             Link utili:{' '}
+            <Link href={`/termini#${PUBLIC_DPA_SECTION_ID}`} style={{ color: C.accent, textDecoration: 'none' }}>
+              DPA / Accordo trattamento dati
+            </Link>
+            {' · '}
             <Link href="/cookie" style={{ color: C.accent, textDecoration: 'none' }}>
               Cookie Policy
             </Link>
@@ -323,6 +392,8 @@ export default function PrivacyPage() {
             <Link href="/sub-processor" style={{ color: C.accent, textDecoration: 'none' }}>
               Sub-processor
             </Link>
+            {' · '}
+            <span>Versione {doc.version}</span>
           </p>
         </div>
       </div>

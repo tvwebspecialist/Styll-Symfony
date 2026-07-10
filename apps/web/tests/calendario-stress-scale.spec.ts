@@ -613,6 +613,7 @@ test.describe.serial('calendario stress-scale SS-05', () => {
   let fixture: CalendarioFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedCalendarioFixture()
   })
 

@@ -61,35 +61,35 @@ export function GreetingHeader({ staffName, appointments }: Props) {
   }
 
   return (
-    <div className="dashboard-home-greeting" style={{ paddingBottom: 4 }}>
-      {/* "Ciao, [Nome]" — Outfit ExtraBold 50px */}
+    <div className="dashboard-home-greeting">
+      {/* "Ciao, [Nome]" */}
       <p
         suppressHydrationWarning
         className="dashboard-greeting-title"
         style={{
           margin: 0,
           fontFamily: 'Outfit, sans-serif',
-          fontSize: 50,
+          fontSize: 38,
           fontWeight: 800,
-          letterSpacing: '-1.25px',
-          lineHeight: 1.1,
-          color: '#222222',
+          letterSpacing: '-0.8px',
+          lineHeight: 1.15,
+          color: '#111111',
         }}
       >
         <span>{greeting ?? 'Ciao'}, </span>
         <span>{firstName ?? 'Barbiere'}</span>
       </p>
 
-      {/* Subtitle — Outfit Medium 20px */}
+      {/* Subtitle */}
       <p
         suppressHydrationWarning
         className="dashboard-greeting-sub"
         style={{
-          margin: '8px 0 0',
+          margin: '6px 0 0',
           fontFamily: 'Outfit, sans-serif',
-          fontSize: 20,
+          fontSize: 14,
           fontWeight: 500,
-          color: '#222222',
+          color: '#6B7280',
           lineHeight: 1.4,
         }}
       >

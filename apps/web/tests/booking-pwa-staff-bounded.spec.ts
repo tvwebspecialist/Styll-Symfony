@@ -393,10 +393,7 @@ async function seedBookingStaffFixture(): Promise<BookingStaffFixture> {
 }
 
 async function gotoAndReadHtml(page: Page, path: string): Promise<string> {
-  const response = await page.goto(path)
-  if (response) {
-    return response.text()
-  }
+  await page.goto(path, { waitUntil: 'domcontentloaded' })
   return page.content()
 }
 
@@ -471,17 +468,27 @@ test.describe.serial('booking pwa staff bounded SS-07', () => {
     await expect(page.getByText(STAFF_SECRET, { exact: true })).toHaveCount(0)
     expect(staffHtml.length).toBeLessThan(MAX_BARBIERE_HTML_LENGTH)
 
-    await page.goto(
-      buildTenantAppPath(
-        fixture.tenantA.slug,
-        `/prenota/servizi?location=${locationAId}&staff=${alphaId}`,
-      ),
-    )
+    const servicesPage = await page.context().newPage()
+    await servicesPage.addInitScript(() => {
+      window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
+    })
 
-    await expect(page.getByText(SERVICE_FADE, { exact: true })).toBeVisible()
-    await expect(page.getByText(SERVICE_BEARD, { exact: true })).toBeVisible()
-    await expect(page.getByText(SERVICE_COLOR, { exact: true })).toHaveCount(0)
-    await expect(page.getByText(SERVICE_INACTIVE, { exact: true })).toHaveCount(0)
-    await expect(page.getByText(SERVICE_SECRET, { exact: true })).toHaveCount(0)
+    try {
+      await servicesPage.goto(
+        buildTenantAppPath(
+          fixture.tenantA.slug,
+          `/prenota/servizi?location=${locationAId}&staff=${alphaId}`,
+        ),
+        { waitUntil: 'domcontentloaded' },
+      )
+
+      await expect(servicesPage.getByText(SERVICE_FADE, { exact: true })).toBeVisible()
+      await expect(servicesPage.getByText(SERVICE_BEARD, { exact: true })).toBeVisible()
+      await expect(servicesPage.getByText(SERVICE_COLOR, { exact: true })).toHaveCount(0)
+      await expect(servicesPage.getByText(SERVICE_INACTIVE, { exact: true })).toHaveCount(0)
+      await expect(servicesPage.getByText(SERVICE_SECRET, { exact: true })).toHaveCount(0)
+    } finally {
+      await servicesPage.close()
+    }
   })
 })
