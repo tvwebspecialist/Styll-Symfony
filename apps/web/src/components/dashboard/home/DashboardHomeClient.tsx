@@ -5,7 +5,10 @@ import type { DashboardHomeData } from '@/lib/actions/dashboard-home'
 import { CalendarPanel } from './CalendarPanel'
 import { GreetingHeader } from './GreetingHeader'
 import { TodayKpiStrip } from './TodayKpiStrip'
+import { CollapsibleSection } from './CollapsibleSection'
 import { ChurnAlertCard } from './ChurnAlertCard'
+import { WeekStats } from './WeekStats'
+import { TopClientsWidget } from './TopClientsWidget'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 
 interface Props {
@@ -24,7 +27,16 @@ function getDynamicSummary(count: number, total: number): string {
 }
 
 export function DashboardHomeClient({ data, basePath }: Props) {
-  const { staffName, todayAppointments, weekAppointments, yesterdayStats, atRiskClients, workingHours } = data
+  const {
+    staffName,
+    todayAppointments,
+    weekAppointments,
+    weekStats,
+    yesterdayStats,
+    atRiskClients,
+    workingHours,
+  } = data
+
   const firstName  = staffName?.split(' ')[0] ?? null
   const totalPrice = todayAppointments.reduce((s, a) => s + a.total_price, 0)
 
@@ -36,50 +48,77 @@ export function DashboardHomeClient({ data, basePath }: Props) {
     )
   }, [firstName, todayAppointments.length, totalPrice, setHomeData])
 
+  const weekSubtitle = weekStats.revenue > 0
+    ? `€${weekStats.revenue} · ${weekStats.client_count} client${weekStats.client_count === 1 ? 'e' : 'i'}`
+    : weekStats.client_count > 0
+      ? `${weekStats.client_count} client${weekStats.client_count === 1 ? 'e' : 'i'} questa settimana`
+      : 'Nessun dato ancora'
+
   return (
-    <>
-      <div className="home-v2-root">
+    <div className="home-v2-root">
 
-        {/* ── LEFT — Scrollable content column ──────────────────── */}
-        <div className="home-v2-main">
+      {/* ── LEFT — Scrollable content column ──────────────────── */}
+      <div className="home-v2-main">
 
-          <div className="home-main-card" style={{
+        {/* Greeting — desktop only (mobile: TopBar handles it) */}
+        <div className="home-v2-greeting-block">
+          <div style={{
             background: 'var(--card-bg)',
             borderRadius: 'var(--card-radius)',
             border: '1px solid var(--card-border)',
             boxShadow: 'var(--card-shadow)',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
+            padding: '20px 24px',
           }}>
-            {/* Greeting + divider — hidden on mobile (topbar handles it) */}
-            <div className="home-v2-greeting-block" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <GreetingHeader staffName={staffName} appointments={todayAppointments} />
-              <div style={{ height: 1, background: 'var(--divider)' }} />
-            </div>
-            <TodayKpiStrip appointments={todayAppointments} yesterdayStats={yesterdayStats} />
-            {atRiskClients.length > 0 && (
-              <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
-            )}
-          </div>
-
-        </div>
-
-        {/* ── RIGHT — Sticky calendar panel (desktop only) ──────── */}
-        <div className="home-v2-calendar">
-          <div className="home-v2-calendar-sticky">
-            <CalendarPanel
-              todayAppointments={todayAppointments}
-              weekAppointments={weekAppointments}
-              workingHours={workingHours}
-              basePath={basePath}
-            />
+            <GreetingHeader staffName={staffName} appointments={todayAppointments} />
           </div>
         </div>
+
+        {/* KPI Grid — 4 cards, 2×2 */}
+        <TodayKpiStrip
+          appointments={todayAppointments}
+          yesterdayStats={yesterdayStats}
+          basePath={basePath}
+        />
+
+        {/* Settimana — collapsible */}
+        <CollapsibleSection
+          title="Questa settimana"
+          subtitle={weekSubtitle}
+          defaultOpen
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <WeekStats stats={weekStats} />
+            <TopClientsWidget weekAppointments={weekAppointments} basePath={basePath} />
+          </div>
+        </CollapsibleSection>
+
+        {/* Clienti a rischio — collapsible, hidden if empty */}
+        {atRiskClients.length > 0 && (
+          <CollapsibleSection
+            title="Clienti a rischio"
+            subtitle="Non tornano da tempo — contattali"
+            badge={atRiskClients.length}
+            badgeVariant="red"
+            defaultOpen={false}
+          >
+            <ChurnAlertCard clients={atRiskClients} basePath={basePath} />
+          </CollapsibleSection>
+        )}
 
       </div>
 
-    </>
+      {/* ── RIGHT — Sticky calendar panel (desktop only) ──────── */}
+      <div className="home-v2-calendar">
+        <div className="home-v2-calendar-sticky">
+          <CalendarPanel
+            todayAppointments={todayAppointments}
+            weekAppointments={weekAppointments}
+            workingHours={workingHours}
+            basePath={basePath}
+          />
+        </div>
+      </div>
+
+    </div>
   )
 }

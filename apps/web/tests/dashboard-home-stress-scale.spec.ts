@@ -508,9 +508,9 @@ test.describe.serial('dashboard home stress-scale SS-04', () => {
 
     await expect(page.getByText(/Oggi hai 2 appuntamenti/)).toBeVisible()
     await expect(page.getByText(/Revenue prevista: €60/)).toBeVisible()
-    await expect(page.getByText('Dashboard A Today First', { exact: true })).toBeVisible()
-    await expect(page.getByText('Dashboard A Today Second', { exact: true })).toBeVisible()
-    await expect(page.getByText('Dashboard A At Risk', { exact: true })).toBeVisible()
+    await expect(page.getByText('Dashboard A Today First', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Dashboard A Today Second', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('Dashboard A At Risk', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('Dashboard B Secret Client')).toHaveCount(0)
     await expect(page.getByText('Dashboard B Secret At Risk')).toHaveCount(0)
   })

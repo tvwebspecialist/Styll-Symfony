@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto'
 import { sendVerificationCodeEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -20,6 +21,32 @@ interface SendEmailVerificationOtpDeps {
   sendEmail?: VerificationEmailSender
 }
 
+// ─── Crypto helpers ───────────────────────────────────────────────────────────
+
+export function getPepper(): string {
+  const pepper = process.env.EMAIL_VERIFICATION_OTP_PEPPER
+  if (!pepper) {
+    throw new Error(
+      '[OTP] EMAIL_VERIFICATION_OTP_PEPPER is not set. ' +
+      'Set this env var before starting the server.'
+    )
+  }
+  return pepper
+}
+
+export function hashOtp(code: string, pepper: string): string {
+  return createHmac('sha256', pepper).update(code).digest('hex')
+}
+
+export function otpHashesEqual(storedHash: string, inputHash: string): boolean {
+  const a = Buffer.from(storedHash, 'hex')
+  const b = Buffer.from(inputHash, 'hex')
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
 function buildCooldownError(retryAfterSec: number): SendEmailVerificationResult {
   return {
     success: false,
@@ -35,6 +62,8 @@ function generateOtpCode(): string {
   return String(100000 + (array[0] % 900000))
 }
 
+// ─── Send / resend OTP ────────────────────────────────────────────────────────
+
 export async function sendEmailVerificationOtp(
   email: string,
   deps: SendEmailVerificationOtpDeps = {}
@@ -43,6 +72,15 @@ export async function sendEmailVerificationOtp(
   const db = deps.db ?? createAdminClient()
   const now = deps.now?.() ?? new Date()
   const sendEmail = deps.sendEmail ?? sendVerificationCodeEmail
+
+  // Fail closed: pepper must exist before any OTP operation
+  let pepper: string
+  try {
+    pepper = getPepper()
+  } catch {
+    console.error('[sendEmailVerificationOTP] missing OTP pepper — refusing to send')
+    return { success: false, error: 'Errore interno. Riprova.', statusCode: 500 }
+  }
 
   const { data: profile, error: profileErr } = await db
     .from('profiles')
@@ -59,9 +97,12 @@ export async function sendEmailVerificationOtp(
     return { success: true, statusCode: 200, skipped: true }
   }
 
+  // ─── Cooldown check ────────────────────────────────────────────────────────
+  // Note: only `last_sent_at` and `expires_at` are read — the hash is never
+  // retrieved here, so there is no path to recover or resend the old code.
   const { data: latestToken, error: latestTokenErr } = await db
     .from('email_verification_tokens')
-    .select('id, code, expires_at, used, last_sent_at')
+    .select('id, expires_at, used, last_sent_at')
     .eq('email', normalizedEmail)
     .eq('used', false)
     .order('created_at', { ascending: false })
@@ -95,63 +136,35 @@ export async function sendEmailVerificationOtp(
       )
       return buildCooldownError(retryAfterSec)
     }
-
-    const emailResult = await sendEmail({
-      email: normalizedEmail,
-      code: latestToken.code,
-    })
-    if (!emailResult.success) {
-      return {
-        success: false,
-        error: "Errore nell'invio dell'email. Riprova.",
-        statusCode: 500,
-      }
-    }
-
-    const { error: refreshTokenErr } = await db
-      .from('email_verification_tokens')
-      .update({ last_sent_at: now.toISOString() })
-      .eq('id', latestToken.id)
-
-    if (refreshTokenErr) {
-      console.error('[sendEmailVerificationOTP] token refresh error:', refreshTokenErr.message)
-    }
-
-    return { success: true, statusCode: 200 }
   }
 
-  await db
-    .from('email_verification_tokens')
-    .update({ used: true })
-    .eq('email', normalizedEmail)
-    .eq('used', false)
-
+  // ─── Generate new OTP ──────────────────────────────────────────────────────
+  // Plaintext code exists only in memory and in the email body.
+  // Only the HMAC-SHA-256 hash is persisted to the database.
   const code = generateOtpCode()
+  const codeHash = hashOtp(code, pepper)
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_CODE_TTL_MS)
 
-  const { data: insertedToken, error: insertErr } = await db
-    .from('email_verification_tokens')
-    .insert({
-      email: normalizedEmail,
-      code,
-      expires_at: expiresAt.toISOString(),
-      last_sent_at: now.toISOString(),
-    })
-    .select('id')
-    .single()
+  // Atomic: invalidate previous unused tokens + insert new one in one transaction
+  const { data: newTokenId, error: rpcErr } = await db.rpc('create_email_verification_otp', {
+    p_email: normalizedEmail,
+    p_code_hash: codeHash,
+    p_expires_at: expiresAt.toISOString(),
+    p_now: now.toISOString(),
+  })
 
-  if (insertErr) {
-    console.error('[sendEmailVerificationOTP] insert error:', insertErr.message)
+  if (rpcErr) {
+    console.error('[sendEmailVerificationOTP] RPC error:', rpcErr.message)
     return { success: false, error: 'Errore interno. Riprova.', statusCode: 500 }
   }
 
   const emailResult = await sendEmail({ email: normalizedEmail, code })
   if (!emailResult.success) {
-    if (insertedToken?.id) {
+    if (newTokenId) {
       const { error: rollbackErr } = await db
         .from('email_verification_tokens')
         .update({ used: true })
-        .eq('id', insertedToken.id)
+        .eq('id', newTokenId as string)
 
       if (rollbackErr) {
         console.error('[sendEmailVerificationOTP] rollback error:', rollbackErr.message)

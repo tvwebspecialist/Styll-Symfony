@@ -651,6 +651,91 @@ export type Database = {
           },
         ]
       }
+      consent_events: {
+        Row: {
+          changed_by: Database["public"]["Enums"]["consent_actor"]
+          changed_by_profile_id: string | null
+          channel: Database["public"]["Enums"]["consent_channel"]
+          client_id: string
+          consent_text: string
+          consent_text_version: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          legal_basis: string
+          metadata: Json
+          occurred_at: string
+          previous_status: Database["public"]["Enums"]["consent_state"]
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          source: Database["public"]["Enums"]["consent_source"]
+          status: Database["public"]["Enums"]["consent_state"]
+          tenant_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          changed_by: Database["public"]["Enums"]["consent_actor"]
+          changed_by_profile_id?: string | null
+          channel: Database["public"]["Enums"]["consent_channel"]
+          client_id: string
+          consent_text: string
+          consent_text_version: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          legal_basis: string
+          metadata?: Json
+          occurred_at: string
+          previous_status: Database["public"]["Enums"]["consent_state"]
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          source: Database["public"]["Enums"]["consent_source"]
+          status: Database["public"]["Enums"]["consent_state"]
+          tenant_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          changed_by?: Database["public"]["Enums"]["consent_actor"]
+          changed_by_profile_id?: string | null
+          channel?: Database["public"]["Enums"]["consent_channel"]
+          client_id?: string
+          consent_text?: string
+          consent_text_version?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          legal_basis?: string
+          metadata?: Json
+          occurred_at?: string
+          previous_status?: Database["public"]["Enums"]["consent_state"]
+          purpose?: Database["public"]["Enums"]["consent_purpose"]
+          source?: Database["public"]["Enums"]["consent_source"]
+          status?: Database["public"]["Enums"]["consent_state"]
+          tenant_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_events_changed_by_profile_id_fkey"
+            columns: ["changed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           churn_profiling_objected_at: string | null
@@ -756,7 +841,7 @@ export type Database = {
       email_verification_tokens: {
         Row: {
           attempts: number
-          code: string
+          code_hash: string
           created_at: string
           email: string
           expires_at: string
@@ -767,7 +852,7 @@ export type Database = {
         }
         Insert: {
           attempts?: number
-          code: string
+          code_hash: string
           created_at?: string
           email: string
           expires_at: string
@@ -778,7 +863,7 @@ export type Database = {
         }
         Update: {
           attempts?: number
-          code?: string
+          code_hash?: string
           created_at?: string
           email?: string
           expires_at?: string
@@ -1068,6 +1153,51 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "message_automations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_unsubscribe_tokens: {
+        Row: {
+          client_id: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          tenant_id: string
+          token_hash: string
+        }
+        Insert: {
+          client_id: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          tenant_id: string
+          token_hash: string
+        }
+        Update: {
+          client_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          tenant_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_unsubscribe_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_unsubscribe_tokens_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -2486,6 +2616,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_client_consent_events: {
+        Args: {
+          p_changed_by: Database["public"]["Enums"]["consent_actor"]
+          p_changed_by_profile_id?: string | null
+          p_client_id: string
+          p_events?: Json
+          p_source?: Database["public"]["Enums"]["consent_source"]
+          p_tenant_id: string
+        }
+        Returns: number
+      }
+      backfill_missing_client_consent_events: {
+        Args: { p_tenant_id?: string | null }
+        Returns: number
+      }
       current_tenant_id: { Args: never; Returns: string }
       decrement_product_inventory: {
         Args: {
@@ -2591,9 +2736,46 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: number
       }
+      cleanup_email_verification_tokens: {
+        Args: { retention?: string }
+        Returns: number
+      }
+      create_email_verification_otp: {
+        Args: {
+          p_email: string
+          p_code_hash: string
+          p_expires_at: string
+          p_now?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      consent_actor:
+        | "CLIENT_PROFILE"
+        | "STAFF_MEMBER"
+        | "SUPERADMIN"
+        | "GUEST_SUBMISSION"
+        | "UNSUBSCRIBE_LINK"
+        | "LEGACY_MIGRATION"
+        | "SYSTEM"
+      consent_channel: "PWA" | "EMAIL" | "BACKOFFICE" | "IMPORT" | "SYSTEM"
+      consent_purpose: "MARKETING_EMAIL" | "MARKETING_PUSH" | "CHURN_PROFILING"
+      consent_source:
+        | "PWA_EMAIL_OTP_BOOTSTRAP"
+        | "PWA_EMAIL_OTP_PROFILE"
+        | "PWA_PROFILE_PREFERENCES"
+        | "PHONE_OTP_BOOTSTRAP"
+        | "GOOGLE_AUTH_BOOTSTRAP"
+        | "EMAIL_PASSWORD_BOOTSTRAP"
+        | "GUEST_BOOKING"
+        | "STAFF_DASHBOARD"
+        | "SUPERADMIN_PANEL"
+        | "SUPERADMIN_SEED"
+        | "CLIENT_IMPORT"
+        | "EMAIL_UNSUBSCRIBE_LINK"
+        | "LEGACY_MIGRATION"
+      consent_state: "ALLOWED" | "DISALLOWED" | "UNKNOWN"
     }
     CompositeTypes: {
       [_ in never]: never

@@ -10,6 +10,10 @@ import {
   sendEmailOtp,
   verifyEmailOtp,
 } from '@/lib/actions/pwa-auth'
+import {
+  MARKETING_SIGNUP_PREFIX,
+  MARKETING_SIGNUP_SUFFIX,
+} from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
@@ -88,7 +92,6 @@ export function EmailOtpForm({
   const tenantPath = useTenantPath(tenantSlug)
   const privacyHref = tenantPath('/privacy')
   const termsHref = tenantPath('/termini')
-
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState(prefillEmail)
   const [fullName, setFullName] = useState(prefillFullName)
@@ -440,9 +443,9 @@ export function EmailOtpForm({
               style={{ accentColor: 'var(--brand-primary, #222222)' }}
             />
             <span className="text-[11px] leading-relaxed text-gray-500">
-              Voglio ricevere offerte e promozioni da{' '}
+              {MARKETING_SIGNUP_PREFIX}{' '}
               <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
-              Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
+              {MARKETING_SIGNUP_SUFFIX}
             </span>
           </label>
           <SignupLegalNotice privacyHref={privacyHref} termsHref={termsHref} />
@@ -756,9 +759,9 @@ export function EmailOtpForm({
               style={{ accentColor: 'var(--brand-primary, #1a1a1a)' }}
             />
             <span className="text-xs leading-relaxed text-neutral-500">
-              Voglio ricevere offerte e promozioni da{' '}
+              {MARKETING_SIGNUP_PREFIX}{' '}
               <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
-              Puoi cambiare questa preferenza in qualsiasi momento dalle impostazioni.
+              {MARKETING_SIGNUP_SUFFIX}
             </span>
           </label>
           <div className="mt-3">

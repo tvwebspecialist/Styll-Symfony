@@ -3,10 +3,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import {
+  buildMarketingEmailLinks,
+  issueMarketingUnsubscribeToken,
+} from '@/lib/marketing-unsubscribe'
+import {
   getSubscriptionsForProfile,
   sendPushToSubscriptions,
 } from '@/lib/push/send-notification'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 type Segment = 'all' | 'rischio' | 'vip' | 'winback'
@@ -108,15 +112,16 @@ export async function sendCampaign({
   // Fetch tenant for email branding
   const { data: tenant } = await db
     .from('tenants')
-    .select('business_name, primary_color')
+    .select('business_name, primary_color, slug')
     .eq('id', tenantId)
     .single()
 
   const tenantMeta = tenant
-    ? {
+    ? buildClientFacingEmailTenantBranding({
         business_name: tenant.business_name as string,
         primary_color: (tenant.primary_color as string | null) ?? '#111111',
-      }
+        slug: tenant.slug as string,
+      })
     : undefined
 
   const clients = await fetchClientsBySegment(db, tenantId, segment)
@@ -167,6 +172,12 @@ export async function sendCampaign({
           skipped++
           continue
         }
+        const tenantSlug = tenant?.slug as string
+        const unsubscribeToken = await issueMarketingUnsubscribeToken(db, {
+          tenantId,
+          clientId: client.id,
+        })
+        const marketingLinks = buildMarketingEmailLinks(tenantSlug, unsubscribeToken)
         const result = await sendTemplatedEmail({
           to:           client.email,
           templateSlug: 'messaggio_mirato',
@@ -176,6 +187,11 @@ export async function sendCampaign({
             message:       trimmed,
           },
           tenant:   tenantMeta,
+          marketing: {
+            unsubscribeUrl: marketingLinks.unsubscribeUrl,
+            oneClickUrl: marketingLinks.oneClickUrl,
+            managePreferencesUrl: marketingLinks.managePreferencesUrl,
+          },
           category: 'Messaggio dal tuo barbiere',
         })
         success    = result.success

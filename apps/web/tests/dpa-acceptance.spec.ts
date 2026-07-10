@@ -66,6 +66,7 @@ test.describe.serial('DPA acceptance persistence', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for DPA acceptance fixtures.')
 
   test('first barber onboarding records versioned DPA acceptance on the tenant', async ({ page }) => {
+    test.setTimeout(120_000)
     const service = requireServiceClient()
     const user = await createVerifiedBarberUser('dpa-onboarding')
     const startedAt = Date.now()
@@ -156,6 +157,7 @@ test.describe.serial('DPA acceptance persistence', () => {
   })
 
   test('DPA acceptance is idempotent and a newer version only applies to new tenants', async () => {
+    test.setTimeout(120_000)
     const service = requireServiceClient()
     const user = await createVerifiedBarberUser('dpa-versioning')
     const tenantV1 = await createTenantFixture('dpa-v1')

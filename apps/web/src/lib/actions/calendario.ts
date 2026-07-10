@@ -4,7 +4,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
+import {
+  buildMarketingEmailLinks,
+  issueMarketingUnsubscribeToken,
+} from '@/lib/marketing-unsubscribe'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
@@ -1038,7 +1042,7 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
 
   const [{ data: client }, { data: tenant }, postVisitEnabled, reviewEnabled] = await Promise.all([
     db.from('clients').select('email, full_name, profile_id, marketing_consent').eq('id', appt.client_id).maybeSingle(),
-    db.from('tenants').select('business_name, primary_color, social_links').eq('id', tenantId).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color, social_links, slug').eq('id', tenantId).maybeSingle(),
     getAutomationEnabled(tenantId, 'post_visit_thanks'),
     getAutomationEnabled(tenantId, 'review_request'),
   ])
@@ -1050,7 +1054,35 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
   const profileId    = client.profile_id ?? null
   const businessName = tenant?.business_name ?? 'il tuo salone'
   const primaryColor = tenant?.primary_color ?? '#111111'
-  const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
+  const tenantSlug = tenant?.slug ?? null
+  const tenantMeta   = buildClientFacingEmailTenantBranding({
+    business_name: businessName,
+    primary_color: primaryColor,
+    slug: tenantSlug ?? '',
+  })
+  let marketingEmailPromise: Promise<{
+    unsubscribeUrl: string
+    oneClickUrl: string
+    managePreferencesUrl: string
+  } | null> | null = null
+
+  const getMarketingEmail = async () => {
+    if (!clientEmail || !tenantSlug) return null
+    if (!marketingEmailPromise) {
+      marketingEmailPromise = issueMarketingUnsubscribeToken(db, {
+        tenantId,
+        clientId: appt.client_id,
+      }).then((unsubscribeToken) => {
+        const links = buildMarketingEmailLinks(tenantSlug, unsubscribeToken)
+        return {
+          unsubscribeUrl: links.unsubscribeUrl,
+          oneClickUrl: links.oneClickUrl,
+          managePreferencesUrl: links.managePreferencesUrl,
+        }
+      })
+    }
+    return marketingEmailPromise
+  }
 
   // One channel determination covers both post_visit push and email
   const channel = !profileId
@@ -1072,13 +1104,19 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
         }
       }).catch(() => {})
     } else if (channel === 'email' && clientEmail) {
+      const marketingEmail = await getMarketingEmail()
+      if (!marketingEmail) {
+      console.error('[post-visit] Missing tenant slug for marketing email', { tenantId })
+      } else {
       await sendTemplatedEmail({
         to:           clientEmail,
         templateSlug: 'post_visit_thanks',
         variables:    { client_name: clientName, business_name: businessName },
         tenant:       tenantMeta,
+        marketing:    marketingEmail,
         category:     'Grazie per la visita',
       })
+      }
     }
   }
 
@@ -1087,14 +1125,20 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
     const socialLinks = tenant?.social_links as Record<string, string> | null
     const reviewUrl   = socialLinks?.google_reviews ?? ''
     if (reviewUrl) {
+      const marketingEmail = await getMarketingEmail()
+      if (!marketingEmail) {
+      console.error('[review-request] Missing tenant slug for marketing email', { tenantId })
+      return
+      }
       await sendTemplatedEmail({
-        to:           clientEmail,
-        templateSlug: 'review_request',
-        variables:    { client_name: clientName, business_name: businessName, review_url: reviewUrl },
-        tenant:       tenantMeta,
-        category:     'La tua opinione conta',
-        ctaText:      'Lascia una recensione',
-        ctaUrl:       reviewUrl,
+      to:           clientEmail,
+      templateSlug: 'review_request',
+      variables:    { client_name: clientName, business_name: businessName, review_url: reviewUrl },
+      tenant:       tenantMeta,
+      marketing:    marketingEmail,
+      category:     'La tua opinione conta',
+      ctaText:      'Lascia una recensione',
+      ctaUrl:       reviewUrl,
       })
     }
   }

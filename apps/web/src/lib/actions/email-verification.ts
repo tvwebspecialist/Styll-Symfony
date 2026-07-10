@@ -1,7 +1,12 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendEmailVerificationOtp } from '@/lib/email-verification'
+import {
+  sendEmailVerificationOtp,
+  getPepper,
+  hashOtp,
+  otpHashesEqual,
+} from '@/lib/email-verification'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { TablesUpdate } from '@/types'
 
@@ -42,9 +47,17 @@ export async function verifyEmailOTP(
   const db = createAdminClient()
   const now = new Date()
 
+  let pepper: string
+  try {
+    pepper = getPepper()
+  } catch {
+    console.error('[verifyEmailOTP] missing OTP pepper')
+    return { success: false, error: 'Errore interno. Riprova.' }
+  }
+
   const { data: token } = await db
     .from('email_verification_tokens')
-    .select('*')
+    .select('id, code_hash, expires_at, used, attempts, locked_until')
     .eq('email', email)
     .eq('used', false)
     .order('created_at', { ascending: false })
@@ -71,8 +84,9 @@ export async function verifyEmailOTP(
     return { success: false, error: 'Codice scaduto. Richiedi un nuovo codice.' }
   }
 
-  // Code check
-  if (token.code !== code.trim()) {
+  // Timing-safe hash comparison — plaintext input is never logged or stored
+  const inputHash = hashOtp(code.trim(), pepper)
+  if (!otpHashesEqual(token.code_hash, inputHash)) {
     const newAttempts = (token.attempts as number) + 1
     const updates: TablesUpdate<'email_verification_tokens'> = { attempts: newAttempts }
     if (newAttempts >= 5) {
@@ -90,10 +104,22 @@ export async function verifyEmailOTP(
     }
   }
 
-  // ✅ Valid — mark token as used
-  await db.from('email_verification_tokens').update({ used: true }).eq('id', token.id)
+  // ✅ Valid — atomically mark token as used.
+  // Conditional update (WHERE used = false) prevents double-use even under
+  // concurrent requests: the second caller finds 0 rows and gets no data back.
+  const { data: consumed } = await db
+    .from('email_verification_tokens')
+    .update({ used: true })
+    .eq('id', token.id)
+    .eq('used', false)
+    .select('id')
+    .maybeSingle()
 
-  // Mark profile as verified (look up user by email in profiles table)
+  if (!consumed) {
+    return { success: false, error: 'Codice già utilizzato. Richiedi un nuovo codice.' }
+  }
+
+  // Mark profile as verified
   const { data: profile } = await db
     .from('profiles')
     .select('id')

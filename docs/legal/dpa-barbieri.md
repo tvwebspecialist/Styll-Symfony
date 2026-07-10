@@ -34,7 +34,7 @@ Styll tratta i dati dei clienti finali del barbiere esclusivamente per erogare i
 - **(c)** Adottare le misure di sicurezza ex Art. 32 GDPR (RLS, cifratura in transito, backup, accessi limitati)
 - **(d)** Rispettare le condizioni per il subaffidamento (vedi Sezione 5)
 - **(e)** Assistere il Titolare nel rispondere alle richieste degli interessati (accesso, rettifica, cancellazione, portabilità)
-- **(f)** Assistere il Titolare negli obblighi di sicurezza e notifica data breach (entro 72h dalla scoperta)
+- **(f)** Assistere il Titolare negli obblighi di sicurezza e notifica data breach secondo il [runbook operativo data breach](data-breach-runbook.md), con prima comunicazione senza ingiustificato ritardo e aggiornamenti progressivi
 - **(g)** Cancellare o restituire tutti i dati a fine rapporto
 - **(h)** Fornire tutte le informazioni necessarie a dimostrare la conformità e consentire audit
 
@@ -66,7 +66,7 @@ La lista aggiornata è disponibile su **styll.it/sub-processor**. Il Titolare sa
 
 ## Sezione 6 — Data breach
 
-In caso di violazione dei dati personali, Styll notificherà il Titolare **entro 72 ore dalla scoperta**, con tutte le informazioni disponibili per consentire al Titolare di adempiere ai propri obblighi verso il Garante (Art. 33 GDPR).
+In caso di violazione dei dati personali che coinvolga dati trattati per conto del Titolare, Styll attiva il [runbook operativo data breach](data-breach-runbook.md), preserva le evidenze, adotta le misure di contenimento ragionevolmente disponibili e informa il Titolare **senza ingiustificato ritardo**, con una prima comunicazione appena raccolti gli elementi minimi utili. L'obiettivo operativo è mettere il Titolare in condizione di valutare gli obblighi ex Artt. 33-34 GDPR entro 72 ore dalla conoscenza della violazione.
 
 ---
 

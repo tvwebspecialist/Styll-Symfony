@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { stopTenantImpersonation } from '@/app/admin/actions'
+import { buildRootAppUrl } from '@/lib/auth/urls'
 
 export function StopImpersonationButton() {
   const [pending, startTransition] = React.useTransition()
@@ -9,9 +10,7 @@ export function StopImpersonationButton() {
   function handle() {
     startTransition(async () => {
       await stopTenantImpersonation()
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-      const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
-      window.location.href = `${protocol}://${rootDomain}/admin`
+      window.location.href = buildRootAppUrl('/admin')
     })
   }
 

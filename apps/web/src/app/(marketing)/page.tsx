@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { buildPathWithTrialIntent, TRIAL_INTENT } from '@/lib/trial-intent'
+import { PUBLIC_DPA_SECTION_ID } from '@/lib/legal/public-b2b'
 
 export const dynamic = 'force-static'
 
@@ -674,6 +675,7 @@ function Footer() {
             {([
               { label: 'Privacy Policy', href: '/privacy' },
               { label: 'Termini di servizio', href: '/termini' },
+              { label: 'Accordo trattamento dati (DPA)', href: `/termini#${PUBLIC_DPA_SECTION_ID}` },
               { label: 'Cookie Policy', href: '/cookie' },
               { label: 'Sub-responsabili', href: '/sub-processor' },
             ] as const).map(({ label, href }) => (

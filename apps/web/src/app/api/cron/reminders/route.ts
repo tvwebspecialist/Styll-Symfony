@@ -19,7 +19,7 @@ import type { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import type { PushPayload } from '@/lib/push/send-notification'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 
@@ -194,7 +194,11 @@ async function processReminderWindow(
         to:           clientEmail,
         templateSlug: 'reminder',
         variables:    { client_name: clientName, date, time, staff_name: staffName },
-        tenant:       { business_name: businessName, primary_color: primaryColor },
+        tenant:       buildClientFacingEmailTenantBranding({
+          business_name: businessName,
+          primary_color: primaryColor,
+          slug,
+        }),
         category:     'Promemoria appuntamento',
         details:      { Data: date, Orario: time, Con: staffName },
       })

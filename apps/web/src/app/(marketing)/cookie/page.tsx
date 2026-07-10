@@ -1,5 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import {
+  PUBLIC_B2B_CONTACT_EMAIL,
+  PUBLIC_B2B_DOCS,
+  PUBLIC_B2B_LEGAL_REVIEW_NOTE,
+  PUBLIC_DPA_SECTION_ID,
+} from '@/lib/legal/public-b2b'
 
 export const dynamic = 'force-static'
 
@@ -17,8 +23,6 @@ const C = {
   textMuted: '#64748B',
   border: '#E2E8F0',
 }
-
-const LAST_UPDATED = '2026-07-03'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -89,10 +93,10 @@ function CookieTable() {
 }
 
 export default function CookiePage() {
+  const doc = PUBLIC_B2B_DOCS.cookie
+
   return (
     <main style={{ fontFamily: 'var(--font-primary, "Outfit", system-ui, sans-serif)', background: C.white, minHeight: '100vh' }}>
-
-      {/* Nav */}
       <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ fontSize: 20, fontWeight: 800, color: C.primary, textDecoration: 'none' }}>Styll</Link>
@@ -100,15 +104,20 @@ export default function CookiePage() {
         </div>
       </nav>
 
-      {/* Content */}
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '48px 24px 80px' }}>
-
         <div style={{ marginBottom: 40 }}>
           <h1 style={{ fontSize: 32, fontWeight: 800, color: C.primary, margin: '0 0 12px', letterSpacing: '-0.02em' }}>
             Cookie Policy
           </h1>
           <p style={{ fontSize: 14, color: C.textMuted, margin: 0 }}>
-            Ultimo aggiornamento: <strong>{LAST_UPDATED}</strong> · Rif. Art. 122 D.Lgs. 196/2003 (Codice Privacy)
+            Ultimo aggiornamento: <strong>{doc.lastUpdated}</strong> · Versione <strong>{doc.version}</strong> · Rif. Art. 122 D.Lgs. 196/2003 (Codice Privacy)
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 32, padding: '20px 24px', background: C.lightBg, borderRadius: 12, border: `1px solid ${C.border}` }}>
+          <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.75, margin: 0 }}>
+            Questa informativa riguarda il sito B2B <strong style={{ color: C.primary }}>styll.it</strong> e le
+            relative superfici pubbliche di marketing. {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
           </p>
         </div>
 
@@ -121,17 +130,17 @@ export default function CookiePage() {
 
         <Section title="Cookie che usiamo">
           <p>
-            Su styll.it usiamo sempre solo cookie tecnici necessari al funzionamento del servizio.
-            Gli analytics non essenziali restano disattivati finché non dai un consenso esplicito.
+            Su styll.it usiamo solo cookie tecnici necessari al funzionamento del servizio e un cookie di
+            preferenza per ricordare la tua scelta sugli analytics opzionali.
           </p>
           <CookieTable />
         </Section>
 
         <Section title="Analytics opzionali (solo dopo consenso)">
           <p>
-            Dopo il tuo consenso possiamo attivare strumenti analytics per misurare uso e performance
-            del sito e della PWA, ad esempio <strong>Vercel Analytics</strong>, <strong>PostHog</strong> e
-            analytics first-party di Styll. Senza consenso questi strumenti restano spenti.
+            Dopo il tuo consenso possiamo attivare strumenti analytics per misurare uso e performance del sito
+            e delle superfici pubbliche, ad esempio <strong>Vercel Analytics</strong>, <strong>PostHog</strong>{' '}
+            e analytics first-party di Styll. Senza consenso questi strumenti restano spenti.
           </p>
           <p>
             Gli analytics vengono usati solo per migliorare prodotto e prestazioni, mai per pubblicità
@@ -142,9 +151,9 @@ export default function CookiePage() {
         <Section title="Cosa NON usiamo">
           <ul style={{ paddingLeft: 20, margin: 0 }}>
             {[
-              'Cookie di profilazione o marketing',
-              'Cookie di terze parti pubblicitari (Google Ads, Meta Pixel, ecc.)',
-              'Strumenti di tracciamento comportamentale attivi senza consenso',
+              'Cookie di profilazione o marketing sulle superfici pubbliche B2B senza consenso.',
+              'Cookie di terze parti pubblicitari (Google Ads, Meta Pixel, ecc.) attivi di default.',
+              'Strumenti di tracciamento comportamentale attivi senza consenso espresso.',
             ].map((item) => (
               <li key={item} style={{ marginBottom: 8 }}>{item}</li>
             ))}
@@ -153,8 +162,8 @@ export default function CookiePage() {
 
         <Section title="Come disabilitare i cookie tecnici">
           <p>
-            Puoi disabilitare i cookie dal tuo browser, ma questo impedirà il funzionamento della sessione
-            di accesso (non potrai più entrare nell&apos;account). Istruzioni per i principali browser:
+            Puoi disabilitare i cookie dal tuo browser, ma questo impedirà il funzionamento della sessione di
+            accesso. Istruzioni per i principali browser:
           </p>
           <ul style={{ paddingLeft: 20, margin: '12px 0 0' }}>
             {[
@@ -175,20 +184,33 @@ export default function CookiePage() {
         <Section title="Contatti">
           <p>
             Per qualsiasi domanda su questa informativa:{' '}
-            <a href="mailto:privacy@styll.it" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
-              privacy@styll.it
+            <a href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`} style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+              {PUBLIC_B2B_CONTACT_EMAIL}
             </a>
           </p>
         </Section>
 
         <div style={{ marginTop: 48, padding: '20px 24px', background: C.lightBg, borderRadius: 12, border: `1px solid ${C.border}` }}>
           <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>
-            Riferimento normativo: Art. 122 D.Lgs. 196/2003 (Codice Privacy) e Linee guida del Garante
-            per la protezione dei dati personali sui cookie (10 giugno 2021).
+            Riferimento normativo: Art. 122 D.Lgs. 196/2003 (Codice Privacy) e Linee guida del Garante per la
+            protezione dei dati personali sui cookie (10 giugno 2021).
+          </p>
+          <p style={{ fontSize: 13, color: C.textMuted, margin: '10px 0 0' }}>
+            Link utili:{' '}
+            <Link href="/privacy" style={{ color: C.accent, textDecoration: 'none' }}>
+              Privacy Policy
+            </Link>
+            {' · '}
+            <Link href={`/termini#${PUBLIC_DPA_SECTION_ID}`} style={{ color: C.accent, textDecoration: 'none' }}>
+              DPA / Accordo trattamento dati
+            </Link>
+            {' · '}
+            <Link href="/sub-processor" style={{ color: C.accent, textDecoration: 'none' }}>
+              Sub-processor
+            </Link>
           </p>
         </div>
       </div>
-
     </main>
   )
 }

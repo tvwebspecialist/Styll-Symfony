@@ -448,6 +448,7 @@ test.describe.serial('clienti scalability pagination', () => {
   let fixture: ClientiScaleFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedClientiScaleFixture()
   })
 

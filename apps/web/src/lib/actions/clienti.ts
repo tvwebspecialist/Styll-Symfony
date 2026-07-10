@@ -2,7 +2,15 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  applyClientConsentEvents,
+  buildMarketingConsentEvents,
+  extractConsentRequestContext,
+  seedClientConsentState,
+} from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/server'
 import {
   DEFAULT_CLIENTI_PAGE_SIZE,
@@ -1198,17 +1206,55 @@ export async function createCliente(input: {
     return { success: false, error: 'Non autorizzato' }
   }
 
-  const { data, error } = await ctx.db.from('clients').insert({
-    tenant_id: ctx.tenantId,
-    full_name: trimmed,
-    email: input.email?.trim() || null,
-    phone: input.phone?.trim() || null,
-    preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
-    marketing_consent: input.marketingConsent ?? false,
-    tags: '["active"]',
-  }).select('id').single()
+  const supabase = await createClient()
+  const { data: authData } = await supabase.auth.getUser()
+  const actorProfileId = authData.user?.id
+  if (!actorProfileId) return { success: false, error: 'Non autenticato' }
+
+  const { data, error } = await ctx.db
+    .from('clients')
+    .insert({
+      tenant_id: ctx.tenantId,
+      full_name: trimmed,
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
+      marketing_consent: input.marketingConsent ?? false,
+      tags: '["active"]',
+    })
+    .select('id, created_at')
+    .single()
 
   if (error) return { success: false, error: error.message }
+
+  if (!data?.id || !data.created_at) {
+    return { success: false, error: 'Impossibile creare il cliente.' }
+  }
+
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    await seedClientConsentState(ctx.db, {
+      tenantId: ctx.tenantId,
+      clientId: data.id,
+      marketingAllowed: input.marketingConsent ?? false,
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.STAFF_MEMBER,
+      actorProfileId,
+      source: CONSENT_SOURCE.STAFF_DASHBOARD,
+      occurredAt: data.created_at,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'staff_dashboard_create_client',
+      },
+    })
+  } catch (consentError) {
+    await ctx.db.from('clients').delete().eq('id', data.id).eq('tenant_id', ctx.tenantId)
+    return {
+      success: false,
+      error: consentError instanceof Error ? consentError.message : 'Impossibile creare il cliente.',
+    }
+  }
 
   revalidatePath('/dashboard/clienti')
   return { success: true, clienteId: data?.id }
@@ -1374,6 +1420,9 @@ export async function fetchClientImportDuplicateCandidates(
 async function applyClientUpdatesInBatches(
   db: ClientImportDb,
   tenantId: string,
+  initiatedBy: string,
+  filename: string | null | undefined,
+  source: string,
   updates: ClientImportUpdate[],
   errors: ImportError[],
 ): Promise<void> {
@@ -1382,13 +1431,45 @@ async function applyClientUpdatesInBatches(
     const results = await Promise.all(
       batch.map(async (update) => {
         const patch: TablesUpdate<'clients'> = { ...update.patch }
-        const { error } = await db
-          .from('clients')
-          .update(patch)
-          .eq('tenant_id', tenantId)
-          .eq('id', update.id)
+        const marketingConsent = patch.marketing_consent
+        delete patch.marketing_consent
+        if (Object.keys(patch).length > 0) {
+          const { error } = await db
+            .from('clients')
+            .update(patch)
+            .eq('tenant_id', tenantId)
+            .eq('id', update.id)
 
-        return error?.message ?? null
+          if (error) {
+            return error.message
+          }
+        }
+
+        if (marketingConsent !== undefined) {
+          try {
+            await applyClientConsentEvents(db, {
+              tenantId,
+              clientId: update.id,
+              actor: CONSENT_ACTOR.STAFF_MEMBER,
+              actorProfileId: initiatedBy,
+              source: CONSENT_SOURCE.CLIENT_IMPORT,
+              events: buildMarketingConsentEvents({
+                allowed: Boolean(marketingConsent),
+                channel: CONSENT_CHANNEL.IMPORT,
+                source: CONSENT_SOURCE.CLIENT_IMPORT,
+                occurredAt: new Date().toISOString(),
+                metadata: {
+                  import_source: source,
+                  import_filename: filename ?? null,
+                },
+              }),
+            })
+          } catch (consentError) {
+            return consentError instanceof Error ? consentError.message : 'Errore audit consenso import'
+          }
+        }
+
+        return null
       }),
     )
 
@@ -1477,18 +1558,57 @@ export async function importClientsForTenant(params: {
   const skipped = plan.skipped
   const merged = plan.merged
 
-  await applyClientUpdatesInBatches(db, tenantId, plan.toUpdate, errors)
+  await applyClientUpdatesInBatches(
+    db,
+    tenantId,
+    initiatedBy,
+    input.filename,
+    input.source,
+    plan.toUpdate,
+    errors,
+  )
 
   let imported = 0
   if (toInsert.length > 0) {
     for (let index = 0; index < toInsert.length; index += CLIENT_IMPORT_INSERT_CHUNK_SIZE) {
       const chunk = toInsert.slice(index, index + CLIENT_IMPORT_INSERT_CHUNK_SIZE)
-      const { error, count } = await db
+      const { data: insertedRows, error, count } = await db
         .from('clients')
         .insert(chunk, { count: 'exact' })
+        .select('id, created_at, marketing_consent')
 
       if (error) {
         errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
+        break
+      }
+
+      const insertedIds = (insertedRows ?? []).map((row) => row.id)
+
+      try {
+        for (const row of insertedRows ?? []) {
+          await seedClientConsentState(db, {
+            tenantId,
+            clientId: row.id,
+            marketingAllowed: Boolean(row.marketing_consent),
+            churnAllowed: true,
+            actor: CONSENT_ACTOR.STAFF_MEMBER,
+            actorProfileId: initiatedBy,
+            source: CONSENT_SOURCE.CLIENT_IMPORT,
+            occurredAt: row.created_at,
+            metadata: {
+              import_source: input.source,
+              import_filename: input.filename ?? null,
+            },
+          })
+        }
+      } catch (consentError) {
+        if (insertedIds.length > 0) {
+          await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
+        }
+        errors.push({
+          rowIndex: 0,
+          message: consentError instanceof Error ? `Errore audit consenso import: ${consentError.message}` : 'Errore audit consenso import',
+        })
         break
       }
 

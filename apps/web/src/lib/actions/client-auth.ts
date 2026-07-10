@@ -1,7 +1,10 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import { buildTenantAppUrl } from '@/lib/auth/urls'
+import { extractConsentRequestContext, seedClientConsentState } from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import type { TablesInsert, TablesUpdate } from '@/types'
@@ -460,8 +463,38 @@ export async function mergeClientProfile(params: {
     updated_at: now,
   }
 
-  const { error: insertError } = await db.from('clients').insert(insertPayload)
+  const { data: insertedClient, error: insertError } = await db
+    .from('clients')
+    .insert(insertPayload)
+    .select('id')
+    .single()
   if (insertError) {
+    throw new Error('Unable to create client profile')
+  }
+
+  if (!insertedClient?.id) {
+    throw new Error('Unable to create client profile')
+  }
+
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    await seedClientConsentState(db, {
+      tenantId: params.tenantId,
+      clientId: insertedClient.id,
+      marketingAllowed: Boolean(params.marketingConsent),
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: params.profileId,
+      source: CONSENT_SOURCE.EMAIL_PASSWORD_BOOTSTRAP,
+      occurredAt: now,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'email_password_bootstrap',
+      },
+    })
+  } catch {
+    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', params.tenantId)
     throw new Error('Unable to create client profile')
   }
 }
