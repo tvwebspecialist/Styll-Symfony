@@ -30,9 +30,8 @@ export function CollapsibleSection({
   return (
     <div style={{
       borderRadius: 12,
-      border: '1px solid rgba(0,0,0,0.07)',
+      border: '1px solid var(--card-border, #E9E9E9)',
       background: 'transparent',
-      overflow: 'hidden',
     }}>
       {/* Header — always visible, non-interactive */}
       <div style={{
@@ -40,7 +39,7 @@ export function CollapsibleSection({
         alignItems: 'center',
         gap: 10,
         padding: '14px 20px',
-        borderBottom: '1px solid rgba(0,0,0,0.07)',
+        borderBottom: '1px solid var(--card-border, #E9E9E9)',
         fontFamily: 'Outfit, sans-serif',
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>

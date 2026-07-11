@@ -180,8 +180,8 @@ export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props)
             onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/${href}`) }}
             aria-label={`${label}: ${v.main}`}
             style={{
-              background: 'rgba(0,0,0,0.025)',
-              border: '1px solid rgba(0,0,0,0.07)',
+              background: 'var(--card-bg, #FFFFFF)',
+              border: '1px solid var(--card-border, #E9E9E9)',
               borderRadius: 12,
               padding: '12px 14px',
               cursor: 'pointer',
@@ -192,8 +192,8 @@ export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props)
               flexDirection: 'column',
               gap: 8,
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.045)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.025)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F7F7F7'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
           >
             {/* Icon + label inline */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

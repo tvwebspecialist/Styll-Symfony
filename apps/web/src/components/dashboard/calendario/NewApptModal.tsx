@@ -177,11 +177,11 @@ export function NewApptModal({
     padding: isMobile ? 0 : 16,
   }
   const sheetStyle: React.CSSProperties = isMobile ? {
-    background: '#FFF', borderRadius: 20,
+    background: '#FFF', borderRadius: 28,
     padding: '20px 20px 32px',
     width: 'calc(100% - 32px)',
     marginLeft: 16, marginRight: 16, marginBottom: 16,
-    boxShadow: '0 -8px 40px rgba(0,0,0,0.12)',
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
     maxHeight: '90vh', overflowY: 'auto',
   } : {
     background: '#FFF', borderRadius: 20,
