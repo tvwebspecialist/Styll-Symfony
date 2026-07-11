@@ -90,9 +90,9 @@ export function WeekStats({ stats, weekAppointments }: Props) {
           <div
             key={m.label}
             style={{
-              background: 'rgba(0,0,0,0.025)',
+              background: 'var(--card-bg, #FFFFFF)',
               borderRadius: 10,
-              border: '1px solid rgba(0,0,0,0.06)',
+              border: '1px solid var(--card-border, #E9E9E9)',
               padding: '12px 14px',
               display: 'flex',
               flexDirection: 'column',

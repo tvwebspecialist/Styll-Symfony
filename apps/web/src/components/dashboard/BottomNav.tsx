@@ -223,7 +223,7 @@ export function BottomNav({
           style={{
             width: 40,
             height: 4,
-            background: '#E0E0E0',
+            background: 'rgba(0,0,0,0.15)',
             borderRadius: 2,
             margin: '0 auto 20px',
           }}
