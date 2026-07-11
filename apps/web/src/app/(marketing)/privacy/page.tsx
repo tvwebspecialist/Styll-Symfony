@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
+  ANALYTICS_CONSENT_SURFACE,
+  buildAnalyticsPreferencesHref,
+} from '@/lib/analytics-consent-copy'
+import {
   PUBLIC_B2B_COMPANY_NAME,
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
@@ -17,6 +21,10 @@ export const metadata: Metadata = {
   description:
     'Informativa privacy B2B per i barbieri e titolari che usano la piattaforma Styll.',
 }
+
+const PLATFORM_ANALYTICS_PREFERENCES_HREF = buildAnalyticsPreferencesHref({
+  surface: ANALYTICS_CONSENT_SURFACE.PLATFORM,
+})
 
 const C = {
   primary: '#1A1A2E',
@@ -368,7 +376,7 @@ export default function PrivacyPage() {
             Se attivi analytics opzionali sul sito marketing, il trattamento resta separato dal servizio base
             e viene gestito secondo le scelte di consenso registrate lato server, con centro preferenze
             persistente disponibile nella{' '}
-            <Link href="/cookie#analytics-preferences" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+            <Link href={PLATFORM_ANALYTICS_PREFERENCES_HREF} style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
               Cookie Policy
             </Link>
             .

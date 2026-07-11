@@ -5,6 +5,7 @@ import { CookieBanner } from '@/components/shared/CookieBanner'
 import { serializeJsonLd } from '@/lib/security/json-ld'
 import { getTenantBySlug } from '@/lib/tenant'
 import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
+import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
 
 const FONT_MAP: Record<string, string> = {
   outfit: 'var(--font-outfit)',
@@ -120,6 +121,8 @@ export default async function LandingLayout({ params, children }: Props) {
       description: 'Prenotazione online disponibile',
     },
   }
+  const landingPath = await createTenantSurfacePaths('landing', slug)
+  const cookiePath = landingPath('/cookie')
 
   return (
     <div
@@ -133,7 +136,7 @@ export default async function LandingLayout({ params, children }: Props) {
       <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="website" />
       {children}
       <CookieBanner
-        privacyPath="/cookie"
+        cookiePath={cookiePath}
         brandColor={tenant.primary_color ?? '#1a1a1a'}
       />
     </div>

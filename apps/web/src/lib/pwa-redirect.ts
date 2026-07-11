@@ -1,9 +1,25 @@
 import { headers } from 'next/headers'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
+export type TenantSurfacePath = 'app' | 'landing' | 'dashboard'
 
 function onSubdomain(host: string): boolean {
   return host.endsWith(`.${ROOT_DOMAIN}`) || host.endsWith('.localhost:3000')
+}
+
+export async function createTenantSurfacePaths(
+  surface: TenantSurfacePath,
+  slug: string,
+): Promise<(relativePath: string) => string> {
+  const host = (await headers()).get('host') ?? ''
+  const subdomain = onSubdomain(host)
+
+  return (relativePath: string): string => {
+    if (subdomain) {
+      return relativePath || '/'
+    }
+    return `/tenant/${surface}/${slug}${relativePath}`
+  }
 }
 
 /**
@@ -18,13 +34,5 @@ function onSubdomain(host: string): boolean {
  *   <Link href={tp('/prenota')}>...</Link>
  */
 export async function createTenantPaths(slug: string): Promise<(relativePath: string) => string> {
-  const host = (await headers()).get('host') ?? ''
-  const subdomain = onSubdomain(host)
-
-  return (relativePath: string): string => {
-    if (subdomain) {
-      return relativePath || '/'
-    }
-    return `/tenant/app/${slug}${relativePath}`
-  }
+  return createTenantSurfacePaths('app', slug)
 }

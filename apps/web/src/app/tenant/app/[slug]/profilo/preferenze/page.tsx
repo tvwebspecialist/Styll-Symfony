@@ -42,6 +42,7 @@ export default async function PreferenzePage({ params }: Props) {
           initialMarketingConsent={marketingConsent}
           initialChurnObjected={churnObjected}
           primaryColor={tenant.primary_color ?? '#1a1a1a'}
+          cookiePath={tp('/cookie')}
           privacyPath={tp('/privacy')}
           termsPath={tp('/termini')}
         />

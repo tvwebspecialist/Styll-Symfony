@@ -1,12 +1,8 @@
 import {
-  ANALYTICS_CONSENT_ANON_COOKIE,
-  ANALYTICS_CONSENT_CACHE_COOKIE,
-  ANALYTICS_CONSENT_CACHE_VERSION_COOKIE,
-  ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
   type AnalyticsConsentSnapshot,
   type AnalyticsConsentState,
   normalizeAnalyticsConsentState,
-} from '@/lib/analytics-consent-server'
+} from '@/lib/analytics-consent-shared'
 import {
   ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_CONSENT_SOURCE,
@@ -128,11 +124,18 @@ function normalizeServerSnapshot(payload: Partial<AnalyticsConsentSnapshot> | nu
   }
 }
 
+function getCurrentPathname(): string {
+  if (typeof window === 'undefined') return '/'
+  return window.location.pathname || '/'
+}
+
 async function fetchAnalyticsConsentSnapshot(): Promise<AnalyticsConsentSnapshot | null> {
   if (typeof window === 'undefined') return null
 
   try {
-    const response = await fetch('/api/analytics-consent', {
+    const pathname = getCurrentPathname()
+    const searchParams = new URLSearchParams({ pathname })
+    const response = await fetch(`/api/analytics-consent?${searchParams.toString()}`, {
       method: 'GET',
       cache: 'no-store',
       credentials: 'same-origin',
@@ -158,9 +161,7 @@ export async function persistAnalyticsConsentChoice(
   const anonymousId = getAnalyticsAnonymousId()
   const payload = {
     anonymousId,
-    pathname:
-      pathname
-      || (typeof window !== 'undefined' ? window.location.pathname : '/'),
+    pathname: pathname || getCurrentPathname(),
     source,
     status: state,
   }
@@ -247,7 +248,7 @@ export async function syncAnalyticsConsentState(): Promise<SyncResult> {
 
       if (canBackfillLocalChoice) {
         return persistAnalyticsConsentChoice(localState, {
-          pathname: window.location.pathname,
+          pathname: getCurrentPathname(),
           source: ANALYTICS_CONSENT_SOURCE.LOCAL_STORAGE_MIGRATION,
         })
       }
@@ -299,10 +300,4 @@ export function subscribeAnalyticsConsent(
   }
 }
 
-export {
-  ANALYTICS_CONSENT_ANON_COOKIE,
-  ANALYTICS_CONSENT_CACHE_COOKIE,
-  ANALYTICS_CONSENT_CACHE_VERSION_COOKIE,
-  ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
-}
 export type { AnalyticsConsentState }

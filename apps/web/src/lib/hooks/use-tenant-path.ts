@@ -1,6 +1,19 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import type { TenantSurfacePath } from '@/lib/pwa-redirect'
+
+export function useTenantSurfacePath(surface: TenantSurfacePath, slug: string) {
+  const pathname = usePathname() ?? ''
+  const isPathMode = pathname.startsWith(`/tenant/${surface}/`)
+
+  return (relativePath: string): string => {
+    if (isPathMode) {
+      return `/tenant/${surface}/${slug}${relativePath}`
+    }
+    return relativePath || '/'
+  }
+}
 
 /**
  * Returns a function that generates the correct path for PWA navigation,
@@ -15,13 +28,5 @@ import { usePathname } from 'next/navigation'
  *   tenantPath('')          → "/"        | "/tenant/app/slug"
  */
 export function useTenantPath(slug: string) {
-  const pathname = usePathname()
-  const isPathMode = pathname.startsWith('/tenant/app/')
-
-  return (relativePath: string): string => {
-    if (isPathMode) {
-      return `/tenant/app/${slug}${relativePath}`
-    }
-    return relativePath || '/'
-  }
+  return useTenantSurfacePath('app', slug)
 }

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Monitor } from 'lucide-react'
 import Link from 'next/link'
-import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
 import {
   getActiveSessions,
   terminateSession,
@@ -11,6 +11,8 @@ import {
   deleteAccount,
   type ActiveSession,
 } from '@/lib/actions/profilo'
+import { useTenantContext } from '@/lib/hooks/use-tenant-context'
+import { useTenantSurfacePath } from '@/lib/hooks/use-tenant-path'
 import { useShadowMode } from '@/lib/hooks/use-shadow-mode'
 import { outlineButtonStyle, StyledInput, Field, Toast } from '../ui'
 
@@ -18,6 +20,8 @@ const SHADOW_TOOLTIP = 'Non disponibile in modalità shadow'
 
 export function PrivacySicurezza({ email }: { email: string }) {
   const { active: isShadow } = useShadowMode()
+  const { tenant } = useTenantContext()
+  const tenantPath = useTenantSurfacePath('dashboard', tenant.slug)
   const [sessions, setSessions] = React.useState<ActiveSession[]>([])
   const [loading, setLoading] = React.useState(true)
   const [exporting, setExporting] = React.useState(false)
@@ -25,6 +29,7 @@ export function PrivacySicurezza({ email }: { email: string }) {
   const [confirmInput, setConfirmInput] = React.useState('')
   const [deleting, setDeleting] = React.useState(false)
   const [msg, setMsg] = React.useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  const analyticsPreferencesHref = appendAnalyticsPreferencesHash(tenantPath('/cookie'))
 
   React.useEffect(() => {
     let cancelled = false
@@ -163,7 +168,7 @@ export function PrivacySicurezza({ email }: { email: string }) {
         </button>
         <div style={{ marginTop: 12 }}>
           <Link
-            href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+            href={analyticsPreferencesHref}
             style={{ fontSize: 13, color: '#64748B', textDecoration: 'underline' }}
           >
             Gestisci cookie e preferenze analytics
