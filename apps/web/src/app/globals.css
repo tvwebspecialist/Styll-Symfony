@@ -620,22 +620,20 @@
  * Desktop (>1024px): left scrolls | right (430px) sticky.
  * ------------------------------------------------------------ */
 
-/* Mobile: unified white shell, single column */
+/* Mobile: unified shell — matches sidebar/topbar style */
 .home-v2-root {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: #FFFFFF;
-  border-radius: 14px;
-  border: 1px solid rgba(0,0,0,0.07);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  background: var(--sidebar-bg, #FBFBFB);
+  border-radius: 20px;
   overflow: hidden;
 }
 
 .home-v2-main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   padding: 16px 16px 24px;
 }
 
@@ -670,7 +668,8 @@
     gap: 0;
     height: 100%;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: 20px;
+    background: var(--sidebar-bg, #FBFBFB);
   }
 
   .home-v2-main {
@@ -678,7 +677,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 24px 24px 32px;
-    gap: 16px;
+    gap: 20px;
     border-right: 1px solid rgba(0,0,0,0.05);
     scrollbar-width: none;
     -ms-overflow-style: none;
