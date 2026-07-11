@@ -3,22 +3,19 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  ANALYTICS_CONSENT_ANON_COOKIE,
-  ANALYTICS_CONSENT_CACHE_COOKIE,
-  ANALYTICS_CONSENT_CACHE_VERSION_COOKIE,
-  ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
-  type AnalyticsConsentState,
-} from '@/lib/analytics-consent'
+ ANALYTICS_CONSENT_ANON_COOKIE,
+ ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
+ type AnalyticsConsentState,
+} from '@/lib/analytics-consent-server'
 import {
-  appendAnalyticsConsentEvent,
-  buildAnalyticsConsentRequestContext,
-  createAnalyticsAnonymousId,
-  readAnalyticsConsentSnapshot,
+ appendAnalyticsConsentEvent,
+ buildAnalyticsConsentRequestContext,
+ createAnalyticsAnonymousId,
+ readAnalyticsConsentSnapshot,
   type AnalyticsConsentSnapshot,
   normalizeAnalyticsConsentState,
 } from '@/lib/analytics-consent-server'
 import {
-  ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_CONSENT_SOURCE,
 } from '@/lib/analytics-consent-copy'
 
@@ -33,15 +30,31 @@ function shouldUseSecureCookies(request: NextRequest): boolean {
   return request.nextUrl.protocol === 'https:'
 }
 
+function readPathnameFromUrl(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    return new URL(raw).pathname || null
+  } catch {
+    return null
+  }
+}
+
+function resolveContextPathname(
+  request: NextRequest,
+  explicitPathname?: string | null,
+): string {
+  const candidate =
+    explicitPathname?.trim()
+    || request.nextUrl.searchParams.get('pathname')?.trim()
+    || readPathnameFromUrl(request.headers.get('referer'))
+    || request.nextUrl.pathname
+
+  return candidate.startsWith('/') ? candidate : `/${candidate}`
+}
+
 function attachConsentCookies(
   response: NextResponse,
-  {
-    anonymousId,
-    state,
-  }: {
-    anonymousId: string
-    state?: AnalyticsConsentState
-  },
+  anonymousId: string,
   request: NextRequest,
 ): void {
   response.cookies.set({
@@ -53,27 +66,6 @@ function attachConsentCookies(
     path: '/',
     maxAge: ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
   })
-
-  if (state && state !== 'unknown') {
-    response.cookies.set({
-      name: ANALYTICS_CONSENT_CACHE_COOKIE,
-      value: state,
-      httpOnly: false,
-      sameSite: 'lax',
-      secure: shouldUseSecureCookies(request),
-      path: '/',
-      maxAge: ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
-    })
-    response.cookies.set({
-      name: ANALYTICS_CONSENT_CACHE_VERSION_COOKIE,
-      value: ANALYTICS_CONSENT_POLICY_VERSION,
-      httpOnly: false,
-      sameSite: 'lax',
-      secure: shouldUseSecureCookies(request),
-      path: '/',
-      maxAge: ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS,
-    })
-  }
 }
 
 function jsonResponse(
@@ -83,14 +75,7 @@ function jsonResponse(
   const response = NextResponse.json(snapshot)
 
   if (snapshot.anonymousId) {
-    attachConsentCookies(
-      response,
-      {
-        anonymousId: snapshot.anonymousId,
-        state: snapshot.state,
-      },
-      request,
-    )
+    attachConsentCookies(response, snapshot.anonymousId, request)
   }
 
   return response
@@ -99,10 +84,14 @@ function jsonResponse(
 export async function GET(request: NextRequest) {
   const db = createAdminClient()
   const anonymousId = request.cookies.get(ANALYTICS_CONSENT_ANON_COOKIE)?.value ?? null
-  const context = buildAnalyticsConsentRequestContext(request.headers, request.nextUrl.pathname)
+  const context = buildAnalyticsConsentRequestContext(
+    request.headers,
+    resolveContextPathname(request),
+  )
   const snapshot = await readAnalyticsConsentSnapshot(db, {
     anonymousId,
     host: context.host,
+    surface: context.surface,
   })
 
   return jsonResponse(snapshot, request)
@@ -128,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   const context = buildAnalyticsConsentRequestContext(
     request.headers,
-    parsed.data.pathname ?? request.nextUrl.pathname,
+    resolveContextPathname(request, parsed.data.pathname),
   )
   const db = createAdminClient()
 
@@ -142,6 +131,7 @@ export async function POST(request: NextRequest) {
   const snapshot = await readAnalyticsConsentSnapshot(db, {
     anonymousId,
     host: context.host,
+    surface: context.surface,
   })
 
   return jsonResponse(snapshot, request)

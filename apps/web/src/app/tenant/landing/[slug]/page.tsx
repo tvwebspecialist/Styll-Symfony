@@ -23,6 +23,7 @@ import LandingProducts from '@/components/landing/LandingProducts'
 import LandingGallery from '@/components/landing/LandingGallery'
 import LandingPWACta from '@/components/landing/LandingPWACta'
 import LandingFooter from '@/components/landing/LandingFooter'
+import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -98,6 +99,7 @@ export default async function LandingPage({ params }: Props) {
     showPortfolio: websitePhotos.length > 0,
     multipleLocations: locations.length > 1,
   }
+  const landingPath = await createTenantSurfacePaths('landing', slug)
 
   return (
     <>
@@ -173,7 +175,11 @@ export default async function LandingPage({ params }: Props) {
 
         {/* Footer — fade only, no movement */}
         <AnimatedSection direction="none">
-          <LandingFooter tenant={tenant} locations={locations} />
+          <LandingFooter
+            cookiePath={landingPath('/cookie')}
+            tenant={tenant}
+            locations={locations}
+          />
         </AnimatedSection>
 
       </LandingLayout>

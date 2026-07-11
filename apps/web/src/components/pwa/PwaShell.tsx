@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { BottomNavPWA } from './BottomNavPWA'
 import { PwaTopBar } from './PwaTopBar'
-import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 const AUTH_SEGMENTS = ['/accesso', '/auth/callback']
@@ -58,6 +58,7 @@ export function PwaShell({
 }: PwaShellProps) {
   const pathname = usePathname() ?? ''
   const tenantPath = useTenantPath(slug)
+  const analyticsPreferencesHref = appendAnalyticsPreferencesHash(tenantPath('/cookie'))
   const isAuthPage = AUTH_SEGMENTS.some((seg) => pathname.includes(seg))
 
   // Hide the bottom nav (and its padding) for all prenota subroutes — BottomCTA handles spacing there
@@ -105,7 +106,7 @@ export function PwaShell({
             </a>
             {' · '}
             <Link
-              href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+              href={analyticsPreferencesHref}
               style={{ color: '#CCCCCC', textDecoration: 'none' }}
             >
               Gestisci cookie

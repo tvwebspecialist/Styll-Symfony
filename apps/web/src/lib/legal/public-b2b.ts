@@ -18,8 +18,8 @@ export const PUBLIC_B2B_DOCS = {
     lastUpdated: '10 luglio 2026',
   },
   cookie: {
-    version: '1.2',
-    lastUpdated: '10 luglio 2026',
+    version: '1.3',
+    lastUpdated: '11 luglio 2026',
   },
   subProcessor: {
     version: '1.1',

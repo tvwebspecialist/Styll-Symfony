@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import { CookieBanner } from '@/components/shared/CookieBanner'
 import { PostHogProvider } from '@/components/marketing/PostHogProvider'
+import {
+  ANALYTICS_CONSENT_SURFACE,
+  buildAnalyticsCookiePath,
+} from '@/lib/analytics-consent-copy'
 
 export const metadata: Metadata = {
   title: 'Styll — Il sistema di retention per barbieri',
@@ -23,11 +27,15 @@ export default function MarketingLayout({
 }: {
   children: React.ReactNode
 }) {
+  const cookiePath = buildAnalyticsCookiePath({
+    surface: ANALYTICS_CONSENT_SURFACE.PLATFORM,
+  })
+
   return (
     <>
       <PostHogProvider />
       <div className="min-h-screen">{children}</div>
-      <CookieBanner privacyPath="/cookie" />
+      <CookieBanner cookiePath={cookiePath} />
     </>
   )
 }

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ANALYTICS_CONSENT_ANON_COOKIE } from '@/lib/analytics-consent'
 import {
+  ANALYTICS_CONSENT_ANON_COOKIE,
   buildAnalyticsConsentRequestContext,
   readAnalyticsConsentSnapshot,
 } from '@/lib/analytics-consent-server'
@@ -289,6 +289,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const consentSnapshot = await readAnalyticsConsentSnapshot(adminDb, {
       anonymousId: anonymous_id,
       host: consentContext.host,
+      surface: consentContext.surface,
     })
     if (consentSnapshot.state !== 'accepted') {
       return NextResponse.json({ ok: false, reason: 'analytics_consent_required' }, { status: 403 })

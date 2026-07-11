@@ -8,21 +8,21 @@ import {
 import {
   ANALYTICS_CONSENT_COPY,
   ANALYTICS_CONSENT_SOURCE,
-  ANALYTICS_PREFERENCES_SECTION_ID,
+  appendAnalyticsPreferencesHash,
 } from '@/lib/analytics-consent-copy'
 import { useAnalyticsConsent } from '@/hooks/use-analytics-consent'
 
 interface CookieBannerProps {
-  privacyPath: string
+  cookiePath: string
   brandColor?: string
 }
 
-export function CookieBanner({ privacyPath, brandColor = '#1A1A1A' }: CookieBannerProps) {
+export function CookieBanner({ cookiePath, brandColor = '#1A1A1A' }: CookieBannerProps) {
   const [visible, setVisible] = useState(false)
   const [savingState, setSavingState] = useState<'accepted' | 'rejected' | null>(null)
   const { ready, state } = useAnalyticsConsent()
-  const infoHref = privacyPath
-  const manageHref = `${privacyPath}#${ANALYTICS_PREFERENCES_SECTION_ID}`
+  const infoHref = cookiePath
+  const manageHref = appendAnalyticsPreferencesHash(cookiePath)
 
   useEffect(() => {
     if (!ready) return

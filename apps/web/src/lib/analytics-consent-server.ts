@@ -1,3 +1,4 @@
+import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json, Tables, TablesInsert } from '@/types'
@@ -8,13 +9,12 @@ import {
   type AnalyticsConsentChoiceSource,
   type AnalyticsConsentSurface,
 } from './analytics-consent-copy'
+import type { AnalyticsConsentState, AnalyticsConsentSnapshot } from './analytics-consent-shared'
+export type { AnalyticsConsentState, AnalyticsConsentSnapshot } from './analytics-consent-shared'
+export { normalizeAnalyticsConsentState } from './analytics-consent-shared'
 
 export const ANALYTICS_CONSENT_ANON_COOKIE = 'styll_analytics_anon_v1'
-export const ANALYTICS_CONSENT_CACHE_COOKIE = 'styll_cookie_consent_v1'
-export const ANALYTICS_CONSENT_CACHE_VERSION_COOKIE = 'styll_cookie_consent_version_v1'
 export const ANALYTICS_CONSENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180
-
-export type AnalyticsConsentState = 'accepted' | 'rejected' | 'unknown'
 
 type ConsentDb = Pick<ReturnType<typeof createAdminClient>, 'from'>
 type HeaderReader = { get(name: string): string | null }
@@ -27,15 +27,6 @@ export interface AnalyticsConsentRequestContext {
   policyVersion: string
   surface: AnalyticsConsentSurface
   userAgent: string | null
-}
-
-export interface AnalyticsConsentSnapshot {
-  anonymousId: string | null
-  occurredAt: string | null
-  policyVersion: string
-  source: AnalyticsConsentChoiceSource | null
-  state: AnalyticsConsentState
-  surface: AnalyticsConsentSurface | null
 }
 
 function normalizeHost(raw: string | null): string {
@@ -134,14 +125,6 @@ function sanitizeMetadata(
   return Object.fromEntries(entries)
 }
 
-export function normalizeAnalyticsConsentState(value: string | null | undefined): AnalyticsConsentState {
-  if (!value) return 'unknown'
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'accepted' || normalized === '1' || normalized === 'true') return 'accepted'
-  if (normalized === 'rejected' || normalized === '0' || normalized === 'false') return 'rejected'
-  return 'unknown'
-}
-
 export function createAnalyticsAnonymousId(): string {
   return randomUUID()
 }
@@ -183,9 +166,11 @@ export async function readLatestAnalyticsConsentEvent(
   {
     anonymousId,
     host,
+    surface,
   }: {
     anonymousId: string
     host: string
+    surface: AnalyticsConsentSurface
   },
 ): Promise<Tables<'analytics_consent_events'> | null> {
   const { data, error } = await db
@@ -193,6 +178,7 @@ export async function readLatestAnalyticsConsentEvent(
     .select('*')
     .eq('anonymous_id', anonymousId)
     .eq('host', host)
+    .eq('surface', surface)
     .order('occurred_at', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1)
@@ -210,9 +196,11 @@ export async function readAnalyticsConsentSnapshot(
   {
     anonymousId,
     host,
+    surface,
   }: {
     anonymousId: string | null
     host: string
+    surface: AnalyticsConsentSurface
   },
 ): Promise<AnalyticsConsentSnapshot> {
   if (!anonymousId) {
@@ -226,7 +214,7 @@ export async function readAnalyticsConsentSnapshot(
     }
   }
 
-  const latest = await readLatestAnalyticsConsentEvent(db, { anonymousId, host })
+  const latest = await readLatestAnalyticsConsentEvent(db, { anonymousId, host, surface })
   if (!latest) {
     return {
       anonymousId,

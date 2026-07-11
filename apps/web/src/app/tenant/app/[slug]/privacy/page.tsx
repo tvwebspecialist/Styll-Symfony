@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getTenantBySlug } from '@/lib/tenant'
 import { PUBLIC_B2B_CONTACT_EMAIL, PUBLIC_B2B_IDENTITY_NOTE } from '@/lib/legal/public-b2b'
 
@@ -37,8 +38,8 @@ interface TenantContact {
   phone: string | null
 }
 
-const DOCUMENT_VERSION = '1.2'
-const EFFECTIVE_DATE = '10 luglio 2026'
+const DOCUMENT_VERSION = '1.3'
+const EFFECTIVE_DATE = '11 luglio 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -122,6 +123,7 @@ export default async function PrivacyPage({ params }: Props) {
   const { slug } = await params
   const tenant = await getTenantBySlug(slug)
   if (!tenant || tenant.status !== 'active') notFound()
+  const tp = await createTenantPaths(slug)
 
   const contact = await getTenantContact(tenant.tenant_id)
   const hasControllerContact = Boolean(contact.email || contact.phone || contact.address)
@@ -264,7 +266,11 @@ export default async function PrivacyPage({ params }: Props) {
             <p>
               La tua scelta analytics viene registrata lato server con versione del testo e timestamp. Puoi
               cambiarla in qualsiasi momento dal centro preferenze raggiungibile dai link “Gestisci cookie” e
-              dalla Cookie Policy della stessa superficie.
+              dalla{' '}
+              <Link href={tp('/cookie')} className="underline text-neutral-700">
+                Cookie Policy
+              </Link>{' '}
+              della stessa superficie.
             </p>
           </Section>
 

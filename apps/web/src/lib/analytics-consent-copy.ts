@@ -38,3 +38,42 @@ export const ANALYTICS_CONSENT_SURFACE = {
 
 export type AnalyticsConsentSurface =
   (typeof ANALYTICS_CONSENT_SURFACE)[keyof typeof ANALYTICS_CONSENT_SURFACE]
+
+type AnalyticsPlatformCookiePathOptions = {
+  surface: typeof ANALYTICS_CONSENT_SURFACE.PLATFORM
+}
+
+type AnalyticsTenantCookiePathOptions = {
+  surface:
+    | typeof ANALYTICS_CONSENT_SURFACE.TENANT_WEBSITE
+    | typeof ANALYTICS_CONSENT_SURFACE.TENANT_PWA
+    | typeof ANALYTICS_CONSENT_SURFACE.TENANT_DASHBOARD
+  slug: string
+}
+
+export type AnalyticsCookiePathOptions =
+  | AnalyticsPlatformCookiePathOptions
+  | AnalyticsTenantCookiePathOptions
+
+export function buildAnalyticsCookiePath(options: AnalyticsCookiePathOptions): string {
+  switch (options.surface) {
+    case ANALYTICS_CONSENT_SURFACE.PLATFORM:
+      return '/cookie'
+    case ANALYTICS_CONSENT_SURFACE.TENANT_WEBSITE:
+      return `/tenant/landing/${encodeURIComponent(options.slug)}/cookie`
+    case ANALYTICS_CONSENT_SURFACE.TENANT_PWA:
+      return `/tenant/app/${encodeURIComponent(options.slug)}/cookie`
+    case ANALYTICS_CONSENT_SURFACE.TENANT_DASHBOARD:
+      return `/tenant/dashboard/${encodeURIComponent(options.slug)}/cookie`
+  }
+}
+
+export function appendAnalyticsPreferencesHash(cookiePath: string): string {
+  return `${cookiePath}#${ANALYTICS_PREFERENCES_SECTION_ID}`
+}
+
+export function buildAnalyticsPreferencesHref(
+  options: AnalyticsCookiePathOptions,
+): string {
+  return appendAnalyticsPreferencesHash(buildAnalyticsCookiePath(options))
+}

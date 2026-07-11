@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS public.analytics_consent_events (
   CONSTRAINT analytics_consent_events_host_check CHECK (btrim(host) <> '')
 );
 
-CREATE INDEX IF NOT EXISTS idx_analytics_consent_host_anon_timeline
-  ON public.analytics_consent_events (host, anonymous_id, occurred_at DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_consent_host_surface_anon_timeline
+  ON public.analytics_consent_events (host, surface, anonymous_id, occurred_at DESC, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_analytics_consent_surface_timeline
   ON public.analytics_consent_events (surface, occurred_at DESC);
@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_analytics_consent_surface_timeline
 ALTER TABLE public.analytics_consent_events ENABLE ROW LEVEL SECURITY;
 
 COMMENT ON TABLE public.analytics_consent_events IS
-  'Append-only server-side proof of analytics consent choices, scoped by host and anonymous browser identifier.';
+  'Append-only server-side proof of analytics consent choices, scoped by host, surface, and anonymous browser identifier.';
 
 CREATE OR REPLACE FUNCTION public.guard_analytics_consent_events_append_only()
 RETURNS trigger

@@ -74,10 +74,11 @@ test.describe('analytics consent preferences', () => {
       const tenantPath = buildTenantAppPath(fixture.slug)
       await page.goto(tenantPath)
 
+      const tenantCookiePath = buildTenantAppPath(fixture.slug, '/cookie')
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
       await expect(page.getByRole('link', { name: 'Gestisci preferenze' })).toHaveAttribute(
         'href',
-        `/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`,
+        `${tenantCookiePath}#${ANALYTICS_PREFERENCES_SECTION_ID}`,
       )
       await expect.poll(() => countSiteEvents(fixture.tenantId), { timeout: 2_000 }).toBe(0)
 
@@ -91,6 +92,7 @@ test.describe('analytics consent preferences', () => {
       expect(anonymousId).toBeTruthy()
       expect(cachedConsent).toBe('accepted')
       expect(cachedVersion).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
+      expect(await page.evaluate(() => document.cookie)).not.toContain('styll_cookie_consent_v1=')
 
       await expect.poll(async () => (await countSiteEvents(fixture.tenantId)) > 0, { timeout: 10_000 }).toBe(true)
 
@@ -102,15 +104,17 @@ test.describe('analytics consent preferences', () => {
       expect(acceptedEvents[0]?.status).toBe('accepted')
       expect(acceptedEvents[0]?.source).toBe('BANNER')
       expect(acceptedEvents[0]?.policy_version).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
+      expect(acceptedEvents[0]?.occurred_at).toBeTruthy()
 
       await page.goto(tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
 
       await page.getByRole('link', { name: 'Gestisci cookie' }).click()
-      await expect(page).toHaveURL(new RegExp(`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
+      await expect(page).toHaveURL(new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
       await expect(page.getByRole('heading', { name: 'Preferenze analytics' })).toBeVisible()
       await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
       await expect(page.locator('body')).toContainText('Analytics opzionali attivi')
+      await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 
       const countBeforeRevocation = await countSiteEvents(fixture.tenantId)
       await page.getByRole('button', { name: 'Revoca analytics' }).click()
@@ -127,6 +131,7 @@ test.describe('analytics consent preferences', () => {
 
       expect(routeSnapshot.state).toBe('rejected')
       expect(routeSnapshot.policyVersion).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
+      expect(routeSnapshot.occurredAt).toBeTruthy()
 
       const allEvents = await readAnalyticsConsentEvents({
         anonymousId: anonymousId!,
@@ -135,6 +140,7 @@ test.describe('analytics consent preferences', () => {
       expect(allEvents).toHaveLength(2)
       expect(allEvents[1]?.status).toBe('rejected')
       expect(allEvents[1]?.source).toBe('COOKIE_POLICY')
+      expect(allEvents[1]?.occurred_at).toBeTruthy()
 
       await page.goto(tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
@@ -160,13 +166,16 @@ test.describe('analytics consent preferences', () => {
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
       await page.getByRole('link', { name: 'Gestisci preferenze' }).click()
 
-      await expect(page).toHaveURL(new RegExp(`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
+      await expect(page).toHaveURL(new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
       await expect(page.getByRole('heading', { name: 'Preferenze analytics' })).toBeVisible()
       await expect(page.locator('body')).toContainText('Scelta non ancora registrata')
       await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
+      await expect(page.getByRole('link', { name: '← Torna all’app' })).toHaveAttribute('href', tenantPath)
+      await expect(page.getByRole('link', { name: 'Gestisci preferenze' })).toHaveCount(0)
 
       await page.getByRole('button', { name: 'Continua senza analytics' }).click()
       await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
+      await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 
       const anonymousId = await page.evaluate((anonKey) => window.localStorage.getItem(anonKey), ANALYTICS_CONSENT_ANON_KEY)
       const currentHost = await page.evaluate(() => window.location.hostname)
@@ -180,6 +189,7 @@ test.describe('analytics consent preferences', () => {
       expect(rejectedEvents[0]?.status).toBe('rejected')
       expect(rejectedEvents[0]?.source).toBe('COOKIE_POLICY')
       expect(rejectedEvents[0]?.policy_version).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
+      expect(rejectedEvents[0]?.occurred_at).toBeTruthy()
 
       await page.goto(tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)

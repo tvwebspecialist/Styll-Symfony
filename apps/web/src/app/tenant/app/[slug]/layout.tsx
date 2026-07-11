@@ -7,6 +7,7 @@ import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
 import { PwaOnboardingLoader } from '@/components/pwa/PwaOnboardingLoader'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 import {
   GOOGLE_FONT_URLS,
   isRuntimeGoogleFont,
@@ -171,6 +172,8 @@ export default async function AppLayout({ params, children }: Props) {
   // on its div for the unsaved live preview.
   const brandPrimary = sanitizeBrandColor(tenant.primary_color, DEFAULT_BRAND_PRIMARY)
   const brandSecondary = sanitizeBrandColor(tenant.secondary_color, DEFAULT_BRAND_SECONDARY)
+  const tenantPath = await createTenantPaths(slug)
+  const cookiePath = tenantPath('/cookie')
 
   return (
     <>
@@ -261,7 +264,7 @@ export default async function AppLayout({ params, children }: Props) {
           tenantId={tenant.tenant_id}
         />
         <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="pwa" />
-        <CookieBanner privacyPath="/cookie" brandColor={brandPrimary} />
+        <CookieBanner cookiePath={cookiePath} brandColor={brandPrimary} />
       </div>
     </>
   )

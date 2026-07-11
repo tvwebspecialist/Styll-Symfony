@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ExternalLink, FileText, Shield } from 'lucide-react'
 import { updateNotificationPreferences, updateMarketingConsent, updateChurnProfilingConsent } from '@/lib/actions/pwa-client-actions'
-import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
 import {
   CHURN_PROFILING_DESCRIPTION,
   CHURN_PROFILING_LABEL,
@@ -19,6 +19,7 @@ interface Props {
   initialMarketingConsent: boolean
   initialChurnObjected: boolean
   primaryColor: string
+  cookiePath: string
   privacyPath: string
   termsPath: string
 }
@@ -99,6 +100,7 @@ export function PreferenzeClient({
   initialMarketingConsent,
   initialChurnObjected,
   primaryColor: _primaryColor,
+  cookiePath,
   privacyPath,
   termsPath,
 }: Props) {
@@ -219,7 +221,7 @@ export function PreferenzeClient({
         <LinkRow
           label="Preferenze analytics"
           sublabel="Gestisci il consenso analytics e i cookie opzionali"
-          href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+          href={appendAnalyticsPreferencesHash(cookiePath)}
         />
       </SectionCard>
 

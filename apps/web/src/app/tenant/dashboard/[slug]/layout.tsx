@@ -15,6 +15,7 @@ import { getTenantBySlug } from '@/lib/tenant'
 import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
 import { NotificationOnboardingDashboard } from '@/components/dashboard/NotificationOnboardingDashboard'
 import { CookieBanner } from '@/components/shared/CookieBanner'
+import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -178,6 +179,8 @@ export default async function TenantDashboardLayout({ params, children }: Props)
 
   const canAccessManagementSurfaces =
     isSuperadmin || currentStaffRow?.role === 'owner' || currentStaffRow?.role === 'manager'
+  const dashboardPath = await createTenantSurfacePaths('dashboard', slug)
+  const cookiePath = dashboardPath('/cookie')
 
   return (
     <TenantProvider
@@ -240,7 +243,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
               tenantId={tenantBySlug.tenant_id}
             />
             <CookieBanner
-              privacyPath="/cookie"
+              cookiePath={cookiePath}
               brandColor={tenantBySlug.primary_color ?? '#1A1A1A'}
             />
           </div>

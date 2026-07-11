@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_CONSENT_COPY,
@@ -8,7 +8,7 @@ import {
   ANALYTICS_CONSENT_SOURCE,
   type AnalyticsConsentChoiceSource,
 } from '@/lib/analytics-consent-copy'
-import { persistAnalyticsConsentChoice } from '@/lib/analytics-consent'
+import { persistAnalyticsConsentChoice, syncAnalyticsConsentState } from '@/lib/analytics-consent'
 import { useAnalyticsConsent } from '@/hooks/use-analytics-consent'
 
 function statusLabel(state: 'accepted' | 'rejected' | 'unknown'): string {
@@ -33,6 +33,16 @@ function statusDescription(state: 'accepted' | 'rejected' | 'unknown'): string {
   }
 }
 
+function formatOccurredAt(value: string | null): string | null {
+  if (!value) return null
+  const timestamp = new Date(value)
+  if (Number.isNaN(timestamp.getTime())) return null
+  return new Intl.DateTimeFormat('it-IT', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(timestamp)
+}
+
 export function AnalyticsPreferencesCard({
   source = ANALYTICS_CONSENT_SOURCE.COOKIE_POLICY,
 }: {
@@ -40,14 +50,41 @@ export function AnalyticsPreferencesCard({
 }) {
   const { state, ready } = useAnalyticsConsent()
   const [savingState, setSavingState] = useState<'accepted' | 'rejected' | null>(null)
+  const [occurredAt, setOccurredAt] = useState<string | null>(null)
+  const [policyVersion, setPolicyVersion] = useState(ANALYTICS_CONSENT_POLICY_VERSION)
 
   const currentLabel = useMemo(() => statusLabel(state), [state])
   const currentDescription = useMemo(() => statusDescription(state), [state])
+  const formattedOccurredAt = useMemo(() => formatOccurredAt(occurredAt), [occurredAt])
+
+  useEffect(() => {
+    if (!ready) return
+
+    let cancelled = false
+
+    syncAnalyticsConsentState()
+      .then((snapshot) => {
+        if (cancelled) return
+        setOccurredAt(snapshot.occurredAt)
+        setPolicyVersion(snapshot.policyVersion)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setOccurredAt(null)
+        setPolicyVersion(ANALYTICS_CONSENT_POLICY_VERSION)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ready, state])
 
   async function handleChoice(nextState: 'accepted' | 'rejected') {
     setSavingState(nextState)
     try {
-      await persistAnalyticsConsentChoice(nextState, { source })
+      const snapshot = await persistAnalyticsConsentChoice(nextState, { source })
+      setOccurredAt(snapshot.occurredAt)
+      setPolicyVersion(snapshot.policyVersion)
     } finally {
       setSavingState(null)
     }
@@ -143,8 +180,19 @@ export function AnalyticsPreferencesCard({
       </div>
 
       <p style={{ fontSize: 12, color: '#94A3B8', margin: '14px 0 0', lineHeight: 1.6 }}>
-        Versione del testo: <strong>{ANALYTICS_CONSENT_POLICY_VERSION}</strong>. La scelta viene
-        registrata lato server con timestamp e, quando disponibili, indirizzo IP e user agent.
+        Versione del testo: <strong>{policyVersion}</strong>.{' '}
+        {formattedOccurredAt
+          ? (
+            <>
+              Ultima scelta registrata lato server: <strong>{formattedOccurredAt}</strong>.
+            </>
+          )
+          : (
+            <>
+              La scelta viene registrata lato server con timestamp e, quando disponibili, indirizzo IP e
+              user agent.
+            </>
+          )}
       </p>
     </section>
   )

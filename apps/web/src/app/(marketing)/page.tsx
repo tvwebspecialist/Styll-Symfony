@@ -1,7 +1,10 @@
 import Link from 'next/link'
 import { buildPathWithTrialIntent, TRIAL_INTENT } from '@/lib/trial-intent'
 import { PUBLIC_DPA_SECTION_ID } from '@/lib/legal/public-b2b'
-import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
+import {
+  ANALYTICS_CONSENT_SURFACE,
+  buildAnalyticsPreferencesHref,
+} from '@/lib/analytics-consent-copy'
 
 export const dynamic = 'force-static'
 
@@ -19,6 +22,9 @@ const C = {
 }
 
 const TRIAL_REGISTER_HREF = buildPathWithTrialIntent('/register', TRIAL_INTENT)
+const PLATFORM_ANALYTICS_PREFERENCES_HREF = buildAnalyticsPreferencesHref({
+  surface: ANALYTICS_CONSENT_SURFACE.PLATFORM,
+})
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
@@ -678,7 +684,7 @@ function Footer() {
               { label: 'Termini di servizio', href: '/termini' },
               { label: 'Accordo trattamento dati (DPA)', href: `/termini#${PUBLIC_DPA_SECTION_ID}` },
               { label: 'Cookie Policy', href: '/cookie' },
-              { label: 'Gestisci cookie', href: `/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}` },
+              { label: 'Gestisci cookie', href: PLATFORM_ANALYTICS_PREFERENCES_HREF },
               { label: 'Sub-responsabili', href: '/sub-processor' },
             ] as const).map(({ label, href }) => (
               <div key={label} style={{ marginBottom: 10 }}>
