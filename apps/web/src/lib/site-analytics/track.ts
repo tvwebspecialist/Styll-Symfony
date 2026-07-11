@@ -1,6 +1,4 @@
-import { hasAnalyticsConsent } from '@/lib/analytics-consent'
-
-const ANON_KEY = 'styll_anon'
+import { getAnalyticsAnonymousId, hasAnalyticsConsent } from '@/lib/analytics-consent'
 
 function sanitizeClientReferrer(raw: string): string | null {
   if (!raw) return null
@@ -16,13 +14,7 @@ function sanitizeClientReferrer(raw: string): string | null {
 
 export function getCurrentAnonymousId(): string {
   if (typeof window === 'undefined') return ''
-  if (!hasAnalyticsConsent()) return ''
-  let id = localStorage.getItem(ANON_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(ANON_KEY, id)
-  }
-  return id
+  return hasAnalyticsConsent() ? getAnalyticsAnonymousId() : ''
 }
 
 export type SiteEventType =

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
+import { UserX } from 'lucide-react'
 import type { AtRiskClient } from '@/lib/actions/dashboard-home'
 
 interface Props {
@@ -21,14 +22,13 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
   if (clients.length === 0) return null
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-      gap: 10,
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {clients.map((c) => {
         const isRed = c.churn_status === 'red' || c.days_since > 60
-        const dotColor = isRed ? '#EF4444' : '#F59E0B'
+        const iconBg = isRed ? 'rgba(239,68,68,0.10)' : 'rgba(245,158,11,0.10)'
+        const iconColor = isRed ? '#DC2626' : '#D97706'
+        const pillBg = isRed ? '#FEE2E2' : '#FEF3C7'
+        const pillColor = isRed ? '#DC2626' : '#D97706'
 
         return (
           <div
@@ -39,91 +39,92 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
             onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/clienti/${c.client_id}`) }}
             aria-label={`Cliente a rischio: ${c.full_name ?? 'Cliente'}`}
             style={{
-              background: '#FAFAFA',
-              border: `1px solid ${isRed ? 'rgba(239,68,68,0.18)' : 'rgba(245,158,11,0.18)'}`,
-              borderRadius: 14,
-              padding: '14px 12px',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: 7,
-              textAlign: 'center',
+              gap: 10,
+              padding: '10px 12px',
+              background: '#FAFAFA',
+              borderRadius: 10,
+              border: '1px solid rgba(0,0,0,0.05)',
               cursor: 'pointer',
               outline: 'none',
-              transition: 'box-shadow 0.15s, transform 0.15s',
               WebkitTapHighlightColor: 'rgba(0,0,0,0)',
+              transition: 'background 0.12s',
             }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F5F5F5' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#FAFAFA' }}
           >
-            {/* Avatar */}
+            {/* Icon box */}
             <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: isRed ? 'rgba(239,68,68,0.10)' : 'rgba(245,158,11,0.10)',
-              border: `1.5px solid ${isRed ? 'rgba(239,68,68,0.30)' : 'rgba(245,158,11,0.30)'}`,
+              width: 34,
+              height: 34,
+              borderRadius: 9,
+              background: iconBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 14,
-              fontWeight: 700,
-              color: isRed ? '#DC2626' : '#D97706',
               flexShrink: 0,
+              fontSize: 12,
+              fontWeight: 800,
+              color: iconColor,
               fontFamily: 'Outfit, sans-serif',
             }}>
-              {getInitials(c.full_name)}
+              {c.full_name ? getInitials(c.full_name) : <UserX size={14} color={iconColor} />}
             </div>
 
-            {/* Name */}
-            <div style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#111111',
-              lineHeight: 1.2,
-              wordBreak: 'break-word',
+            {/* Name + freq */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#111111',
+                fontFamily: 'Outfit, sans-serif',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.2,
+              }}>
+                {c.full_name ?? 'Cliente'}
+              </p>
+              {c.avg_frequency != null && (
+                <p style={{
+                  margin: 0,
+                  fontSize: 10,
+                  color: '#9CA3AF',
+                  fontFamily: 'Outfit, sans-serif',
+                  lineHeight: 1.3,
+                  marginTop: 1,
+                }}>
+                  Ogni {c.avg_frequency}gg
+                </p>
+              )}
+            </div>
+
+            {/* Days pill */}
+            <span style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '3px 7px',
+              borderRadius: 99,
+              background: pillBg,
+              color: pillColor,
               fontFamily: 'Outfit, sans-serif',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}>
-              {c.full_name ?? 'Cliente'}
-            </div>
+              {c.days_since}gg fa
+            </span>
 
-            {/* Days badge */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 11,
-              color: isRed ? '#DC2626' : '#D97706',
-              fontWeight: 600,
-              fontFamily: 'Outfit, sans-serif',
-            }}>
-              <span style={{
-                display: 'inline-block',
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: dotColor,
-                boxShadow: `0 0 5px ${dotColor}`,
-              }} />
-              {c.days_since}gg senza visita
-            </div>
-
-            {/* Avg frequency */}
-            {c.avg_frequency != null && (
-              <div style={{ fontSize: 11, color: '#9CA3AF', fontFamily: 'Outfit, sans-serif' }}>
-                Ogni {c.avg_frequency}gg di media
-              </div>
-            )}
-
-            {/* CTA */}
+            {/* Contatta button */}
             <button
               type="button"
               aria-label={`Contatta ${c.full_name ?? 'cliente'}`}
               onClick={(e) => { e.stopPropagation(); router.push(`${basePath}/clienti/${c.client_id}`) }}
               style={{
-                marginTop: 2,
-                width: '100%',
-                padding: '7px 0',
+                padding: '5px 10px',
                 borderRadius: 99,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 700,
                 background: isRed ? '#EF4444' : '#F59E0B',
                 color: '#FFFFFF',
@@ -131,6 +132,8 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
                 cursor: 'pointer',
                 letterSpacing: '0.02em',
                 fontFamily: 'Outfit, sans-serif',
+                flexShrink: 0,
+                lineHeight: 1.4,
               }}
             >
               Contatta

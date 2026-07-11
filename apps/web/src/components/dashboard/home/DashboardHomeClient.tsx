@@ -9,6 +9,8 @@ import { CollapsibleSection } from './CollapsibleSection'
 import { ChurnAlertCard } from './ChurnAlertCard'
 import { WeekStats } from './WeekStats'
 import { TopClientsWidget } from './TopClientsWidget'
+import { LowStockWidget } from './LowStockWidget'
+import { PendingRewardsWidget } from './PendingRewardsWidget'
 import { useDashboardHomeStore } from '@/store/dashboard-home-store'
 
 interface Props {
@@ -35,6 +37,8 @@ export function DashboardHomeClient({ data, basePath }: Props) {
     yesterdayStats,
     atRiskClients,
     workingHours,
+    lowStockProducts,
+    pendingRewards,
   } = data
 
   const firstName  = staffName?.split(' ')[0] ?? null
@@ -87,10 +91,36 @@ export function DashboardHomeClient({ data, basePath }: Props) {
           defaultOpen
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <WeekStats stats={weekStats} />
+            <WeekStats stats={weekStats} weekAppointments={weekAppointments} />
             <TopClientsWidget weekAppointments={weekAppointments} basePath={basePath} />
           </div>
         </CollapsibleSection>
+
+        {/* Scorte in esaurimento — hidden if empty */}
+        {lowStockProducts.length > 0 && (
+          <CollapsibleSection
+            title="Scorte in esaurimento"
+            subtitle={`${lowStockProducts.length} prodott${lowStockProducts.length === 1 ? 'o' : 'i'} sotto soglia`}
+            badge={lowStockProducts.length}
+            badgeVariant={lowStockProducts.some((p) => p.risk === 'red') ? 'red' : 'yellow'}
+            defaultOpen={false}
+          >
+            <LowStockWidget products={lowStockProducts} />
+          </CollapsibleSection>
+        )}
+
+        {/* Premi da riscattare — hidden if empty */}
+        {pendingRewards.length > 0 && (
+          <CollapsibleSection
+            title="Premi da riscattare"
+            subtitle={`${pendingRewards.length} client${pendingRewards.length === 1 ? 'e' : 'i'} con punti sufficienti`}
+            badge={pendingRewards.length}
+            badgeVariant="green"
+            defaultOpen={false}
+          >
+            <PendingRewardsWidget rewards={pendingRewards} basePath={basePath} />
+          </CollapsibleSection>
+        )}
 
         {/* Clienti a rischio — collapsible, hidden if empty */}
         {atRiskClients.length > 0 && (

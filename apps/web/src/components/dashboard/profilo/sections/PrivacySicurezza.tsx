@@ -2,6 +2,8 @@
 
 import * as React from 'react'
 import { Monitor } from 'lucide-react'
+import Link from 'next/link'
+import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
 import {
   getActiveSessions,
   terminateSession,
@@ -159,6 +161,14 @@ export function PrivacySicurezza({ email }: { email: string }) {
         <button onClick={handleExport} disabled={exporting} style={outlineButtonStyle}>
           {exporting ? 'Generazione…' : 'Esporta dati (JSON)'}
         </button>
+        <div style={{ marginTop: 12 }}>
+          <Link
+            href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+            style={{ fontSize: 13, color: '#64748B', textDecoration: 'underline' }}
+          >
+            Gestisci cookie e preferenze analytics
+          </Link>
+        </div>
       </div>
 
       {/* Danger zone */}

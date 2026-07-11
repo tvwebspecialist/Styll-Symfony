@@ -55,6 +55,51 @@ export type Database = {
           },
         ]
       }
+      analytics_consent_events: {
+        Row: {
+          anonymous_id: string
+          created_at: string
+          host: string
+          id: string
+          ip_address: string | null
+          metadata: Json
+          occurred_at: string
+          policy_version: string
+          source: Database["public"]["Enums"]["analytics_consent_source"]
+          status: Database["public"]["Enums"]["analytics_consent_status"]
+          surface: Database["public"]["Enums"]["analytics_consent_surface"]
+          user_agent: string | null
+        }
+        Insert: {
+          anonymous_id: string
+          created_at?: string
+          host: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          occurred_at?: string
+          policy_version: string
+          source: Database["public"]["Enums"]["analytics_consent_source"]
+          status: Database["public"]["Enums"]["analytics_consent_status"]
+          surface: Database["public"]["Enums"]["analytics_consent_surface"]
+          user_agent?: string | null
+        }
+        Update: {
+          anonymous_id?: string
+          created_at?: string
+          host?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          occurred_at?: string
+          policy_version?: string
+          source?: Database["public"]["Enums"]["analytics_consent_source"]
+          status?: Database["public"]["Enums"]["analytics_consent_status"]
+          surface?: Database["public"]["Enums"]["analytics_consent_surface"]
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       admin_settings: {
         Row: {
           key: string
@@ -2631,7 +2676,43 @@ export type Database = {
         Args: { p_tenant_id?: string | null }
         Returns: number
       }
+      cleanup_expired_marketing_unsubscribe_tokens: {
+        Args: { retention?: string }
+        Returns: number
+      }
+      cleanup_expired_team_invitations: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
       current_tenant_id: { Args: never; Returns: string }
+      cleanup_old_client_import_jobs: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_notification_log: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_notifications: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_onboarding_tokens: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_platform_notifications: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_site_events: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
+      cleanup_old_site_sessions: {
+        Args: { p_retain_days?: number }
+        Returns: number
+      }
       decrement_product_inventory: {
         Args: {
           p_location_id: string
@@ -2740,6 +2821,13 @@ export type Database = {
         Args: { retention?: string }
         Returns: number
       }
+      cleanup_platform_leads_retention: {
+        Args: {
+          p_converted_days?: number
+          p_non_converted_days?: number
+        }
+        Returns: number
+      }
       create_email_verification_otp: {
         Args: {
           p_email: string
@@ -2749,8 +2837,23 @@ export type Database = {
         }
         Returns: string
       }
+      run_data_retention_cleanup: {
+        Args: never
+        Returns: Json
+      }
     }
     Enums: {
+      analytics_consent_source:
+        | "BANNER"
+        | "PREFERENCES_CENTER"
+        | "COOKIE_POLICY"
+        | "LOCAL_STORAGE_MIGRATION"
+      analytics_consent_status: "accepted" | "rejected"
+      analytics_consent_surface:
+        | "PLATFORM"
+        | "TENANT_WEBSITE"
+        | "TENANT_PWA"
+        | "TENANT_DASHBOARD"
       consent_actor:
         | "CLIENT_PROFILE"
         | "STAFF_MEMBER"

@@ -46,6 +46,22 @@ export interface TopLoyaltyClient {
   currentTier: string
 }
 
+export interface LowStockProduct {
+  product_id: string
+  name: string
+  quantity: number
+  low_stock_threshold: number
+  risk: 'red' | 'yellow'
+}
+
+export interface PendingReward {
+  client_id: string
+  full_name: string | null
+  reward_name: string
+  points_available: number
+  points_cost: number
+}
+
 export interface YesterdayStats {
   appointment_count: number
   revenue: number
@@ -169,6 +185,8 @@ export interface DashboardHomeData {
   atRiskClients: AtRiskClient[]
   topLoyaltyClients: TopLoyaltyClient[]
   workingHours: WorkingHour[]
+  lowStockProducts: LowStockProduct[]
+  pendingRewards: PendingReward[]
 }
 
 const EMPTY_DASHBOARD_HOME_DATA: DashboardHomeData = {
@@ -181,6 +199,8 @@ const EMPTY_DASHBOARD_HOME_DATA: DashboardHomeData = {
   atRiskClients: [],
   topLoyaltyClients: [],
   workingHours: [],
+  lowStockProducts: [],
+  pendingRewards: [],
 }
 
 export async function getDashboardHomeData(): Promise<DashboardHomeData> {
@@ -207,7 +227,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   // Previous week boundaries
   const prevMonStr = new Date(weekMonday.getTime() - 7 * DAY_MS).toISOString().slice(0, 10)
 
-  const [staffRes, appointmentWindowRes, atRiskRes] = await Promise.all([
+  const [staffRes, appointmentWindowRes, atRiskRes, inventoryRes, rewardsRes] = await Promise.all([
     // Staff name
     user
       ? db
@@ -246,6 +266,24 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .eq('tenant_id', tenantId)
       .in('churn_status', ['yellow', 'red'])
       .order('days_since_last_visit', { ascending: false })
+      .limit(10),
+
+    // Low stock inventory
+    db
+      .from('product_inventory')
+      .select('product_id, quantity, low_stock_threshold, products(name)')
+      .eq('tenant_id', tenantId)
+      .gt('low_stock_threshold', 0)
+      .order('quantity', { ascending: true })
+      .limit(20),
+
+    // Active rewards (to cross-match with loyal clients)
+    db
+      .from('rewards')
+      .select('id, name, points_cost')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('points_cost', { ascending: true })
       .limit(10),
   ])
 
@@ -321,6 +359,53 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     churn_status: row.churn_status as 'red' | 'yellow',
   }))
 
+  // Low stock products (filter client-side: quantity <= threshold)
+  interface InventoryRow { product_id: string; quantity: number | null; low_stock_threshold: number | null; products: { name: string | null } | { name: string | null }[] | null }
+  const lowStockProducts: LowStockProduct[] = ((inventoryRes.data ?? []) as InventoryRow[])
+    .filter((row) => (row.quantity ?? 0) <= (row.low_stock_threshold ?? 0))
+    .slice(0, 6)
+    .map((row) => {
+      const qty = row.quantity ?? 0
+      const threshold = row.low_stock_threshold ?? 0
+      return {
+        product_id: row.product_id,
+        name: readSingleRelation(row.products as { name: string | null } | { name: string | null }[] | null)?.name ?? 'Prodotto',
+        quantity: qty,
+        low_stock_threshold: threshold,
+        risk: qty === 0 ? 'red' : 'yellow',
+      }
+    })
+
+  // Pending rewards: find clients who can afford at least the cheapest reward
+  interface RewardRow { id: string; name: string | null; points_cost: number | null }
+  const rewards = (rewardsRes.data ?? []) as RewardRow[]
+  const minCost = rewards.length > 0
+    ? Math.min(...rewards.map((r) => r.points_cost ?? Infinity))
+    : Infinity
+
+  let pendingRewards: PendingReward[] = []
+  if (Number.isFinite(minCost)) {
+    interface LoyaltyRow { client_id: string; available_points: number | null; clients: { full_name: string | null } | { full_name: string | null }[] | null }
+    const { data: loyaltyData } = await db
+      .from('client_loyalty')
+      .select('client_id, available_points, clients(full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('available_points', minCost)
+      .order('available_points', { ascending: false })
+      .limit(5)
+    pendingRewards = ((loyaltyData ?? []) as LoyaltyRow[]).map((row) => {
+      const pts = row.available_points ?? 0
+      const affordableReward = rewards.find((r) => (r.points_cost ?? Infinity) <= pts)
+      return {
+        client_id: row.client_id,
+        full_name: readSingleRelation(row.clients as { full_name: string | null } | { full_name: string | null }[] | null)?.full_name ?? null,
+        reward_name: affordableReward?.name ?? 'Premio',
+        points_available: pts,
+        points_cost: affordableReward?.points_cost ?? 0,
+      }
+    })
+  }
+
   return {
     staffName,
     todayAppointments,
@@ -331,5 +416,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     atRiskClients,
     topLoyaltyClients: [],
     workingHours,
+    lowStockProducts,
+    pendingRewards,
   }
 }
