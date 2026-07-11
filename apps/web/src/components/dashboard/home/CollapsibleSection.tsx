@@ -32,11 +32,10 @@ export function CollapsibleSection({
 
   return (
     <div style={{
-      borderRadius: 'var(--card-radius, 16px)',
-      border: '1px solid var(--card-border, #E9E9E9)',
-      background: 'var(--card-bg, #FFFFFF)',
+      borderRadius: 12,
+      border: '1px solid rgba(0,0,0,0.07)',
+      background: 'transparent',
       overflow: 'hidden',
-      boxShadow: 'var(--card-shadow, 0 1px 3px rgba(10,13,18,0.08))',
     }}>
       <button
         type="button"

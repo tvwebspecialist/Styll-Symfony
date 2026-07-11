@@ -324,7 +324,7 @@ Secondo le linee guida del Garante Privacy italiano:
 - ❌ **Vietato**: pre-selezionare caselle, ottenere consenso tramite scroll, cookie wall (condizionare l'accesso all'accettazione dei cookie)
 - ✅ **Revoca**: il consenso deve essere revocabile con la stessa facilità con cui è stato dato (link persistente nel footer)
 - ✅ **Rinnovo**: richiedere il consenso periodicamente (raccomandato: ogni 6-12 mesi) o quando cambiano i trattamenti
-- ✅ **Prova del consenso**: conservare log con timestamp, scelte dell'utente, versione della policy e un centro preferenze sempre raggiungibile
+- ✅ **Prova del consenso**: conservare un log append-only lato server (es. `analytics_consent_events`) con timestamp, host/surface, scelta, fonte, versione della policy e un centro preferenze sempre raggiungibile sulla stessa superficie
 
 ### 6.4 Consent Management Platform (CMP) consigliata
 
@@ -335,7 +335,7 @@ Secondo le linee guida del Garante Privacy italiano:
 | **CookieYes** | Da €9/mese | Facile, conforme GDPR, banner personalizzabile |
 | **Osano** | Gratuito (base) | Open source friendly |
 
-**Raccomandazione per Styll**: per l’assetto attuale non serve una CMP enterprise, ma un sistema leggero e auditabile con banner, centro preferenze persistente e prova server-side della scelta analytics. Per le PWA dei barbieri, i cookie tecnici di sessione restano necessari; gli analytics opzionali devono invece essere governati da scelta esplicita, revoca successiva e log di prova versionato.
+**Raccomandazione per Styll**: per l’assetto attuale non serve una CMP enterprise, ma un sistema leggero e auditabile con banner, centro preferenze persistente e prova server-side della scelta analytics. Per le PWA dei barbieri, i cookie tecnici di sessione restano necessari; gli analytics opzionali devono invece essere governati da scelta esplicita, revoca successiva e log di prova versionato in `analytics_consent_events`, separato dalla cache UI locale.
 
 ---
 

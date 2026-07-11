@@ -180,40 +180,39 @@ export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props)
             onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/${href}`) }}
             aria-label={`${label}: ${v.main}`}
             style={{
-              background: '#FFFFFF',
+              background: 'rgba(0,0,0,0.025)',
               border: '1px solid rgba(0,0,0,0.07)',
-              borderRadius: 14,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              padding: '16px',
+              borderRadius: 12,
+              padding: '12px 14px',
               cursor: 'pointer',
               outline: 'none',
               WebkitTapHighlightColor: 'rgba(0,0,0,0)',
-              transition: 'box-shadow 0.15s ease, transform 0.15s ease',
+              transition: 'background 0.15s ease, transform 0.15s ease',
               display: 'flex',
               flexDirection: 'column',
-              gap: 10,
+              gap: 8,
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.10)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.045)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.025)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
           >
-            {/* Icon */}
-            <IconBox icon={icon} bg={iconBg} />
-
-            {/* Label */}
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#9CA3AF',
-              fontFamily: 'Outfit, sans-serif',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              lineHeight: 1,
-            }}>
-              {label}
-            </span>
+            {/* Icon + label inline */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconBox icon={icon} bg={iconBg} />
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                lineHeight: 1,
+              }}>
+                {label}
+              </span>
+            </div>
 
             {/* Main value + trend */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
               <span style={{
                 fontSize: 28,
                 fontWeight: 800,
@@ -234,6 +233,7 @@ export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props)
               fontFamily: 'Outfit, sans-serif',
               fontWeight: 500,
               lineHeight: 1.3,
+              marginTop: 2,
             }}>
               {v.sub}
             </span>

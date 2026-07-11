@@ -90,10 +90,9 @@ export function WeekStats({ stats, weekAppointments }: Props) {
           <div
             key={m.label}
             style={{
-              background: '#FFFFFF',
-              borderRadius: 12,
-              border: '1px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              background: 'rgba(0,0,0,0.025)',
+              borderRadius: 10,
+              border: '1px solid rgba(0,0,0,0.06)',
               padding: '12px 14px',
               display: 'flex',
               flexDirection: 'column',
@@ -130,10 +129,9 @@ export function WeekStats({ stats, weekAppointments }: Props) {
 
       {/* Heatmap settimana */}
       <div style={{
-        background: '#FFFFFF',
-        borderRadius: 12,
-        border: '1px solid rgba(0,0,0,0.07)',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        background: 'rgba(0,0,0,0.025)',
+        borderRadius: 10,
+        border: '1px solid rgba(0,0,0,0.06)',
         padding: '12px 14px',
       }}>
         <p style={{
