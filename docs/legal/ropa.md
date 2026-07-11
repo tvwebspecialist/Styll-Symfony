@@ -18,7 +18,7 @@
 | 2 | Fatturazione e pagamenti *(futura integrazione Stripe)* | Dati di pagamento, fatture | Art. 6(1)(b) + Art. 6(1)(c) obbligo legale | 10 anni (Art. 2220 c.c.) | Stripe *(futuro)* |
 | 3 | Comunicazioni di servizio (email transazionali) | Email, nome | Art. 6(1)(b) esecuzione contratto | Durata contratto | Resend |
 | 4 | Error tracking e monitoring | Log tecnici (configurati per escludere PII) | Art. 6(1)(f) legittimo interesse | 90 giorni | Sentry |
-| 5 | Gestione del consenso analytics opzionale sulle superfici web Styll | ID browser/host, stato scelta, versione testo, timestamp, IP/user agent se disponibili | Art. 6(1)(a) consenso; Art. 7(1) prova del consenso | Finché la preferenza resta rilevante per quella superficie/host e per accountability, secondo la retention matrix | Supabase |
+| 5 | Gestione del consenso analytics opzionale sulle superfici web Styll | ID browser/host, superficie, stato scelta, versione testo, timestamp, IP/user agent se disponibili | Art. 6(1)(a) consenso; Art. 7(1) prova del consenso | Finché la preferenza resta rilevante per quella superficie/host e per accountability, secondo la retention matrix | Supabase |
 
 ---
 

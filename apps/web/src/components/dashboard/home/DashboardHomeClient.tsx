@@ -65,16 +65,8 @@ export function DashboardHomeClient({ data, basePath }: Props) {
       <div className="home-v2-main">
 
         {/* Greeting — desktop only (mobile: TopBar handles it) */}
-        <div className="home-v2-greeting-block">
-          <div style={{
-            background: 'var(--card-bg)',
-            borderRadius: 'var(--card-radius)',
-            border: '1px solid var(--card-border)',
-            boxShadow: 'var(--card-shadow)',
-            padding: '20px 24px',
-          }}>
-            <GreetingHeader staffName={staffName} appointments={todayAppointments} />
-          </div>
+        <div className="home-v2-greeting-block" style={{ paddingBottom: 4 }}>
+          <GreetingHeader staffName={staffName} appointments={todayAppointments} />
         </div>
 
         {/* KPI Grid — 4 cards, 2×2 */}
