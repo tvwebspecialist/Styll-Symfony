@@ -14,12 +14,12 @@ export const PUBLIC_B2B_DOCS = {
     lastUpdated: '9 luglio 2026',
   },
   privacy: {
-    version: '1.1',
-    lastUpdated: '9 luglio 2026',
+    version: '1.2',
+    lastUpdated: '10 luglio 2026',
   },
   cookie: {
-    version: '1.1',
-    lastUpdated: '9 luglio 2026',
+    version: '1.2',
+    lastUpdated: '10 luglio 2026',
   },
   subProcessor: {
     version: '1.1',

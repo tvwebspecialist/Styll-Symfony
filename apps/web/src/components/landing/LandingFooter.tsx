@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { LandingTenant, LandingLocation } from '@/types/landing'
+import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
 
 // ── Social icon SVGs ──────────────────────────────────────────────────────────
 
@@ -209,6 +210,12 @@ export default function LandingFooter({ tenant, locations }: Props) {
               className="text-[11px] text-white/20 hover:text-white/40 transition-colors no-underline"
             >
               Powered by Styll
+            </a>
+            <a
+              href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+              className="text-[11px] text-white/20 hover:text-white/40 transition-colors no-underline"
+            >
+              Gestisci cookie
             </a>
           </div>
         </div>

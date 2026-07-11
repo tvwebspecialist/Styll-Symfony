@@ -141,7 +141,7 @@ Styll deve mantenere un **Registro delle Attività di Trattamento (ROPA)** che i
 | **Finalità** | Erogazione servizio SaaS, gestione prenotazioni, CRM, loyalty, analytics, pagamenti, comunicazioni di servizio |
 | **Destinatari** | Sub-responsabili (Supabase, provider pagamenti, provider SMS, provider email) |
 | **Trasferimento extra-UE** | Sì — se Supabase utilizza server US (verificare configurazione regione) |
-| **Termini di cancellazione** | Da definire per categoria (es. 2 anni dopo ultima interazione per dati cliente, 10 anni per dati fiscali) |
+| **Termini di cancellazione** | Governati dalla retention matrix operativa (`docs/legal/data-retention-matrix.md`), con distinzione tra cleanup automatici, anonimizzazione e dati da conservare per obbligo legale |
 | **Misure di sicurezza** | Crittografia at-rest e in-transit, RBAC, MFA per admin, audit log, backup automatici |
 
 ### 3.4 DPIA — Valutazione d'Impatto sulla Protezione dei Dati (Art. 35 GDPR)
@@ -212,6 +212,10 @@ Se Styll utilizza servizi con server al di fuori dello Spazio Economico Europeo 
 
 La sola formula "notifica entro 72 ore" non e sufficiente. Styll deve mantenere una procedura operativa con ruoli, escalation, checklist, template e registro incidenti. Il riferimento operativo interno e il [runbook data breach](../legal/data-breach-runbook.md), da usare insieme a DPA e ROPA.
 
+### 3.9 Retention e cancellazione operativa
+
+La retention non va definita “a voce” o lasciata dispersa tra tabelle e feature. Il riferimento operativo unico è la [data retention matrix](../legal/data-retention-matrix.md), che per ogni tabella personale indica finalità, base giuridica, retention, trigger di cancellazione, metodo (delete / anonymize / archive), automazione reale e owner.
+
 ---
 
 ## 4. Privacy Policy
@@ -228,7 +232,7 @@ Informativa resa da Styll al barbiere come proprio cliente diretto:
 4. **Finalità e basi giuridiche** — esecuzione contratto SaaS, assistenza, fatturazione, miglioramento servizio
 5. **Destinatari e sub-responsabili** — lista completa con localizzazione server
 6. **Trasferimento extra-UE** — meccanismi di garanzia utilizzati
-7. **Periodo di conservazione** — per ogni categoria di dati
+7. **Periodo di conservazione** — per ogni categoria di dati, con dettaglio operativo nella [data retention matrix](../legal/data-retention-matrix.md)
 8. **Diritti dell'interessato** — accesso, rettifica, cancellazione, portabilità, opposizione, reclamo al Garante
 9. **Natura del conferimento** — obbligatorio/facoltativo e conseguenze del rifiuto
 10. **Processo decisionale automatizzato** — se applicabile
@@ -244,7 +248,7 @@ Informativa resa dal barbiere (Titolare) al proprio cliente, **tramite Styll** (
 4. **Finalità** — prenotazione appuntamenti, gestione relazione, programma loyalty, comunicazioni di servizio
 5. **Basi giuridiche** — esecuzione contratto, consenso (per loyalty, marketing), legittimo interesse (per CRM)
 6. **Destinatari** — Styll (Responsabile), sub-responsabili di Styll
-7. **Periodo di conservazione**
+7. **Periodo di conservazione** — con rinvio operativo alla [data retention matrix](../legal/data-retention-matrix.md)
 8. **Diritti dell'interessato**
 9. **Profilazione** — informativa specifica su VIP Score, churn detection (con diritto di opt-out)
 10. **Cookie e tecnologie di tracciamento** — rimando alla Cookie Policy
@@ -320,7 +324,7 @@ Secondo le linee guida del Garante Privacy italiano:
 - ❌ **Vietato**: pre-selezionare caselle, ottenere consenso tramite scroll, cookie wall (condizionare l'accesso all'accettazione dei cookie)
 - ✅ **Revoca**: il consenso deve essere revocabile con la stessa facilità con cui è stato dato (link persistente nel footer)
 - ✅ **Rinnovo**: richiedere il consenso periodicamente (raccomandato: ogni 6-12 mesi) o quando cambiano i trattamenti
-- ✅ **Prova del consenso**: conservare log con timestamp, scelte dell'utente, versione della policy
+- ✅ **Prova del consenso**: conservare log con timestamp, scelte dell'utente, versione della policy e un centro preferenze sempre raggiungibile
 
 ### 6.4 Consent Management Platform (CMP) consigliata
 
@@ -331,7 +335,7 @@ Secondo le linee guida del Garante Privacy italiano:
 | **CookieYes** | Da €9/mese | Facile, conforme GDPR, banner personalizzabile |
 | **Osano** | Gratuito (base) | Open source friendly |
 
-**Raccomandazione per Styll**: Per la dashboard B2B di Styll, implementare una CMP. Per le PWA dei barbieri, i cookie tecnici di sessione non richiedono consenso; se vengono aggiunti analytics o tracking, il barbiere deve attivare la CMP tramite un toggle nella dashboard.
+**Raccomandazione per Styll**: per l’assetto attuale non serve una CMP enterprise, ma un sistema leggero e auditabile con banner, centro preferenze persistente e prova server-side della scelta analytics. Per le PWA dei barbieri, i cookie tecnici di sessione restano necessari; gli analytics opzionali devono invece essere governati da scelta esplicita, revoca successiva e log di prova versionato.
 
 ---
 

@@ -3,10 +3,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  getAnalyticsConsentState,
-  setAnalyticsConsentState,
+  persistAnalyticsConsentChoice,
 } from '@/lib/analytics-consent'
-import { buildRootAppUrl } from '@/lib/auth/urls'
+import {
+  ANALYTICS_CONSENT_COPY,
+  ANALYTICS_CONSENT_SOURCE,
+  ANALYTICS_PREFERENCES_SECTION_ID,
+} from '@/lib/analytics-consent-copy'
+import { useAnalyticsConsent } from '@/hooks/use-analytics-consent'
 
 interface CookieBannerProps {
   privacyPath: string
@@ -14,24 +18,35 @@ interface CookieBannerProps {
 }
 
 export function CookieBanner({ privacyPath, brandColor = '#1A1A1A' }: CookieBannerProps) {
-  const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
-  const infoHref = privacyPath.startsWith('/') ? buildRootAppUrl(privacyPath) : privacyPath
+  const [savingState, setSavingState] = useState<'accepted' | 'rejected' | null>(null)
+  const { ready, state } = useAnalyticsConsent()
+  const infoHref = privacyPath
+  const manageHref = `${privacyPath}#${ANALYTICS_PREFERENCES_SECTION_ID}`
 
   useEffect(() => {
-    if (getAnalyticsConsentState() !== 'unknown') return
+    if (!ready) return
+    if (state !== 'unknown') {
+      setVisible(false)
+      return
+    }
 
-    setMounted(true)
-    const t = setTimeout(() => setVisible(true), 50)
-    return () => clearTimeout(t)
-  }, [])
+    const timer = window.setTimeout(() => setVisible(true), 50)
+    return () => window.clearTimeout(timer)
+  }, [ready, state])
 
-  if (!mounted) return null
+  if (!ready || state !== 'unknown') return null
 
-  const dismiss = (state: 'accepted' | 'rejected') => {
-    setAnalyticsConsentState(state)
-    setVisible(false)
-    setTimeout(() => setMounted(false), 350)
+  const dismiss = async (nextState: 'accepted' | 'rejected') => {
+    setSavingState(nextState)
+    try {
+      await persistAnalyticsConsentChoice(nextState, {
+        source: ANALYTICS_CONSENT_SOURCE.BANNER,
+      })
+      setVisible(false)
+    } finally {
+      setSavingState(null)
+    }
   }
 
   return (
@@ -45,29 +60,44 @@ export function CookieBanner({ privacyPath, brandColor = '#1A1A1A' }: CookieBann
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4',
       ].join(' ')}
     >
-      <p className="font-semibold text-gray-900 text-sm mb-1">Usiamo i cookie 🍪</p>
+      <p className="font-semibold text-gray-900 text-sm mb-1">
+        {ANALYTICS_CONSENT_COPY.bannerTitle} 🍪
+      </p>
       <p className="text-gray-500 text-sm mb-4 leading-relaxed">
-        Usiamo sempre i cookie tecnici necessari. Solo se accetti attiviamo analytics per migliorare
-        il servizio. Nessuna pubblicità.{' '}
+        {ANALYTICS_CONSENT_COPY.bannerBody}{' '}
         <Link href={infoHref} className="underline hover:text-gray-700 transition-colors">
           Scopri di più
         </Link>
       </p>
+      <div className="mb-4">
+        <Link
+          href={manageHref}
+          className="text-sm font-medium underline text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          {ANALYTICS_CONSENT_COPY.manageLabel}
+        </Link>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          onClick={() => dismiss('rejected')}
+          onClick={() => void dismiss('rejected')}
+          disabled={savingState !== null}
           className="w-full py-2.5 rounded-xl text-sm font-semibold transition-colors border border-gray-200 text-gray-700 hover:bg-gray-50 active:bg-gray-100"
         >
-          Continua senza analytics
+          {savingState === 'rejected'
+            ? 'Salvataggio…'
+            : ANALYTICS_CONSENT_COPY.rejectLabel}
         </button>
         <button
           type="button"
-          onClick={() => dismiss('accepted')}
+          onClick={() => void dismiss('accepted')}
+          disabled={savingState !== null}
           className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:opacity-80"
           style={{ backgroundColor: brandColor }}
         >
-          Accetta analytics
+          {savingState === 'accepted'
+            ? 'Salvataggio…'
+            : ANALYTICS_CONSENT_COPY.acceptLabel}
         </button>
       </div>
     </div>

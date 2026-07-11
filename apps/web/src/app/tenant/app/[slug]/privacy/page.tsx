@@ -37,8 +37,8 @@ interface TenantContact {
   phone: string | null
 }
 
-const DOCUMENT_VERSION = '1.1'
-const EFFECTIVE_DATE = '9 luglio 2026'
+const DOCUMENT_VERSION = '1.2'
+const EFFECTIVE_DATE = '10 luglio 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -262,9 +262,9 @@ export default async function PrivacyPage({ params }: Props) {
               app.
             </p>
             <p>
-              Oggi l&apos;app non espone un centro preferenze analytics dedicato dopo la scelta iniziale del banner:
-              se vuoi cambiare questa scelta dopo il primo consenso, puoi contattare il Titolare o Styll ai
-              recapiti indicati in questa informativa.
+              La tua scelta analytics viene registrata lato server con versione del testo e timestamp. Puoi
+              cambiarla in qualsiasi momento dal centro preferenze raggiungibile dai link “Gestisci cookie” e
+              dalla Cookie Policy della stessa superficie.
             </p>
           </Section>
 
@@ -351,8 +351,9 @@ export default async function PrivacyPage({ params }: Props) {
                 <p className="font-semibold text-neutral-800">Analytics di navigazione</p>
                 <p className="text-[13px] text-neutral-500">
                   Gli eventi analytics grezzi raccolti dopo consenso sono conservati per un periodo tecnico
-                  limitato (attualmente fino a 90 giorni); eventuali statistiche aggregate del salone possono
-                  essere mantenute più a lungo in forma non personale o aggregata.
+                  limitato (attualmente fino a 90 giorni); la prova server-side della scelta analytics viene
+                  invece mantenuta come evidenza di accountability. Eventuali statistiche aggregate del salone
+                  possono essere mantenute più a lungo in forma non personale o aggregata.
                 </p>
               </div>
               <div className="rounded-xl bg-neutral-50 p-3">

@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ANALYTICS_CONSENT_ANON_COOKIE } from '@/lib/analytics-consent'
+import {
+  buildAnalyticsConsentRequestContext,
+  readAnalyticsConsentSnapshot,
+} from '@/lib/analytics-consent-server'
 import type { SiteEventType, AppSurface } from '@/lib/site-analytics/track'
 
 const ROOT_DOMAIN = (process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it').trim().replace(/^\./, '')
@@ -248,7 +253,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const db = createAdminClient() as unknown as AnalyticsDb
+    const adminDb = createAdminClient()
+    const db = adminDb as unknown as AnalyticsDb
     const contextCandidates = [
       deriveContextFromHost(req.headers.get('host')),
       deriveContextFromHost(req.headers.get('x-forwarded-host')),
@@ -268,6 +274,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (app_surface !== derivedContext.appSurface) {
       return NextResponse.json({ ok: false, reason: 'surface_mismatch' }, { status: 403 })
+    }
+
+    const consentAnonymousId = req.cookies.get(ANALYTICS_CONSENT_ANON_COOKIE)?.value ?? null
+    if (!consentAnonymousId || consentAnonymousId !== anonymous_id) {
+      return NextResponse.json({ ok: false, reason: 'analytics_consent_required' }, { status: 403 })
+    }
+
+    const consentContext = buildAnalyticsConsentRequestContext(
+      req.headers,
+      currentPagePath ?? refererUrl?.pathname ?? '/',
+      { app_surface },
+    )
+    const consentSnapshot = await readAnalyticsConsentSnapshot(adminDb, {
+      anonymousId: anonymous_id,
+      host: consentContext.host,
+    })
+    if (consentSnapshot.state !== 'accepted') {
+      return NextResponse.json({ ok: false, reason: 'analytics_consent_required' }, { status: 403 })
     }
 
     const { data: tenant, error: tenantError } = await db

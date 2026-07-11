@@ -31,9 +31,9 @@ function fmt(t: string) {
   return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
-function TrendBadge({ diff, suffix = '' }: { diff: number; suffix?: string }) {
-  const positive = diff >= 0
+function PillBadge({ diff, suffix = '' }: { diff: number; suffix?: string }) {
   if (diff === 0) return null
+  const positive = diff > 0
   return (
     <span style={{
       fontSize: 10,
@@ -44,25 +44,47 @@ function TrendBadge({ diff, suffix = '' }: { diff: number; suffix?: string }) {
       color: positive ? '#059669' : '#DC2626',
       fontFamily: 'Outfit, sans-serif',
       letterSpacing: '0.01em',
-      flexShrink: 0,
-      lineHeight: 1.4,
+      lineHeight: 1.5,
+      whiteSpace: 'nowrap',
     }}>
       {diff > 0 ? '+' : ''}{diff}{suffix} ieri
     </span>
   )
 }
 
-const CARD_DEFS = [
-  { key: 'appt',    Icon: Calendar,      label: 'Appuntamenti', imgSrc: '/img/Appuntamenti.png', href: 'calendario' },
-  { key: 'revenue', Icon: TrendingUp,    label: 'Incassi oggi', imgSrc: '/img/guadagni.png',     href: 'vendite'    },
-  { key: 'slots',   Icon: Clock,         label: 'Slot liberi',  imgSrc: '/img/megafono_icon.png', href: 'calendario' },
-  { key: 'confirm', Icon: CheckCircle2,  label: 'Confermati',   imgSrc: '/img/ceck.png',          href: 'clienti'   },
-] as const
+interface IconBoxProps {
+  icon: React.ReactNode
+  bg: string
+}
+function IconBox({ icon, bg }: IconBoxProps) {
+  return (
+    <div style={{
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      background: bg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {icon}
+    </div>
+  )
+}
+
+interface CardDef {
+  key: string
+  icon: React.ReactNode
+  iconBg: string
+  label: string
+  href: string
+}
 
 interface CardValue {
   main: React.ReactNode
   sub: string
-  diffNode?: React.ReactNode
+  trend?: React.ReactNode
 }
 
 interface Props {
@@ -81,119 +103,140 @@ export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props)
   const confirmRate  = todayCount > 0 ? Math.round((confirmed / todayCount) * 100) : null
 
   const now = new Date()
-  const nextAppt =
-    [...active]
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-      .find((a) => new Date(a.end_time) > now && a.status !== 'completed') ?? null
+  const nextAppt = [...active]
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .find((a) => new Date(a.end_time) > now && a.status !== 'completed') ?? null
+
+  const CARDS: CardDef[] = [
+    {
+      key: 'appt',
+      icon: <Calendar size={16} color="#3B82F6" strokeWidth={2} />,
+      iconBg: 'rgba(59,130,246,0.10)',
+      label: 'Appuntamenti',
+      href: 'calendario',
+    },
+    {
+      key: 'revenue',
+      icon: <TrendingUp size={16} color="#22C55E" strokeWidth={2} />,
+      iconBg: 'rgba(34,197,94,0.10)',
+      label: 'Incassi oggi',
+      href: 'vendite',
+    },
+    {
+      key: 'slots',
+      icon: <Clock size={16} color="#F97316" strokeWidth={2} />,
+      iconBg: 'rgba(249,115,22,0.10)',
+      label: 'Slot liberi',
+      href: 'calendario',
+    },
+    {
+      key: 'confirm',
+      icon: <CheckCircle2 size={16} color="#8B5CF6" strokeWidth={2} />,
+      iconBg: 'rgba(139,92,246,0.10)',
+      label: 'Confermati',
+      href: 'clienti',
+    },
+  ]
 
   const values: Record<string, CardValue> = {
     appt: {
       main: todayCount,
       sub: nextAppt
-        ? `Prossimo alle ${fmt(nextAppt.start_time)}`
+        ? `Prossimo: ${fmt(nextAppt.start_time)}`
         : todayCount === 0 ? 'Nessuno oggi' : 'Tutti completati',
-      diffNode: <TrendBadge diff={todayCount - yesterdayStats.appointment_count} />,
+      trend: <PillBadge diff={todayCount - yesterdayStats.appointment_count} />,
     },
     revenue: {
       main: `€${todayRevenue}`,
       sub: 'Stimati dai confermati',
-      diffNode: <TrendBadge diff={todayRevenue - yesterdayStats.revenue} suffix="€" />,
+      trend: <PillBadge diff={todayRevenue - yesterdayStats.revenue} suffix="€" />,
     },
     slots: {
       main: freeSlots,
-      sub: freeSlots === 0 ? 'Agenda piena!' : `Disponibili (≥${MIN_FREE_SLOT}min)`,
+      sub: freeSlots === 0 ? 'Agenda piena!' : `≥${MIN_FREE_SLOT}min liberi`,
     },
     confirm: {
       main: confirmRate !== null ? `${confirmRate}%` : '–',
       sub: confirmRate !== null
-        ? `${confirmed} di ${todayCount} confermati`
+        ? `${confirmed}/${todayCount} confermati`
         : 'Nessun appuntamento',
     },
   }
 
   return (
-    <div className="kpi-shopify-grid">
-      {CARD_DEFS.map(({ key, Icon, label, imgSrc, href }) => {
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 12,
+    }}>
+      {CARDS.map(({ key, icon, iconBg, label, href }) => {
         const v = values[key]!
         return (
           <div
             key={key}
-            className="kpi-shopify-card"
             role="button"
             tabIndex={0}
             onClick={() => router.push(`${basePath}/${href}`)}
             onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/${href}`) }}
             aria-label={`${label}: ${v.main}`}
-          >
-            {/* Label row */}
-            <div style={{
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid rgba(0,0,0,0.07)',
+              borderRadius: 14,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              padding: '16px',
+              cursor: 'pointer',
+              outline: 'none',
+              WebkitTapHighlightColor: 'rgba(0,0,0,0)',
+              transition: 'box-shadow 0.15s ease, transform 0.15s ease',
               display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              marginBottom: 12,
-              flexWrap: 'wrap',
-            }}>
-              <Icon size={12} color="#9CA3AF" strokeWidth={2.5} />
-              <span style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#9CA3AF',
-                fontFamily: 'Outfit, sans-serif',
-                textTransform: 'uppercase',
-                letterSpacing: '0.07em',
-                lineHeight: 1,
-              }}>
-                {label}
-              </span>
-              {v.diffNode}
-            </div>
+              flexDirection: 'column',
+              gap: 10,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.10)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+          >
+            {/* Icon */}
+            <IconBox icon={icon} bg={iconBg} />
 
-            {/* Main value */}
-            <div style={{
-              fontSize: 36,
-              fontWeight: 800,
-              color: '#111111',
+            {/* Label */}
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#9CA3AF',
               fontFamily: 'Outfit, sans-serif',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
               lineHeight: 1,
-              letterSpacing: '-0.025em',
-              marginBottom: 8,
-              paddingRight: 74,
             }}>
-              {v.main}
+              {label}
+            </span>
+
+            {/* Main value + trend */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 28,
+                fontWeight: 800,
+                color: '#111111',
+                fontFamily: 'Outfit, sans-serif',
+                lineHeight: 1,
+                letterSpacing: '-0.03em',
+              }}>
+                {v.main}
+              </span>
+              {v.trend}
             </div>
 
-            {/* Subtitle */}
-            <div style={{
-              fontSize: 12,
+            {/* Sub */}
+            <span style={{
+              fontSize: 11,
               color: '#9CA3AF',
               fontFamily: 'Outfit, sans-serif',
               fontWeight: 500,
               lineHeight: 1.3,
-              paddingRight: 74,
             }}>
               {v.sub}
-            </div>
-
-            {/* 3D icon — right side */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imgSrc}
-              alt=""
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                right: -8,
-                bottom: -10,
-                width: 88,
-                height: 88,
-                objectFit: 'contain',
-                pointerEvents: 'none',
-                userSelect: 'none',
-                transform: 'rotate(-10deg) scale(1.05)',
-                filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.13))',
-              }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
+            </span>
           </div>
         )
       })}

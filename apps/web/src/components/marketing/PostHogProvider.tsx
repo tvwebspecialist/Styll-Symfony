@@ -26,12 +26,25 @@ function ensurePostHogInitialized(): boolean {
 }
 
 export function PostHogProvider() {
-  const { hasConsent } = useAnalyticsConsent()
+  const { hasConsent, ready } = useAnalyticsConsent()
 
   useEffect(() => {
-    if (!hasConsent) return
+    if (!ready) return
+
+    if (!hasConsent) {
+      if (initialized) {
+        try {
+          posthog.reset(true)
+        } catch {
+          // best-effort
+        }
+        initialized = false
+      }
+      return
+    }
+
     ensurePostHogInitialized()
-  }, [hasConsent])
+  }, [hasConsent, ready])
 
   return null
 }

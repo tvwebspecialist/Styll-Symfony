@@ -366,7 +366,12 @@ export default function PrivacyPage() {
           </p>
           <p>
             Se attivi analytics opzionali sul sito marketing, il trattamento resta separato dal servizio base
-            e viene gestito secondo le scelte di consenso e la relativa documentazione.
+            e viene gestito secondo le scelte di consenso registrate lato server, con centro preferenze
+            persistente disponibile nella{' '}
+            <Link href="/cookie#analytics-preferences" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
+              Cookie Policy
+            </Link>
+            .
           </p>
         </Section>
 

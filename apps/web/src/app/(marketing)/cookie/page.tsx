@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { AnalyticsPreferencesCard } from '@/components/shared/AnalyticsPreferencesCard'
+import { ANALYTICS_CONSENT_POLICY_VERSION } from '@/lib/analytics-consent-copy'
 import {
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
@@ -37,21 +39,31 @@ function CookieTable() {
   const cookies = [
     {
       name: 'sb-*-auth-token',
+      storage: 'Cookie tecnico',
       purpose: 'Sessione Supabase',
       type: 'Tecnico, necessario',
       duration: 'Sessione / 1 ora',
     },
     {
       name: 'sb-*-auth-token-code-verifier',
+      storage: 'Cookie tecnico',
       purpose: 'Token PKCE OAuth (verifica scambio codice)',
       type: 'Tecnico, necessario',
       duration: 'Temporaneo',
     },
     {
-      name: 'styll_cookie_consent_v1',
-      purpose: 'Memorizza la tua scelta sugli analytics opzionali',
+      name: 'styll_analytics_anon_v1',
+      storage: 'Cookie tecnico',
+      purpose: 'Associa lato server la preferenza analytics al browser corrente sulla stessa superficie',
       type: 'Tecnico di preferenza',
-      duration: 'Persistente',
+      duration: '180 giorni',
+    },
+    {
+      name: 'styll_cookie_consent_v1',
+      storage: 'localStorage (cache UI)',
+      purpose: 'Memorizza lato browser lo stato corrente della scelta analytics per evitare di riproporre il banner inutilmente',
+      type: 'Storage locale di preferenza',
+      duration: 'Persistente fino a modifica o reset browser',
     },
   ]
 
@@ -60,7 +72,7 @@ function CookieTable() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead>
           <tr style={{ background: C.lightBg }}>
-            {['Nome', 'Finalità', 'Tipo', 'Durata'].map((h) => (
+            {['Nome / chiave', 'Tecnologia', 'Finalità', 'Tipo', 'Durata'].map((h) => (
               <th
                 key={h}
                 style={{
@@ -81,6 +93,7 @@ function CookieTable() {
           {cookies.map((c) => (
             <tr key={c.name}>
               <td style={{ padding: '10px 14px', border: `1px solid ${C.border}`, fontFamily: 'monospace', fontSize: 12, color: C.primary }}>{c.name}</td>
+              <td style={{ padding: '10px 14px', border: `1px solid ${C.border}`, color: C.textMuted }}>{c.storage}</td>
               <td style={{ padding: '10px 14px', border: `1px solid ${C.border}`, color: C.textMuted }}>{c.purpose}</td>
               <td style={{ padding: '10px 14px', border: `1px solid ${C.border}`, color: C.textMuted }}>{c.type}</td>
               <td style={{ padding: '10px 14px', border: `1px solid ${C.border}`, color: C.textMuted }}>{c.duration}</td>
@@ -146,6 +159,19 @@ export default function CookiePage() {
             Gli analytics vengono usati solo per migliorare prodotto e prestazioni, mai per pubblicità
             comportamentale.
           </p>
+          <p>
+            La tua scelta viene registrata anche lato server con versione del testo, timestamp e contesto tecnico
+            disponibile, così resta dimostrabile anche dopo la chiusura del banner.
+          </p>
+        </Section>
+
+        <Section title="Gestisci preferenze analytics">
+          <AnalyticsPreferencesCard />
+          <p style={{ marginTop: 14 }}>
+            Versione del testo di consenso attuale: <strong>{ANALYTICS_CONSENT_POLICY_VERSION}</strong>. Le
+            azioni disponibili in questo centro preferenze sono le stesse usate dal banner e restano
+            raggiungibili anche in seguito dai link “Gestisci cookie”.
+          </p>
         </Section>
 
         <Section title="Cosa NON usiamo">
@@ -187,6 +213,10 @@ export default function CookiePage() {
             <a href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`} style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
               {PUBLIC_B2B_CONTACT_EMAIL}
             </a>
+          </p>
+          <p>
+            Se preferisci, puoi anche rivedere o cambiare direttamente la tua scelta analytics da questo centro
+            preferenze senza dover cancellare cookie tecnici o resettare il browser.
           </p>
         </Section>
 

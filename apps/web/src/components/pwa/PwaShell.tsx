@@ -1,9 +1,11 @@
 'use client'
 
 import { Suspense, type ReactNode } from 'react'
+import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { BottomNavPWA } from './BottomNavPWA'
 import { PwaTopBar } from './PwaTopBar'
+import { ANALYTICS_PREFERENCES_SECTION_ID } from '@/lib/analytics-consent-copy'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 const AUTH_SEGMENTS = ['/accesso', '/auth/callback']
@@ -101,6 +103,13 @@ export function PwaShell({
             >
               Powered by Styll
             </a>
+            {' · '}
+            <Link
+              href={`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}`}
+              style={{ color: '#CCCCCC', textDecoration: 'none' }}
+            >
+              Gestisci cookie
+            </Link>
           </footer>
         )}
       </div>
