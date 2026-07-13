@@ -8,6 +8,7 @@ import {
   requireServiceClient,
   type ServiceClient,
 } from './helpers/supabase-admin'
+import { gotoDomContentLoaded, waitForUrlDomContentLoaded } from './helpers/navigation'
 
 interface TenantFixture {
   tenantId: string
@@ -133,9 +134,11 @@ async function openOtpStep(page: Page, slug: string, email: string) {
   await page.addInitScript(() => {
     window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
   })
-  await page.goto(buildTenantAppPath(slug, '/accesso'))
+  await gotoDomContentLoaded(page, buildTenantAppPath(slug, '/accesso'))
   await page.locator('#email-otp-input').fill(email)
-  await page.getByRole('button', { name: 'Continua', exact: true }).click()
+  const continueButton = page.getByRole('button', { name: 'Continua', exact: true })
+  await expect(continueButton).toBeEnabled()
+  await continueButton.click()
 
   await expect(page.getByRole('heading', { name: 'Controlla la tua email' })).toBeVisible({
     timeout: 15_000,
@@ -216,16 +219,18 @@ test.describe('PWA email anti-enumeration', () => {
       }
 
       await fillOtp(page, otp)
-      await page.waitForURL(`**/tenant/app/${tenant.slug}/profilo`)
+      await waitForUrlDomContentLoaded(page, `**/tenant/app/${tenant.slug}/profilo`)
 
-      const { data: linkedClient, error: linkedClientError } = await service
-        .from('clients')
-        .select('profile_id')
-        .eq('tenant_id', tenant.tenantId)
-        .eq('email', existingClient.email)
-        .maybeSingle()
-      await assertNoSupabaseError('read existing client after OTP access', linkedClientError)
-      expect(linkedClient?.profile_id).toBe(existingClient.userId)
+      await expect.poll(async () => {
+        const { data: linkedClient, error: linkedClientError } = await service
+          .from('clients')
+          .select('profile_id')
+          .eq('tenant_id', tenant.tenantId)
+          .eq('email', existingClient.email)
+          .maybeSingle()
+        await assertNoSupabaseError('read existing client after OTP access', linkedClientError)
+        return linkedClient?.profile_id ?? null
+      }, { timeout: 20_000 }).toBe(existingClient.userId)
     } finally {
       await existingClient.cleanup()
       await service.from('tenants').delete().eq('id', tenant.tenantId)
@@ -268,20 +273,22 @@ test.describe('PWA email anti-enumeration', () => {
       await expect(completeAccessButton).toBeEnabled()
 
       await Promise.all([
-        page.waitForURL(`**/tenant/app/${tenant.slug}/profilo`, { timeout: 20_000 }),
+        waitForUrlDomContentLoaded(page, `**/tenant/app/${tenant.slug}/profilo`, { timeout: 20_000 }),
         completeAccessButton.click(),
       ])
 
-      const { data: createdClient, error: createdClientError } = await service
-        .from('clients')
-        .select('profile_id, full_name, phone')
-        .eq('tenant_id', tenant.tenantId)
-        .eq('email', newClient.email)
-        .maybeSingle()
-      await assertNoSupabaseError('read new client after OTP access', createdClientError)
-      expect(createdClient?.profile_id).toBe(newClient.userId)
-      expect(createdClient?.full_name).toBe('Nuovo Cliente')
-      expect(createdClient?.phone).toBe('+393339876543')
+      await expect.poll(async () => {
+        const { data: createdClient, error: createdClientError } = await service
+          .from('clients')
+          .select('profile_id, full_name, phone')
+          .eq('tenant_id', tenant.tenantId)
+          .eq('email', newClient.email)
+          .maybeSingle()
+        await assertNoSupabaseError('read new client after OTP access', createdClientError)
+        return createdClient
+          ? `${createdClient.profile_id}|${createdClient.full_name}|${createdClient.phone}`
+          : null
+      }, { timeout: 20_000 }).toBe(`${newClient.userId}|Nuovo Cliente|+393339876543`)
     } finally {
       await service.from('clients').delete().eq('tenant_id', tenant.tenantId).eq('email', newClient.email)
       await newClient.cleanup()

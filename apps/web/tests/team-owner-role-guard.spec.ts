@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { expect, test, type Page } from 'playwright/test'
+import { expect, test, type Browser, type BrowserContext, type Page } from 'playwright/test'
 import {
   assertNoSupabaseError,
   hasSupabaseSeedEnv,
@@ -34,6 +34,8 @@ interface TeamOwnerRoleFixture {
   staffIds: Record<'ownerPrimary' | 'ownerPeer' | 'manager' | 'staffA' | 'staffB', string>
   cleanup: () => Promise<void>
 }
+
+const APP_URL = process.env.PLAYWRIGHT_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 function buildTenantDashboardPath(slug: string, relativePath: string): string {
   const normalizedPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`
@@ -176,6 +178,17 @@ async function resetSession(page: Page) {
   })
 }
 
+async function createLoggedInSession(
+  browser: Browser,
+  user: UserSeed,
+  redirectTo: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: APP_URL })
+  const page = await context.newPage()
+  await loginAs(page, user, redirectTo)
+  return { context, page }
+}
+
 async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
   await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`, {
     waitUntil: 'domcontentloaded',
@@ -297,117 +310,144 @@ test.describe.serial('team owner role guard', () => {
     })
   })
 
-  test('owner can invite owner but manager cannot replay the same owner invite action', async ({ page }) => {
+  test('owner can invite owner but manager cannot replay the same owner invite action', async ({ browser }) => {
     test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
       const inviteEmail = `playwright-owner-owner-${randomSuffix()}@example.com`
+      let ownerSession: { context: BrowserContext; page: Page } | null = null
+      let managerSession: { context: BrowserContext; page: Page } | null = null
 
-      await loginAs(page, fixture.ownerPrimary, teamPath)
-      await page.getByRole('button', { name: 'Invita membro' }).click()
-      await page.getByPlaceholder('mario@example.com').fill(inviteEmail)
-      await selectRole(page, 'Ruolo invito team', 'Titolare')
+      try {
+        ownerSession = await createLoggedInSession(browser, fixture.ownerPrimary, teamPath)
+        const ownerPage = ownerSession.page
+        await ownerPage.getByRole('button', { name: 'Invita membro' }).click()
+        await ownerPage.getByPlaceholder('mario@example.com').fill(inviteEmail)
+        await selectRole(ownerPage, 'Ruolo invito team', 'Titolare')
 
-      const capturedOwnerInviteAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('button', { name: 'Invia invito' }).click()
-        await waitForInviteEmailError(page)
-      })
+        const capturedOwnerInviteAction = await captureNextActionRequest(ownerPage, async () => {
+          await ownerPage.getByRole('button', { name: 'Invia invito' }).click()
+          await waitForInviteEmailError(ownerPage)
+        })
 
-      const { data: invitationAfterOwnerAttempt, error: invitationAfterOwnerAttemptError } = await service
-        .from('team_invitations')
-        .select('id')
-        .eq('tenant_id', fixture.tenantId)
-        .eq('email', inviteEmail.toLowerCase())
-      await assertNoSupabaseError('read owner invitation after email failure', invitationAfterOwnerAttemptError)
-      expect(invitationAfterOwnerAttempt ?? []).toHaveLength(0)
+        const { data: invitationAfterOwnerAttempt, error: invitationAfterOwnerAttemptError } = await service
+          .from('team_invitations')
+          .select('id')
+          .eq('tenant_id', fixture.tenantId)
+          .eq('email', inviteEmail.toLowerCase())
+        await assertNoSupabaseError('read owner invitation after email failure', invitationAfterOwnerAttemptError)
+        expect(invitationAfterOwnerAttempt ?? []).toHaveLength(0)
 
-      await resetSession(page)
-      await loginAs(page, fixture.manager, teamPath)
-      const replayResponse = await replayCapturedAction(page, capturedOwnerInviteAction)
-      expect(replayResponse).not.toBeNull()
-      const replayText = await replayResponse!.text()
-      expect(replayText).toContain('Solo il titolare può invitare un altro titolare')
+        managerSession = await createLoggedInSession(browser, fixture.manager, teamPath)
+        const replayResponse = await replayCapturedAction(managerSession.page, capturedOwnerInviteAction)
+        expect(replayResponse).not.toBeNull()
+        const replayText = await replayResponse!.text()
+        expect(replayText).toContain('Solo il titolare può invitare un altro titolare')
 
-      const { data: invitationAfterReplay, error: invitationAfterReplayError } = await service
-        .from('team_invitations')
-        .select('id')
-        .eq('tenant_id', fixture.tenantId)
-        .eq('email', inviteEmail.toLowerCase())
-      await assertNoSupabaseError('read invitation after manager replay', invitationAfterReplayError)
-      expect(invitationAfterReplay ?? []).toHaveLength(0)
+        const { data: invitationAfterReplay, error: invitationAfterReplayError } = await service
+          .from('team_invitations')
+          .select('id')
+          .eq('tenant_id', fixture.tenantId)
+          .eq('email', inviteEmail.toLowerCase())
+        await assertNoSupabaseError('read invitation after manager replay', invitationAfterReplayError)
+        expect(invitationAfterReplay ?? []).toHaveLength(0)
+      } finally {
+        await Promise.allSettled([
+          ownerSession?.context.close(),
+          managerSession?.context.close(),
+        ])
+      }
     })
   })
 
-  test('owner can promote staff to owner but manager cannot replay the same promotion action', async ({ page }) => {
+  test('owner can promote staff to owner but manager cannot replay the same promotion action', async ({ browser }) => {
     test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
+      let ownerSession: { context: BrowserContext; page: Page } | null = null
+      let managerSession: { context: BrowserContext; page: Page } | null = null
 
-      await loginAs(page, fixture.ownerPrimary, teamPath)
+      try {
+        ownerSession = await createLoggedInSession(browser, fixture.ownerPrimary, teamPath)
+        const ownerPage = ownerSession.page
 
-      await openEditModal(page, fixture.staffB.fullName)
-      await selectRole(page, 'Ruolo membro team', 'Titolare')
-      await page.getByRole('button', { name: 'Salva modifiche' }).click()
-      await expect(page.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
-      await expect
-        .poll(() => readStaffRole(service, fixture.staffIds.staffB), { timeout: 15_000 })
-        .toBe('owner')
+        await openEditModal(ownerPage, fixture.staffB.fullName)
+        await selectRole(ownerPage, 'Ruolo membro team', 'Titolare')
+        await ownerPage.getByRole('button', { name: 'Salva modifiche' }).click()
+        await expect(ownerPage.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
+        await expect
+          .poll(() => readStaffRole(service, fixture.staffIds.staffB), { timeout: 15_000 })
+          .toBe('owner')
 
-      await openEditModal(page, fixture.staffA.fullName)
-      await selectRole(page, 'Ruolo membro team', 'Titolare')
-      const capturedOwnerPromotionAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('button', { name: 'Salva modifiche' }).click()
-        await expect(page.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
-      })
-      await expect
-        .poll(() => readStaffRole(service, fixture.staffIds.staffA), { timeout: 15_000 })
-        .toBe('owner')
+        await openEditModal(ownerPage, fixture.staffA.fullName)
+        await selectRole(ownerPage, 'Ruolo membro team', 'Titolare')
+        const capturedOwnerPromotionAction = await captureNextActionRequest(ownerPage, async () => {
+          await ownerPage.getByRole('button', { name: 'Salva modifiche' }).click()
+          await expect(ownerPage.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
+        })
+        await expect
+          .poll(() => readStaffRole(service, fixture.staffIds.staffA), { timeout: 15_000 })
+          .toBe('owner')
 
-      const { error: resetStaffRoleError } = await service
-        .from('staff_members')
-        .update({ role: 'staff' })
-        .eq('id', fixture.staffIds.staffA)
-      await assertNoSupabaseError('reset promoted staff before manager replay', resetStaffRoleError)
+        const { error: resetStaffRoleError } = await service
+          .from('staff_members')
+          .update({ role: 'staff' })
+          .eq('id', fixture.staffIds.staffA)
+        await assertNoSupabaseError('reset promoted staff before manager replay', resetStaffRoleError)
 
-      await resetSession(page)
-      await loginAs(page, fixture.manager, teamPath)
-      await replayCapturedAction(page, capturedOwnerPromotionAction)
+        managerSession = await createLoggedInSession(browser, fixture.manager, teamPath)
+        await replayCapturedAction(managerSession.page, capturedOwnerPromotionAction)
 
-      await expect
-        .poll(() => readStaffRole(service, fixture.staffIds.staffA), { timeout: 15_000 })
-        .toBe('staff')
+        await expect
+          .poll(() => readStaffRole(service, fixture.staffIds.staffA), { timeout: 15_000 })
+          .toBe('staff')
+      } finally {
+        await Promise.allSettled([
+          ownerSession?.context.close(),
+          managerSession?.context.close(),
+        ])
+      }
     })
   })
 
-  test('manager cannot modify an existing owner', async ({ page }) => {
+  test('manager cannot modify an existing owner', async ({ browser }) => {
     test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
+      let ownerSession: { context: BrowserContext; page: Page } | null = null
+      let managerSession: { context: BrowserContext; page: Page } | null = null
 
-      await loginAs(page, fixture.ownerPrimary, teamPath)
-      await openEditModal(page, fixture.ownerPeer.fullName)
-      await selectRole(page, 'Ruolo membro team', 'Manager')
-      const capturedOwnerEditAction = await captureNextActionRequest(page, async () => {
-        await page.getByRole('button', { name: 'Salva modifiche' }).click()
-        await expect(page.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
-      })
-      await expect
-        .poll(() => readStaffRole(service, fixture.staffIds.ownerPeer), { timeout: 15_000 })
-        .toBe('manager')
+      try {
+        ownerSession = await createLoggedInSession(browser, fixture.ownerPrimary, teamPath)
+        const ownerPage = ownerSession.page
+        await openEditModal(ownerPage, fixture.ownerPeer.fullName)
+        await selectRole(ownerPage, 'Ruolo membro team', 'Manager')
+        const capturedOwnerEditAction = await captureNextActionRequest(ownerPage, async () => {
+          await ownerPage.getByRole('button', { name: 'Salva modifiche' }).click()
+          await expect(ownerPage.getByText('Membro aggiornato')).toBeVisible({ timeout: 10_000 })
+        })
+        await expect
+          .poll(() => readStaffRole(service, fixture.staffIds.ownerPeer), { timeout: 15_000 })
+          .toBe('manager')
 
-      const { error: resetOwnerRoleError } = await service
-        .from('staff_members')
-        .update({ role: 'owner' })
-        .eq('id', fixture.staffIds.ownerPeer)
-      await assertNoSupabaseError('reset owner role before manager replay', resetOwnerRoleError)
+        const { error: resetOwnerRoleError } = await service
+          .from('staff_members')
+          .update({ role: 'owner' })
+          .eq('id', fixture.staffIds.ownerPeer)
+        await assertNoSupabaseError('reset owner role before manager replay', resetOwnerRoleError)
 
-      await resetSession(page)
-      await loginAs(page, fixture.manager, teamPath)
-      await replayCapturedAction(page, capturedOwnerEditAction)
+        managerSession = await createLoggedInSession(browser, fixture.manager, teamPath)
+        await replayCapturedAction(managerSession.page, capturedOwnerEditAction)
 
-      await expect
-        .poll(() => readStaffRole(service, fixture.staffIds.ownerPeer), { timeout: 15_000 })
-        .toBe('owner')
+        await expect
+          .poll(() => readStaffRole(service, fixture.staffIds.ownerPeer), { timeout: 15_000 })
+          .toBe('owner')
+      } finally {
+        await Promise.allSettled([
+          ownerSession?.context.close(),
+          managerSession?.context.close(),
+        ])
+      }
     })
   })
 })

@@ -1,7 +1,11 @@
 import { expect, test, type Page } from 'playwright/test'
 import {
+  ANALYTICS_CONSENT_CONFIRMED_KEY,
   ANALYTICS_CONSENT_ANON_KEY,
   ANALYTICS_CONSENT_KEY,
+  ANALYTICS_CONSENT_OCCURRED_AT_KEY,
+  ANALYTICS_CONSENT_SOURCE_KEY,
+  ANALYTICS_CONSENT_SURFACE_KEY,
   ANALYTICS_CONSENT_VERSION_KEY,
 } from '../src/lib/analytics-consent'
 import {
@@ -89,19 +93,38 @@ async function installPostHogCounter(page: Page): Promise<() => number> {
   return () => count
 }
 
+async function resetAnalyticsConsentState(page: Page): Promise<void> {
+  await page.context().clearCookies()
+  await page.goto('/')
+  await page.evaluate((keys: string[]) => {
+    for (const key of keys) {
+      window.localStorage.removeItem(key)
+    }
+  }, [
+    ANALYTICS_CONSENT_KEY,
+    ANALYTICS_CONSENT_VERSION_KEY,
+    ANALYTICS_CONSENT_CONFIRMED_KEY,
+    ANALYTICS_CONSENT_OCCURRED_AT_KEY,
+    ANALYTICS_CONSENT_SOURCE_KEY,
+    ANALYTICS_CONSENT_SURFACE_KEY,
+    ANALYTICS_CONSENT_ANON_KEY,
+  ])
+  await page.reload({ waitUntil: 'domcontentloaded' })
+}
+
+async function waitForAnalyticsConsentPost(page: Page): Promise<void> {
+  await page.waitForResponse((response) =>
+    response.url().includes('/api/analytics-consent')
+    && response.request().method() === 'POST'
+    && response.status() === 200
+  )
+}
+
 test.describe('marketing analytics consent', () => {
   test('accepting consent enables Vercel and PostHog, and revocation stops them again', async ({ page }) => {
     await installVercelAnalyticsSpy(page)
     const getPostHogCount = await installPostHogCounter(page)
-
-    await page.addInitScript((keys: string[]) => {
-      const [consentKey, versionKey, anonKey] = keys
-      window.localStorage.removeItem(consentKey)
-      window.localStorage.removeItem(versionKey)
-      window.localStorage.removeItem(anonKey)
-    }, [ANALYTICS_CONSENT_KEY, ANALYTICS_CONSENT_VERSION_KEY, ANALYTICS_CONSENT_ANON_KEY])
-
-    await page.goto('/')
+    await resetAnalyticsConsentState(page)
 
     await expect(page.getByText('Usiamo i cookie')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Gestisci preferenze' })).toHaveAttribute(
@@ -112,7 +135,12 @@ test.describe('marketing analytics consent', () => {
     expect(await readVercelEventCount(page)).toBe(0)
     expect(getPostHogCount()).toBe(0)
 
-    await page.getByRole('button', { name: 'Accetta analytics' }).click()
+    const acceptButton = page.getByRole('button', { name: 'Accetta analytics' })
+    await expect(acceptButton).toBeEnabled()
+    await Promise.all([
+      waitForAnalyticsConsentPost(page),
+      acceptButton.click(),
+    ])
     await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
 
     await expect.poll(async () => (await readVercelEventCount(page)) > 0, { timeout: 5_000 }).toBe(true)
@@ -134,7 +162,12 @@ test.describe('marketing analytics consent', () => {
 
     const posthogRequestsBeforeRevocation = getPostHogCount()
 
-    await page.getByRole('button', { name: 'Revoca analytics' }).click()
+    const revokeButton = page.getByRole('button', { name: 'Revoca analytics' })
+    await expect(revokeButton).toBeEnabled()
+    await Promise.all([
+      waitForAnalyticsConsentPost(page),
+      revokeButton.click(),
+    ])
     await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
     expect(await page.evaluate((key: string) => window.localStorage.getItem(key), ANALYTICS_CONSENT_KEY)).toBe('rejected')
 
@@ -151,15 +184,7 @@ test.describe('marketing analytics consent', () => {
   test('rejecting analytics persists the choice and keeps marketing trackers off', async ({ page }) => {
     await installVercelAnalyticsSpy(page)
     const getPostHogCount = await installPostHogCounter(page)
-
-    await page.addInitScript((keys: string[]) => {
-      const [consentKey, versionKey, anonKey] = keys
-      window.localStorage.removeItem(consentKey)
-      window.localStorage.removeItem(versionKey)
-      window.localStorage.removeItem(anonKey)
-    }, [ANALYTICS_CONSENT_KEY, ANALYTICS_CONSENT_VERSION_KEY, ANALYTICS_CONSENT_ANON_KEY])
-
-    await page.goto('/')
+    await resetAnalyticsConsentState(page)
 
     await expect(page.getByText('Usiamo i cookie')).toBeVisible()
     await page.getByRole('link', { name: 'Gestisci preferenze' }).click()
@@ -167,7 +192,14 @@ test.describe('marketing analytics consent', () => {
     await expect(page).toHaveURL(new RegExp(`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
     await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
 
-    await page.locator(`#${ANALYTICS_PREFERENCES_SECTION_ID}`).getByRole('button', { name: 'Continua senza analytics' }).click()
+    const rejectButton = page
+      .locator(`#${ANALYTICS_PREFERENCES_SECTION_ID}`)
+      .getByRole('button', { name: 'Continua senza analytics' })
+    await expect(rejectButton).toBeEnabled()
+    await Promise.all([
+      waitForAnalyticsConsentPost(page),
+      rejectButton.click(),
+    ])
     await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
     await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 

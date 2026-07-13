@@ -97,6 +97,7 @@ export function EmailOtpForm({
   const [fullName, setFullName] = useState(prefillFullName)
   const [phone, setPhone] = useState(prefillPhone)
   const [marketingConsent, setMarketingConsent] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const [otp, setOtp] = useState<string[]>(EMPTY_OTP)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -116,13 +117,17 @@ export function EmailOtpForm({
   }, [countdown])
 
   useEffect(() => {
+    setIsReady(true)
+  }, [])
+
+  useEffect(() => {
     if (step !== 'otp') return
     const timer = window.setTimeout(() => otpRefs.current[0]?.focus(), 120)
     return () => window.clearTimeout(timer)
   }, [step])
 
   async function handleEmailContinue() {
-    if (loading || !isValidEmail(email)) return
+    if (!isReady || loading || !isValidEmail(email)) return
     setLoading(true)
     setError(null)
 
@@ -139,7 +144,7 @@ export function EmailOtpForm({
   }
 
   async function handleResendOtp() {
-    if (loading) return
+    if (!isReady || loading) return
     setLoading(true)
     setError(null)
     setOtp(EMPTY_OTP)
@@ -184,7 +189,7 @@ export function EmailOtpForm({
   }, [])
 
   async function handleVerifyOtp(code: string) {
-    if (loading || code.length !== 6) return
+    if (!isReady || loading || code.length !== 6) return
     setLoading(true)
     setError(null)
 
@@ -233,7 +238,7 @@ export function EmailOtpForm({
   }
 
   async function handleProfileDataContinue() {
-    if (loading || !fullName.trim()) {
+    if (!isReady || loading || !fullName.trim()) {
       setError('Il nome è obbligatorio.')
       return
     }
@@ -260,7 +265,7 @@ export function EmailOtpForm({
   }
 
   async function handleGoogleSignIn() {
-    if (googleLoading) return
+    if (!isReady || googleLoading) return
     setGoogleLoading(true)
     setError(null)
 
@@ -352,6 +357,7 @@ export function EmailOtpForm({
             autoComplete="email"
             placeholder="La tua email"
             value={email}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setEmail(e.target.value)
               setError(null)
@@ -365,7 +371,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleEmailContinue()}
-            disabled={!isValidEmail(email) || loading}
+            disabled={!isReady || !isValidEmail(email) || loading}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
@@ -386,7 +392,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleGoogleSignIn()}
-            disabled={googleLoading}
+            disabled={!isReady || googleLoading}
             className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white text-[14px] font-medium text-gray-700 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
@@ -411,6 +417,7 @@ export function EmailOtpForm({
             autoComplete="name"
             placeholder="Nome e cognome"
             value={fullName}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setFullName(e.target.value)
               setError(null)
@@ -427,6 +434,7 @@ export function EmailOtpForm({
             autoComplete="tel"
             placeholder="+39 333 123 4567"
             value={phone}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setPhone(e.target.value)
               setError(null)
@@ -438,6 +446,7 @@ export function EmailOtpForm({
             <input
               type="checkbox"
               checked={marketingConsent}
+              disabled={!isReady || loading}
               onChange={(e) => setMarketingConsent(e.target.checked)}
               className="mt-0.5 size-4 shrink-0 rounded"
               style={{ accentColor: 'var(--brand-primary, #222222)' }}
@@ -452,7 +461,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || !phone.trim() || loading}
+            disabled={!isReady || !fullName.trim() || !phone.trim() || loading}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
@@ -526,7 +535,7 @@ export function EmailOtpForm({
               onKeyDown={(e) => handleOtpKeyDown(idx, e)}
               onFocus={() => setFocusedIdx(idx)}
               onBlur={() => setFocusedIdx(null)}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="h-12 w-11 rounded-xl text-center text-[22px] font-black outline-none transition-all disabled:opacity-50"
               style={{
                 borderWidth: focusedIdx === idx ? 2 : 1.5,
@@ -586,7 +595,7 @@ export function EmailOtpForm({
             <button
               type="button"
               onClick={() => void handleResendOtp()}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="mt-1 text-[12px] font-bold disabled:opacity-40"
               style={{ color: 'var(--brand-primary, #222222)' }}
             >
@@ -627,6 +636,7 @@ export function EmailOtpForm({
             autoComplete="email"
             placeholder="nome@esempio.it"
             value={email}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setEmail(e.target.value)
               setError(null)
@@ -650,7 +660,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleEmailContinue()}
-            disabled={!isValidEmail(email) || loading}
+            disabled={!isReady || !isValidEmail(email) || loading}
             className="mt-4 flex h-[52px] w-full items-center justify-center rounded-full text-base font-semibold text-white transition disabled:opacity-40"
             style={{ backgroundColor: 'var(--brand-primary, #1a1a1a)' }}
           >
@@ -676,7 +686,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleGoogleSignIn()}
-            disabled={googleLoading}
+            disabled={!isReady || googleLoading}
             className="flex h-[52px] w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
@@ -713,6 +723,7 @@ export function EmailOtpForm({
                 autoComplete="name"
                 placeholder="Mario Rossi"
                 value={fullName}
+                disabled={!isReady || loading}
                 onChange={(e) => {
                   setFullName(e.target.value)
                   setError(null)
@@ -736,6 +747,7 @@ export function EmailOtpForm({
                 autoComplete="tel"
                 placeholder="+39 333 123 4567"
                 value={phone}
+                disabled={!isReady || loading}
                 onChange={(e) => {
                   setPhone(e.target.value)
                   setError(null)
@@ -754,6 +766,7 @@ export function EmailOtpForm({
             <input
               type="checkbox"
               checked={marketingConsent}
+              disabled={!isReady || loading}
               onChange={(e) => setMarketingConsent(e.target.checked)}
               className="mt-0.5 size-4 shrink-0 rounded"
               style={{ accentColor: 'var(--brand-primary, #1a1a1a)' }}
@@ -770,7 +783,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || !phone.trim() || loading}
+            disabled={!isReady || !fullName.trim() || !phone.trim() || loading}
             className="mt-5 flex h-[52px] w-full items-center justify-center rounded-full text-base font-semibold text-white transition disabled:opacity-40"
             style={{ backgroundColor: 'var(--brand-primary, #1a1a1a)' }}
           >
@@ -852,7 +865,7 @@ export function EmailOtpForm({
                 onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                 onFocus={() => setFocusedIdx(idx)}
                 onBlur={() => setFocusedIdx(null)}
-                disabled={loading}
+                disabled={!isReady || loading}
                 className="h-12 w-12 rounded-xl text-center text-2xl font-black outline-none transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   borderWidth: focusedIdx === idx ? 2.5 : 2,
@@ -922,7 +935,7 @@ export function EmailOtpForm({
             <button
               type="button"
               onClick={() => void handleResendOtp()}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="mt-1.5 text-sm font-bold text-[var(--brand-primary)] disabled:opacity-40"
             >
               Reinvia il codice
