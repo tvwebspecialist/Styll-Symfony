@@ -36,6 +36,13 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
     }
   }, [ring])
   const { greeting, subtitle } = useDashboardHomeStore()
+  const [timeGreeting, setTimeGreeting] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    const h = new Date().getHours()
+    if (h >= 6 && h < 12) setTimeGreeting('Buongiorno')
+    else if (h >= 12 && h < 18) setTimeGreeting('Buon pomeriggio')
+    else setTimeGreeting('Buonasera')
+  }, [])
   const pathname = usePathname()
   const router = useRouter()
 
@@ -150,7 +157,7 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
         }}
       >
 
-        {/* ROW 1 — name (left) + bell + avatar (right) */}
+        {/* ROW 1 — avatar + greeting/name (left) + bell (right) */}
         <div
           style={{
             display: 'flex',
@@ -159,113 +166,141 @@ export default function TopBarHome({ fullName, avatarUrl }: TopBarHomeProps) {
             marginBottom: 10,
           }}
         >
-          {/* Name */}
-          <p style={{
-            margin: 0,
-            fontSize: 16,
-            fontWeight: 700,
-            color: '#111111',
-            fontFamily: 'Outfit, sans-serif',
-            letterSpacing: '-0.3px',
-            lineHeight: 1,
-          }}>
-            {fullName.split(' ')[0] || 'Dashboard'}
-          </p>
+          {/* Avatar + Greeting/Name block */}
+          <Link
+            href="/profilo"
+            aria-label="Profilo"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              textDecoration: 'none',
+              flexShrink: 1,
+              minWidth: 0,
+            }}
+          >
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt={fullName}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2.5px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
+                  flexShrink: 0,
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+                  border: '2.5px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  letterSpacing: '0.5px',
+                  flexShrink: 0,
+                }}
+              >
+                {initials}
+              </div>
+            )}
 
-          {/* Bell + Avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Link
-              ref={bellRef}
-              href="/notifiche"
-              aria-label="Notifiche"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.62)',
-                border: '1px solid rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
-                textDecoration: 'none',
-                flexShrink: 0,
-              }}
-            >
-              <Bell size={21} color="#111111" strokeWidth={1.8} />
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    minWidth: 16,
-                    height: 16,
-                    borderRadius: 999,
-                    background: '#ef4444',
-                    color: '#FFFFFF',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 3px',
-                    border: '2px solid rgba(250,251,253,0.9)',
-                    lineHeight: 1,
-                  }}
-                >
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <p
+                suppressHydrationWarning
+                style={{
+                  margin: 0,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#6B7280',
+                  fontFamily: 'Outfit, sans-serif',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {timeGreeting ?? ''}
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#111111',
+                  fontFamily: 'Outfit, sans-serif',
+                  letterSpacing: '-0.3px',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {fullName.split(' ')[0] || 'Dashboard'}
+              </p>
+            </div>
+          </Link>
 
-            <Link
-              href="/profilo"
-              aria-label="Profilo"
-              style={{ display: 'block', borderRadius: '50%', flexShrink: 0 }}
-            >
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarUrl}
-                  alt={fullName}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2.5px solid rgba(255,255,255,0.9)',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-                    cursor: 'pointer',
-                    display: 'block',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-                    border: '2.5px solid rgba(255,255,255,0.9)',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.14)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    letterSpacing: '0.5px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {initials}
-                </div>
-              )}
-            </Link>
-          </div>
+          {/* Bell */}
+          <Link
+            ref={bellRef}
+            href="/notifiche"
+            aria-label="Notifiche"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.62)',
+              border: '1px solid rgba(255,255,255,0.7)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 14px rgba(15,23,42,0.08)',
+              textDecoration: 'none',
+              flexShrink: 0,
+            }}
+          >
+            <Bell size={21} color="#111111" strokeWidth={1.8} />
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  minWidth: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: '#ef4444',
+                  color: '#FFFFFF',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 3px',
+                  border: '2px solid rgba(250,251,253,0.9)',
+                  lineHeight: 1,
+                }}
+              >
+                {unreadCount}
+              </span>
+            )}
+          </Link>
         </div>
 
         {/* ROW 2 — search bar */}

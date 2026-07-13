@@ -349,96 +349,96 @@ export async function inviteTeamMember(
       return { success: false, error: 'Un invito è già stato inviato a questo email' }
     }
 
-  // Check if user already exists as staff member
-  let profiles = null
-  try {
-    const result = await db
-      .from('profiles')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .single()
-    profiles = result.data
-  } catch (e) {
-    // Profile not found during team member removal — non-critical
-    console.warn('[team] Profile lookup failed during removal:', e)
-  }
+   // Check if user already exists as staff member
+   let profiles = null
+   try {
+     const result = await db
+       .from('profiles')
+       .select('id')
+       .eq('email', email.toLowerCase())
+       .single()
+     profiles = result.data
+   } catch (e) {
+     // Profile not found during team member removal — non-critical
+     console.warn('[team] Profile lookup failed during removal:', e)
+   }
 
-  if (profiles) {
-    const { data: existingStaff } = await db
-      .from('staff_members')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('profile_id', profiles.id)
-      .is('deleted_at', null)
-      .maybeSingle()
+   if (profiles) {
+     const { data: existingStaff } = await db
+       .from('staff_members')
+       .select('id')
+       .eq('tenant_id', tenantId)
+       .eq('profile_id', profiles.id)
+       .is('deleted_at', null)
+       .maybeSingle()
 
-    if (existingStaff) {
-      return { success: false, error: 'Questo utente è già membro del team' }
-    }
-  }
+     if (existingStaff) {
+       return { success: false, error: 'Questo utente è già membro del team' }
+     }
+   }
 
-  // Generate invitation token
-  const token = randomBytes(32).toString('hex')
+   // Generate invitation token
+   const token = randomBytes(32).toString('hex')
 
-  // Create invitation record
-  const { data: invitationData, error: invitationError } = await db
-    .from('team_invitations')
-    .insert({
-      tenant_id: tenantId,
-      email: email.toLowerCase(),
-      token,
-      role,
-      created_by: user.id,
-      status: 'pending',
-    })
-    .select('id, expires_at')
-    .single()
+   // Create invitation record
+   const { data: invitationData, error: invitationError } = await db
+     .from('team_invitations')
+     .insert({
+       tenant_id: tenantId,
+       email: email.toLowerCase(),
+       token,
+       role,
+       created_by: user.id,
+       status: 'pending',
+     })
+     .select('id, expires_at')
+     .single()
 
-  if (invitationError) {
-    console.error('[inviteTeamMember] Invitation creation error:', invitationError)
-    return { success: false, error: 'Errore nella creazione dell\'invito' }
-  }
+   if (invitationError) {
+     console.error('[inviteTeamMember] Invitation creation error:', invitationError)
+     return { success: false, error: 'Errore nella creazione dell\'invito' }
+   }
 
-  // Get tenant name and inviter name for email
-  const { data: tenantData } = await db
-    .from('tenants')
-    .select('business_name')
-    .eq('id', tenantId)
-    .single()
+   // Get tenant name and inviter name for email
+   const { data: tenantData } = await db
+     .from('tenants')
+     .select('business_name')
+     .eq('id', tenantId)
+     .single()
 
-  const { data: profileData } = await db
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single()
+   const { data: profileData } = await db
+     .from('profiles')
+     .select('full_name')
+     .eq('id', user.id)
+     .single()
 
-  const tenantName = tenantData?.business_name || 'Styll'
-  const inviterName = profileData?.full_name || 'Un membro del team'
+   const tenantName = tenantData?.business_name || 'Styll'
+   const inviterName = profileData?.full_name || 'Un membro del team'
 
-  // Send invitation email
-  const { sendInvitationEmail } = await import('@/lib/email')
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const invitationLink = `${appUrl}/invite?token=${token}`
+   // Send invitation email
+   const { sendInvitationEmail } = await import('@/lib/email')
+   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+   const invitationLink = `${appUrl}/invite?token=${token}`
 
-  const emailResult = await sendInvitationEmail({
-    recipientEmail: email.toLowerCase(),
-    tenantName,
-    inviterName,
-    role,
-    invitationLink,
-  })
+   const emailResult = await sendInvitationEmail({
+     recipientEmail: email.toLowerCase(),
+     tenantName,
+     inviterName,
+     role,
+     invitationLink,
+   })
 
-  if (!emailResult.success) {
-    // Delete the invitation if email fails
-    await db.from('team_invitations').delete().eq('id', invitationData.id)
-    return { success: false, error: `Errore nell'invio dell'email: ${emailResult.error}` }
-  }
+   if (!emailResult.success) {
+     // Delete the invitation if email fails
+     await db.from('team_invitations').delete().eq('id', invitationData.id)
+     return { success: false, error: `Errore nell'invio dell'email: ${emailResult.error}` }
+   }
 
-  revalidatePath('/dashboard/team')
-  return { success: true }
+   revalidatePath('/dashboard/team')
+   return { success: true }
   } catch (error) {
-    console.error('[inviteTeamMember] Unexpected error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio'
+   console.error('[inviteTeamMember] Unexpected error:', error)
+   const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio'
     return { success: false, error: errorMessage }
   }
 }

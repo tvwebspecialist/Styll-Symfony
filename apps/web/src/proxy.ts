@@ -6,84 +6,18 @@ import {
   clearAdminShadowCookieOnResponse,
   getValidatedAdminShadowContext,
 } from '@/lib/admin-shadow-cookie'
+import { applyProxyAuthGuards, isProxyAuthPage, type ProxyAuthUser } from '@/lib/proxy-auth-guard'
+import { getPublicTenantSurface, resolveTenantRewrite } from '@/lib/proxy-routing'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applySecurityHeaders, type CspOptions } from '@/lib/security/csp'
 
 // ─── Subdomain routing ────────────────────────────────────────────────────────
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-const SKIP_SUBDOMAINS = new Set(['www', 'admin'])
-
-type TenantType = 'landing' | 'app' | 'dashboard'
-type PublicTenantSurface = 'landing' | 'app'
-
-function parseTenant(subdomain: string): { type: TenantType; slug: string } | null {
-  if (subdomain.endsWith('-dashboard')) {
-    const slug = subdomain.slice(0, -'-dashboard'.length)
-    if (!slug) return null
-    return { type: 'dashboard', slug }
-  }
-  if (subdomain.endsWith('-app')) {
-    const slug = subdomain.slice(0, -'-app'.length)
-    if (!slug) return null
-    return { type: 'app', slug }
-  }
-  return { type: 'landing', slug: subdomain }
-}
-
-function getSubdomain(host: string): string | null {
-  if (host.endsWith(`.${ROOT_DOMAIN}`)) {
-    return host.slice(0, -(ROOT_DOMAIN.length + 1))
-  }
-  if (host.endsWith('.localhost:3000')) {
-    return host.slice(0, -'.localhost:3000'.length)
-  }
-  return null
-}
-
-function resolveTenantRewrite(request: NextRequest): URL | null {
-  const host = request.headers.get('host') ?? ''
-  const { pathname } = request.nextUrl
-
-  // Non riscrivere le route API — sono globali, non tenant-specific
-  if (pathname.startsWith('/api/')) return null
-
-  const subdomain = getSubdomain(host)
-
-  if (subdomain && !SKIP_SUBDOMAINS.has(subdomain)) {
-    const parsed = parseTenant(subdomain)
-    if (parsed) {
-      const url = request.nextUrl.clone()
-      url.pathname = `/tenant/${parsed.type}/${parsed.slug}${pathname}`
-      return url
-    }
-  }
-
-  // Dev localhost query-param fallback
-  if (process.env.NODE_ENV === 'development' && host === 'localhost:3000') {
-    const tenantSlug = request.nextUrl.searchParams.get('_tenant_slug')
-    const tenantType = request.nextUrl.searchParams.get('_tenant_type') as TenantType | null
-    if (tenantSlug && tenantType && ['landing', 'app', 'dashboard'].includes(tenantType)) {
-      const url = request.nextUrl.clone()
-      url.pathname = `/tenant/${tenantType}/${tenantSlug}${pathname}`
-      url.searchParams.delete('_tenant_slug')
-      url.searchParams.delete('_tenant_type')
-      return url
-    }
-  }
-
-  return null
-}
-
-function getPublicTenantSurface(pathname: string): PublicTenantSurface | null {
-  const match = pathname.match(/^\/tenant\/(landing|app)\/[^/]+/)
-  return (match?.[1] as PublicTenantSurface | undefined) ?? null
-}
 
 // ─── Auth guard (original proxy logic) ───────────────────────────────────────
 
 const PROTECTED_PREFIXES = ['/dashboard', '/admin']
-const AUTH_PAGES = ['/login', '/register']
 const ONBOARDING_PREFIX = '/onboarding'
 const ONBOARDING_COMPLETE = '/onboarding/complete'
 const LEGACY_COMPLETE = '/register/complete'
@@ -147,7 +81,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 export async function proxy(request: NextRequest) {
   // Resolve tenant rewrite before running auth guards
-  const tenantRewriteUrl = resolveTenantRewrite(request)
+  const tenantRewriteUrl = resolveTenantRewrite(request, ROOT_DOMAIN)
 
   // Public tenant surfaces (landing + PWA app) must be embeddable in dashboard
   // previews — anything else stays locked down with `frame-ancestors 'none'`.
@@ -224,202 +158,133 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = applySecurityHeaders(NextResponse.next({ request }), securityOptions)
-  let shouldClearShadowCookie = false
 
   if (!isPwaRoute) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(
-            cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
-          ) {
-            const cookieDomain =
-              process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
-            cookiesToSet.forEach(({ name, value }) =>
-              request.cookies.set(name, value)
-            )
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, {
-                ...options,
-                ...(cookieDomain ? { domain: cookieDomain } : {}),
+    const shadowCookieValue = request.cookies.get(ADMIN_SHADOW_COOKIE)?.value ?? null
+    const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
+    const isAdmin = pathname.startsWith('/admin')
+    const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
+    const isAuthPage = isProxyAuthPage(pathname) && pathname !== LEGACY_COMPLETE
+
+    let supabase: ReturnType<typeof createServerClient> | null = null
+    let adminDb: ReturnType<typeof createAdminClient> | null = null
+
+    const getSupabase = () => {
+      if (supabase) return supabase
+
+      supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+        {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll()
+            },
+            setAll(
+              cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
+            ) {
+              const cookieDomain =
+                process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
+              cookiesToSet.forEach(({ name, value }) => {
+                request.cookies.set(name, value)
               })
-            )
+              cookiesToSet.forEach(({ name, value, options }) => {
+                response.cookies.set(name, value, {
+                  ...options,
+                  ...(cookieDomain ? { domain: cookieDomain } : {}),
+                })
+              })
+            },
           },
+        }
+      )
+
+      return supabase
+    }
+
+    const getAdminDb = () => {
+      if (adminDb) return adminDb
+      adminDb = createAdminClient()
+      return adminDb
+    }
+
+    const guardResponse = await applyProxyAuthGuards(
+      {
+        request,
+        response,
+        securityOptions,
+        rootDomain: ROOT_DOMAIN,
+        isSubdomainRequest,
+        isPwaRoute,
+        isProtected,
+        isAdmin,
+        isOnboarding,
+        isAuthPage,
+        isLegacyComplete: pathname === LEGACY_COMPLETE,
+        onboardingCompletePath: ONBOARDING_COMPLETE,
+        shadowCookieValue,
+      },
+      {
+        applySecurityHeaders,
+        clearShadowCookie: clearAdminShadowCookieOnResponse,
+        getUser: async (): Promise<ProxyAuthUser | null> => {
+          const {
+            data: { user },
+          } = await getSupabase().auth.getUser()
+          return user ? { id: user.id } : null
+        },
+        getValidatedShadowTenantId: async (userId, rawShadowCookieValue) => {
+          const shadowCtx = await getValidatedAdminShadowContext(
+            getAdminDb(),
+            userId,
+            rawShadowCookieValue
+          )
+          return shadowCtx.tenantId
+        },
+        getIsSuperadmin: async (userId) => {
+          const { data: adminProfile } = await getAdminDb()
+            .from('profiles')
+            .select('is_superadmin')
+            .eq('id', userId)
+            .maybeSingle()
+
+          return !!(adminProfile as { is_superadmin?: boolean } | null)?.is_superadmin
+        },
+        getOnboardingCompleted: async (userId) => {
+          const { data: profile } = await getSupabase()
+            .from('profiles')
+            .select('onboarding_completed')
+            .eq('id', userId)
+            .maybeSingle()
+
+          return !!profile?.onboarding_completed
+        },
+        getActiveStaffTenantIds: async (userId, limit) => {
+          const { data: staffRows } = await getAdminDb()
+            .from('staff_members')
+            .select('tenant_id')
+            .eq('profile_id', userId)
+            .eq('is_active', true)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+            .limit(limit)
+
+          return (staffRows ?? []).map((row) => row.tenant_id)
+        },
+        getTenantSlug: async (tenantId) => {
+          const { data: tenantRow } = await getAdminDb()
+            .from('tenants')
+            .select('slug')
+            .eq('id', tenantId)
+            .maybeSingle()
+
+          return tenantRow?.slug ?? null
         },
       }
     )
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    const shadowCookieValue = request.cookies.get(ADMIN_SHADOW_COOKIE)?.value ?? null
-
-    if (shadowCookieValue) {
-      if (!user) {
-        shouldClearShadowCookie = true
-      } else {
-        const db = createAdminClient()
-        const shadowCtx = await getValidatedAdminShadowContext(db, user.id, shadowCookieValue)
-        shouldClearShadowCookie = !shadowCtx.tenantId
-      }
-    }
-
-    const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))
-    const isAdmin = pathname.startsWith('/admin')
-    const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
-    const isAuthPage =
-      AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`)) &&
-      pathname !== LEGACY_COMPLETE
-
-    // Helper: attach CSP to redirect responses so the header is consistent
-    // across the whole proxy surface (browsers don't enforce CSP on 30x bodies,
-    // but this keeps audits and curl checks tidy).
-    const redirectTo = (url: URL) => {
-      const redirectResponse = applySecurityHeaders(NextResponse.redirect(url), securityOptions)
-      if (shouldClearShadowCookie) {
-        clearAdminShadowCookieOnResponse(redirectResponse)
-      }
-      return redirectResponse
-    }
-
-    // Rotte protette: richiedono auth
-    if (isProtected && !user) {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN!
-      const proto = rootDomain.includes('localhost') ? 'http' : 'https'
-      const loginUrl = new URL(`${proto}://${rootDomain}/login`)
-      loginUrl.searchParams.set('redirectTo', pathname)
-      return redirectTo(loginUrl)
-    }
-
-    // /admin/*: richiede superadmin
-    if (isAdmin && user) {
-      const db = createAdminClient()
-      const { data: adminProfile } = await db
-        .from('profiles')
-        .select('is_superadmin')
-        .eq('id', user.id)
-        .maybeSingle()
-      if (!(adminProfile as { is_superadmin?: boolean } | null)?.is_superadmin) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/login'
-        return redirectTo(url)
-      }
-    }
-
-    // /onboarding/*: richiede auth
-    if (isOnboarding && !user) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return redirectTo(url)
-    }
-
-    // Legacy /register/complete → /onboarding/step-1
-    if (pathname === LEGACY_COMPLETE) {
-      const url = request.nextUrl.clone()
-      url.pathname = user ? '/onboarding/step-1' : '/login'
-      return redirectTo(url)
-    }
-
-    // Utente loggato: gating onboarding
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('onboarding_completed')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      const completed = !!profile?.onboarding_completed
-
-      // Do NOT block /dashboard based solely on onboarding_completed — that flag
-      // can be null for tenants created before the flag existed. dashboard/layout.tsx
-      // is the authoritative gate: it checks staff_members and redirects correctly.
-
-      // If the user is on an onboarding step, check whether they already have an
-      // active tenant. Both `completed=true` (normal case) and `completed=false` with
-      // existing staff_members (flag missing or stale) should be redirected away so
-      // existing tenants never see the wizard again.
-      if (isOnboarding && pathname !== ONBOARDING_COMPLETE && !isSubdomainRequest) {
-        const db = createAdminClient()
-        const { data: staffRows } = await db
-          .from('staff_members')
-          .select('tenant_id')
-          .eq('profile_id', user.id)
-          .eq('is_active', true)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true })
-          .limit(2)
-        if (staffRows && staffRows.length > 0) {
-          if (staffRows.length > 1) {
-            // Multi-tenant: delegate to dashboard/layout.tsx which routes to /select-tenant
-            const multiUrl = request.nextUrl.clone()
-            multiUrl.pathname = '/dashboard'
-            return redirectTo(multiUrl)
-          }
-          const { data: tenantRow } = await db
-            .from('tenants')
-            .select('slug')
-            .eq('id', staffRows[0].tenant_id)
-            .maybeSingle()
-          if (tenantRow?.slug) {
-            const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-            const redirectUrl = request.nextUrl.clone()
-            redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
-            redirectUrl.pathname = '/'
-            redirectUrl.port = ''
-            return redirectTo(redirectUrl)
-          }
-          const fallbackUrl = request.nextUrl.clone()
-          fallbackUrl.pathname = '/dashboard'
-          return redirectTo(fallbackUrl)
-        }
-      }
-
-      if (isAuthPage && !isSubdomainRequest) {
-        if (completed) {
-          const db = createAdminClient()
-          const { data: staffRows } = await db
-            .from('staff_members')
-            .select('tenant_id')
-            .eq('profile_id', user.id)
-            .eq('is_active', true)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: true })
-            .limit(2)
-          if (staffRows && staffRows.length > 1) {
-            // Multi-tenant: delegate to dashboard/layout.tsx which routes to /select-tenant
-            const multiUrl = request.nextUrl.clone()
-            multiUrl.pathname = '/dashboard'
-            return redirectTo(multiUrl)
-          }
-          if (staffRows && staffRows.length === 1) {
-            const { data: tenantRow } = await db
-              .from('tenants')
-              .select('slug')
-              .eq('id', staffRows[0].tenant_id)
-              .maybeSingle()
-            if (tenantRow?.slug) {
-              const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-              const redirectUrl = request.nextUrl.clone()
-              redirectUrl.hostname = `${tenantRow.slug}-dashboard.${rootDomain}`
-              redirectUrl.pathname = '/'
-              redirectUrl.port = ''
-              return redirectTo(redirectUrl)
-            }
-          }
-          const fallbackUrl = request.nextUrl.clone()
-          fallbackUrl.pathname = '/dashboard'
-          return redirectTo(fallbackUrl)
-        } else {
-          const url = request.nextUrl.clone()
-          url.pathname = '/onboarding/step-1'
-          return redirectTo(url)
-        }
-      }
+    if (guardResponse) {
+      return guardResponse
     }
   }
 
@@ -432,15 +297,9 @@ export async function proxy(request: NextRequest) {
     response.cookies.getAll().forEach((cookie) => {
       rewriteResponse.cookies.set(cookie.name, cookie.value, cookie)
     })
-    if (shouldClearShadowCookie) {
-      clearAdminShadowCookieOnResponse(rewriteResponse)
-    }
     return rewriteResponse
   }
 
-  if (shouldClearShadowCookie) {
-    clearAdminShadowCookieOnResponse(response)
-  }
   return response
 }
 

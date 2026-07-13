@@ -443,6 +443,14 @@ async function gotoAndReadHtml(page: Page, path: string): Promise<string> {
   return page.content()
 }
 
+function clientRowLinks(page: Page) {
+  return page.getByRole('link', { name: /CRM A \d{3}/ })
+}
+
+function clientRowLink(page: Page, clientName: string) {
+  return page.getByRole('link', { name: new RegExp(clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })
+}
+
 test.describe.serial('clienti scalability pagination', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for clienti scalability fixtures.')
   let fixture: ClientiScaleFixture | null = null
@@ -473,31 +481,41 @@ test.describe.serial('clienti scalability pagination', () => {
     await loginAs(page, fixture.ownerA, clientiPath)
 
     const firstPageHtml = await gotoAndReadHtml(page, clientiPath)
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(PAGE_SIZE)
+    await expect(clientRowLinks(page)).toHaveCount(PAGE_SIZE)
+    await expect(page.getByText('Mostra 1-25 di 90')).toBeVisible()
     expect(firstPageHtml).toContain('CRM A 001 Client')
     expect(firstPageHtml).not.toContain('CRM A 026 Page Two Client')
     expect(firstPageHtml).not.toContain('CRM B 002 Secret Tenant Client')
 
+    await clientRowLink(page, 'CRM A 001 Client').click()
+    await page.waitForURL(new RegExp(`/tenant/dashboard/${fixture.tenantA.slug}/clienti/[^/]+$`))
+    await expect(page.getByRole('heading', { name: 'CRM A 001 Client' })).toBeVisible()
+    await page.goto(clientiPath)
+
     const searchHtml = await gotoAndReadHtml(page, `${clientiPath}?query=Needle`)
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(1)
+    await expect(clientRowLinks(page)).toHaveCount(1)
+    await expect(clientRowLink(page, 'CRM A 004 Needle Client')).toBeVisible()
     expect(searchHtml).toContain('CRM A 004 Needle Client')
     expect(searchHtml).not.toContain('CRM A 001 Client')
     expect(searchHtml).not.toContain('CRM B 002 Secret Tenant Client')
 
     const dangerHtml = await gotoAndReadHtml(page, `${clientiPath}?filter=danger`)
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(10)
+    await expect(clientRowLinks(page)).toHaveCount(10)
+    await expect(clientRowLink(page, 'CRM A 048 Danger Client')).toBeVisible()
     expect(dangerHtml).toContain('CRM A 048 Danger Client')
     expect(dangerHtml).not.toContain('CRM A 004 Needle Client')
 
     const inactiveHtml = await gotoAndReadHtml(page, `${clientiPath}?filter=inactive`)
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(PAGE_SIZE)
+    await expect(clientRowLinks(page)).toHaveCount(PAGE_SIZE)
+    await expect(page.getByText('Mostra 1-25 di 35')).toBeVisible()
     expect(inactiveHtml).toContain('CRM A 056 Inactive Unknown')
     expect(inactiveHtml).toContain('CRM A 061 Inactive Null')
     expect(inactiveHtml).not.toContain('CRM A 048 Danger Client')
     expect(inactiveHtml).not.toContain('CRM A 081 Inactive Page Two')
 
     const isolatedSearchHtml = await gotoAndReadHtml(page, `${clientiPath}?query=Secret%20Tenant`)
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(0)
+    await expect(clientRowLinks(page)).toHaveCount(0)
+    await expect(page.getByText('Nessun cliente trovato.')).toBeVisible()
     expect(isolatedSearchHtml).not.toContain('CRM B 002 Secret Tenant Client')
   })
 
@@ -511,7 +529,8 @@ test.describe.serial('clienti scalability pagination', () => {
 
     const html = await gotoAndReadHtml(page, clientiPath)
 
-    await expect(page.locator('a[href^="/clienti/"]')).toHaveCount(PAGE_SIZE)
+    await expect(clientRowLinks(page)).toHaveCount(PAGE_SIZE)
+    await expect(page.getByText('Mostra 1-25 di 90')).toBeVisible()
     expect(html.length).toBeLessThan(MAX_HTML_LENGTH)
     expect(html).not.toContain('CRM A 081 Inactive Page Two')
     expect(html).not.toContain('CRM B 002 Secret Tenant Client')

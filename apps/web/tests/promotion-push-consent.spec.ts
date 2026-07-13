@@ -13,9 +13,68 @@ import {
 type ServiceClient = ReturnType<typeof requireServiceClient>
 
 interface PushClientSeed {
-  cleanup: () => Promise<void>
   endpoint: string
   profileId: string
+}
+
+async function cleanupPromotionPushFixtures(
+  service: ServiceClient,
+  tenantIds: string[],
+  profileIds: string[],
+): Promise<void> {
+  const uniqueTenantIds = Array.from(new Set(tenantIds))
+  const uniqueProfileIds = Array.from(new Set(profileIds))
+
+  if (uniqueTenantIds.length > 0) {
+    const { error: notificationsError } = await service
+      .from('notifications')
+      .delete()
+      .in('tenant_id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push notifications', notificationsError)
+
+    const { error: notificationLogError } = await service
+      .from('notification_log')
+      .delete()
+      .in('tenant_id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push notification_log', notificationLogError)
+
+    const { error: subscriptionsError } = await service
+      .from('push_subscriptions')
+      .delete()
+      .in('tenant_id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push subscriptions', subscriptionsError)
+
+    const { error: clientsError } = await service
+      .from('clients')
+      .delete()
+      .in('tenant_id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push clients', clientsError)
+
+    const { error: promotionsError } = await service
+      .from('promotions')
+      .delete()
+      .in('tenant_id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push promotions', promotionsError)
+
+    const { error: tenantsError } = await service
+      .from('tenants')
+      .delete()
+      .in('id', uniqueTenantIds)
+    await assertNoSupabaseError('cleanup promotion push tenants', tenantsError)
+  }
+
+  if (uniqueProfileIds.length > 0) {
+    const { data: existingProfiles, error: profilesError } = await service
+      .from('profiles')
+      .select('id')
+      .in('id', uniqueProfileIds)
+    await assertNoSupabaseError('list existing promotion push profiles', profilesError)
+
+    for (const profile of existingProfiles ?? []) {
+      const { error: deleteUserError } = await service.auth.admin.deleteUser(profile.id)
+      await assertNoSupabaseError(`cleanup promotion push auth user ${profile.id}`, deleteUserError)
+    }
+  }
 }
 
 async function createPushProfile(
@@ -93,9 +152,6 @@ async function createPushProfile(
   return {
     profileId,
     endpoint,
-    cleanup: async () => {
-      await service.auth.admin.deleteUser(profileId)
-    },
   }
 }
 
@@ -220,12 +276,16 @@ test.describe.serial('promotion push marketing consent gate', () => {
       expect(crossTenantSubs).toHaveLength(1)
       expect(crossTenantSubs[0]?.endpoint).toBe(otherTenantClient.endpoint)
     } finally {
-      await allowed.cleanup()
-      await denied.cleanup()
-      await orphan.cleanup()
-      await otherTenantClient.cleanup()
-      await tenantA.cleanup()
-      await tenantB.cleanup()
+      await cleanupPromotionPushFixtures(
+        service,
+        [tenantA.tenantId, tenantB.tenantId],
+        [
+          allowed.profileId,
+          denied.profileId,
+          orphan.profileId,
+          otherTenantClient.profileId,
+        ],
+      )
     }
   })
 })

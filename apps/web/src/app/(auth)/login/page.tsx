@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -26,13 +25,25 @@ function Divider() {
 }
 
 interface PageProps {
-  searchParams: Promise<{ intent?: string | string[] | undefined }>
+  searchParams: Promise<{
+    intent?: string | string[] | undefined
+    error?: string | string[] | undefined
+    redirectTo?: string | string[] | undefined
+  }>
+}
+
+function firstString(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value[0] ?? null
+  return null
 }
 
 export default async function LoginPage({ searchParams }: PageProps) {
   const params = await searchParams
   const intent = readTrialIntent(params.intent)
   const registerHref = buildPathWithTrialIntent('/register', intent)
+  const initialError = firstString(params.error)
+  const redirectTo = firstString(params.redirectTo)
 
   return (
     <AuthSplitLayout
@@ -113,9 +124,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
       <Divider />
 
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
+      <LoginForm initialError={initialError} redirectTo={redirectTo} />
 
       <p
         className="mt-6 text-center text-sm"

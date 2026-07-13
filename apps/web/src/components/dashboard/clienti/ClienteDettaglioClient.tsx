@@ -233,9 +233,10 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Back link */}
+      {/* Back link — desktop only; on mobile the TopBarDetail back button handles this */}
       <Link
         href="/clienti"
+        className="desktop-only"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#5e5e5b', textDecoration: 'none', fontWeight: 500, alignSelf: 'flex-start' }}
       >
         <ChevronLeft size={15} />Tutti i clienti
