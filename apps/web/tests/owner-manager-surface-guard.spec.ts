@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { expect, test, type Page } from 'playwright/test'
+import { expect, test, type Browser, type BrowserContext, type Page } from 'playwright/test'
 import {
   assertNoSupabaseError,
   hasSupabaseSeedEnv,
@@ -7,6 +7,7 @@ import {
   requireServiceClient,
   type ServiceClient,
 } from './helpers/supabase-admin'
+import { gotoDomContentLoaded, waitForUrlDomContentLoaded } from './helpers/navigation'
 
 interface UserSeed {
   id: string
@@ -28,6 +29,8 @@ interface CapturedActionRequest {
   headers: Record<string, string>
   body: Buffer
 }
+
+const APP_URL = process.env.PLAYWRIGHT_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 function buildTenantDashboardPath(slug: string, relativePath: string): string {
   const normalizedPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`
@@ -142,7 +145,7 @@ async function seedSurfaceFixture(): Promise<SurfaceFixture> {
 
 async function resetSession(page: Page) {
   await page.context().clearCookies()
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+  await gotoDomContentLoaded(page, '/login')
   await page.evaluate(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
@@ -155,9 +158,7 @@ async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
   const normalizedRedirectTo = normalizePathname(redirectTo)
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`, {
-      waitUntil: 'domcontentloaded',
-    })
+    await gotoDomContentLoaded(page, `/login?redirectTo=${encodeURIComponent(redirectTo)}`)
     // Pre-set analytics consent so the cookie banner never blocks test interactions
     await page.evaluate(() => {
       window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
@@ -168,7 +169,8 @@ async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
     await page.getByRole('button', { name: 'Accedi' }).click()
 
     try {
-      await page.waitForURL(
+      await waitForUrlDomContentLoaded(
+        page,
         (url) => normalizePathname(url.pathname) === normalizedRedirectTo,
         { timeout: 15_000 },
       )
@@ -178,6 +180,17 @@ async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
       await resetSession(page)
     }
   }
+}
+
+async function createLoggedInSession(
+  browser: Browser,
+  user: UserSeed,
+  redirectTo: string,
+): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext({ baseURL: APP_URL })
+  const page = await context.newPage()
+  await loginAs(page, user, redirectTo)
+  return { context, page }
 }
 
 async function captureNextActionRequest(
@@ -250,7 +263,7 @@ test.describe.serial('owner-manager surface guard', () => {
     return service
   }
 
-  test('receptionist cannot access owner-manager management pages by URL while owner and manager can', async ({ page }) => {
+  test('receptionist cannot access owner-manager management pages by URL while owner and manager can', async ({ browser }) => {
     test.setTimeout(120_000)
     const fixture = getFixture()
     const protectedPaths = [
@@ -262,25 +275,37 @@ test.describe.serial('owner-manager surface guard', () => {
     ]
 
     const receptionistLanding = buildTenantDashboardPath(fixture.slug, '/profilo')
-    await loginAs(page, fixture.receptionist, receptionistLanding)
+    let receptionistSession: { context: BrowserContext; page: Page } | null = null
+    let ownerSession: { context: BrowserContext; page: Page } | null = null
+    let managerSession: { context: BrowserContext; page: Page } | null = null
 
-    for (const path of protectedPaths) {
-      const response = await page.goto(path)
-      expect(response?.status()).toBe(403)
-    }
+    try {
+      receptionistSession = await createLoggedInSession(browser, fixture.receptionist, receptionistLanding)
 
-    await resetSession(page)
-    await loginAs(page, fixture.owner, protectedPaths[0])
-    for (const path of protectedPaths) {
-      await page.goto(path)
-      expect(page.url()).toContain(path)
-    }
+      for (const path of protectedPaths) {
+        const response = await gotoDomContentLoaded(receptionistSession.page, path)
+        expect(response?.status()).toBe(403)
+      }
 
-    await resetSession(page)
-    await loginAs(page, fixture.manager, protectedPaths[0])
-    for (const path of protectedPaths) {
-      await page.goto(path)
-      expect(page.url()).toContain(path)
+      ownerSession = await createLoggedInSession(browser, fixture.owner, protectedPaths[0])
+      for (const path of protectedPaths) {
+        const response = await gotoDomContentLoaded(ownerSession.page, path)
+        expect(response?.status()).toBe(200)
+        expect(ownerSession.page.url()).toContain(path)
+      }
+
+      managerSession = await createLoggedInSession(browser, fixture.manager, protectedPaths[0])
+      for (const path of protectedPaths) {
+        const response = await gotoDomContentLoaded(managerSession.page, path)
+        expect(response?.status()).toBe(200)
+        expect(managerSession.page.url()).toContain(path)
+      }
+    } finally {
+      await Promise.allSettled([
+        receptionistSession?.context.close(),
+        ownerSession?.context.close(),
+        managerSession?.context.close(),
+      ])
     }
   })
 
@@ -354,7 +379,7 @@ test.describe.serial('owner-manager surface guard', () => {
 
     // Set up the listener BEFORE navigating to marketing so mount-time Server Actions are captured.
     const capturedMarketingAction = await captureNextActionRequest(page, async () => {
-      await page.goto(marketingPath)
+      await gotoDomContentLoaded(page, marketingPath)
       await expect(page.getByRole('switch').first()).toBeVisible({ timeout: 15_000 })
     })
 

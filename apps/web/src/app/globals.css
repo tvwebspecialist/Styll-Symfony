@@ -642,9 +642,25 @@
   display: none;
 }
 
-/* Greeting block — hidden on mobile (topbar handles it) */
+/* Mobile overrides — max 1024px */
 @media (max-width: 1024px) {
+  /* Greeting block hidden on mobile (topbar handles it) */
   .home-v2-greeting-block { display: none; }
+
+  /* Remove the outer card shell on mobile — MainContent already provides
+   * 16px horizontal padding via safe-area-aware padding. Keeping the rounded
+   * card here would (a) clip children at the corners and (b) create double
+   * horizontal padding (32px total instead of the intended 16px). */
+  .home-v2-root {
+    background: transparent;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  /* Remove horizontal padding from the scroll column — MainContent owns it. */
+  .home-v2-main {
+    padding: 16px 0 24px;
+  }
 }
 
 /* Bento: 1-col mobile, 2-col tablet+ */
