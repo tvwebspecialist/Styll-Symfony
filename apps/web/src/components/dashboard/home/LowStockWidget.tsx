@@ -34,18 +34,22 @@ export function LowStockWidget({ products }: Props) {
               border: '1px solid var(--card-border, #E9E9E9)',
             }}
           >
-            {/* Icon */}
+            {/* Thumbnail / icon */}
             <div style={{
               width: 34,
               height: 34,
               borderRadius: 9,
-              background: iconBg,
+              background: p.photo_url ? 'transparent' : iconBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              overflow: 'hidden',
             }}>
-              <Package size={15} color={iconColor} strokeWidth={2} />
+              {p.photo_url
+                ? <img src={p.photo_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <Package size={15} color={iconColor} strokeWidth={2} />
+              }
             </div>
 
             {/* Name + threshold */}

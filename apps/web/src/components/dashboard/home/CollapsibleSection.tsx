@@ -38,8 +38,7 @@ export function CollapsibleSection({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '14px 20px',
-        borderBottom: '1px solid var(--card-border, #E9E9E9)',
+        padding: '14px 20px 12px',
         fontFamily: 'Outfit, sans-serif',
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -84,7 +83,7 @@ export function CollapsibleSection({
       </div>
 
       {/* Content — always visible */}
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '0 20px 20px' }}>
         {children}
       </div>
     </div>
