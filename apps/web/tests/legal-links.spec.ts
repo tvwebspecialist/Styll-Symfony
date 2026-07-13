@@ -17,9 +17,13 @@ test.describe('public legal links', () => {
       await page.goto(buildTenantAppPath(fixture.slug))
 
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
-      await page.getByRole('link', { name: 'Scopri di più' }).click()
+      const detailsLink = page.getByRole('link', { name: 'Scopri di più' })
+      await expect(detailsLink).toHaveAttribute('href', buildTenantAppPath(fixture.slug, '/cookie'))
+      await Promise.all([
+        page.waitForURL(new RegExp(`/tenant/app/${fixture.slug}/cookie$`)),
+        detailsLink.click(),
+      ])
 
-      await expect(page).toHaveURL(/\/cookie$/)
       await expect(page.getByRole('heading', { name: 'Cookie Policy' })).toBeVisible()
     } finally {
       await fixture.cleanup()

@@ -48,13 +48,57 @@ function buildExtraStaffName(index: number): string {
   return `Location B Extra ${String(index + 1).padStart(2, '0')}`
 }
 
+async function cleanupBookingStaffFixtureResources(
+  service: ServiceClient,
+  tenantIds: string[],
+  userIds: string[],
+): Promise<void> {
+  const uniqueTenantIds = Array.from(new Set(tenantIds))
+  const uniqueUserIds = Array.from(new Set(userIds))
+
+  if (uniqueTenantIds.length > 0) {
+    await service.from('working_hours').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('staff_services').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('staff_locations').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('staff_members').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('services').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('locations').delete().in('tenant_id', uniqueTenantIds)
+    await service.from('tenants').delete().in('id', uniqueTenantIds)
+  }
+
+  for (const userId of uniqueUserIds) {
+    await service.auth.admin.deleteUser(userId)
+  }
+}
+
+async function cleanupLeakedBookingStaffFixtures(service: ServiceClient): Promise<void> {
+  const [{ data: tenants, error: tenantsError }, { data: profiles, error: profilesError }] = await Promise.all([
+    service
+      .from('tenants')
+      .select('id')
+      .or('slug.ilike.pw-booking-staff-a-%,slug.ilike.pw-booking-staff-b-%'),
+    service
+      .from('profiles')
+      .select('id')
+      .ilike('email', 'playwright-booking-staff-%@example.com'),
+  ])
+  await assertNoSupabaseError('list leaked booking staff tenants', tenantsError)
+  await assertNoSupabaseError('list leaked booking staff profiles', profilesError)
+
+  await cleanupBookingStaffFixtureResources(
+    service,
+    (tenants ?? []).map((tenant) => tenant.id),
+    (profiles ?? []).map((profile) => profile.id),
+  )
+}
+
 async function createStaffUser(
   service: ServiceClient,
   suffix: string,
   label: string,
   fullName: string,
 ): Promise<UserSeed> {
-  const email = `playwright-booking-staff-${label}-${suffix}@example.com`
+  const email = `playwright-booking-staff-${label}-${Date.now()}-${suffix}@example.com`
   const password = randomBytes(18).toString('hex')
 
   const { data: authData, error: authError } = await service.auth.admin.createUser({
@@ -289,106 +333,101 @@ async function insertWorkingHours(
 
 async function seedBookingStaffFixture(): Promise<BookingStaffFixture> {
   const service = requireServiceClient()
+  await cleanupLeakedBookingStaffFixtures(service)
   const suffix = randomSuffix()
   const createdUserIds: string[] = []
   const tenantIds: string[] = []
 
-  const tenantA = await createTenant(service, suffix, 'a')
-  const tenantB = await createTenant(service, suffix, 'b')
-  tenantIds.push(tenantA.tenantId, tenantB.tenantId)
+  try {
+    const tenantA = await createTenant(service, suffix, 'a')
+    const tenantB = await createTenant(service, suffix, 'b')
+    tenantIds.push(tenantA.tenantId, tenantB.tenantId)
 
-  await insertLocations(service, tenantA, [TENANT_A_LOCATION_NAME, 'PWA Booking Location B'], 'tenant-a')
-  await insertLocations(service, tenantB, [TENANT_B_LOCATION_NAME], 'tenant-b')
+    await insertLocations(service, tenantA, [TENANT_A_LOCATION_NAME, 'PWA Booking Location B'], 'tenant-a')
+    await insertLocations(service, tenantB, [TENANT_B_LOCATION_NAME], 'tenant-b')
 
-  await insertServices(service, tenantA, [
-    { name: SERVICE_FADE, active: true, displayOrder: 1 },
-    { name: SERVICE_BEARD, active: true, displayOrder: 2 },
-    { name: SERVICE_COLOR, active: true, displayOrder: 3 },
-    { name: SERVICE_INACTIVE, active: false, displayOrder: 4 },
-  ], 'tenant-a')
-  await insertServices(service, tenantB, [
-    { name: SERVICE_SECRET, active: true, displayOrder: 1 },
-  ], 'tenant-b')
+    await insertServices(service, tenantA, [
+      { name: SERVICE_FADE, active: true, displayOrder: 1 },
+      { name: SERVICE_BEARD, active: true, displayOrder: 2 },
+      { name: SERVICE_COLOR, active: true, displayOrder: 3 },
+      { name: SERVICE_INACTIVE, active: false, displayOrder: 4 },
+    ], 'tenant-a')
+    await insertServices(service, tenantB, [
+      { name: SERVICE_SECRET, active: true, displayOrder: 1 },
+    ], 'tenant-b')
 
-  const extraStaffNames = Array.from(
-    { length: EXTRA_OTHER_LOCATION_STAFF_COUNT },
-    (_, index) => buildExtraStaffName(index),
-  )
+    const extraStaffNames = Array.from(
+      { length: EXTRA_OTHER_LOCATION_STAFF_COUNT },
+      (_, index) => buildExtraStaffName(index),
+    )
 
-  await insertStaffMembers(
-    service,
-    tenantA,
-    suffix,
-    [STAFF_ALPHA, STAFF_BETA, STAFF_GAMMA, ...extraStaffNames],
-    'tenant-a',
-    createdUserIds,
-  )
-  await insertStaffMembers(
-    service,
-    tenantB,
-    suffix,
-    [STAFF_SECRET],
-    'tenant-b',
-    createdUserIds,
-  )
+    await insertStaffMembers(
+      service,
+      tenantA,
+      suffix,
+      [STAFF_ALPHA, STAFF_BETA, STAFF_GAMMA, ...extraStaffNames],
+      'tenant-a',
+      createdUserIds,
+    )
+    await insertStaffMembers(
+      service,
+      tenantB,
+      suffix,
+      [STAFF_SECRET],
+      'tenant-b',
+      createdUserIds,
+    )
 
-  await insertStaffLocations(service, tenantA, [
-    { staffName: STAFF_ALPHA, locationName: TENANT_A_LOCATION_NAME },
-    { staffName: STAFF_BETA, locationName: TENANT_A_LOCATION_NAME },
-    { staffName: STAFF_GAMMA, locationName: 'PWA Booking Location B' },
-    ...extraStaffNames.map((name) => ({
-      staffName: name,
-      locationName: 'PWA Booking Location B',
-    })),
-  ], 'tenant-a')
-  await insertStaffLocations(service, tenantB, [
-    { staffName: STAFF_SECRET, locationName: TENANT_B_LOCATION_NAME },
-  ], 'tenant-b')
+    await insertStaffLocations(service, tenantA, [
+      { staffName: STAFF_ALPHA, locationName: TENANT_A_LOCATION_NAME },
+      { staffName: STAFF_BETA, locationName: TENANT_A_LOCATION_NAME },
+      { staffName: STAFF_GAMMA, locationName: 'PWA Booking Location B' },
+      ...extraStaffNames.map((name) => ({
+        staffName: name,
+        locationName: 'PWA Booking Location B',
+      })),
+    ], 'tenant-a')
+    await insertStaffLocations(service, tenantB, [
+      { staffName: STAFF_SECRET, locationName: TENANT_B_LOCATION_NAME },
+    ], 'tenant-b')
 
-  await insertStaffServices(service, tenantA, [
-    { staffName: STAFF_ALPHA, serviceNames: [SERVICE_FADE, SERVICE_BEARD, SERVICE_INACTIVE] },
-    { staffName: STAFF_BETA, serviceNames: [SERVICE_BEARD] },
-    { staffName: STAFF_GAMMA, serviceNames: [SERVICE_COLOR] },
-    ...extraStaffNames.map((name) => ({
-      staffName: name,
-      serviceNames: [SERVICE_COLOR],
-    })),
-  ], 'tenant-a')
-  await insertStaffServices(service, tenantB, [
-    { staffName: STAFF_SECRET, serviceNames: [SERVICE_SECRET] },
-  ], 'tenant-b')
+    await insertStaffServices(service, tenantA, [
+      { staffName: STAFF_ALPHA, serviceNames: [SERVICE_FADE, SERVICE_BEARD, SERVICE_INACTIVE] },
+      { staffName: STAFF_BETA, serviceNames: [SERVICE_BEARD] },
+      { staffName: STAFF_GAMMA, serviceNames: [SERVICE_COLOR] },
+      ...extraStaffNames.map((name) => ({
+        staffName: name,
+        serviceNames: [SERVICE_COLOR],
+      })),
+    ], 'tenant-a')
+    await insertStaffServices(service, tenantB, [
+      { staffName: STAFF_SECRET, serviceNames: [SERVICE_SECRET] },
+    ], 'tenant-b')
 
-  await insertWorkingHours(service, tenantA, [
-    { staffName: STAFF_ALPHA, startTime: '09:00:00', locationName: TENANT_A_LOCATION_NAME },
-    { staffName: STAFF_BETA, startTime: '10:00:00', locationName: TENANT_A_LOCATION_NAME },
-    { staffName: STAFF_GAMMA, startTime: '11:00:00', locationName: 'PWA Booking Location B' },
-    ...extraStaffNames.map((name) => ({
-      staffName: name,
-      startTime: '12:00:00',
-      locationName: 'PWA Booking Location B',
-    })),
-  ], 'tenant-a')
-  await insertWorkingHours(service, tenantB, [
-    { staffName: STAFF_SECRET, startTime: '08:30:00', locationName: TENANT_B_LOCATION_NAME },
-  ], 'tenant-b')
+    await insertWorkingHours(service, tenantA, [
+      { staffName: STAFF_ALPHA, startTime: '09:00:00', locationName: TENANT_A_LOCATION_NAME },
+      { staffName: STAFF_BETA, startTime: '10:00:00', locationName: TENANT_A_LOCATION_NAME },
+      { staffName: STAFF_GAMMA, startTime: '11:00:00', locationName: 'PWA Booking Location B' },
+      ...extraStaffNames.map((name) => ({
+        staffName: name,
+        startTime: '12:00:00',
+        locationName: 'PWA Booking Location B',
+      })),
+    ], 'tenant-a')
+    await insertWorkingHours(service, tenantB, [
+      { staffName: STAFF_SECRET, startTime: '08:30:00', locationName: TENANT_B_LOCATION_NAME },
+    ], 'tenant-b')
 
-  return {
-    tenantA,
-    tenantB,
-    cleanup: async () => {
-      if (tenantIds.length > 0) {
-        await service.from('working_hours').delete().in('tenant_id', tenantIds)
-        await service.from('staff_services').delete().in('tenant_id', tenantIds)
-        await service.from('staff_locations').delete().in('tenant_id', tenantIds)
-        await service.from('staff_members').delete().in('tenant_id', tenantIds)
-        await service.from('services').delete().in('tenant_id', tenantIds)
-        await service.from('locations').delete().in('tenant_id', tenantIds)
-        await service.from('tenants').delete().in('id', tenantIds)
-      }
-      for (const userId of createdUserIds) {
-        await service.auth.admin.deleteUser(userId)
-      }
-    },
+    return {
+      tenantA,
+      tenantB,
+      cleanup: async () => {
+        await cleanupBookingStaffFixtureResources(service, tenantIds, createdUserIds)
+      },
+    }
+  } catch (error) {
+    await cleanupBookingStaffFixtureResources(service, tenantIds, createdUserIds)
+    throw error
   }
 }
 
