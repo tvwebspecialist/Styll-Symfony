@@ -153,7 +153,7 @@ async function getClientiActorContext(): Promise<ClientiActorContext | null> {
   if (!user) return null
 
   const db = createAdminClient()
-  const { data: currentStaff } = await db
+  const { data: staffRow } = await db
     .from('staff_members')
     .select('id, role')
     .eq('tenant_id', tenantId)
@@ -162,12 +162,37 @@ async function getClientiActorContext(): Promise<ClientiActorContext | null> {
     .is('deleted_at', null)
     .maybeSingle()
 
-  if (!currentStaff) return null
+  let effectiveStaff = staffRow as { id: string; role: string } | null
+
+  // Superadmin shadow-mode bypass: superadmins are not in staff_members for the
+  // tenant, so adopt the owner's staff record to allow full CRM access.
+  if (!effectiveStaff) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if ((profile as { is_superadmin?: boolean } | null)?.is_superadmin) {
+      const { data: ownerRow } = await db
+        .from('staff_members')
+        .select('id, role')
+        .eq('tenant_id', tenantId)
+        .in('role', ['owner', 'manager'])
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle()
+      effectiveStaff = ownerRow as typeof effectiveStaff
+    }
+  }
+
+  if (!effectiveStaff) return null
 
   return {
     tenantId,
     db,
-    currentStaff: currentStaff as ClientiActorContext['currentStaff'],
+    currentStaff: effectiveStaff as ClientiActorContext['currentStaff'],
   }
 }
 

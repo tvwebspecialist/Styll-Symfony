@@ -284,8 +284,6 @@ export function CalendarPanel({ todayAppointments, weekAppointments, workingHour
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: 8,
-        borderBottom: '1px solid var(--divider, #F0F0F0)',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', gap: 16 }}>

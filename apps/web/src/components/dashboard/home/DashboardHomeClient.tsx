@@ -97,7 +97,7 @@ export function DashboardHomeClient({ data, basePath }: Props) {
             badgeVariant={lowStockProducts.some((p) => p.risk === 'red') ? 'red' : 'yellow'}
             defaultOpen={false}
           >
-            <LowStockWidget products={lowStockProducts} />
+            <LowStockWidget products={lowStockProducts} basePath={basePath} />
           </CollapsibleSection>
         )}
 
