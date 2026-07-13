@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { TrendingUp, Users, RefreshCcw } from 'lucide-react'
 import type { WeekStats, TodayAppointment } from '@/lib/actions/dashboard-home'
 
 interface Props {
@@ -37,7 +38,7 @@ function PillBadge({ current, prev }: { current: number; prev: number }) {
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
 function intensityColor(count: number): string {
-  if (count === 0) return '#F3F4F6'
+  if (count === 0) return '#FFFFFF'
   if (count <= 2) return 'rgba(249,115,22,0.20)'
   if (count <= 4) return 'rgba(249,115,22,0.50)'
   return 'rgba(249,115,22,0.85)'
@@ -74,9 +75,9 @@ export function WeekStats({ stats, weekAppointments }: Props) {
       : 0
 
   const metrics = [
-    { label: 'Revenue', value: `€${stats.revenue}`, current: stats.revenue, prev: stats.revenue_prev },
-    { label: 'Clienti', value: String(stats.client_count), current: stats.client_count, prev: stats.client_count_prev },
-    { label: 'Retention', value: `${retention}%`, current: retention, prev: 0 },
+    { label: 'Revenue', value: `€${stats.revenue}`, current: stats.revenue, prev: stats.revenue_prev, icon: <TrendingUp size={13} color="#22C55E" strokeWidth={2} />, iconBg: 'rgba(34,197,94,0.10)' },
+    { label: 'Clienti', value: String(stats.client_count), current: stats.client_count, prev: stats.client_count_prev, icon: <Users size={13} color="#3B82F6" strokeWidth={2} />, iconBg: 'rgba(59,130,246,0.10)' },
+    { label: 'Retention', value: `${retention}%`, current: retention, prev: 0, icon: <RefreshCcw size={13} color="#8B5CF6" strokeWidth={2} />, iconBg: 'rgba(139,92,246,0.10)' },
   ]
 
   const dayCountMap = buildDayCountMap(weekAppointments)
@@ -93,26 +94,44 @@ export function WeekStats({ stats, weekAppointments }: Props) {
               background: 'var(--card-bg, #FFFFFF)',
               borderRadius: 10,
               border: '1px solid var(--card-border, #E9E9E9)',
-              padding: '12px 14px',
+              padding: '10px 12px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 4,
+              gap: 6,
+              transition: 'background 0.15s ease, transform 0.15s ease',
             }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F7F7F7'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
           >
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: '#9CA3AF',
-              fontFamily: 'Outfit, sans-serif',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              lineHeight: 1,
-            }}>
-              {m.label}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+            {/* Icon + label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 26,
+                height: 26,
+                borderRadius: 7,
+                background: m.iconBg,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {m.icon}
+              </div>
               <span style={{
-                fontSize: 20,
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#6B7280',
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                lineHeight: 1,
+              }}>
+                {m.label}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 19,
                 fontWeight: 800,
                 color: '#111111',
                 fontFamily: 'Outfit, sans-serif',
@@ -129,9 +148,9 @@ export function WeekStats({ stats, weekAppointments }: Props) {
 
       {/* Heatmap settimana */}
       <div style={{
-        background: 'rgba(0,0,0,0.025)',
+        background: 'var(--card-bg, #FFFFFF)',
         borderRadius: 10,
-        border: '1px solid rgba(0,0,0,0.06)',
+        border: '1px solid var(--card-border, #E9E9E9)',
         padding: '12px 14px',
       }}>
         <p style={{
@@ -160,7 +179,7 @@ export function WeekStats({ stats, weekAppointments }: Props) {
                   aspectRatio: '1',
                   borderRadius: 8,
                   background: intensityColor(count),
-                  border: isToday ? '2px solid rgba(249,115,22,0.60)' : '2px solid transparent',
+                  border: isToday ? '2px solid rgba(249,115,22,0.80)' : count === 0 ? '1px solid #E9E9E9' : '1px solid transparent',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -194,7 +213,7 @@ export function WeekStats({ stats, weekAppointments }: Props) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
           {[
-            { color: '#F3F4F6', label: 'Vuoto' },
+            { color: '#FFFFFF', label: 'Vuoto' },
             { color: 'rgba(249,115,22,0.20)', label: '1–2' },
             { color: 'rgba(249,115,22,0.50)', label: '3–4' },
             { color: 'rgba(249,115,22,0.85)', label: '5+' },

@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 
-import { sendEmailVerificationOtp } from '@/lib/email-verification'
+import {
+  normalizeVerificationEmail,
+  sendEmailVerificationOtp,
+} from '@/lib/email-verification'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 const Schema = z.object({ email: z.string().trim().email() })
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Email non valida.' }, { status: 400 })
   }
 
-  const email = parsed.data.email.toLowerCase()
+  const email = normalizeVerificationEmail(parsed.data.email)
 
   // 1 reinvio ogni 60s per email
   const cooldownCheck = checkRateLimit(`resend-otp:cooldown:${email}`, 1, 60_000)

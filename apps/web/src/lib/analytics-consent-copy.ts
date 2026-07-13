@@ -17,6 +17,8 @@ export const ANALYTICS_CONSENT_COPY = {
     'Analytics opzionali disattivati. Restano attivi solo cookie tecnici e preferenze essenziali per il funzionamento del servizio.',
   unknownDescription:
     'Non hai ancora espresso una scelta sugli analytics opzionali per questa superficie.',
+  saveError:
+    'Non siamo riusciti a salvare la tua scelta analytics lato server. Riprova tra qualche secondo.',
 } as const
 
 export const ANALYTICS_CONSENT_SOURCE = {

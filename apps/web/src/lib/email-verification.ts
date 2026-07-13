@@ -34,6 +34,14 @@ export function getPepper(): string {
   return pepper
 }
 
+export function normalizeVerificationEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+export function normalizeVerificationCode(code: string): string {
+  return code.trim()
+}
+
 export function hashOtp(code: string, pepper: string): string {
   return createHmac('sha256', pepper).update(code).digest('hex')
 }
@@ -68,7 +76,7 @@ export async function sendEmailVerificationOtp(
   email: string,
   deps: SendEmailVerificationOtpDeps = {}
 ): Promise<SendEmailVerificationResult> {
-  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedEmail = normalizeVerificationEmail(email)
   const db = deps.db ?? createAdminClient()
   const now = deps.now?.() ?? new Date()
   const sendEmail = deps.sendEmail ?? sendVerificationCodeEmail
@@ -142,7 +150,8 @@ export async function sendEmailVerificationOtp(
   // Plaintext code exists only in memory and in the email body.
   // Only the HMAC-SHA-256 hash is persisted to the database.
   const code = generateOtpCode()
-  const codeHash = hashOtp(code, pepper)
+  const normalizedCode = normalizeVerificationCode(code)
+  const codeHash = hashOtp(normalizedCode, pepper)
   const expiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_CODE_TTL_MS)
 
   // Atomic: invalidate previous unused tokens + insert new one in one transaction
@@ -158,7 +167,7 @@ export async function sendEmailVerificationOtp(
     return { success: false, error: 'Errore interno. Riprova.', statusCode: 500 }
   }
 
-  const emailResult = await sendEmail({ email: normalizedEmail, code })
+  const emailResult = await sendEmail({ email: normalizedEmail, code: normalizedCode })
   if (!emailResult.success) {
     if (newTokenId) {
       const { error: rollbackErr } = await db

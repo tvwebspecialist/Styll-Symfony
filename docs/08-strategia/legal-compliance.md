@@ -167,15 +167,15 @@ Styll deve garantire meccanismi per l'esercizio dei seguenti diritti:
 
 | Diritto | Implementazione in Styll |
 |---------|-------------------------|
-| **Accesso** (Art. 15) | Dashboard cliente: visualizzazione dati personali, storico prenotazioni, punti loyalty |
-| **Rettifica** (Art. 16) | Modifica in-app di telefono, email, preferenze |
-| **Cancellazione** (Art. 17) | Funzione "Elimina il mio account" + cancellazione da CRM barbiere (su richiesta) |
-| **Limitazione** (Art. 18) | Possibilità di disattivare trattamenti specifici (es. loyalty, profilazione) |
-| **Portabilità** (Art. 20) | Export dati in formato strutturato (CSV/JSON) — coerente con il valore "I tuoi dati sono tuoi" |
-| **Opposizione** (Art. 21) | Opt-out da profilazione, marketing, comunicazioni non essenziali |
+| **Accesso** (Art. 15) | Centro PWA `/profilo/dati`: export JSON tenant-scoped + richiesta manuale tracciata per le categorie che richiedono review del Titolare |
+| **Rettifica** (Art. 16) | Modifica profilo in-app con audit della rettifica |
+| **Cancellazione** (Art. 17) | Cancellazione self-service tenant-scoped con cleanup selettivo, anonimizzazione minima e logout |
+| **Limitazione** (Art. 18) | Self-service su marketing / churn / analytics / push + richiesta manuale tracciata per limitazioni ulteriori |
+| **Portabilità** (Art. 20) | Export dati in formato JSON strutturato dal centro PWA `/profilo/dati` |
+| **Opposizione** (Art. 21) | Opt-out marketing e churn in-app / email unsubscribe tenant-specifico |
 | **Non essere soggetto a decisioni automatizzate** (Art. 22) | Rilevante per VIP Score e No-show Prediction — diritto di contestare la decisione e ottenere intervento umano |
 
-**Nota importante**: Il valore di Styll "Export dati: sempre gratis" è perfettamente allineato con il diritto alla portabilità del GDPR.
+**Nota importante**: la matrice operativa aggiornata dei diritti B2C è documentata in [docs/legal/b2c-data-subject-rights-matrix.md](../legal/b2c-data-subject-rights-matrix.md).
 
 ### 3.6 Data Processing Agreement (DPA)
 
@@ -324,7 +324,7 @@ Secondo le linee guida del Garante Privacy italiano:
 - ❌ **Vietato**: pre-selezionare caselle, ottenere consenso tramite scroll, cookie wall (condizionare l'accesso all'accettazione dei cookie)
 - ✅ **Revoca**: il consenso deve essere revocabile con la stessa facilità con cui è stato dato (link persistente nel footer)
 - ✅ **Rinnovo**: richiedere il consenso periodicamente (raccomandato: ogni 6-12 mesi) o quando cambiano i trattamenti
-- ✅ **Prova del consenso**: conservare un log append-only lato server (es. `analytics_consent_events`) con timestamp, host/surface, scelta, fonte, versione della policy e un centro preferenze sempre raggiungibile sulla stessa superficie
+- ✅ **Prova del consenso**: conservare un log append-only lato server (es. `analytics_consent_events`) con timestamp, host/surface, scelta, fonte, versione della policy e un centro preferenze sempre raggiungibile sulla stessa superficie; eventuale cache locale nel browser deve restare solo una copia UI dell’ultima scelta già confermata lato server
 
 ### 6.4 Consent Management Platform (CMP) consigliata
 
@@ -335,7 +335,7 @@ Secondo le linee guida del Garante Privacy italiano:
 | **CookieYes** | Da €9/mese | Facile, conforme GDPR, banner personalizzabile |
 | **Osano** | Gratuito (base) | Open source friendly |
 
-**Raccomandazione per Styll**: per l’assetto attuale non serve una CMP enterprise, ma un sistema leggero e auditabile con banner, centro preferenze persistente e prova server-side della scelta analytics. Per le PWA dei barbieri, i cookie tecnici di sessione restano necessari; gli analytics opzionali devono invece essere governati da scelta esplicita, revoca successiva e log di prova versionato in `analytics_consent_events`, separato dalla cache UI locale.
+**Raccomandazione per Styll**: per l’assetto attuale non serve una CMP enterprise, ma un sistema leggero e auditabile con banner, centro preferenze persistente e prova server-side della scelta analytics. Per le PWA dei barbieri, i cookie tecnici di sessione restano necessari; gli analytics opzionali devono invece essere governati da scelta esplicita, revoca successiva e log di prova versionato in `analytics_consent_events`, mentre `localStorage` può restare solo come cache UI dell’ultima scelta già confermata lato server.
 
 ---
 

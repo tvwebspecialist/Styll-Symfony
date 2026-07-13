@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   persistAnalyticsConsentChoice,
 } from '@/lib/analytics-consent'
@@ -44,6 +45,12 @@ export function CookieBanner({ cookiePath, brandColor = '#1A1A1A' }: CookieBanne
         source: ANALYTICS_CONSENT_SOURCE.BANNER,
       })
       setVisible(false)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : ANALYTICS_CONSENT_COPY.saveError,
+      )
     } finally {
       setSavingState(null)
     }

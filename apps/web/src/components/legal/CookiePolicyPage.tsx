@@ -68,14 +68,14 @@ function CookieTable() {
     {
       name: 'styll_cookie_consent_v1',
       storage: 'localStorage (cache UI)',
-      purpose: 'Memorizza lato browser lo stato corrente della scelta analytics per evitare di riproporre il banner inutilmente',
+      purpose: 'Memorizza lato browser solo l’ultima scelta analytics già confermata lato server, così il banner non si ripresenta inutilmente',
       type: 'Storage locale di preferenza',
       duration: 'Persistente fino a modifica o reset browser',
     },
     {
       name: 'styll_cookie_consent_version_v1',
       storage: 'localStorage (cache UI)',
-      purpose: 'Memorizza la versione del testo di consenso attualmente applicata per invalidare la cache quando la policy cambia',
+      purpose: 'Memorizza la versione del testo di consenso confermata lato server per invalidare la cache quando la policy cambia',
       type: 'Storage locale tecnico',
       duration: 'Persistente fino a modifica o reset browser',
     },

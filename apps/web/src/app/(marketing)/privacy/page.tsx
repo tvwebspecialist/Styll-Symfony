@@ -379,7 +379,7 @@ export default function PrivacyPage() {
             <Link href={PLATFORM_ANALYTICS_PREFERENCES_HREF} style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
               Cookie Policy
             </Link>
-            .
+            . Il browser conserva solo una cache tecnica dell’ultima scelta già confermata lato server.
           </p>
         </Section>
 

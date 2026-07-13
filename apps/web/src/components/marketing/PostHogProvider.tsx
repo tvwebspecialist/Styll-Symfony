@@ -5,24 +5,39 @@ import posthog from 'posthog-js'
 import { hasAnalyticsConsent } from '@/lib/analytics-consent'
 import { useAnalyticsConsent } from '@/hooks/use-analytics-consent'
 
-let initialized = false
+let hasInitializedClient = false
 
-function ensurePostHogInitialized(): boolean {
-  if (initialized || !hasAnalyticsConsent()) return initialized
+function enablePostHog(): boolean {
+  if (!hasAnalyticsConsent()) return false
 
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
   const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://eu.i.posthog.com'
   if (!key) return false
 
-  posthog.init(key, {
-    api_host: host,
-    capture_pageview: true,
-    capture_pageleave: true,
-    persistence: 'localStorage',
-    autocapture: false,
-  })
-  initialized = true
+  if (!hasInitializedClient) {
+    posthog.init(key, {
+      api_host: host,
+      capture_pageview: true,
+      capture_pageleave: true,
+      persistence: 'localStorage',
+      autocapture: false,
+    })
+    hasInitializedClient = true
+  }
+
+  posthog.opt_in_capturing()
   return true
+}
+
+function disablePostHog(): void {
+  if (!hasInitializedClient) return
+
+  try {
+    posthog.opt_out_capturing()
+    posthog.reset(true)
+  } catch (error) {
+    console.error('[posthog] failed to disable analytics after consent revocation', error)
+  }
 }
 
 export function PostHogProvider() {
@@ -32,18 +47,11 @@ export function PostHogProvider() {
     if (!ready) return
 
     if (!hasConsent) {
-      if (initialized) {
-        try {
-          posthog.reset(true)
-        } catch {
-          // best-effort
-        }
-        initialized = false
-      }
+      disablePostHog()
       return
     }
 
-    ensurePostHogInitialized()
+    enablePostHog()
   }, [hasConsent, ready])
 
   return null
@@ -53,10 +61,9 @@ export function identifyLead(email: string, properties?: Record<string, unknown>
   if (typeof window === 'undefined' || !hasAnalyticsConsent()) return
 
   try {
-    ensurePostHogInitialized()
-    if (!initialized) return
+    if (!enablePostHog()) return
     posthog.identify(email, { email, ...properties })
-  } catch {
-    // best-effort
+  } catch (error) {
+    console.error('[posthog] failed to identify marketing lead', error)
   }
 }

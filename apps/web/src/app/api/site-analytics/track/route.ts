@@ -277,8 +277,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const consentAnonymousId = req.cookies.get(ANALYTICS_CONSENT_ANON_COOKIE)?.value ?? null
-    if (!consentAnonymousId || consentAnonymousId !== anonymous_id) {
-      return NextResponse.json({ ok: false, reason: 'analytics_consent_required' }, { status: 403 })
+    if (consentAnonymousId && consentAnonymousId !== anonymous_id) {
+      return NextResponse.json({ ok: false, reason: 'analytics_consent_mismatch' }, { status: 403 })
     }
 
     const consentContext = buildAnalyticsConsentRequestContext(

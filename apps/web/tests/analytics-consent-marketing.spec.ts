@@ -126,11 +126,12 @@ test.describe('marketing analytics consent', () => {
       ANALYTICS_CONSENT_POLICY_VERSION,
     )
 
-    await page.locator('footer').getByRole('link', { name: 'Gestisci cookie' }).click()
+    const footerManageLink = page.locator('footer').getByRole('link', { name: 'Gestisci cookie' })
+    await expect(footerManageLink).toHaveAttribute('href', PLATFORM_ANALYTICS_PREFERENCES_HREF)
+    await page.goto(PLATFORM_ANALYTICS_PREFERENCES_HREF)
     await expect(page).toHaveURL(new RegExp(`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
     await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 
-    const vercelEventsBeforeRevocation = await readVercelEventCount(page)
     const posthogRequestsBeforeRevocation = getPostHogCount()
 
     await page.getByRole('button', { name: 'Revoca analytics' }).click()
@@ -141,7 +142,7 @@ test.describe('marketing analytics consent', () => {
     await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
     await page.waitForTimeout(250)
 
-    expect(await readVercelEventCount(page)).toBe(vercelEventsBeforeRevocation)
+    expect(await readVercelEventCount(page)).toBe(0)
     if (posthogEnabled) {
       expect(getPostHogCount()).toBe(posthogRequestsBeforeRevocation)
     }
@@ -166,7 +167,7 @@ test.describe('marketing analytics consent', () => {
     await expect(page).toHaveURL(new RegExp(`/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
     await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
 
-    await page.getByRole('button', { name: 'Continua senza analytics' }).click()
+    await page.locator(`#${ANALYTICS_PREFERENCES_SECTION_ID}`).getByRole('button', { name: 'Continua senza analytics' }).click()
     await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
     await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 

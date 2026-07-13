@@ -38,6 +38,7 @@ type NotifType =
   | 'churn_alert'
   | 'low_stock'
   | 'loyalty_milestone'
+  | 'privacy_request'
 
 /** Mappa type → chiave in profiles.notification_preferences. */
 const TYPE_TO_PREF_KEY: Partial<Record<NotifType, string>> = {

@@ -54,6 +54,7 @@ function mapDbChurnToUi(s: DbChurnStatus | string | null | undefined): ChurnStat
 export interface ClienteRow {
   id: string
   fullName: string
+  avatarUrl: string | null
   email: string | null
   phone: string | null
   churn: ChurnStatus
@@ -69,6 +70,7 @@ export interface ClienteRow {
 interface ClientRow {
   id: string
   full_name: string
+  avatar_url: string | null
   email: string | null
   phone: string | null
   tags: unknown
@@ -465,7 +467,7 @@ export async function getClienti(options: GetClientiOptions = {}): Promise<GetCl
     }
   }
 
-  const selectParts = ['id', 'full_name', 'email', 'phone', 'tags']
+  const selectParts = ['id', 'full_name', 'avatar_url', 'email', 'phone', 'tags']
   if (ctx.currentStaff.role !== 'receptionist') {
     const analyticsRelation =
       filter === 'active' || filter === 'warning' || filter === 'danger'
@@ -530,6 +532,7 @@ export async function getClienti(options: GetClientiOptions = {}): Promise<GetCl
         redactClienteRowForReceptionist({
           id: client.id,
           fullName: client.full_name,
+          avatarUrl: client.avatar_url ?? null,
           email: client.email,
           phone: client.phone,
           churn: 'inactive',
@@ -664,6 +667,7 @@ export async function getClienti(options: GetClientiOptions = {}): Promise<GetCl
       return {
         id: client.id,
         fullName: client.full_name,
+        avatarUrl: client.avatar_url ?? null,
         email: client.email,
         phone: client.phone,
         churn: mapDbChurnToUi(analytics?.churn_status),

@@ -38,8 +38,8 @@ interface TenantContact {
   phone: string | null
 }
 
-const DOCUMENT_VERSION = '1.3'
-const EFFECTIVE_DATE = '11 luglio 2026'
+const DOCUMENT_VERSION = '1.4'
+const EFFECTIVE_DATE = '13 luglio 2026'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -198,8 +198,10 @@ export default async function PrivacyPage({ params }: Props) {
             <ul className="list-disc space-y-1 pl-5">
               <li>dati identificativi e di contatto (nome, telefono, email);</li>
               <li>dati relativi a prenotazioni, servizi scelti e storico appuntamenti;</li>
-              <li>dati loyalty, punti, streak, premi e preferenze del programma, se attivo;</li>
-              <li>preferenze comunicazioni e consenso marketing;</li>
+              <li>dati loyalty e gamification come punti, streak, premi, badge e riscatti, se attivi;</li>
+              <li>preferiti e wishlist prodotti collegati al tuo profilo cliente;</li>
+              <li>preferenze comunicazioni, consenso marketing e opposizione alla profilazione churn;</li>
+              <li>notifiche in-app e relativa cronologia recente, se previste dal servizio;</li>
               <li>dati tecnici come sessione, token OAuth e push subscription, se attivi le notifiche;</li>
               <li>
                 dati di navigazione analytics raccolti solo dopo consenso agli analytics opzionali, inclusi
@@ -270,7 +272,8 @@ export default async function PrivacyPage({ params }: Props) {
               <Link href={tp('/cookie')} className="underline text-neutral-700">
                 Cookie Policy
               </Link>{' '}
-              della stessa superficie.
+              della stessa superficie. Il browser conserva solo una cache tecnica dell’ultima scelta già
+              confermata lato server.
             </p>
           </Section>
 
@@ -329,7 +332,8 @@ export default async function PrivacyPage({ params }: Props) {
                 <p className="font-semibold text-neutral-800">Prenotazioni, storico servizi e CRM</p>
                 <p className="text-[13px] text-neutral-500">
                   Per la durata del rapporto con il salone; alcuni dati possono essere conservati più a lungo se
-                  necessari per obblighi fiscali o contabili del Titolare.
+                  necessari per obblighi fiscali o contabili del Titolare. In caso di cancellazione self-service,
+                  il salone mantiene solo il minimo necessario e anonimizza il resto dove possibile.
                 </p>
               </div>
               <div className="rounded-xl bg-neutral-50 p-3">
@@ -379,18 +383,21 @@ export default async function PrivacyPage({ params }: Props) {
               marketing e opposizione alla profilazione nei casi previsti dalla legge.
             </p>
             <p>
-              Per esercitare i tuoi diritti, contatta prima di tutto il <strong className="text-neutral-900">Titolare</strong>{' '}
-              ai recapiti indicati sopra. Se Styll riceve una richiesta direttamente da te, la inoltrerà al
-              Titolare competente per la gestione.
+              Se hai un account attivo, trovi un centro self-service in{' '}
+              <Link href={tp('/profilo/dati')} className="underline text-neutral-700">
+                Gestisci i tuoi dati
+              </Link>{' '}
+              con export JSON tenant-scoped, rettifica profilo, richiesta manuale di accesso esteso o limitazione e
+              cancellazione del profilo cliente per questo salone.
             </p>
             <p>
-              Il prodotto oggi non espone un pannello self-service completo per export o cancellazione dei dati:
-              queste richieste vengono quindi gestite tramite <strong className="text-neutral-900">workflow assistito</strong>.
+              Le preferenze marketing, l&apos;opposizione alla profilazione churn, le notifiche push e gli analytics
+              opzionali restano invece gestibili in-app dalle preferenze del profilo.
             </p>
             <p>
-              Alcune preferenze possono però essere gestite in app, se hai un account attivo, come il consenso
-              marketing, l&apos;opposizione alla profilazione della frequenza visite e l&apos;attivazione o revoca
-              delle notifiche push.
+              Se non hai accesso all&apos;app o se la richiesta richiede una revisione manuale, puoi comunque
+              contattare il <strong className="text-neutral-900">Titolare</strong> ai recapiti indicati sopra; Styll,
+              se riceve la richiesta direttamente, la inoltra al Titolare competente.
             </p>
           </Section>
 

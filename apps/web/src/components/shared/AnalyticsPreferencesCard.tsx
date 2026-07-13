@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import {
   ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_CONSENT_COPY,
@@ -44,7 +45,7 @@ function formatOccurredAt(value: string | null): string | null {
 }
 
 export function AnalyticsPreferencesCard({
-  source = ANALYTICS_CONSENT_SOURCE.COOKIE_POLICY,
+  source = ANALYTICS_CONSENT_SOURCE.PREFERENCES_CENTER,
 }: {
   source?: AnalyticsConsentChoiceSource
 }) {
@@ -85,6 +86,12 @@ export function AnalyticsPreferencesCard({
       const snapshot = await persistAnalyticsConsentChoice(nextState, { source })
       setOccurredAt(snapshot.occurredAt)
       setPolicyVersion(snapshot.policyVersion)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : ANALYTICS_CONSENT_COPY.saveError,
+      )
     } finally {
       setSavingState(null)
     }

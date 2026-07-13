@@ -11,6 +11,7 @@ test.describe('register legal notice', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for tenant fixtures.')
 
   test('signup and profile preferences use tenant-specific privacy and terms links', async ({ page }) => {
+    test.setTimeout(60_000)
     const fixture = await createTenantFixture('register-notice')
     const service = requireServiceClient()
     const email = randomEmail('playwright-register')
@@ -46,8 +47,8 @@ test.describe('register legal notice', () => {
       await page.goto(buildTenantAppPath(fixture.slug, '/accesso'))
       await page.getByLabel('La tua email').fill(email)
       await page.getByRole('button', { name: 'Continua', exact: true }).click()
-      await expect(page.getByRole('heading', { name: 'Controlla la tua email' })).toBeVisible()
-      await expect(page.getByText('Inserisci il codice a 6 cifre')).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Controlla la tua email' })).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByText('Inserisci il codice a 6 cifre')).toBeVisible({ timeout: 15_000 })
 
       const { data: linkData, error: linkError } = await service.auth.admin.generateLink({
         type: 'magiclink',

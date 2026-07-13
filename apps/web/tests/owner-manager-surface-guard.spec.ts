@@ -142,7 +142,7 @@ async function seedSurfaceFixture(): Promise<SurfaceFixture> {
 
 async function resetSession(page: Page) {
   await page.context().clearCookies()
-  await page.goto('/login')
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
@@ -155,7 +155,9 @@ async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
   const normalizedRedirectTo = normalizePathname(redirectTo)
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+    await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`, {
+      waitUntil: 'domcontentloaded',
+    })
     // Pre-set analytics consent so the cookie banner never blocks test interactions
     await page.evaluate(() => {
       window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')

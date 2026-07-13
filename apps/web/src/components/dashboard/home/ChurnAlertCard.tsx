@@ -43,23 +43,23 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
               alignItems: 'center',
               gap: 10,
               padding: '10px 12px',
-              background: '#FAFAFA',
+              background: 'var(--card-bg, #FFFFFF)',
               borderRadius: 10,
-              border: '1px solid rgba(0,0,0,0.05)',
+              border: '1px solid var(--card-border, #E9E9E9)',
               cursor: 'pointer',
               outline: 'none',
               WebkitTapHighlightColor: 'rgba(0,0,0,0)',
               transition: 'background 0.12s',
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F5F5F5' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#FAFAFA' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F7F7F7' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)' }}
           >
-            {/* Icon box */}
+            {/* Avatar / icon box */}
             <div style={{
               width: 34,
               height: 34,
               borderRadius: 9,
-              background: iconBg,
+              background: c.avatar_url ? 'transparent' : iconBg,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -68,8 +68,12 @@ export function ChurnAlertCard({ clients, basePath }: Props) {
               fontWeight: 800,
               color: iconColor,
               fontFamily: 'Outfit, sans-serif',
+              overflow: 'hidden',
             }}>
-              {c.full_name ? getInitials(c.full_name) : <UserX size={14} color={iconColor} />}
+              {c.avatar_url
+                ? <img src={c.avatar_url} alt={c.full_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : c.full_name ? getInitials(c.full_name) : <UserX size={14} color={iconColor} />
+              }
             </div>
 
             {/* Name + freq */}

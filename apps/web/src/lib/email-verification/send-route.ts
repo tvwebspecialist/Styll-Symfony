@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { sendEmailVerificationOtp } from '@/lib/email-verification'
+import {
+  normalizeVerificationEmail,
+  sendEmailVerificationOtp,
+} from '@/lib/email-verification'
 import { checkRateLimit, type RateLimitResult } from '@/lib/rate-limit'
 
 const SendEmailVerificationSchema = z.object({
@@ -61,7 +64,7 @@ export async function handleSendEmailVerificationRequest(
     return NextResponse.json({ success: false, error: 'Email non valida.' }, { status: 400 })
   }
 
-  const normalizedEmail = parsed.data.email.toLowerCase()
+  const normalizedEmail = normalizeVerificationEmail(parsed.data.email)
   const emailRateLimit = deps.checkRateLimit(
     `email-verification:send:email:${normalizedEmail}`,
     EMAIL_VERIFICATION_SEND_EMAIL_LIMIT,

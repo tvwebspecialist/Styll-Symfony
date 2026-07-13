@@ -29,9 +29,9 @@ export function LowStockWidget({ products }: Props) {
               alignItems: 'center',
               gap: 10,
               padding: '10px 12px',
-              background: '#FAFAFA',
+              background: 'var(--card-bg, #FFFFFF)',
               borderRadius: 10,
-              border: '1px solid rgba(0,0,0,0.05)',
+              border: '1px solid var(--card-border, #E9E9E9)',
             }}
           >
             {/* Icon */}

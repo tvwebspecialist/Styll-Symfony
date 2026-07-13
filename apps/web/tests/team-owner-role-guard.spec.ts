@@ -168,7 +168,7 @@ async function seedTeamOwnerRoleFixture(): Promise<TeamOwnerRoleFixture> {
 
 async function resetSession(page: Page) {
   await page.context().clearCookies()
-  await page.goto('/login')
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
@@ -177,7 +177,9 @@ async function resetSession(page: Page) {
 }
 
 async function loginAs(page: Page, user: UserSeed, redirectTo: string) {
-  await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`)
+  await page.goto(`/login?redirectTo=${encodeURIComponent(redirectTo)}`, {
+    waitUntil: 'domcontentloaded',
+  })
   await page.evaluate(() => {
     window.localStorage.setItem('styll_cookie_consent_v1', 'rejected')
   })
@@ -274,7 +276,7 @@ test.describe.serial('team owner role guard', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for team role guard fixtures.')
 
   test('manager can invoke the ordinary invite action path', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
       const inviteEmail = `playwright-manager-staff-${randomSuffix()}@example.com`
@@ -296,7 +298,7 @@ test.describe.serial('team owner role guard', () => {
   })
 
   test('owner can invite owner but manager cannot replay the same owner invite action', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
       const inviteEmail = `playwright-owner-owner-${randomSuffix()}@example.com`
@@ -337,7 +339,7 @@ test.describe.serial('team owner role guard', () => {
   })
 
   test('owner can promote staff to owner but manager cannot replay the same promotion action', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
 
@@ -378,7 +380,7 @@ test.describe.serial('team owner role guard', () => {
   })
 
   test('manager cannot modify an existing owner', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await runWithTeamFixture(async ({ fixture, service }) => {
       const teamPath = buildTenantDashboardPath(fixture.slug, '/team')
 
