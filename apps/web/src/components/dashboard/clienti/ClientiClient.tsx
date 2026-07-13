@@ -265,6 +265,7 @@ export function ClientiClient({
 
   const router = useRouter()
   const pathname = usePathname() ?? ''
+  const clientBasePath = pathname.replace(/\/clienti(?:\/.*)?$/, '')
   const optionsRef = React.useRef<HTMLDivElement>(null)
 
   const updateListing = React.useCallback((next: {
@@ -499,7 +500,7 @@ export function ClientiClient({
               clienti.map((c) => (
                 <Link
                   key={c.id}
-                  href={`/clienti/${c.id}`}
+                  href={`${clientBasePath}/clienti/${c.id}`}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '13px 16px',
@@ -780,7 +781,7 @@ export function ClientiClient({
               clienti.map((c, i) => (
                 <Link
                   key={c.id}
-                  href={`/clienti/${c.id}`}
+                  href={`${clientBasePath}/clienti/${c.id}`}
                   style={{
                     display:             'grid',
                     gridTemplateColumns: '2.2fr 1.2fr 1fr 1fr 0.8fr 1fr 0.4fr',

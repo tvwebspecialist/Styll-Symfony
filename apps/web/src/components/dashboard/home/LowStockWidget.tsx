@@ -1,14 +1,17 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { Package } from 'lucide-react'
 import type { LowStockProduct } from '@/lib/actions/dashboard-home'
 
 interface Props {
   products: LowStockProduct[]
+  basePath: string
 }
 
-export function LowStockWidget({ products }: Props) {
+export function LowStockWidget({ products, basePath }: Props) {
+  const router = useRouter()
   if (products.length === 0) return null
 
   return (
@@ -24,6 +27,10 @@ export function LowStockWidget({ products }: Props) {
         return (
           <div
             key={p.product_id}
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`${basePath}/catalogo`)}
+            onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/catalogo`) }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -32,7 +39,13 @@ export function LowStockWidget({ products }: Props) {
               background: 'var(--card-bg, #FFFFFF)',
               borderRadius: 10,
               border: '1px solid var(--card-border, #E9E9E9)',
+              cursor: 'pointer',
+              outline: 'none',
+              WebkitTapHighlightColor: 'rgba(0,0,0,0)',
+              transition: 'background 0.12s',
             }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F7F7F7' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)' }}
           >
             {/* Thumbnail / icon */}
             <div style={{
