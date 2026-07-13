@@ -110,15 +110,11 @@ export function MobileAppointmentList({ appointments, basePath }: Props) {
       ) : (
         /* List — scrolls with document, no nested overflow */
         <div style={{
-          background: '#FFFFFF',
-          borderRadius: 16,
-          border: '1px solid #F0F0F0',
-          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
         }}>
           {items.map((item, i) => {
-            const isLast = i === items.length - 1
-            const borderBottom = isLast ? 'none' : '1px solid #F5F5F5'
-
             if (item.type === 'free') {
               return (
                 <div
@@ -129,7 +125,8 @@ export function MobileAppointmentList({ appointments, basePath }: Props) {
                     gap: 10,
                     padding: '11px 16px',
                     background: '#FAFAFA',
-                    borderBottom,
+                    borderRadius: 12,
+                    border: '1px solid var(--card-border, #E9E9E9)',
                     minHeight: 44,
                   }}
                 >
@@ -164,19 +161,20 @@ export function MobileAppointmentList({ appointments, basePath }: Props) {
                   alignItems: 'center',
                   gap: 12,
                   padding: '14px 16px',
-                  borderBottom,
+                  borderRadius: 12,
+                  border: '1px solid var(--card-border, #E9E9E9)',
                   minHeight: 72,
                   cursor: 'pointer',
                   opacity: faded ? 0.6 : 1,
                   outline: 'none',
                   WebkitTapHighlightColor: 'rgba(0,0,0,0)',
                   transition: 'background 80ms',
-                  background: 'transparent',
+                  background: 'var(--card-bg, #FFFFFF)',
                   boxSizing: 'border-box',
                 }}
                 onTouchStart={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F9FAFB' }}
-                onTouchEnd={(e)   => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
-                onTouchCancel={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                onTouchEnd={(e)   => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)' }}
+                onTouchCancel={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)' }}
               >
                 {/* Time */}
                 <div style={{ width: 44, flexShrink: 0 }}>

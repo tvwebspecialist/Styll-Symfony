@@ -50,6 +50,7 @@ export interface TopLoyaltyClient {
 export interface LowStockProduct {
   product_id: string
   name: string
+  photo_url: string | null
   quantity: number
   low_stock_threshold: number
   risk: 'red' | 'yellow'
@@ -273,7 +274,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     // Low stock inventory
     db
       .from('product_inventory')
-      .select('product_id, quantity, low_stock_threshold, products(name)')
+      .select('product_id, quantity, low_stock_threshold, products(name, photo_url)')
       .eq('tenant_id', tenantId)
       .gt('low_stock_threshold', 0)
       .order('quantity', { ascending: true })
@@ -366,16 +367,18 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   })
 
   // Low stock products (filter client-side: quantity <= threshold)
-  interface InventoryRow { product_id: string; quantity: number | null; low_stock_threshold: number | null; products: { name: string | null } | { name: string | null }[] | null }
+  interface InventoryRow { product_id: string; quantity: number | null; low_stock_threshold: number | null; products: { name: string | null; photo_url: string | null } | { name: string | null; photo_url: string | null }[] | null }
   const lowStockProducts: LowStockProduct[] = ((inventoryRes.data ?? []) as InventoryRow[])
     .filter((row) => (row.quantity ?? 0) <= (row.low_stock_threshold ?? 0))
     .slice(0, 6)
     .map((row) => {
       const qty = row.quantity ?? 0
       const threshold = row.low_stock_threshold ?? 0
+      const productRel = readSingleRelation(row.products as { name: string | null; photo_url: string | null } | { name: string | null; photo_url: string | null }[] | null)
       return {
         product_id: row.product_id,
-        name: readSingleRelation(row.products as { name: string | null } | { name: string | null }[] | null)?.name ?? 'Prodotto',
+        name: productRel?.name ?? 'Prodotto',
+        photo_url: productRel?.photo_url ?? null,
         quantity: qty,
         low_stock_threshold: threshold,
         risk: qty === 0 ? 'red' : 'yellow',
