@@ -237,6 +237,7 @@ test.describe.serial('data retention matrix', () => {
       'client_analytics',
       'client_badges',
       'consent_events',
+      'client_privacy_requests',
       'analytics_consent_events',
       'marketing_unsubscribe_tokens',
       'email_verification_tokens',

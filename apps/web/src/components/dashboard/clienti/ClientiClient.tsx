@@ -512,12 +512,16 @@ export function ClientiClient({
                 >
                   <div style={{
                     width: 46, height: 46, borderRadius: '50%',
-                    background: CHURN_AVATAR_BG[c.churn],
+                    background: c.avatarUrl ? 'transparent' : CHURN_AVATAR_BG[c.churn],
                     color: CHURN_AVATAR_COLOR[c.churn],
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 15, fontWeight: 700, flexShrink: 0,
+                    overflow: 'hidden',
                   }}>
-                    {initials(c.fullName)}
+                    {c.avatarUrl
+                      ? <img src={c.avatarUrl} alt={c.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : initials(c.fullName)
+                    }
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -801,7 +805,7 @@ export function ClientiClient({
                         width:          40,
                         height:         40,
                         borderRadius:   100,
-                        background:     '#F0F0F0',
+                        background:     c.avatarUrl ? 'transparent' : '#F0F0F0',
                         color:          '#222222',
                         display:        'flex',
                         alignItems:     'center',
@@ -809,9 +813,13 @@ export function ClientiClient({
                         fontSize:       13,
                         fontWeight:     600,
                         flexShrink:     0,
+                        overflow:       'hidden',
                       }}
                     >
-                      {initials(c.fullName)}
+                      {c.avatarUrl
+                        ? <img src={c.avatarUrl} alt={c.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : initials(c.fullName)
+                      }
                     </div>
                     <div style={{ minWidth: 0, overflow: 'hidden' }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#222222', overflow: 'hidden', textOverflow: 'ellipsis' }}>

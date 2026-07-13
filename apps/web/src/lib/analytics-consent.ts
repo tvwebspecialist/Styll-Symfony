@@ -4,24 +4,26 @@ import {
   normalizeAnalyticsConsentState,
 } from '@/lib/analytics-consent-shared'
 import {
+  ANALYTICS_CONSENT_COPY,
   ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_CONSENT_SOURCE,
+  ANALYTICS_CONSENT_SURFACE,
   type AnalyticsConsentChoiceSource,
+  type AnalyticsConsentSurface,
 } from '@/lib/analytics-consent-copy'
 
 export const ANALYTICS_CONSENT_KEY = 'styll_cookie_consent_v1'
 export const ANALYTICS_CONSENT_VERSION_KEY = 'styll_cookie_consent_version_v1'
-export const ANALYTICS_CONSENT_PENDING_SYNC_KEY = 'styll_cookie_consent_pending_sync_v1'
+export const ANALYTICS_CONSENT_CONFIRMED_KEY = 'styll_cookie_consent_confirmed_v1'
+export const ANALYTICS_CONSENT_OCCURRED_AT_KEY = 'styll_cookie_consent_occurred_at_v1'
+export const ANALYTICS_CONSENT_SOURCE_KEY = 'styll_cookie_consent_source_v1'
+export const ANALYTICS_CONSENT_SURFACE_KEY = 'styll_cookie_consent_surface_v1'
 export const ANALYTICS_CONSENT_ANON_KEY = 'styll_anon'
 export const ANALYTICS_CONSENT_EVENT = 'styll:analytics-consent-changed'
 
 type CacheableAnalyticsConsentState = Exclude<AnalyticsConsentState, 'unknown'>
 
-type SyncResult = AnalyticsConsentSnapshot & {
-  pendingSync: boolean
-}
-
-let syncPromise: Promise<SyncResult> | null = null
+let syncPromise: Promise<AnalyticsConsentSnapshot> | null = null
 
 function getStoredValue(key: string): string | null {
   if (typeof window === 'undefined') return null
@@ -47,8 +49,91 @@ function dispatchAnalyticsConsentEvent(state: AnalyticsConsentState): void {
   )
 }
 
-export function getAnalyticsConsentState(): AnalyticsConsentState {
+function getStoredAnalyticsConsentState(): AnalyticsConsentState {
   return normalizeAnalyticsConsentState(getStoredValue(ANALYTICS_CONSENT_KEY))
+}
+
+function isCurrentPolicyVersion(version: string | null): boolean {
+  return version === ANALYTICS_CONSENT_POLICY_VERSION
+}
+
+function isServerConfirmedCache(): boolean {
+  return getStoredValue(ANALYTICS_CONSENT_CONFIRMED_KEY) === '1'
+}
+
+function normalizeStoredSource(value: string | null): AnalyticsConsentChoiceSource | null {
+  if (!value) return null
+  return Object.values(ANALYTICS_CONSENT_SOURCE).includes(value as AnalyticsConsentChoiceSource)
+    ? value as AnalyticsConsentChoiceSource
+    : null
+}
+
+function normalizeStoredSurface(value: string | null): AnalyticsConsentSurface | null {
+  if (!value) return null
+  return Object.values(ANALYTICS_CONSENT_SURFACE).includes(value as AnalyticsConsentSurface)
+    ? value as AnalyticsConsentSurface
+    : null
+}
+
+function readCachedSnapshot(): AnalyticsConsentSnapshot | null {
+  const state = getStoredAnalyticsConsentState()
+  const policyVersion = getStoredValue(ANALYTICS_CONSENT_VERSION_KEY)
+  if (state === 'unknown' || !isCurrentPolicyVersion(policyVersion) || !isServerConfirmedCache()) {
+    return null
+  }
+
+  return {
+    anonymousId: getStoredValue(ANALYTICS_CONSENT_ANON_KEY),
+    occurredAt: getStoredValue(ANALYTICS_CONSENT_OCCURRED_AT_KEY),
+    policyVersion: policyVersion ?? ANALYTICS_CONSENT_POLICY_VERSION,
+    source: normalizeStoredSource(getStoredValue(ANALYTICS_CONSENT_SOURCE_KEY)),
+    state,
+    surface: normalizeStoredSurface(getStoredValue(ANALYTICS_CONSENT_SURFACE_KEY)),
+  }
+}
+
+function cacheAnalyticsConsentSnapshot(
+  snapshot: AnalyticsConsentSnapshot,
+  {
+    confirmed,
+  }: {
+    confirmed: boolean
+  },
+): void {
+  setAnalyticsConsentCache(snapshot.state, {
+    anonymousId: snapshot.anonymousId,
+    confirmed,
+    occurredAt: snapshot.occurredAt,
+    policyVersion: snapshot.policyVersion,
+    source: snapshot.source,
+    surface: snapshot.surface,
+  })
+}
+
+function buildUnknownSnapshot(
+  anonymousId: string | null,
+  {
+    occurredAt = null,
+    source = null,
+    surface = null,
+  }: {
+    occurredAt?: string | null
+    source?: AnalyticsConsentChoiceSource | null
+    surface?: AnalyticsConsentSurface | null
+  } = {},
+): AnalyticsConsentSnapshot {
+  return {
+    anonymousId,
+    occurredAt,
+    policyVersion: ANALYTICS_CONSENT_POLICY_VERSION,
+    source,
+    state: 'unknown',
+    surface,
+  }
+}
+
+export function getAnalyticsConsentState(): AnalyticsConsentState {
+  return readCachedSnapshot()?.state ?? 'unknown'
 }
 
 export function getAnalyticsConsentVersion(): string | null {
@@ -74,18 +159,31 @@ function setAnalyticsConsentCache(
   state: AnalyticsConsentState,
   {
     anonymousId,
-    pendingSync,
+    confirmed,
+    occurredAt,
     policyVersion,
+    source,
+    surface,
   }: {
     anonymousId?: string | null
-    pendingSync?: boolean
+    confirmed?: boolean
+    occurredAt?: string | null
     policyVersion?: string
+    source?: AnalyticsConsentChoiceSource | null
+    surface?: AnalyticsConsentSurface | null
   } = {},
 ): void {
+  if (anonymousId) {
+    setStoredValue(ANALYTICS_CONSENT_ANON_KEY, anonymousId)
+  }
+
   if (state === 'unknown') {
     removeStoredValue(ANALYTICS_CONSENT_KEY)
     removeStoredValue(ANALYTICS_CONSENT_VERSION_KEY)
-    removeStoredValue(ANALYTICS_CONSENT_PENDING_SYNC_KEY)
+    removeStoredValue(ANALYTICS_CONSENT_CONFIRMED_KEY)
+    removeStoredValue(ANALYTICS_CONSENT_OCCURRED_AT_KEY)
+    removeStoredValue(ANALYTICS_CONSENT_SOURCE_KEY)
+    removeStoredValue(ANALYTICS_CONSENT_SURFACE_KEY)
     dispatchAnalyticsConsentEvent('unknown')
     return
   }
@@ -93,21 +191,31 @@ function setAnalyticsConsentCache(
   setStoredValue(ANALYTICS_CONSENT_KEY, state)
   setStoredValue(ANALYTICS_CONSENT_VERSION_KEY, policyVersion ?? ANALYTICS_CONSENT_POLICY_VERSION)
 
-  if (anonymousId) {
-    setStoredValue(ANALYTICS_CONSENT_ANON_KEY, anonymousId)
+  if (confirmed) {
+    setStoredValue(ANALYTICS_CONSENT_CONFIRMED_KEY, '1')
+  } else {
+    removeStoredValue(ANALYTICS_CONSENT_CONFIRMED_KEY)
   }
 
-  if (pendingSync) {
-    setStoredValue(ANALYTICS_CONSENT_PENDING_SYNC_KEY, '1')
+  if (occurredAt) {
+    setStoredValue(ANALYTICS_CONSENT_OCCURRED_AT_KEY, occurredAt)
   } else {
-    removeStoredValue(ANALYTICS_CONSENT_PENDING_SYNC_KEY)
+    removeStoredValue(ANALYTICS_CONSENT_OCCURRED_AT_KEY)
+  }
+
+  if (source) {
+    setStoredValue(ANALYTICS_CONSENT_SOURCE_KEY, source)
+  } else {
+    removeStoredValue(ANALYTICS_CONSENT_SOURCE_KEY)
+  }
+
+  if (surface) {
+    setStoredValue(ANALYTICS_CONSENT_SURFACE_KEY, surface)
+  } else {
+    removeStoredValue(ANALYTICS_CONSENT_SURFACE_KEY)
   }
 
   dispatchAnalyticsConsentEvent(state)
-}
-
-function readPendingSyncFlag(): boolean {
-  return getStoredValue(ANALYTICS_CONSENT_PENDING_SYNC_KEY) === '1'
 }
 
 function normalizeServerSnapshot(payload: Partial<AnalyticsConsentSnapshot> | null | undefined): AnalyticsConsentSnapshot {
@@ -157,7 +265,7 @@ export async function persistAnalyticsConsentChoice(
     pathname?: string
     source: AnalyticsConsentChoiceSource
   },
-): Promise<SyncResult> {
+): Promise<AnalyticsConsentSnapshot> {
   const anonymousId = getAnalyticsAnonymousId()
   const payload = {
     anonymousId,
@@ -179,99 +287,71 @@ export async function persistAnalyticsConsentChoice(
     }
 
     const snapshot = normalizeServerSnapshot((await response.json()) as Partial<AnalyticsConsentSnapshot>)
-    setAnalyticsConsentCache(snapshot.state, {
-      anonymousId: snapshot.anonymousId,
-      pendingSync: false,
-      policyVersion: snapshot.policyVersion,
-    })
+    cacheAnalyticsConsentSnapshot(snapshot, { confirmed: true })
 
-    return {
-      ...snapshot,
-      pendingSync: false,
-    }
-  } catch {
-    setAnalyticsConsentCache(state, {
-      anonymousId,
-      pendingSync: true,
-      policyVersion: ANALYTICS_CONSENT_POLICY_VERSION,
-    })
-
-    return {
-      anonymousId,
-      occurredAt: null,
-      policyVersion: ANALYTICS_CONSENT_POLICY_VERSION,
-      source,
-      state,
-      surface: null,
-      pendingSync: true,
-    }
+    return snapshot
+  } catch (error) {
+    throw new Error(ANALYTICS_CONSENT_COPY.saveError)
   }
 }
 
-export async function syncAnalyticsConsentState(): Promise<SyncResult> {
+export async function syncAnalyticsConsentState(): Promise<AnalyticsConsentSnapshot> {
   if (typeof window === 'undefined') {
-    return {
-      anonymousId: null,
-      occurredAt: null,
-      pendingSync: false,
-      policyVersion: ANALYTICS_CONSENT_POLICY_VERSION,
-      source: null,
-      state: 'unknown',
-      surface: null,
-    }
+    return buildUnknownSnapshot(null)
   }
 
   if (!syncPromise) {
     syncPromise = (async () => {
-      const localState = getAnalyticsConsentState()
+      const cachedSnapshot = readCachedSnapshot()
+      const localState = getStoredAnalyticsConsentState()
       const localVersion = getAnalyticsConsentVersion()
       const localAnonymousId = getStoredValue(ANALYTICS_CONSENT_ANON_KEY)
-      const pendingSync = readPendingSyncFlag()
       const serverSnapshot = await fetchAnalyticsConsentSnapshot()
 
       if (serverSnapshot && serverSnapshot.state !== 'unknown') {
-        setAnalyticsConsentCache(serverSnapshot.state, {
-          anonymousId: serverSnapshot.anonymousId,
-          pendingSync: false,
-          policyVersion: serverSnapshot.policyVersion,
-        })
+        cacheAnalyticsConsentSnapshot(serverSnapshot, { confirmed: true })
+        return serverSnapshot
+      }
 
-        return {
-          ...serverSnapshot,
-          pendingSync: false,
-        }
+      if (cachedSnapshot) {
+        return cachedSnapshot
+      }
+
+      if (localVersion && localVersion !== ANALYTICS_CONSENT_POLICY_VERSION) {
+        setAnalyticsConsentCache('unknown', { anonymousId: localAnonymousId })
+        return buildUnknownSnapshot(localAnonymousId)
       }
 
       const canBackfillLocalChoice =
         localState !== 'unknown'
-        && (localVersion === null || localVersion === ANALYTICS_CONSENT_POLICY_VERSION || pendingSync)
+        && !isServerConfirmedCache()
+        && (localVersion === null || localVersion === ANALYTICS_CONSENT_POLICY_VERSION)
 
       if (canBackfillLocalChoice) {
-        return persistAnalyticsConsentChoice(localState, {
-          pathname: getCurrentPathname(),
-          source: ANALYTICS_CONSENT_SOURCE.LOCAL_STORAGE_MIGRATION,
+        try {
+          return await persistAnalyticsConsentChoice(localState, {
+            pathname: getCurrentPathname(),
+            source: ANALYTICS_CONSENT_SOURCE.LOCAL_STORAGE_MIGRATION,
+          })
+        } catch {
+        }
+      }
+
+      if (serverSnapshot) {
+        setAnalyticsConsentCache('unknown', {
+          anonymousId: serverSnapshot.anonymousId ?? localAnonymousId,
         })
+        return serverSnapshot
       }
 
-      if (localVersion && localVersion !== ANALYTICS_CONSENT_POLICY_VERSION) {
-        setAnalyticsConsentCache('unknown')
-      }
-
-      return {
-        anonymousId: serverSnapshot?.anonymousId ?? localAnonymousId ?? null,
-        occurredAt: serverSnapshot?.occurredAt ?? null,
-        pendingSync: false,
-        policyVersion: ANALYTICS_CONSENT_POLICY_VERSION,
-        source: serverSnapshot?.source ?? null,
-        state: 'unknown' as AnalyticsConsentState,
-        surface: serverSnapshot?.surface ?? null,
-      }
+      setAnalyticsConsentCache('unknown', { anonymousId: localAnonymousId })
+      return buildUnknownSnapshot(localAnonymousId)
     })().finally(() => {
       syncPromise = null
     })
   }
 
-  return syncPromise as Promise<SyncResult>
+  return syncPromise as Promise<AnalyticsConsentSnapshot>
 }
 
 export function subscribeAnalyticsConsent(

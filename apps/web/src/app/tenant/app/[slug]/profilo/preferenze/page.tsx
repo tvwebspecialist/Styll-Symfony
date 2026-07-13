@@ -38,6 +38,7 @@ export default async function PreferenzePage({ params }: Props) {
       <div className="mx-auto max-w-xl">
         <PreferenzeClient
           tenantId={tenant.tenant_id}
+          dataRightsPath={tp('/profilo/dati')}
           initialNotifPrefs={notifPrefs}
           initialMarketingConsent={marketingConsent}
           initialChurnObjected={churnObjected}

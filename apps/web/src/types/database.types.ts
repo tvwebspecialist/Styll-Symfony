@@ -696,6 +696,61 @@ export type Database = {
           },
         ]
       }
+      client_privacy_requests: {
+        Row: {
+          action: Database["public"]["Enums"]["client_privacy_request_action"]
+          client_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          profile_id: string | null
+          status: Database["public"]["Enums"]["client_privacy_request_status"]
+          tenant_id: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["client_privacy_request_action"]
+          client_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          profile_id?: string | null
+          status: Database["public"]["Enums"]["client_privacy_request_status"]
+          tenant_id: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["client_privacy_request_action"]
+          client_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          profile_id?: string | null
+          status?: Database["public"]["Enums"]["client_privacy_request_status"]
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_privacy_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_privacy_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_privacy_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consent_events: {
         Row: {
           changed_by: Database["public"]["Enums"]["consent_actor"]
@@ -2854,6 +2909,13 @@ export type Database = {
         | "TENANT_WEBSITE"
         | "TENANT_PWA"
         | "TENANT_DASHBOARD"
+      client_privacy_request_action:
+        | "access_export"
+        | "access_review"
+        | "rectification"
+        | "erasure"
+        | "restriction"
+      client_privacy_request_status: "completed" | "submitted" | "rejected"
       consent_actor:
         | "CLIENT_PROFILE"
         | "STAFF_MEMBER"

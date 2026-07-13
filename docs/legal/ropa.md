@@ -18,7 +18,7 @@
 | 2 | Fatturazione e pagamenti *(futura integrazione Stripe)* | Dati di pagamento, fatture | Art. 6(1)(b) + Art. 6(1)(c) obbligo legale | 10 anni (Art. 2220 c.c.) | Stripe *(futuro)* |
 | 3 | Comunicazioni di servizio (email transazionali) | Email, nome | Art. 6(1)(b) esecuzione contratto | Durata contratto | Resend |
 | 4 | Error tracking e monitoring | Log tecnici (configurati per escludere PII) | Art. 6(1)(f) legittimo interesse | 90 giorni | Sentry |
-| 5 | Gestione del consenso analytics opzionale sulle superfici web Styll | ID browser/host, superficie, stato scelta, versione testo, timestamp, IP/user agent se disponibili | Art. 6(1)(a) consenso; Art. 7(1) prova del consenso | Finché la preferenza resta rilevante per quella superficie/host e per accountability, secondo la retention matrix | Supabase |
+| 5 | Gestione del consenso analytics opzionale sulle superfici web Styll | ID browser/host, superficie, stato scelta, versione testo, timestamp, IP/user agent se disponibili; eventuale cache locale nel browser usata solo come copia UI dell’ultima scelta confermata lato server | Art. 6(1)(a) consenso; Art. 7(1) prova del consenso | Finché la preferenza resta rilevante per quella superficie/host e per accountability, secondo la retention matrix | Supabase |
 
 ---
 
@@ -34,4 +34,6 @@
 | 4 | VIP Score | Frequenza, spesa, puntualità, punteggio composito | Art. 6(1)(f) legittimo interesse (LIA: [docs/legal/dpia-churn-vip.md](dpia-churn-vip.md)) | Ricalcolato periodicamente; nessuno storico score | Supabase, Vercel |
 | 5 | Push notification e reminder | Endpoint dispositivo, subscription key | Art. 6(1)(a) consenso (raccolto via browser Notification API) | Fino a revoca consenso | Supabase |
 | 6 | Comunicazioni marketing (opt-in) | Telefono o email, preferenza canale | Art. 6(1)(a) consenso esplicito (`marketing_consent = true`, opt-in separato) | Fino a revoca consenso | Supabase, Resend, futuro provider SMS |
-| 7 | Site Analytics — navigazione PWA cliente | ID anonimo browser, URL visitati, user agent, eventi funnel (page_view, booking_started/completed, signup, login). `site_sessions.client_id` collega la sessione al cliente reale solo dopo identificazione volontaria (prenotazione o accesso) | Art. 6(1)(a) consenso per analytics opzionali; prova della scelta registrata in `analytics_consent_events` | Raw events 90 gg; rollup giornaliero indefinito (aggregato, non personale); prova del consenso governata dalla retention matrix | Supabase, Vercel |
+| 7 | Site Analytics — navigazione PWA cliente | ID anonimo browser, URL visitati, user agent, eventi funnel (page_view, booking_started/completed, signup, login). `site_sessions.client_id` collega la sessione al cliente reale solo dopo identificazione volontaria (prenotazione o accesso) | Art. 6(1)(a) consenso per analytics opzionali; prova della scelta registrata in `analytics_consent_events`, con cache locale usata solo come supporto UI | Raw events 90 gg; rollup giornaliero indefinito (aggregato, non personale); prova del consenso governata dalla retention matrix | Supabase, Vercel |
+
+> **Workflow diritti B2C:** la matrice operativa dei diritti (accesso, rettifica, cancellazione, limitazione, marketing, portabilità) è documentata in [b2c-data-subject-rights-matrix.md](b2c-data-subject-rights-matrix.md) e riflette il centro self-service PWA `/profilo/dati`.

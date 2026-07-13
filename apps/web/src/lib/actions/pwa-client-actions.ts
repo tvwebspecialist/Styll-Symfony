@@ -9,6 +9,11 @@ import {
   buildMarketingConsentEvents,
   extractConsentRequestContext,
 } from '@/lib/consent-events'
+import {
+  CLIENT_PRIVACY_REQUEST_ACTION,
+  CLIENT_PRIVACY_REQUEST_STATUS,
+  recordClientPrivacyRequest,
+} from '@/lib/client-privacy-rights'
 import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/server'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
@@ -266,26 +271,49 @@ export async function updateClientProfileData(
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: false, error: 'Non autenticato' }
+    const ctx = await getAuthenticatedClientId(tenantId)
+    if (!ctx) return { ok: false, error: 'Non autenticato' }
 
     const db = createAdminClient()
+    const now = new Date().toISOString()
 
-    const updates: TablesUpdate<'clients'> = { updated_at: new Date().toISOString() }
+    const updates: TablesUpdate<'clients'> = { updated_at: now }
     if (data.fullName !== undefined) updates.full_name = data.fullName
     if (data.phone !== undefined) updates.phone = data.phone
     if (data.dateOfBirth !== undefined) updates.date_of_birth = data.dateOfBirth || null
 
     // Update profiles table
-    const profileUpdates: TablesUpdate<'profiles'> = { updated_at: new Date().toISOString() }
+    const profileUpdates: TablesUpdate<'profiles'> = { updated_at: now }
     if (data.fullName !== undefined) profileUpdates.full_name = data.fullName
     if (data.phone !== undefined) profileUpdates.phone = data.phone
 
+    const changedFields = [
+      data.fullName !== undefined ? 'full_name' : null,
+      data.phone !== undefined ? 'phone' : null,
+      data.dateOfBirth !== undefined ? 'date_of_birth' : null,
+    ].filter((field): field is string => Boolean(field))
+
     await Promise.all([
-      db.from('clients').update(updates).eq('tenant_id', tenantId).eq('profile_id', user.id).is('deleted_at', null),
-      db.from('profiles').update(profileUpdates).eq('id', user.id),
+      db.from('clients').update(updates).eq('id', ctx.clientId).eq('tenant_id', tenantId).is('deleted_at', null),
+      db.from('profiles').update(profileUpdates).eq('id', ctx.userId),
     ])
+
+    if (changedFields.length > 0) {
+      try {
+        await recordClientPrivacyRequest({
+          action: CLIENT_PRIVACY_REQUEST_ACTION.RECTIFICATION,
+          clientId: ctx.clientId,
+          details: {
+            changed_fields: changedFields,
+          },
+          profileId: ctx.userId,
+          status: CLIENT_PRIVACY_REQUEST_STATUS.COMPLETED,
+          tenantId,
+        })
+      } catch (error) {
+        console.error('[pwa-client-actions] rectification audit failed:', error)
+      }
+    }
 
     revalidatePath(`/tenant/app`)
     return { ok: true }

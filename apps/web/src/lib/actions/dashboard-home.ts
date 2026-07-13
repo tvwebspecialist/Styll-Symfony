@@ -33,6 +33,7 @@ export interface WeekStats {
 export interface AtRiskClient {
   client_id: string
   full_name: string | null
+  avatar_url: string | null
   days_since: number
   avg_frequency: number | null
   churn_status: 'red' | 'yellow'
@@ -109,6 +110,7 @@ interface AppointmentWindowRow {
 
 interface AtRiskClientRelationRow {
   full_name: string | null
+  avatar_url: string | null
 }
 
 interface AtRiskAnalyticsRow {
@@ -261,7 +263,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .from('client_analytics')
       .select(`
         client_id, churn_status, days_since_last_visit, avg_frequency_days,
-        clients(full_name)
+        clients(full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .in('churn_status', ['yellow', 'red'])
@@ -351,13 +353,17 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   }
 
   // At-risk clients
-  const atRiskClients: AtRiskClient[] = ((atRiskRes.data ?? []) as AtRiskAnalyticsRow[]).map((row) => ({
-    client_id: row.client_id,
-    full_name: readSingleRelation(row.clients)?.full_name ?? null,
-    days_since: row.days_since_last_visit ?? 0,
-    avg_frequency: row.avg_frequency_days ?? null,
-    churn_status: row.churn_status as 'red' | 'yellow',
-  }))
+  const atRiskClients: AtRiskClient[] = ((atRiskRes.data ?? []) as unknown as AtRiskAnalyticsRow[]).map((row) => {
+    const clientRel = readSingleRelation(row.clients)
+    return {
+      client_id: row.client_id,
+      full_name: clientRel?.full_name ?? null,
+      avatar_url: clientRel?.avatar_url ?? null,
+      days_since: row.days_since_last_visit ?? 0,
+      avg_frequency: row.avg_frequency_days ?? null,
+      churn_status: row.churn_status as 'red' | 'yellow',
+    }
+  })
 
   // Low stock products (filter client-side: quantity <= threshold)
   interface InventoryRow { product_id: string; quantity: number | null; low_stock_threshold: number | null; products: { name: string | null } | { name: string | null }[] | null }

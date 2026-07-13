@@ -134,6 +134,9 @@ test.describe('F-13: OTP hash a riposo', () => {
 
       // T02: code_hash exists and is 64-char hex
       expect(dbToken?.code_hash).toMatch(/^[0-9a-f]{64}$/)
+      // Explicit parity check: the hash persisted by the real send flow matches
+      // the HMAC recomputed in the same Playwright process with the active pepper.
+      expect(dbToken?.code_hash).toBe(hashOtp(plaintextCode, getPepper()))
 
       // T01: plaintext is NOT anywhere in the persisted record
       const recordStr = JSON.stringify(dbToken)
@@ -157,7 +160,10 @@ test.describe('F-13: OTP hash a riposo', () => {
       await sendEmailVerificationOtp(fixture.email, { db: service, now: () => now, sendEmail: sender })
       expect(captured).toHaveLength(1)
 
-      const result = await verifyEmailOTP(fixture.email, captured[0].code)
+      const result = await verifyEmailOTP(fixture.email, captured[0].code, {
+        db: service,
+        now: () => now,
+      })
       expect(result.success).toBe(true)
 
       const { data: profile } = await service
@@ -228,10 +234,16 @@ test.describe('F-13: OTP hash a riposo', () => {
       await sendEmailVerificationOtp(fixture.email, { db: service, now: () => now, sendEmail: sender })
       const code = captured[0].code
 
-      const first = await verifyEmailOTP(fixture.email, code)
+      const first = await verifyEmailOTP(fixture.email, code, {
+        db: service,
+        now: () => now,
+      })
       expect(first.success).toBe(true)
 
-      const second = await verifyEmailOTP(fixture.email, code)
+      const second = await verifyEmailOTP(fixture.email, code, {
+        db: service,
+        now: () => now,
+      })
       expect(second.success).toBe(false)
     } finally {
       await fixture.cleanup()
@@ -252,8 +264,14 @@ test.describe('F-13: OTP hash a riposo', () => {
 
       // Submit same code twice in parallel
       const [r1, r2] = await Promise.all([
-        verifyEmailOTP(fixture.email, code),
-        verifyEmailOTP(fixture.email, code),
+        verifyEmailOTP(fixture.email, code, {
+          db: service,
+          now: () => now,
+        }),
+        verifyEmailOTP(fixture.email, code, {
+          db: service,
+          now: () => now,
+        }),
       ])
 
       const successes = [r1, r2].filter((r) => r.success)
@@ -296,7 +314,10 @@ test.describe('F-13: OTP hash a riposo', () => {
       expect(tokens?.[0]?.used).toBe(false)
 
       // Original code still works
-      const verify = await verifyEmailOTP(fixture.email, captured[0].code)
+      const verify = await verifyEmailOTP(fixture.email, captured[0].code, {
+        db: service,
+        now: () => now,
+      })
       expect(verify.success).toBe(true)
     } finally {
       await fixture.cleanup()
@@ -350,11 +371,17 @@ test.describe('F-13: OTP hash a riposo', () => {
       expect(activeTokens[0].code_hash).not.toBe(firstHash)
 
       // Old code no longer works
-      const oldVerify = await verifyEmailOTP(fixture.email, captured[0].code)
+      const oldVerify = await verifyEmailOTP(fixture.email, captured[0].code, {
+        db: service,
+        now: () => new Date(laterMs),
+      })
       expect(oldVerify.success).toBe(false)
 
       // New code works
-      const newVerify = await verifyEmailOTP(fixture.email, captured[1].code)
+      const newVerify = await verifyEmailOTP(fixture.email, captured[1].code, {
+        db: service,
+        now: () => new Date(laterMs),
+      })
       expect(newVerify.success).toBe(true)
     } finally {
       await fixture.cleanup()

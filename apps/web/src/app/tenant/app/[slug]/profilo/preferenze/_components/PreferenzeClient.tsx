@@ -15,6 +15,7 @@ import { useOptimistic, useTransition } from 'react'
 
 interface Props {
   tenantId: string
+  dataRightsPath: string
   initialNotifPrefs: Record<string, boolean>
   initialMarketingConsent: boolean
   initialChurnObjected: boolean
@@ -96,6 +97,7 @@ function LinkRow({ label, sublabel, href }: { label: string; sublabel?: string; 
 
 export function PreferenzeClient({
   tenantId,
+  dataRightsPath,
   initialNotifPrefs,
   initialMarketingConsent,
   initialChurnObjected,
@@ -207,8 +209,8 @@ export function PreferenzeClient({
       <SectionCard title="Privacy">
         <LinkRow
           label="Gestisci i tuoi dati"
-          sublabel="Richiedi export o cancellazione"
-          href="mailto:privacy@styll.it?subject=Richiesta%20dati%20personali"
+          sublabel="Export JSON, richieste privacy e cancellazione tenant-scoped"
+          href={dataRightsPath}
         />
         <LinkRow
           label="Termini e condizioni"
