@@ -14,6 +14,7 @@ const workers = Number.isFinite(configuredWorkers) && configuredWorkers > 0
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './tests/global-setup.ts',
   fullyParallel: false,
   workers,
   outputDir: 'test-results',

@@ -26,34 +26,23 @@ async function cleanupPromotionPushFixtures(
   const uniqueProfileIds = Array.from(new Set(profileIds))
 
   if (uniqueTenantIds.length > 0) {
-    const { error: notificationsError } = await service
-      .from('notifications')
-      .delete()
-      .in('tenant_id', uniqueTenantIds)
+    const [
+      { error: notificationsError },
+      { error: notificationLogError },
+      { error: subscriptionsError },
+      { error: clientsError },
+      { error: promotionsError },
+    ] = await Promise.all([
+      service.from('notifications').delete().in('tenant_id', uniqueTenantIds),
+      service.from('notification_log').delete().in('tenant_id', uniqueTenantIds),
+      service.from('push_subscriptions').delete().in('tenant_id', uniqueTenantIds),
+      service.from('clients').delete().in('tenant_id', uniqueTenantIds),
+      service.from('promotions').delete().in('tenant_id', uniqueTenantIds),
+    ])
     await assertNoSupabaseError('cleanup promotion push notifications', notificationsError)
-
-    const { error: notificationLogError } = await service
-      .from('notification_log')
-      .delete()
-      .in('tenant_id', uniqueTenantIds)
     await assertNoSupabaseError('cleanup promotion push notification_log', notificationLogError)
-
-    const { error: subscriptionsError } = await service
-      .from('push_subscriptions')
-      .delete()
-      .in('tenant_id', uniqueTenantIds)
     await assertNoSupabaseError('cleanup promotion push subscriptions', subscriptionsError)
-
-    const { error: clientsError } = await service
-      .from('clients')
-      .delete()
-      .in('tenant_id', uniqueTenantIds)
     await assertNoSupabaseError('cleanup promotion push clients', clientsError)
-
-    const { error: promotionsError } = await service
-      .from('promotions')
-      .delete()
-      .in('tenant_id', uniqueTenantIds)
     await assertNoSupabaseError('cleanup promotion push promotions', promotionsError)
 
     const { error: tenantsError } = await service
@@ -70,9 +59,18 @@ async function cleanupPromotionPushFixtures(
       .in('id', uniqueProfileIds)
     await assertNoSupabaseError('list existing promotion push profiles', profilesError)
 
-    for (const profile of existingProfiles ?? []) {
-      const { error: deleteUserError } = await service.auth.admin.deleteUser(profile.id)
-      await assertNoSupabaseError(`cleanup promotion push auth user ${profile.id}`, deleteUserError)
+    const userDeletionResults = await Promise.all(
+      (existingProfiles ?? []).map(async (profile) => ({
+        profileId: profile.id,
+        result: await service.auth.admin.deleteUser(profile.id),
+      })),
+    )
+
+    for (const deletion of userDeletionResults) {
+      await assertNoSupabaseError(
+        `cleanup promotion push auth user ${deletion.profileId}`,
+        deletion.result.error,
+      )
     }
   }
 }
@@ -188,31 +186,36 @@ test.describe.serial('promotion push marketing consent gate', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for promotion push fixtures.')
 
   test('promotional push sends only to tenant clients with marketing consent and leaves transactional subscription access untouched', async () => {
+    test.setTimeout(60_000)
     const service = requireServiceClient()
-    const tenantA = await createTenantFixture('promo-push-a')
-    const tenantB = await createTenantFixture('promo-push-b')
-    const allowed = await createPushProfile(service, {
-      label: 'allowed',
-      marketingConsent: true,
-      subscriptionTenantId: tenantA.tenantId,
-    })
-    const denied = await createPushProfile(service, {
-      label: 'denied',
-      marketingConsent: false,
-      subscriptionTenantId: tenantA.tenantId,
-    })
-    const orphan = await createPushProfile(service, {
-      createClientRecord: false,
-      label: 'orphan',
-      marketingConsent: false,
-      subscriptionTenantId: tenantA.tenantId,
-    })
-    const otherTenantClient = await createPushProfile(service, {
-      label: 'other-tenant',
-      marketingConsent: true,
-      profileTenantId: tenantB.tenantId,
-      subscriptionTenantId: tenantA.tenantId,
-    })
+    const [tenantA, tenantB] = await Promise.all([
+      createTenantFixture('promo-push-a'),
+      createTenantFixture('promo-push-b'),
+    ])
+    const [allowed, denied, orphan, otherTenantClient] = await Promise.all([
+      createPushProfile(service, {
+        label: 'allowed',
+        marketingConsent: true,
+        subscriptionTenantId: tenantA.tenantId,
+      }),
+      createPushProfile(service, {
+        label: 'denied',
+        marketingConsent: false,
+        subscriptionTenantId: tenantA.tenantId,
+      }),
+      createPushProfile(service, {
+        createClientRecord: false,
+        label: 'orphan',
+        marketingConsent: false,
+        subscriptionTenantId: tenantA.tenantId,
+      }),
+      createPushProfile(service, {
+        label: 'other-tenant',
+        marketingConsent: true,
+        profileTenantId: tenantB.tenantId,
+        subscriptionTenantId: tenantA.tenantId,
+      }),
+    ])
 
     const promotionId = await createPromotion(
       service,
@@ -240,23 +243,33 @@ test.describe.serial('promotion push marketing consent gate', () => {
       expect(deliveredPayloads[0]?.tag).toBe(`promotion-${promotionId}`)
       expect(deliveredPayloads[0]?.url).toBe(`/offerte/${promotionId}`)
 
-      const { data: logs, error: logsError } = await service
-        .from('notification_log')
-        .select('profile_id, promotion_id, type')
-        .eq('tenant_id', tenantA.tenantId)
-        .eq('promotion_id', promotionId)
-        .eq('type', 'promotion_published')
+      const [
+        { data: logs, error: logsError },
+        { data: notifications, error: notificationsError },
+        deniedSubs,
+        orphanSubs,
+        crossTenantSubs,
+      ] = await Promise.all([
+        service
+          .from('notification_log')
+          .select('profile_id, promotion_id, type')
+          .eq('tenant_id', tenantA.tenantId)
+          .eq('promotion_id', promotionId)
+          .eq('type', 'promotion_published'),
+        service
+          .from('notifications')
+          .select('profile_id, tenant_id, type')
+          .eq('tenant_id', tenantA.tenantId)
+          .eq('type', 'promotion_published'),
+        getSubscriptionsForProfile(tenantA.tenantId, denied.profileId),
+        getSubscriptionsForProfile(tenantA.tenantId, orphan.profileId),
+        getSubscriptionsForProfile(tenantA.tenantId, otherTenantClient.profileId),
+      ])
       await assertNoSupabaseError('read promotion notification_log rows', logsError)
+      await assertNoSupabaseError('read promotion notifications rows', notificationsError)
 
       expect(logs ?? []).toHaveLength(1)
       expect(logs?.[0]?.profile_id).toBe(allowed.profileId)
-
-      const { data: notifications, error: notificationsError } = await service
-        .from('notifications')
-        .select('profile_id, tenant_id, type')
-        .eq('tenant_id', tenantA.tenantId)
-        .eq('type', 'promotion_published')
-      await assertNoSupabaseError('read promotion notifications rows', notificationsError)
 
       expect(notifications ?? []).toHaveLength(1)
       expect(notifications?.[0]?.profile_id).toBe(allowed.profileId)
@@ -264,15 +277,12 @@ test.describe.serial('promotion push marketing consent gate', () => {
 
       // Transactional paths still resolve the subscription directly; the marketing
       // gate only affects the promotional selection layer in sendPromotionPush().
-      const deniedSubs = await getSubscriptionsForProfile(tenantA.tenantId, denied.profileId)
       expect(deniedSubs).toHaveLength(1)
       expect(deniedSubs[0]?.endpoint).toBe(denied.endpoint)
 
-      const orphanSubs = await getSubscriptionsForProfile(tenantA.tenantId, orphan.profileId)
       expect(orphanSubs).toHaveLength(1)
       expect(orphanSubs[0]?.endpoint).toBe(orphan.endpoint)
 
-      const crossTenantSubs = await getSubscriptionsForProfile(tenantA.tenantId, otherTenantClient.profileId)
       expect(crossTenantSubs).toHaveLength(1)
       expect(crossTenantSubs[0]?.endpoint).toBe(otherTenantClient.endpoint)
     } finally {

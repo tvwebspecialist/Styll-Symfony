@@ -481,6 +481,7 @@ test.describe.serial('dashboard home stress-scale SS-04', () => {
   let fixture: DashboardHomeFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedDashboardHomeFixture()
   })
 

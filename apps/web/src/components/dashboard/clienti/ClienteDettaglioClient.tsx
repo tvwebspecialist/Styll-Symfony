@@ -242,7 +242,7 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
         <ChevronLeft size={15} />Tutti i clienti
       </Link>
 
-      <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? 12 : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? '12px 0' : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── 1. HEADER ───────────────────────────────────────────────────────── */}
         <div style={{ background: 'linear-gradient(170deg, #111 3%, #444 97%)', borderRadius: 20, padding: isMobile ? '20px 20px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>

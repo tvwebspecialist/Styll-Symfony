@@ -442,6 +442,7 @@ test.describe.serial('booking pwa staff bounded SS-07', () => {
   let fixture: BookingStaffFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedBookingStaffFixture()
   })
 

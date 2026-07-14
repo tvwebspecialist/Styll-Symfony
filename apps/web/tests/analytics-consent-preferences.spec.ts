@@ -7,8 +7,12 @@ import {
   requireServiceClient,
 } from './helpers/supabase-admin'
 import {
+  ANALYTICS_CONSENT_CONFIRMED_KEY,
   ANALYTICS_CONSENT_ANON_KEY,
   ANALYTICS_CONSENT_KEY,
+  ANALYTICS_CONSENT_OCCURRED_AT_KEY,
+  ANALYTICS_CONSENT_SOURCE_KEY,
+  ANALYTICS_CONSENT_SURFACE_KEY,
   ANALYTICS_CONSENT_VERSION_KEY,
 } from '../src/lib/analytics-consent'
 import {
@@ -16,6 +20,7 @@ import {
   ANALYTICS_CONSENT_POLICY_VERSION,
   ANALYTICS_PREFERENCES_SECTION_ID,
 } from '../src/lib/analytics-consent-copy'
+import { gotoDomContentLoaded, waitForUrlDomContentLoaded } from './helpers/navigation'
 
 type AnalyticsEventsDb = {
   from(table: 'site_events'): {
@@ -117,6 +122,32 @@ function trackSiteAnalyticsRequests(page: Page) {
   }
 }
 
+async function waitForAnalyticsConsentPost(page: Page): Promise<void> {
+  await page.waitForResponse((response) =>
+    response.url().includes('/api/analytics-consent')
+    && response.request().method() === 'POST'
+    && response.status() === 200
+  )
+}
+
+async function resetAnalyticsConsentState(page: Page, landingPath: string): Promise<void> {
+  await page.context().clearCookies()
+  await page.addInitScript((keys: string[]) => {
+    for (const key of keys) {
+      window.localStorage.removeItem(key)
+    }
+  }, [
+    ANALYTICS_CONSENT_KEY,
+    ANALYTICS_CONSENT_VERSION_KEY,
+    ANALYTICS_CONSENT_CONFIRMED_KEY,
+    ANALYTICS_CONSENT_OCCURRED_AT_KEY,
+    ANALYTICS_CONSENT_SOURCE_KEY,
+    ANALYTICS_CONSENT_SURFACE_KEY,
+    ANALYTICS_CONSENT_ANON_KEY,
+  ])
+  await gotoDomContentLoaded(page, landingPath)
+}
+
 test.describe('analytics consent preferences', () => {
   test.skip(!hasSupabaseSeedEnv, 'Requires Supabase service-role env for analytics consent fixtures.')
 
@@ -125,14 +156,8 @@ test.describe('analytics consent preferences', () => {
     const siteAnalytics = trackSiteAnalyticsRequests(page)
 
     try {
-      await page.addInitScript(([consentKey, versionKey, anonKey]) => {
-        window.localStorage.removeItem(consentKey)
-        window.localStorage.removeItem(versionKey)
-        window.localStorage.removeItem(anonKey)
-      }, [ANALYTICS_CONSENT_KEY, ANALYTICS_CONSENT_VERSION_KEY, ANALYTICS_CONSENT_ANON_KEY])
-
       const tenantPath = buildTenantAppPath(fixture.slug)
-      await page.goto(tenantPath)
+      await resetAnalyticsConsentState(page, tenantPath)
 
       const tenantCookiePath = buildTenantAppPath(fixture.slug, '/cookie')
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
@@ -142,7 +167,12 @@ test.describe('analytics consent preferences', () => {
       )
       await expect.poll(() => readSiteEventIds(fixture.tenantId), { timeout: 2_000 }).toEqual([])
 
-      await page.getByRole('button', { name: 'Accetta analytics' }).click()
+      const acceptButton = page.getByRole('button', { name: 'Accetta analytics' })
+      await expect(acceptButton).toBeEnabled()
+      await Promise.all([
+        waitForAnalyticsConsentPost(page),
+        acceptButton.click(),
+      ])
 
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
 
@@ -183,11 +213,22 @@ test.describe('analytics consent preferences', () => {
       expect(acceptedEvents[0]?.policy_version).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
       expect(acceptedEvents[0]?.occurred_at).toBeTruthy()
 
-      await page.goto(tenantPath)
+      await gotoDomContentLoaded(page, tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
 
-      await page.getByRole('link', { name: 'Gestisci cookie' }).click()
-      await expect(page).toHaveURL(new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
+      const manageCookieLink = page.getByRole('link', { name: 'Gestisci cookie' })
+      await expect(manageCookieLink).toHaveAttribute(
+        'href',
+        `${tenantCookiePath}#${ANALYTICS_PREFERENCES_SECTION_ID}`,
+      )
+      await Promise.all([
+        waitForUrlDomContentLoaded(
+          page,
+          new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`),
+          { timeout: 10_000 },
+        ),
+        manageCookieLink.click(),
+      ])
       await expect(page.getByRole('heading', { name: 'Preferenze analytics', exact: true })).toBeVisible()
       await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
       await expect(page.locator('body')).toContainText('Analytics opzionali attivi')
@@ -195,7 +236,12 @@ test.describe('analytics consent preferences', () => {
 
       await siteAnalytics.waitForIdle()
       const siteEventIdsBeforeRevocation = await readSiteEventIds(fixture.tenantId)
-      await page.getByRole('button', { name: 'Revoca analytics' }).click()
+      const revokeButton = page.getByRole('button', { name: 'Revoca analytics' })
+      await expect(revokeButton).toBeEnabled()
+      await Promise.all([
+        waitForAnalyticsConsentPost(page),
+        revokeButton.click(),
+      ])
       await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
 
       const routeSnapshot = await page.evaluate(async () => {
@@ -220,7 +266,7 @@ test.describe('analytics consent preferences', () => {
       expect(allEvents[1]?.source).toBe('PREFERENCES_CENTER')
       expect(allEvents[1]?.occurred_at).toBeTruthy()
 
-      await page.goto(tenantPath)
+      await gotoDomContentLoaded(page, tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
       await siteAnalytics.waitForIdle()
       await expect.poll(() => readSiteEventIds(fixture.tenantId), { timeout: 2_000 }).toEqual(siteEventIdsBeforeRevocation)
@@ -234,26 +280,38 @@ test.describe('analytics consent preferences', () => {
     const fixture = await createTenantFixture('analytics-reject')
 
     try {
-      await page.addInitScript(([consentKey, versionKey, anonKey]) => {
-        window.localStorage.removeItem(consentKey)
-        window.localStorage.removeItem(versionKey)
-        window.localStorage.removeItem(anonKey)
-      }, [ANALYTICS_CONSENT_KEY, ANALYTICS_CONSENT_VERSION_KEY, ANALYTICS_CONSENT_ANON_KEY])
-
       const tenantPath = buildTenantAppPath(fixture.slug)
-      await page.goto(tenantPath)
+      await resetAnalyticsConsentState(page, tenantPath)
 
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
-      await page.getByRole('link', { name: 'Gestisci preferenze' }).click()
+      const preferencesLink = page.getByRole('link', { name: 'Gestisci preferenze' })
+      await expect(preferencesLink).toHaveAttribute(
+        'href',
+        `${buildTenantAppPath(fixture.slug, '/cookie')}#${ANALYTICS_PREFERENCES_SECTION_ID}`,
+      )
+      await Promise.all([
+        waitForUrlDomContentLoaded(
+          page,
+          new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`),
+          { timeout: 10_000 },
+        ),
+        preferencesLink.click(),
+      ])
 
-      await expect(page).toHaveURL(new RegExp(`/tenant/app/${fixture.slug}/cookie#${ANALYTICS_PREFERENCES_SECTION_ID}$`))
       await expect(page.getByRole('heading', { name: 'Preferenze analytics', exact: true })).toBeVisible()
       await expect(page.locator('body')).toContainText('Scelta non ancora registrata')
       await expect(page.locator('body')).toContainText(ANALYTICS_CONSENT_POLICY_VERSION)
       await expect(page.getByRole('link', { name: '← Torna all’app' })).toHaveAttribute('href', tenantPath)
       await expect(page.getByRole('link', { name: 'Gestisci preferenze' })).toHaveCount(1)
 
-      await page.locator(`#${ANALYTICS_PREFERENCES_SECTION_ID}`).getByRole('button', { name: 'Continua senza analytics' }).click()
+      const rejectButton = page
+        .locator(`#${ANALYTICS_PREFERENCES_SECTION_ID}`)
+        .getByRole('button', { name: 'Continua senza analytics' })
+      await expect(rejectButton).toBeEnabled()
+      await Promise.all([
+        waitForAnalyticsConsentPost(page),
+        rejectButton.click(),
+      ])
       await expect(page.locator('body')).toContainText('Analytics opzionali disattivati')
       await expect(page.locator('body')).toContainText('Ultima scelta registrata lato server')
 
@@ -271,7 +329,7 @@ test.describe('analytics consent preferences', () => {
       expect(rejectedEvents[0]?.policy_version).toBe(ANALYTICS_CONSENT_POLICY_VERSION)
       expect(rejectedEvents[0]?.occurred_at).toBeTruthy()
 
-      await page.goto(tenantPath)
+      await gotoDomContentLoaded(page, tenantPath)
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
       await expect.poll(() => readSiteEventIds(fixture.tenantId), { timeout: 2_000 }).toEqual([])
     } finally {
@@ -295,7 +353,8 @@ test.describe('analytics consent preferences', () => {
       })
 
       const tenantPath = buildTenantAppPath(fixture.slug)
-      await page.goto(tenantPath)
+      await page.context().clearCookies()
+      await gotoDomContentLoaded(page, tenantPath)
 
       await expect(page.getByText('Usiamo i cookie')).toHaveCount(0)
       await expect.poll(
@@ -326,12 +385,6 @@ test.describe('analytics consent preferences', () => {
     const fixture = await createTenantFixture('analytics-consent-failure')
 
     try {
-      await page.addInitScript(([consentKey, versionKey, anonKey]) => {
-        window.localStorage.removeItem(consentKey)
-        window.localStorage.removeItem(versionKey)
-        window.localStorage.removeItem(anonKey)
-      }, [ANALYTICS_CONSENT_KEY, ANALYTICS_CONSENT_VERSION_KEY, ANALYTICS_CONSENT_ANON_KEY])
-
       await page.route(/\/api\/analytics-consent(?:\?.*)?$/, async (route) => {
         if (route.request().method() === 'POST') {
           await route.fulfill({
@@ -346,7 +399,7 @@ test.describe('analytics consent preferences', () => {
       })
 
       const tenantPath = buildTenantAppPath(fixture.slug)
-      await page.goto(tenantPath)
+      await resetAnalyticsConsentState(page, tenantPath)
 
       await expect(page.getByText('Usiamo i cookie')).toBeVisible()
       await page.getByRole('button', { name: 'Accetta analytics' }).click()
