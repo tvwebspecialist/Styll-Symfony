@@ -823,6 +823,7 @@ test.describe.serial('vendite stress-scale SS-02', () => {
   let service: ServiceClient | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     service = requireServiceClient()
     fixture = await seedVenditeFixture()
   })

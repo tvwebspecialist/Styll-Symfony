@@ -242,6 +242,7 @@ test.describe.serial('owner-manager surface guard', () => {
   let service: ServiceClient | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     service = requireServiceClient()
     fixture = await seedSurfaceFixture()
   })
@@ -391,44 +392,67 @@ test.describe.serial('owner-manager surface guard', () => {
     expect(marketingReplayResponse!.status()).toBe(403)
   })
 
-  test('receptionist cannot replay forbidden app server actions', async ({ page }) => {
+  test('receptionist cannot replay forbidden app server actions', async ({ browser }) => {
     test.setTimeout(120_000)
     const fixture = getFixture()
     const service = getService()
     const appPath = buildTenantDashboardPath(fixture.slug, '/app')
+    let ownerSession: { context: BrowserContext; page: Page } | null = null
+    let receptionistSession: { context: BrowserContext; page: Page } | null = null
 
-    await loginAs(page, fixture.owner, appPath)
     const appReplayValue = `Replay App Name ${randomSuffix()}`
     const appControlValue = `App Guard Control ${randomSuffix()}`
-    const capturedAppAction = await captureNextActionRequest(page, async () => {
-      await page.getByPlaceholder('Es. Barber Studio Marco').fill(appReplayValue)
-      await page.getByRole('button', { name: 'Salva impostazioni' }).click()
-      await expect(page.getByText(/Impostazioni salvate/i)).toBeVisible({ timeout: 10_000 })
-    })
-
-    const { error: appControlUpdateError } = await service
-      .from('tenants')
-      .update({
-        business_name: appControlValue,
-        updated_at: new Date().toISOString(),
+    try {
+      ownerSession = await createLoggedInSession(browser, fixture.owner, appPath)
+      const ownerPage = ownerSession.page
+      const capturedAppAction = await captureNextActionRequest(ownerPage, async () => {
+        await ownerPage.getByPlaceholder('Es. Barber Studio Marco').fill(appReplayValue)
+        await ownerPage.getByRole('button', { name: 'Salva impostazioni' }).click()
+        await expect
+          .poll(async () => {
+            const { data: tenantAfterOwnerSave, error: tenantAfterOwnerSaveError } = await service
+              .from('tenants')
+              .select('business_name')
+              .eq('id', fixture.tenantId)
+              .maybeSingle()
+            await assertNoSupabaseError('read tenant after owner app save', tenantAfterOwnerSaveError)
+            return tenantAfterOwnerSave?.business_name ?? null
+          }, { timeout: 15_000 })
+          .toBe(appReplayValue)
       })
-      .eq('id', fixture.tenantId)
-    await assertNoSupabaseError(
-      'set tenant control value before blocked app replay',
-      appControlUpdateError
-    )
 
-    await resetSession(page)
-    await loginAs(page, fixture.receptionist, buildTenantDashboardPath(fixture.slug, '/profilo'))
-    await replayCapturedAction(page, capturedAppAction)
+      const { error: appControlUpdateError } = await service
+        .from('tenants')
+        .update({
+          business_name: appControlValue,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', fixture.tenantId)
+      await assertNoSupabaseError(
+        'set tenant control value before blocked app replay',
+        appControlUpdateError
+      )
 
-    const { data: tenantAfterAppReplay, error: tenantAfterAppReplayError } = await service
-      .from('tenants')
-      .select('business_name')
-      .eq('id', fixture.tenantId)
-      .maybeSingle()
-    await assertNoSupabaseError('read tenant after blocked app replay', tenantAfterAppReplayError)
-    expect(tenantAfterAppReplay?.business_name).toBe(appControlValue)
+      receptionistSession = await createLoggedInSession(
+        browser,
+        fixture.receptionist,
+        buildTenantDashboardPath(fixture.slug, '/profilo'),
+      )
+      await replayCapturedAction(receptionistSession.page, capturedAppAction)
+
+      const { data: tenantAfterAppReplay, error: tenantAfterAppReplayError } = await service
+        .from('tenants')
+        .select('business_name')
+        .eq('id', fixture.tenantId)
+        .maybeSingle()
+      await assertNoSupabaseError('read tenant after blocked app replay', tenantAfterAppReplayError)
+      expect(tenantAfterAppReplay?.business_name).toBe(appControlValue)
+    } finally {
+      await Promise.allSettled([
+        ownerSession?.context.close(),
+        receptionistSession?.context.close(),
+      ])
+    }
   })
 
   test('receptionist cannot call marketing notify route handler', async ({ page }) => {

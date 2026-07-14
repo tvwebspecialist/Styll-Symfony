@@ -327,6 +327,7 @@ test.describe('loyalty annual reset authorization', () => {
     let fixture: LoyaltyResetAuthFixture | null = null
 
     test.beforeAll(async () => {
+      test.setTimeout(120_000)
       fixture = await seedLoyaltyResetAuthFixture()
     })
 

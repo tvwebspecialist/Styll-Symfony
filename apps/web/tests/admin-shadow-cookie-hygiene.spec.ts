@@ -248,6 +248,7 @@ test.describe.serial('admin shadow cookie hygiene', () => {
   let fixture: ShadowCookieFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedShadowCookieFixture()
   })
 

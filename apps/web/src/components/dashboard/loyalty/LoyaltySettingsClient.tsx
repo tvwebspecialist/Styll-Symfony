@@ -61,7 +61,7 @@ export function LoyaltySettingsClient({ data }: { data: LoyaltySettingsData }) {
   const [activeTab, setActiveTab] = React.useState<'config' | 'rewards' | 'badges' | 'tiers'>('config')
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 pb-24">
+    <div className="mx-auto max-w-3xl py-6 pb-24">
       <header className="mb-6">
         <h1 className="text-2xl font-black text-[var(--color-fg)]">Programma Fedeltà</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">

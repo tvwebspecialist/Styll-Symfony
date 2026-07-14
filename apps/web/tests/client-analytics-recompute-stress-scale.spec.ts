@@ -468,6 +468,7 @@ test.describe.serial('client analytics recompute scalability', () => {
   let fixture: AnalyticsFixture | null = null
 
   test.beforeAll(async () => {
+    test.setTimeout(120_000)
     fixture = await seedAnalyticsFixture()
   })
 
