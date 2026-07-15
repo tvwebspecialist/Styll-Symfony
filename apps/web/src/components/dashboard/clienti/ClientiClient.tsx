@@ -507,7 +507,6 @@ export function ClientiClient({
                     background: 'var(--color-bg)',
                     borderRadius: 14,
                     border: '1px solid var(--color-border)',
-                    borderLeft: `3px solid ${CHURN_BORDER[c.churn]}`,
                     textDecoration: 'none', color: 'inherit',
                   }}
                 >
@@ -558,7 +557,7 @@ export function ClientiClient({
             aria-label="Aggiungi cliente"
             style={{
               position: 'fixed',
-              bottom: 'calc(80px + max(16px, env(safe-area-inset-bottom, 16px)))',
+              bottom: 'calc(var(--bottom-nav-height, 106px) + 16px)',
               right: 20,
               width: 52, height: 52, borderRadius: 100,
               background: 'var(--color-fg)', border: 'none',
