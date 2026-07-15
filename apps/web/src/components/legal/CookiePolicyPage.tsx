@@ -5,7 +5,10 @@ import { ANALYTICS_CONSENT_POLICY_VERSION } from '@/lib/analytics-consent-copy'
 import {
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
+  PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_PARTY_NAME,
   PUBLIC_B2B_LEGAL_REVIEW_NOTE,
+  PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE,
   PUBLIC_DPA_SECTION_ID,
 } from '@/lib/legal/public-b2b'
 
@@ -171,10 +174,18 @@ export function CookiePolicyPage({
 
         <div style={{ marginBottom: 32, padding: '20px 24px', background: C.lightBg, borderRadius: 12, border: `1px solid ${C.border}` }}>
           {isPlatform ? (
-            <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.75, margin: 0 }}>
-              Questa informativa riguarda il sito B2B <strong style={{ color: C.primary }}>styll.it</strong> e le
-              relative superfici pubbliche di marketing. {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
-            </p>
+            <div style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.75 }}>
+              <p style={{ margin: 0 }}>
+                Questa informativa riguarda il sito B2B <strong style={{ color: C.primary }}>styll.it</strong> e
+                le relative superfici pubbliche di marketing. {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
+              </p>
+              <p style={{ margin: '12px 0 0' }}>
+                Per queste superfici, il soggetto che decide l&apos;uso dei cookie e degli analytics opzionali
+                descritti in questa pagina è <strong style={{ color: C.primary }}>{PUBLIC_B2B_LEGAL_PARTY_NAME}</strong>.
+              </p>
+              <p style={{ margin: '12px 0 0' }}>{PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE}</p>
+              <p style={{ margin: '12px 0 0' }}>{PUBLIC_B2B_IDENTITY_NOTE}</p>
+            </div>
           ) : (
             <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.75, margin: 0 }}>
               Questa informativa riguarda i cookie tecnici e gli analytics opzionali usati sulla superficie

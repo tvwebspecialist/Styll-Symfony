@@ -2,13 +2,28 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { setupPwaGoogleClient } from '@/lib/actions/pwa-auth'
 import { clearAdminShadowCookieOnResponse } from '@/lib/admin-shadow-cookie'
 import { buildRootAppUrl, buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
+import {
+  B2B_REGISTER_LEGAL_PROOF_TTL_SECONDS,
+  B2B_REGISTER_CONTEXT_COOKIE,
+  B2B_REGISTER_LEGAL_PROOF_COOKIE,
+  ROOT_OAUTH_FLOW_REGISTER,
+  buildRegisterPathWithContext,
+  canAccessB2bGoogleLoginWithoutNewAcceptance,
+  clearB2bRegisterCookies,
+  finalizeGoogleRegisterTermsAcceptance,
+  normalizeRootOAuthFlow,
+} from '@/lib/legal/b2b-register-acceptance'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 
-function redirect(url: string) {
+function redirect(
+  url: string,
+  configure?: (response: NextResponse) => void,
+) {
   const res = NextResponse.redirect(url)
   clearAdminShadowCookieOnResponse(res)
+  configure?.(res)
   res.headers.set('Cache-Control', 'no-store')
   return res
 }
@@ -18,19 +33,32 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const errorDescription = searchParams.get('error_description')
   const intent = normalizeTrialIntent(searchParams.get('intent'))
+  const oauthFlow = normalizeRootOAuthFlow(searchParams.get('oauth_flow'))
+  const registerContextToken = request.cookies.get(B2B_REGISTER_CONTEXT_COOKIE)?.value ?? null
+  const legalProofToken = request.cookies.get(B2B_REGISTER_LEGAL_PROOF_COOKIE)?.value ?? null
 
   const rootLoginUrl = buildRootAppUrl('/login')
-  const rootRegisterUrl = buildRootAppUrl(buildPathWithTrialIntent('/register', intent))
-  const authFailureUrl = intent ? rootRegisterUrl : rootLoginUrl
+  const rootRegisterUrl = buildRootAppUrl(
+    buildRegisterPathWithContext({ intent, onboardingToken: registerContextToken }),
+  )
+  const authFailureUrl = oauthFlow === ROOT_OAUTH_FLOW_REGISTER ? rootRegisterUrl : rootLoginUrl
 
   if (errorDescription) {
     const loginUrl = new URL(authFailureUrl)
     loginUrl.searchParams.set('error', errorDescription)
-    return redirect(loginUrl.toString())
+    return redirect(loginUrl.toString(), (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
   if (!code) {
-    return redirect(authFailureUrl)
+    return redirect(authFailureUrl, (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
   const supabase = await createClient()
@@ -48,7 +76,11 @@ export async function GET(request: NextRequest) {
 
     const loginUrl = new URL(authFailureUrl)
     loginUrl.searchParams.set('error', errorMsg)
-    return redirect(loginUrl.toString())
+    return redirect(loginUrl.toString(), (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
   const {
@@ -56,7 +88,11 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return redirect(authFailureUrl)
+    return redirect(authFailureUrl, (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
   // OAuth users (Google, etc.) skip email OTP — mark them as verified
@@ -68,6 +104,34 @@ export async function GET(request: NextRequest) {
       .update({ email_verified: true })
       .eq('id', user.id)
       .eq('email_verified', false)
+  }
+
+  const adminDb = createAdminClient()
+
+  if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+    const acceptanceResult = await finalizeGoogleRegisterTermsAcceptance({
+      contextToken: registerContextToken,
+      db: adminDb as any,
+      proofToken: legalProofToken,
+      userCreatedAt: user.created_at,
+      userEmail: user.email ?? null,
+      userId: user.id,
+    })
+
+    if (acceptanceResult.status === 'blocked_new_user') {
+      await supabase.auth.signOut().catch(() => {})
+      await adminDb.auth.admin.deleteUser(user.id).catch(() => {})
+
+      const registerUrl = new URL(rootRegisterUrl)
+      registerUrl.searchParams.set(
+        'error',
+        "Per continuare con Google devi prima accettare i Termini di Servizio dalla pagina di registrazione.",
+      )
+
+      return redirect(registerUrl.toString(), (response) => {
+        clearB2bRegisterCookies(response.cookies)
+      })
+    }
   }
 
   const isPwa = searchParams.get('next') === 'pwa'
@@ -94,7 +158,40 @@ export async function GET(request: NextRequest) {
     const destination = sanitizeAppRelativePath(returnTo, '/profilo')
     const destinationUrl = new URL(buildTenantAppUrl(tenantSlug, destination))
     destinationUrl.searchParams.set('google_login', '1')
-    return redirect(destinationUrl.toString())
+    return redirect(destinationUrl.toString(), (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
+  }
+
+  if (oauthFlow !== ROOT_OAUTH_FLOW_REGISTER) {
+    const canAccessB2bLogin = await canAccessB2bGoogleLoginWithoutNewAcceptance({
+      db: adminDb as any,
+      userId: user.id,
+    })
+
+    if (!canAccessB2bLogin) {
+      await supabase.auth.signOut().catch(() => {})
+
+      const createdAtMs = new Date(user.created_at).getTime()
+      if (
+        Number.isFinite(createdAtMs)
+        && Date.now() - createdAtMs <= B2B_REGISTER_LEGAL_PROOF_TTL_SECONDS * 1000
+      ) {
+        await adminDb.auth.admin.deleteUser(user.id).catch(() => {})
+      }
+
+      const loginUrl = new URL(rootLoginUrl)
+      loginUrl.searchParams.set(
+        'error',
+        'Per il primo accesso con Google devi usare il link di registrazione B2B e accettare i Termini di Servizio.',
+      )
+
+      return redirect(loginUrl.toString(), (response) => {
+        clearB2bRegisterCookies(response.cookies)
+      })
+    }
   }
 
   const { data: profile } = await supabase
@@ -107,10 +204,13 @@ export async function GET(request: NextRequest) {
   // directly. This handles tenants whose profile was created before the flag existed
   // or where a partial onboarding run left the flag unset.
   if (profile?.onboarding_completed) {
-    return redirect(buildRootAppUrl('/dashboard'))
+    return redirect(buildRootAppUrl('/dashboard'), (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
-  const adminDb = createAdminClient()
   const { data: staffRow } = await adminDb
     .from('staff_members')
     .select('id')
@@ -127,8 +227,16 @@ export async function GET(request: NextRequest) {
       .from('profiles')
       .update({ onboarding_completed: true })
       .eq('id', user.id)
-    return redirect(buildRootAppUrl('/dashboard'))
+    return redirect(buildRootAppUrl('/dashboard'), (response) => {
+      if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+        clearB2bRegisterCookies(response.cookies)
+      }
+    })
   }
 
-  return redirect(buildRootAppUrl(buildPathWithTrialIntent('/onboarding/step-1', intent)))
+  return redirect(buildRootAppUrl(buildPathWithTrialIntent('/onboarding/step-1', intent)), (response) => {
+    if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+      clearB2bRegisterCookies(response.cookies)
+    }
+  })
 }

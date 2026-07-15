@@ -1,29 +1,33 @@
 export const PUBLIC_B2B_COMPANY_NAME = 'Styll'
+export const PUBLIC_B2B_LEGAL_PARTY_NAME = 'Tommaso Vezzaro'
 export const PUBLIC_B2B_CONTACT_EMAIL = 'privacy@styll.it'
 export const PUBLIC_DPA_SECTION_ID = 'accordo-trattamento-dati'
 
 export const PUBLIC_B2B_IDENTITY_NOTE =
-  'I dati societari definitivi di Styll (denominazione completa, sede legale, P.IVA e PEC) sono in corso di finalizzazione e saranno pubblicati prima dell’attivazione commerciale con clienti paganti.'
+  'Styll è il nome commerciale del servizio fornito da Tommaso Vezzaro. Quando questi documenti usano il nome "Styll", si riferiscono al servizio e alla piattaforma, non a una società distinta.'
+
+export const PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE =
+  'Per il sito B2B e le superfici pubbliche collegate, la parte contrattuale e il titolare del trattamento è Tommaso Vezzaro.'
 
 export const PUBLIC_B2B_LEGAL_REVIEW_NOTE =
-  'Questa versione pubblica del pacchetto legale B2B descrive il perimetro operativo e privacy attuale del servizio. Prima dell’attivazione commerciale con clienti paganti è prevista una finalizzazione legale professionale dei documenti e dei dati societari.'
+  'Questa documentazione pubblica descrive il perimetro operativo, privacy e trasparenza di Styll sulle superfici pubbliche del sito per visitatori, prospect e clienti business.'
 
 export const PUBLIC_B2B_DOCS = {
   terms: {
-    version: '1.1',
-    lastUpdated: '9 luglio 2026',
+    version: '1.3',
+    lastUpdated: '14 luglio 2026',
   },
   privacy: {
-    version: '1.2',
-    lastUpdated: '10 luglio 2026',
+    version: '1.5',
+    lastUpdated: '14 luglio 2026',
   },
   cookie: {
-    version: '1.3',
-    lastUpdated: '11 luglio 2026',
+    version: '1.5',
+    lastUpdated: '14 luglio 2026',
   },
   subProcessor: {
-    version: '1.1',
-    lastUpdated: '9 luglio 2026',
+    version: '1.3',
+    lastUpdated: '14 luglio 2026',
   },
 } as const
 

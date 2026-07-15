@@ -5,6 +5,8 @@ import {
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
   PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_PARTY_NAME,
+  PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE,
   PUBLIC_B2B_SUBPROCESSORS,
   PUBLIC_DPA_SECTION_ID,
 } from '@/lib/legal/public-b2b'
@@ -47,10 +49,13 @@ export default function SubProcessorPage() {
 
         <div style={{ background: C.white, borderRadius: 16, border: `1px solid ${C.border}`, padding: '24px 28px', marginBottom: 32 }}>
           <p style={{ fontSize: 15, color: C.textMuted, lineHeight: 1.75, margin: 0 }}>
-            {PUBLIC_B2B_COMPANY_NAME} si avvale dei fornitori di seguito elencati come{' '}
-            <strong style={{ color: C.primary }}>sub-responsabili del trattamento</strong> ai sensi
-            dell&apos;Art. 28 GDPR. L&apos;elenco riflette le integrazioni attive nel codice e nelle superfici
-            pubbliche o staff attualmente esposte dal progetto.
+            {PUBLIC_B2B_LEGAL_PARTY_NAME}, per l&apos;erogazione del servizio {PUBLIC_B2B_COMPANY_NAME}, si avvale
+            dei fornitori di seguito elencati come <strong style={{ color: C.primary }}>sub-responsabili del
+            trattamento</strong> ai sensi dell&apos;Art. 28 GDPR. L&apos;elenco riflette le integrazioni attive
+            nel codice e nelle superfici pubbliche o staff attualmente esposte dal progetto.
+          </p>
+          <p style={{ fontSize: 15, color: C.textMuted, lineHeight: 1.75, margin: '12px 0 0' }}>
+            {PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE}
           </p>
           <p style={{ fontSize: 15, color: C.textMuted, lineHeight: 1.75, margin: '12px 0 0' }}>
             {PUBLIC_B2B_IDENTITY_NOTE}
@@ -102,7 +107,7 @@ export default function SubProcessorPage() {
           <h2 style={{ fontSize: 16, fontWeight: 700, color: C.primary, marginBottom: 12 }}>Nota sui trasferimenti extra-UE</h2>
           <p style={{ fontSize: 15, color: C.textMuted, lineHeight: 1.75, margin: 0 }}>
             Per alcuni fornitori extra-SEE, la documentazione pubblica del provider può richiamare SCC, DPF o
-            altri meccanismi contrattuali applicabili. {PUBLIC_B2B_COMPANY_NAME} non considera la sola
+            altri meccanismi contrattuali applicabili. {PUBLIC_B2B_LEGAL_PARTY_NAME} non considera la sola
             dicitura &quot;hosting in EU&quot; sufficiente a escludere ogni trasferimento: per esempio, la regione
             primaria EU di Supabase riduce l&apos;esposizione ma non elimina automaticamente eventuali
             sub-trattamenti extra-SEE descritti dal fornitore.

@@ -6,16 +6,24 @@ import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
 import { buildRootAppUrl } from '@/lib/auth/urls'
+import {
+  GOOGLE_OAUTH_REGISTER_SOURCE,
+  ROOT_OAUTH_FLOW_LOGIN,
+  ROOT_OAUTH_FLOW_REGISTER,
+  buildRootOAuthCallbackPath,
+} from '@/lib/legal/b2b-register-acceptance-shared'
 import { createClient } from '@/lib/supabase/client'
-import { buildPathWithTrialIntent } from '@/lib/trial-intent'
 
 interface GoogleButtonProps {
+  acceptedTerms?: boolean
   label?: string
   loadingLabel?: string
   className?: string
   ariaLabel?: string
   variant?: 'primary' | 'secondary'
   intent?: string | null
+  onboardingToken?: string | null
+  oauthFlow?: 'login' | 'register'
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -47,20 +55,53 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export function GoogleButton({
+  acceptedTerms = true,
   label = 'Continua con Google',
   loadingLabel = 'Accesso in corso...',
   className,
   ariaLabel,
   variant = 'secondary',
   intent,
+  onboardingToken = null,
+  oauthFlow = ROOT_OAUTH_FLOW_LOGIN,
 }: GoogleButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
+    if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER && !acceptedTerms) {
+      toast.error('Devi accettare i Termini di Servizio prima di continuare con Google.')
+      return
+    }
+
     startTransition(async () => {
       try {
+        if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
+          if (!onboardingToken) {
+            toast.error('Token di registrazione non valido. Riapri il link di invito.')
+            return
+          }
+
+          const prepareResponse = await fetch('/api/auth/register/legal-acceptance', {
+            body: JSON.stringify({
+              onboardingToken,
+              source: GOOGLE_OAUTH_REGISTER_SOURCE,
+            }),
+            headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+          })
+
+          const prepareResult = (await prepareResponse.json().catch(() => null)) as
+            | { error?: string; success?: boolean }
+            | null
+
+          if (!prepareResponse.ok || !prepareResult?.success) {
+            toast.error(prepareResult?.error || 'Impossibile preparare la registrazione con Google. Riprova.')
+            return
+          }
+        }
+
         const supabase = createClient()
-        const callbackPath = buildPathWithTrialIntent('/auth/callback', intent)
+        const callbackPath = buildRootOAuthCallbackPath({ flow: oauthFlow, intent })
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -91,7 +132,7 @@ export function GoogleButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={isPending}
+      disabled={isPending || (oauthFlow === ROOT_OAUTH_FLOW_REGISTER && !acceptedTerms)}
       aria-label={ariaLabel ?? label}
       className={cn(
         variant === 'primary' ? 'styll-btn-primary' : 'styll-btn-secondary',

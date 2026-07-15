@@ -120,7 +120,7 @@ export default async function LoginPage({ searchParams }: PageProps) {
         </p>
       </header>
 
-      <GoogleButton label="Continua con Google" intent={intent} />
+      <GoogleButton intent={intent} label="Continua con Google" oauthFlow="login" />
 
       <Divider />
 

@@ -3,27 +3,12 @@ import type { Metadata } from 'next'
 import { MessageCircle, Mail } from 'lucide-react'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
-import { GoogleButton } from '@/components/auth/google-button'
-import { RegisterForm } from '@/components/auth/register-form'
+import { RegisterSignupOptions } from '@/components/auth/register-signup-options'
 import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 import { validateOnboardingToken } from '@/app/admin/actions-onboarding'
 
 export const metadata: Metadata = {
   title: 'Crea il tuo account — Styll',
-}
-
-function Divider() {
-  return (
-    <div
-      className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]"
-      style={{ color: 'var(--color-fg-muted)' }}
-      aria-hidden
-    >
-      <span className="h-px flex-1" style={{ backgroundColor: 'var(--color-border)' }} />
-      oppure
-      <span className="h-px flex-1" style={{ backgroundColor: 'var(--color-border)' }} />
-    </div>
-  )
 }
 
 // ─── Contact popup shown when no valid token ───────────────────
@@ -213,11 +198,7 @@ export default async function RegisterPage({ searchParams }: PageProps) {
         </p>
       </header>
 
-      <GoogleButton label="Continua con Google" intent={intent} />
-
-      <Divider />
-
-      <RegisterForm intent={intent} token={rawToken} />
+      <RegisterSignupOptions intent={intent} token={rawToken} />
 
       <p
         className="mt-6 text-center text-sm"

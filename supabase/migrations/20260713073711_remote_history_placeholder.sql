@@ -1,0 +1,4 @@
+-- Placeholder migration to reconcile a remote-only history entry that is
+-- already applied outside this repository snapshot.
+-- Intentionally left as a no-op so `supabase db push` can continue from the
+-- current local migration chain without altering schema state.

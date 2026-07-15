@@ -81,6 +81,20 @@ test.describe.serial('DPA acceptance persistence', () => {
     const businessName = `Playwright DPA ${Date.now()}`
 
     try {
+      const pendingProof = await createPendingB2bTermsAcceptanceProof({
+        acceptedByEmail: user.email,
+        db: service as any,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+      })
+
+      await consumePendingB2bTermsAcceptanceProof({
+        db: service as any,
+        rawToken: pendingProof.rawToken,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+        userEmail: user.email,
+        userId: user.userId,
+      })
+
       await loginForOnboarding(page, user.email, user.password)
 
       await page.getByLabel('Nome attività').fill(businessName)
