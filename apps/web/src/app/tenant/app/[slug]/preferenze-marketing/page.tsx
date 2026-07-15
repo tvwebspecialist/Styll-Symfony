@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getMarketingUnsubscribePreview } from '@/lib/marketing-unsubscribe'
 import { createTenantPaths } from '@/lib/pwa-redirect'
+import { MarketingUnsubscribeForm } from './MarketingUnsubscribeForm'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -119,15 +120,10 @@ export default async function MarketingPreferencesPage({
           title={`Gestisci le email di ${tenant.business_name}`}
           body={`Se confermi, ${tenant.business_name} smetterà di inviarti email promozionali e campagne marketing. Questa operazione non blocca le comunicazioni di servizio strettamente necessarie, come promemoria o conferme appuntamento.`}
         >
-          <form method="post" action={tp(`/preferenze-marketing/confirm?token=${encodeURIComponent(token)}`)}>
-            <input type="hidden" name="confirm" value="1" />
-            <button
-              type="submit"
-              className="w-full rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              Annulla iscrizione alle email promozionali
-            </button>
-          </form>
+          <MarketingUnsubscribeForm
+            actionPath={tp(`/preferenze-marketing/confirm?token=${encodeURIComponent(token)}`)}
+            statusPath={tp('/preferenze-marketing')}
+          />
           <div className="mt-3 text-center text-[13px] text-neutral-500">
             <p>
               Se hai un account attivo, puoi anche{' '}
