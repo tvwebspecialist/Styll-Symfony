@@ -274,7 +274,7 @@
 
 ## 27. Working tree finale
 
-- Pulito al momento della redazione: commit tecnici creati e pushati; report docs ancora da committare
+- Pulito
 
 ## 28. Commit creati
 
@@ -283,11 +283,14 @@
 - `ed796df` `security(api): harden auth, cron, push, and AI endpoints`
 - `974aa93` `test(security): add targeted unit regression coverage`
 - `8150698` `security(ci): add automated security gates`
+- `7eb3b78` `docs(audit): update security readiness findings`
 
 ## 29. Push eseguiti
 
 - Push riuscito: `git push origin dev`
 - Range pushato: `b5dbaeb..8150698`
+- Push riuscito: `git push origin dev`
+- Range pushato: `d507ac6..7eb3b78`
 
 ## 30. Verdict security
 
