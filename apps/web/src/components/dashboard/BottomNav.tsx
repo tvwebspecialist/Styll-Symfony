@@ -89,7 +89,7 @@ export function BottomNav({
           bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
           left: 16,
           right: 16,
-          height: 72,
+          height: 90,
           zIndex: 50,
           background: '#222222',
           borderRadius: 100,
@@ -114,13 +114,13 @@ export function BottomNav({
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 3,
+                gap: 5,
                 textDecoration: 'none',
-                padding: '0 2px',
+                padding: '0 4px',
               }}
             >
               <Icon
-                size={22}
+                size={26}
                 strokeWidth={active ? 2.2 : 1.6}
                 color={active ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
                 aria-hidden="true"
@@ -129,7 +129,7 @@ export function BottomNav({
               <span
                 style={{
                   color: active ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: active ? 700 : 400,
                   fontFamily: 'Outfit, sans-serif',
                   whiteSpace: 'nowrap',
@@ -154,18 +154,18 @@ export function BottomNav({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 3,
+            gap: 5,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            padding: '0 2px',
+            padding: '0 4px',
           }}
         >
-          <Menu size={22} strokeWidth={1.6} color="rgba(255,255,255,0.45)" aria-hidden="true" />
+          <Menu size={26} strokeWidth={1.6} color="rgba(255,255,255,0.45)" aria-hidden="true" />
           <span
             style={{
               color: 'rgba(255,255,255,0.45)',
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 400,
               fontFamily: 'Outfit, sans-serif',
               whiteSpace: 'nowrap',
