@@ -92,12 +92,12 @@ export function BottomNav({
           height: 90,
           zIndex: 50,
           background: '#222222',
-          borderRadius: 100,
+          borderRadius: 26,
           alignItems: 'stretch',
-          padding: '0 8px',
+          padding: '8px 8px',
           justifyContent: 'space-between',
           overflow: 'hidden',
-          boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.32), 0 2px 8px rgba(0,0,0,0.14)',
         }}
       >
         {mainItems.map((item) => {
@@ -120,7 +120,7 @@ export function BottomNav({
               }}
             >
               <Icon
-                size={26}
+                size={20}
                 strokeWidth={active ? 2.2 : 1.6}
                 color={active ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
                 aria-hidden="true"
@@ -129,7 +129,7 @@ export function BottomNav({
               <span
                 style={{
                   color: active ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: active ? 700 : 400,
                   fontFamily: 'Outfit, sans-serif',
                   whiteSpace: 'nowrap',
@@ -161,11 +161,11 @@ export function BottomNav({
             padding: '0 4px',
           }}
         >
-          <Menu size={26} strokeWidth={1.6} color="rgba(255,255,255,0.45)" aria-hidden="true" />
+          <Menu size={20} strokeWidth={1.6} color="rgba(255,255,255,0.45)" aria-hidden="true" />
           <span
             style={{
               color: 'rgba(255,255,255,0.45)',
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 400,
               fontFamily: 'Outfit, sans-serif',
               whiteSpace: 'nowrap',
