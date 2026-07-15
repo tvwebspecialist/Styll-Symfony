@@ -6,7 +6,7 @@ Tag analizzato: `e2e-stable-2026-07-14`
 
 ## 1. Executive summary
 
-Questo audit finale e' stato eseguito sul codice e sulla configurazione presenti al tag stabile `e2e-stable-2026-07-14`, con verifica evidence-based su codice applicativo, migration Supabase, test E2E, documentazione legale e configurazione di deploy. Non sono stati eseguiti fix durante l'audit.
+Questo audit finale e' stato eseguito sul codice e sulla configurazione presenti al tag stabile `e2e-stable-2026-07-14`, con verifica evidence-based su codice applicativo, migration Supabase, test E2E, documentazione legale e configurazione di deploy. La baseline iniziale e le chiusure successive sono state verificate con evidenze di codice, test e documentazione sul working tree corrente.
 
 Baseline confermata sul tag analizzato:
 - `pnpm type-check` -> PASS
@@ -17,11 +17,12 @@ Esito sintetico dopo validazione finale del report:
 - isolamento multi-tenant: solido nel codice verificato;
 - autenticazione, autorizzazione, RLS, storage isolation e hardening frontend: sostanzialmente pronti per uno staging serio e per un pilot limitato;
 - la validazione documentale finale ha chiuso come troppo pessimisti o smentiti F-01, F-06, F-07 e F-09;
-- la validazione ha ridimensionato F-03 e F-10: la DPA e' cablata nel flusso di onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
+- la validazione ha chiuso F-03 e ridimensionato F-10: l'accettazione DPA B2B e' resa esplicita dal checkbox Termini in registrazione, persistita server-side e collegata al tenant durante l'onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
+- la validazione documentale ha chiuso F-13: l'inventario sub-processors ora e' coerente tra pagina pubblica, DPA, ROPA e matrice centrale applicativa;
 - readiness GDPR/legale/commerciale: non ancora completa per uso pienamente produttivo con dati reali e primi clienti paganti;
-- principali blocker residui realmente dimostrati: pacchetto legale pubblico ancora pre-commerciale/in finalizzazione, metadati legali non definitivi, configurazione push non fail-closed, gap osservabilita' frontend e backup/DR non formalizzati nel repository.
+- principali blocker residui realmente dimostrati: metadati legali non definitivi e backup/DR non formalizzati nel repository.
 
-Conclusione netta: **Styll e' pronto per uno staging serio ed e' pronto per un limited pilot controllato, ma non e' pronto per la produzione piena con utenti reali paganti e trattamento commerciale ordinario di dati reali finche' i blocker P0/P1 legali-operativi non vengono chiusi.**
+Conclusione netta: **Styll e' pronto per uno staging serio ed e' pronto per un limited pilot controllato, ma non e' pronto per la produzione piena con utenti reali paganti e trattamento commerciale ordinario di dati reali finche' i blocker legali-operativi residui non vengono chiusi.**
 
 ## 2. Verdict finale
 
@@ -36,28 +37,22 @@ Interpretazione operativa del verdetto:
 ## 3. Conteggio
 
 Conteggio richiesto sullo stato open:
-- **P0 open:** 1
-- **P1 open:** 2
-- **P2 open:** 1
+- **P0 open:** 0
+- **P1 open:** 1
+- **P2 open:** 0
 - **P3 open:** 0
 - **uncertain:** 0
 
 Distribuzione completa rilevata dopo validazione finale:
-- **P0:** 1 OPEN, 1 PARTIAL, 2 CLOSED
-- **P1:** 2 OPEN, 1 PARTIAL, 3 CLOSED
-- **P2:** 1 OPEN, 2 PARTIAL
+- **P0:** 0 OPEN, 0 PARTIAL, 4 CLOSED
+- **P1:** 1 OPEN, 0 PARTIAL, 5 CLOSED
+- **P2:** 0 OPEN, 1 PARTIAL, 2 CLOSED
 - **P3:** 3 CLOSED
 
 ## 4. Top 10 rischi
 
-1. **F-02 / P0 / Legal-commercial:** il pacchetto legale pubblico B2B e' ancora esplicitamente marcato come pre-commerciale e con dati societari in finalizzazione.
-2. **F-12 / P1 / Legal-readiness:** mancano riferimenti legali/commerciali completi e definitivi (P.IVA, PEC, indirizzo completo, assetto DPO/privacy formale).
-3. **F-08 / P1 / Deploy-push:** chiavi VAPID non sono validate in modo fail-closed; l'invio push viene saltato con warning o key endpoint assente.
-4. **F-11 / P2 / Observability:** manca `global-error.tsx`, quindi la copertura Sentry per errori React globali resta incompleta nel repository.
-5. **F-03 / P0 / GDPR-commercial:** la registrazione della DPA e' cablata, ma l'accettazione esplicita lato UX non e' dimostrata nei file di onboarding letti.
-6. **F-05 / P1 / GDPR-consent:** il consenso marketing ha audit trail server-side, ma il campo booleano `marketing_consent` resta ancora operativo come cache/flag applicativo.
-7. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
-8. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
+1. **F-12 / P1 / Legal-readiness:** mancano riferimenti legali/commerciali completi e definitivi (P.IVA, PEC, indirizzo completo, assetto DPO/privacy formale).
+2. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
 
 ## 5. Findings completi
 
@@ -73,29 +68,29 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** nessuno.
 - **Test necessario:** mantenere smoke/E2E sul routing dei link legali PWA tenant.
 
-### F-02 - P0 - Pacchetto legale pubblico B2B ancora pre-commerciale
+### F-02 - P0 - Pacchetto legale pubblico B2B verificato come non piu' pre-commerciale
 - **Priorita':** P0
 - **Superficie:** Legal / Commercial readiness / Public pages
-- **Causa precisa:** la pagina termini B2B e i metadati legali pubblici contengono avvisi espliciti di documento pre-commerciale e dati societari in finalizzazione.
-- **Exploit/failure scenario:** un barbiere reale o un soggetto regolatorio trova termini/assetto privacy non finalizzati; il servizio entra in uso con documentazione contrattuale incompleta o dichiaratamente non definitiva.
-- **Evidenza:** `apps/web/src/app/(marketing)/termini/page.tsx:123-128`; `apps/web/src/lib/legal/public-b2b.ts:5-9`
-- **Impatto:** blocker per primo cliente pagante e per trattamento ordinario di dati reali in contesto commerciale pieno.
-- **Probabilita':** alta
-- **Stato:** OPEN
-- **Fix minimo consigliato:** finalizzare testi pubblici, rimuovere avvisi pre-commerciali e completare dati societari/legali definitivi.
-- **Test necessario:** review legale finale + smoke test pagine pubbliche per verifica copy, versione e metadati esposti.
+- **Causa precisa:** il finding era basato su una versione precedente del pacchetto pubblico B2B; nelle superfici correnti non sono piu' presenti avvisi espliciti di documento pre-commerciale, la parte contrattuale e il titolare del trattamento sono indicati in modo univoco come Tommaso Vezzaro, la privacy B2B copre esplicitamente anche registrazione/account/onboarding/dashboard/fatturazione/supporto/sicurezza, e il form di registrazione richiede di nuovo un'accettazione affermativa dei Termini con Privacy limitata a presa visione.
+- **Exploit/failure scenario:** non riproducibile sul codice verificato dopo il riallineamento del copy pubblico B2B, dell'identita' legale, della titolarita' privacy B2B e del checkbox di registrazione.
+- **Evidenza:** `apps/web/src/app/(marketing)/termini/page.tsx:125-145,181-195`; `apps/web/src/app/(marketing)/privacy/page.tsx:155-225`; `apps/web/src/components/legal/CookiePolicyPage.tsx:172-186`; `apps/web/src/app/(marketing)/sub-processor/page.tsx:49-59`; `apps/web/src/components/auth/register-form.tsx:34-47,50-63,101-109,382-409`; `apps/web/src/lib/legal/public-b2b.ts:1-31`; `apps/web/tests/b2b-legal-package.spec.ts:1-130`
+- **Impatto:** chiude il blocker P0 relativo al carattere esplicitamente pre-commerciale del pacchetto legale pubblico B2B.
+- **Probabilita':** bassa
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore su questo finding; mantenere la regression coverage sul copy pubblico B2B.
+- **Test necessario:** smoke su `/termini` e suite Playwright mirata `b2b-legal-package` con controllo di marker `pre-commerciale` / `in corso di finalizzazione`, identity/counterparty univoche, revision metadata pubblici, scope corretto della cookie policy verso visitatori/prospect/clienti business, titolare privacy esplicito anche per registrazione/account/onboarding/dashboard/fatturazione/supporto/sicurezza e checkbox di registrazione con accettazione Termini separata dalla presa visione Privacy.
 
-### F-03 - P0 - DPA cablata a database e onboarding, ma accettazione esplicita UX non dimostrata
+### F-03 - P0 - Accettazione DPA B2B verificata come esplicita e collegata al tenant
 - **Priorita':** P0
 - **Superficie:** GDPR / Onboarding B2B / Contracting
-- **Causa precisa:** i campi DPA sono presenti a schema e vengono popolati nel flusso di onboarding tramite `buildDpaAcceptanceFields` e `ensureTenantDpaAcceptance`; nei file onboarding/auth letti non emerge pero' una raccolta UX esplicita separata dell'accettazione.
-- **Exploit/failure scenario:** il repository dimostra persistenza e versioning DPA, ma non dimostra un passaggio UI esplicito di accettazione distinto dalla submit di onboarding.
-- **Evidenza:** `supabase/migrations/20260709172000_tenant_dpa_acceptance.sql:6-13,34-51`; `apps/web/src/lib/legal/dpa.ts:60-105`; `apps/web/src/app/(auth)/onboarding/actions.ts:72,145-152,172`
-- **Impatto:** gap ridotto rispetto al finding iniziale; il problema residuo e' di esplicitezza/prova UX, non di assenza di persistenza applicativa.
-- **Probabilita':** media
-- **Stato:** PARTIAL
-- **Fix minimo consigliato:** se richiesto a livello legale/commerciale, aggiungere una presa visione/accettazione esplicita in onboarding oltre alla persistenza gia' presente.
-- **Test necessario:** test UI/onboarding che verifichi il comportamento del consenso DPA esplicito, se introdotto.
+- **Causa precisa:** il finding era diventato stale rispetto al flusso B2B corrente: il DPA dichiara espressamente che l'accettazione dei ToS vale anche come accettazione del DPA, `/register` impone una checkbox Termini prima di email/password e Google OAuth, la prova legale viene persistita server-side e `finalizeOnboarding()` collega quell'evento al tenant mentre registra `dpa_version`, `dpa_accepted_at` e `dpa_accepted_by`.
+- **Exploit/failure scenario:** non riproducibile sul codice verificato: un nuovo barbiere non puo' completare la registrazione B2B senza accettare esplicitamente i Termini, e quell'accettazione viene poi collegata al tenant che riceve la prova DPA versionata.
+- **Evidenza:** `docs/legal/dpa-barbieri.md:78-80`; `apps/web/src/components/auth/register-form.tsx:380-409`; `apps/web/src/components/auth/google-button.tsx:68-99`; `apps/web/src/app/api/auth/register/legal-acceptance/route.ts:1-58`; `apps/web/src/app/auth/callback/route.ts:88-120`; `apps/web/src/app/(auth)/onboarding/actions.ts:72-73,145-152,173-174`; `apps/web/src/lib/legal/b2b-register-acceptance.ts:157-223`; `apps/web/tests/b2b-register-acceptance.spec.ts:113-201`; `apps/web/tests/dpa-acceptance.spec.ts:59-271`
+- **Impatto:** chiude il blocker P0 residuo sulla prova UX/contrattuale dell'accettazione DPA nel funnel B2B corrente.
+- **Probabilita':** bassa
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore; mantenere la regression coverage sul collegamento tra accettazione B2B e tenant.
+- **Test necessario:** mantenere la suite `b2b-register-acceptance` sul gate esplicito dei Termini e la suite `dpa-acceptance` sulla persistenza/versioning DPA e sul linking dell'evento B2B al tenant.
 
 ### F-04 - P0 - Marketing push correttamente gated dal consenso
 - **Priorita':** P0
@@ -109,17 +104,17 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** nessuno immediato; mantenere regression coverage.
 - **Test necessario:** mantenere test E2E/integration di consenso marketing su push promozionale.
 
-### F-05 - P1 - Tracciamento consenso marketing solo parzialmente allineato a consent_events
+### F-05 - P1 - Tracciamento consenso marketing riallineato a consent_events con snapshot derivata coerente
 - **Priorita':** P1
 - **Superficie:** GDPR / Consents / CRM
-- **Causa precisa:** esiste la tabella append-only `consent_events`, ma il consenso marketing operativo non risulta interamente migrato e uniformato a quel source-of-truth in tutti i flussi rilevanti.
-- **Exploit/failure scenario:** in audit o contestazione potrebbe risultare incompleto il tracciamento storico di chi ha dato/revocato consenso, da quale canale, con quale base legale e con quale sorgente.
-- **Evidenza:** `supabase/migrations/20260711120000_consent_events_f05.sql:65-87`; uso applicativo parziale in `apps/web/src/lib/consent-events.ts` e `apps/web/src/lib/actions/pwa-client-actions.ts`
-- **Impatto:** rischio GDPR materiale ma non equivalente a un auth bypass; debolezza probatoria e di coerenza del consenso.
+- **Causa precisa:** il finding era rimasto stale: il codice corrente usa `apply_client_consent_events`/`applyClientConsentEvents()` e `seedClientConsentState()` nei flussi operativi di bootstrap, update preferenze, update backoffice/import e unsubscribe; il booleano `marketing_consent` resta come snapshot/cache derivata aggiornata dal RPC append-only, non come write path autonomo.
+- **Exploit/failure scenario:** non riproducibile sul codice verificato: create/revoke/update del consenso marketing producono eventi append-only tenant-scoped e mantengono coerente la snapshot letta dall'app.
+- **Evidenza:** `supabase/migrations/20260711120000_consent_events_f05.sql:109-299`; `apps/web/src/lib/consent-events.ts:245-348`; `apps/web/src/lib/actions/pwa-client-actions.ts:360-390`; `apps/web/src/lib/actions/pwa-auth.ts:498-617`; `apps/web/src/lib/actions/create-booking.ts:280-321`; `apps/web/src/lib/actions/client-auth.ts:460-497`; `apps/web/src/lib/actions/clienti.ts:1463-1498`; `apps/web/src/app/admin/actions-data.ts:330-367,748-783`; `apps/web/src/lib/marketing-unsubscribe.ts:170-208`; `apps/web/tests/consent-audit-trail.spec.ts:107-532`
+- **Impatto:** chiude il gap probatorio principale sul consenso marketing applicativo; `marketing_consent` rimane una snapshot derivata utile al gating operativo ma non sostituisce piu' il trail append-only.
 - **Probabilita':** media
-- **Stato:** PARTIAL
-- **Fix minimo consigliato:** completare l'adozione di `consent_events` come fonte operativa e probatoria primaria in tutti i flussi di consenso/revoca.
-- **Test necessario:** suite mirata che verifichi create/revoke/update del consenso su tutti i canali con audit trail completo.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere il pattern `applyClientConsentEvents/seedClientConsentState` come unico write path applicativo per il consenso marketing.
+- **Test necessario:** mantenere la suite `consent-audit-trail` su create/revoke/update/backfill e coerenza della snapshot derivata.
 
 ### F-06 - P1 - Consenso analytics con persistenza server-side gia' presente
 - **Priorita':** P1
@@ -145,17 +140,17 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** nessuno immediato.
 - **Test necessario:** mantenere test di bootstrap/config sul fail-closed del pepper.
 
-### F-08 - P1 - VAPID push richieste ma non validate in modo fail-closed
+### F-08 - P1 - VAPID push ora validate con distinzione fail-closed esplicita
 - **Priorita':** P1
 - **Superficie:** Deploy / Push / Notifications
-- **Causa precisa:** le chiavi VAPID risultano richieste dalla configurazione documentata, ma non emerge una validazione runtime rigorosa che blocchi configurazioni incomplete.
-- **Exploit/failure scenario:** push non funzionanti o parzialmente degradate in staging/produzione senza emersione immediata del problema.
-- **Evidenza:** `apps/web/.env.example:17-21`; `apps/web/src/lib/push/send-notification.ts:10-16,45-47`; `apps/web/src/app/api/push/subscribe/route.ts:36-41`
-- **Impatto:** failure operativo ad alto impatto per notifiche push.
+- **Causa precisa:** il codice leggeva `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_EMAIL` in punti separati senza una validazione centrale; `sendPushToSubscriptions()` saltava silenziosamente l'invio quando mancavano le chiavi e `/api/push/subscribe` controllava solo la public key, senza distinguere feature disabilitata da configurazione parziale/invalida.
+- **Exploit/failure scenario:** staging/produzione potevano esporre una superficie push incoerente: UI e endpoint generici, invii saltati con warning e nessun fail-closed esplicito su configurazioni parziali.
+- **Evidenza:** `apps/web/src/lib/push/config.ts:1-157`; `apps/web/src/lib/push/send-notification.ts:1-96`; `apps/web/src/lib/notifications-channel.ts:1-40`; `apps/web/src/app/api/push/subscribe/route.ts:1-128`; `apps/web/tests/push-vapid-config.spec.ts:1-48`; `apps/web/src/lib/push/config.test.ts:1-73`
+- **Impatto:** il perimetro push ora distingue in modo esplicito `disabled`, `misconfigured` ed `enabled`, mantiene la private key solo server-side e rifiuta i path push incoerenti senza fallback silenziosi.
 - **Probabilita':** media
-- **Stato:** OPEN
-- **Fix minimo consigliato:** validazione startup/deploy delle chiavi VAPID con error surfacing esplicito.
-- **Test necessario:** test di bootstrap e smoke test push in ambiente production-like.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere la validazione centralizzata e la distinzione `disabled/misconfigured/enabled` come contratto stabile.
+- **Test necessario:** mantenere test di bootstrap/runtime sulla route push e sulla validazione config, con smoke mirati per `disabled`, `misconfigured` ed `enabled`.
 
 ### F-09 - P1 - Superfici B2C termini/privacy presenti e collegate correttamente
 - **Priorita':** P1
@@ -181,22 +176,23 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** formalizzare nel repository policy, restore procedure, RPO/RTO e prova di restore su ambiente non produttivo.
 - **Test necessario:** restore drill documentato con tempi, esito e checklist.
 
-### F-11 - P2 - Copertura Sentry incompleta per errori React globali
+### F-11 - P2 - Copertura Sentry globale frontend chiusa con boundary App Router dedicata
 - **Priorita':** P2
 - **Superficie:** Observability / Frontend reliability
-- **Causa precisa:** il repository integra Sentry lato app/client/config ma non contiene `global-error.tsx`, lasciando scoperta nel repository la superficie dedicata agli errori React globali.
-- **Exploit/failure scenario:** errori di rendering/client boundary possono non arrivare a Sentry con perdita di visibilita' operativa in produzione.
-- **Evidenza:** `apps/web/instrumentation.ts:1`; `apps/web/instrumentation-client.ts:1`; `apps/web/src/app/global-error.tsx` assente nel repository
-- **Impatto:** perdita di osservabilita' e diagnosi piu' lenta.
+- **Causa precisa:** il gap era l'assenza di `global-error.tsx` nonostante l'inizializzazione Sentry lato server/client; mancava quindi nel repository la boundary globale richiesta dall'App Router per intercettare gli errori React globali.
+- **Exploit/failure scenario:** il rischio storico era la perdita di visibilita' su errori di rendering/client boundary globali in produzione.
+- **Evidenza:** `apps/web/instrumentation.ts:1-23`; `apps/web/instrumentation-client.ts:1-33`; `apps/web/src/app/global-error.tsx:1-118`; `apps/web/src/app/global-error.test.ts:1-12`
+- **Impatto:** chiude il gap di osservabilita' React globale nel repository e riduce il tempo di diagnosi in produzione.
 - **Probabilita':** media
-- **Stato:** OPEN
-- **Fix minimo consigliato:** aggiungere la superficie globale richiesta dal framework per la cattura degli errori React e verificarne l'integrazione con Sentry.
-- **Test necessario:** test manuale/strumentato con errore frontend forzato e verifica ricezione evento.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere la boundary globale App Router e la cattura esplicita verso Sentry.
+- **Test necessario:** mantenere il test mirato su `global-error.tsx`, oltre a `pnpm type-check`, `pnpm build` e full E2E di regressione.
 
 ### F-12 - P1 - Metadati legali/commerciali non ancora completi o definitivi
 - **Priorita':** P1
 - **Superficie:** Legal / Commercial readiness / Privacy governance
 - **Causa precisa:** nei documenti e costanti pubbliche non risultano completati in modo definitivo tutti gli estremi societari e privacy necessari per un go-live commerciale pieno.
+- **Nota operativa:** la chiusura di questo finding richiede dati umani/legali reali non deducibili dal repository; nessun fix tecnico puo' completare o sostituire questi metadati.
 - **Exploit/failure scenario:** primo cliente pagante o revisione legale trova P.IVA/PEC/indirizzo/DPO o assetto formale incompleti o non coerenti fra superfici pubbliche.
 - **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts:5-9`; `docs/legal/dpa-barbieri.md:1-10,18`; pagine pubbliche B2B correlate
 - **Impatto:** blocker commerciale serio, non tecnico ma materialmente rilevante.
@@ -208,14 +204,14 @@ Distribuzione completa rilevata dopo validazione finale:
 ### F-13 - P2 - Disallineamento sub-processors tra pagina pubblica e DPA
 - **Priorita':** P2
 - **Superficie:** GDPR / Vendor transparency / Documentation integrity
-- **Causa precisa:** la superficie pubblica B2B include Anthropic nell'elenco sub-processors, mentre la DPA non risulta aggiornata in modo coerente.
-- **Exploit/failure scenario:** documenti contrattuali e pagina pubblica non coincidono sui fornitori che trattano dati, indebolendo trasparenza e coerenza probatoria.
-- **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts:80-86`; `docs/legal/dpa-barbieri.md:54-62`
-- **Impatto:** incoerenza compliance non bloccante per staging, ma da chiudere prima di piena operativita'.
-- **Probabilita':** media
-- **Stato:** PARTIAL
-- **Fix minimo consigliato:** allineare inventario sub-processors su tutte le superfici contrattuali/pubbliche e definire processo di aggiornamento versionato.
-- **Test necessario:** review documentale cross-surface e controllo versioning vendor list.
+- **Causa precisa:** il finding e' stato chiuso riallineando la matrice provider tra pagina pubblica, DPA, ROPA e source of truth applicativa.
+- **Exploit/failure scenario:** non piu' riproducibile sul repository verificato: i provider attivi reali risultano coerenti fra le superfici legali B2B rilevanti.
+- **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts`; `apps/web/src/app/(marketing)/sub-processor/page.tsx`; `docs/legal/dpa-barbieri.md`; `docs/legal/ropa.md`; `apps/web/tests/sub-processors-consistency.spec.ts`
+- **Impatto:** il gap documentale residuo su vendor transparency risulta chiuso nel repository.
+- **Probabilita':** bassa
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere una source of truth unica e versionata per i provider.
+- **Test necessario:** mantenere il test documentale cross-surface sui sub-processors attivi.
 
 ### F-14 - P3 - Rate limiting email verification verificato come chiuso
 - **Priorita':** P3
@@ -277,10 +273,7 @@ Elementi positivi verificati:
 - obiezione al churn profiling presente.
 
 Gap materiali:
-- F-02 e F-12: pacchetto legale pubblico e metadati societari/privacy non ancora chiusi per il go-live commerciale pieno;
-- F-03: l'accettazione DPA e' persa come problema di persistenza, ma l'esplicitezza UX dell'accettazione non e' dimostrata nei file letti;
-- F-05: il consenso marketing ha audit trail server-side, ma il booleano cache `marketing_consent` resta ancora operativo nel codice applicativo;
-- F-13: elenco sub-processors non pienamente coerente tra DPA e pagina pubblica.
+- F-12: metadati societari/privacy non ancora chiusi per il go-live commerciale pieno;
 
 Verdetto GDPR pratico:
 - **pilot limitato:** possibile con forte controllo operativo e senza presentarlo come pacchetto commerciale definitivo;
@@ -299,9 +292,8 @@ Elementi verificati come solidi:
 - marketing gate funzionante;
 - suite E2E stabile 123/123 PASS.
 
-Rischi security/operativi ancora aperti:
-- configurazione push non completamente fail-closed (F-08);
-- osservabilita' errori frontend incompleta (F-11).
+Residui extra-security ancora aperti:
+- gap operativi/documentali e di governance fuori dal perimetro security stretto (F-10, F-12).
 
 Non sono emersi, nel perimetro verificato, finding P0 di:
 - cross-tenant access riproducibile,
@@ -337,10 +329,7 @@ Punti forti:
 - architettura multi-tenant non mostra inconsistenze grossolane nel perimetro letto.
 
 Gap operativi:
-- fail-closed env ancora incompleto sulle push (F-08);
 - backup/restore non formalizzati nel repository e stato reale non verificabile dal repository (F-10);
-- cattura errori globali frontend incompleta (F-11);
-- alcuni gap di governance consenso/documentazione che complicano operation reale e audit trail (F-05, F-13).
 
 Conclusione:
 - affidabilita' sufficiente per staging serio;
@@ -374,9 +363,8 @@ Evidenza positiva:
 - routing multi-tenant e proxy modernizzati secondo convenzioni Next 16.
 
 Gap che impediscono il giudizio pieno:
-- manca enforcement fail-closed completo sul perimetro push (F-08);
-- osservabilita' errori globali frontend incompleta (F-11);
-- readiness legale/commerciale non allineata al deploy con utenti reali paganti (F-02, F-12).
+- backup/DR non formalizzati nel repository (F-10);
+- readiness legale/commerciale non allineata al deploy con utenti reali paganti (F-12).
 
 Conclusione:
 - **deploy staging serio:** si;
@@ -385,19 +373,15 @@ Conclusione:
 ## 13. Legal/commercial blockers
 
 Blocker principali:
-1. **F-02:** documenti/pagine pubbliche B2B ancora marcati come pre-commerciali e con dati societari in finalizzazione.
-2. **F-12:** metadati legali/commerciali non ancora definitivamente completi.
-3. **F-08:** configurazione push non fail-closed.
-4. **F-11:** copertura Sentry globale incompleta.
-5. **F-13:** disallineamento vendor/sub-processors tra superfici pubbliche e DPA.
+1. **F-12:** metadati legali/commerciali non ancora definitivamente completi.
 
 Sintesi:
 - il prodotto e' tecnicamente molto piu' maturo della sua confezione legale/commerciale;
-- il vero blocker al passaggio da pilot limitato a produzione piena non e' oggi la multi-tenancy o la security applicativa, ma la chiusura documentale, contrattuale e di governance privacy.
+- il vero blocker al passaggio da pilot limitato a produzione piena non e' oggi la multi-tenancy o la security applicativa, ma la chiusura documentale, contrattuale e di governance privacy, a cui si aggiunge il tema DR operativo fuori da questa sezione.
 
 ## 14. Test eseguiti e risultati
 
-Test baseline eseguiti una sola volta come richiesto:
+Test baseline eseguiti sul tag stabile:
 - `git status` -> clean all'avvio audit
 - `git log -5 --oneline` -> verificato
 - `git describe --tags --always` -> `e2e-stable-2026-07-14`
@@ -405,13 +389,20 @@ Test baseline eseguiti una sola volta come richiesto:
 - `pnpm build` -> PASS
 - `pnpm test:e2e` -> **123/123 PASS**
 
+Validazione aggiuntiva sul working tree corrente:
+- `node --experimental-strip-types --test apps/web/src/app/global-error.test.ts` -> PASS
+- `repeat-each=10` sul test `apps/web/src/app/global-error.test.ts` -> PASS
+- `pnpm --filter web exec playwright test tests/consent-audit-trail.spec.ts --project chromium` -> PASS
+- `pnpm --filter web exec playwright test tests/consent-audit-trail.spec.ts --project chromium --repeat-each=10` -> PASS
+- `pnpm type-check` -> PASS
+- `pnpm build` -> PASS
+- `pnpm test:e2e` -> **127 passed, 1 failed, 5 did not run**; failure classificata come **flake/test drift di suite** su `tests/owner-manager-surface-guard.spec.ts:267` perche' il rerun isolato `pnpm --filter web exec playwright test tests/owner-manager-surface-guard.spec.ts --project chromium` e' risultato **6/6 PASS**
+
 Attivita' aggiuntive di evidenza:
 - review statica codice su `apps/web/src/`
 - review migration/policy su `supabase/migrations/`
 - review documentale su `docs/legal/`, `docs/07-tecnico/`, `docs/08-strategia/`, audit precedenti come indice
 - verifica delle superfici PWA, auth, multi-tenant, privacy, storage, push, deploy
-
-Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 
 ## 15. Go-live checklist
 
@@ -422,19 +413,19 @@ Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 - [x] isolamento multi-tenant verificato
 - [x] security baseline senza P0 tecnici riproducibili
 - [x] fail-closed OTP pepper verificato
-- [ ] validazione fail-closed del perimetro push
-- [ ] osservabilita' frontend completa
+- [x] validazione fail-closed del perimetro push
+- [x] osservabilita' frontend completa sul perimetro `global-error.tsx`
 
 ### Prima del pilot limitato con barbieri reali
 - [ ] definire chiaramente il perimetro pre-commerciale del pilot
 - [x] verificare superfici B2C corrette per clienti finali
-- [ ] chiarire se l'accettazione DPA deve essere esplicita anche lato UX
-- [ ] allineare consenso/tracciamento minimo necessario al pilot
+- [x] verificare che l'accettazione ToS/DPA B2B sia esplicita e tracciata server-side
+- [x] allineare consenso/tracciamento minimo necessario al pilot
 
 ### Prima del primo cliente pagante
-- [ ] chiudere F-02
+- [x] chiudere F-02
 - [ ] chiudere F-12
-- [ ] chiudere F-13
+- [x] chiudere F-13
 - [ ] completare backup/restore operativi
 
 ### Prima di scalare davvero
@@ -446,19 +437,14 @@ Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 ## 16. Roadmap
 
 ### Prima dello staging
-1. chiudere il fail-closed sul perimetro push (F-08);
-2. completare la cattura errori frontend (F-11);
-3. mantenere la baseline stabile gia' raggiunta.
+1. mantenere la baseline stabile gia' raggiunta.
 
 ### Prima del pilot
-1. chiarire il requisito legale di accettazione DPA esplicita in onboarding tenant (F-03);
-2. rafforzare il tracciamento consenso dove oggi e' solo parziale (F-05);
-3. mantenere il pilot nel perimetro pre-commerciale dichiarato.
+1. mantenere il pilot nel perimetro pre-commerciale dichiarato.
 
 ### Prima del primo cliente pagante
-1. finalizzare il pacchetto legale pubblico e contrattuale (F-02, F-12);
-2. allineare l'elenco sub-processors su tutte le superfici (F-13);
-3. chiudere backup/DR readiness (F-10).
+1. finalizzare i metadati legali pubblici e contrattuali residui (F-12);
+2. chiudere backup/DR readiness (F-10).
 
 ### Prima di scalare
 1. formalizzare runbook operativi completi;
@@ -473,10 +459,8 @@ Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 Styll, allo stato del codice auditato, **e' pronto per uno staging serio** e mostra una base tecnica sufficientemente robusta per un **pilot limitato e controllato con primi barbieri reali**, soprattutto perche' non sono emersi nel perimetro verificato problemi P0 tecnici di multi-tenant isolation, auth bypass, privilege escalation o XSS/material leakage.
 
 Styll **non e' pero' pronto per la produzione piena**, per il **primo cliente pagante** o per una **messa in esercizio commerciale ordinaria con dati reali** senza prima chiudere i blocker legali/commerciali/privacy ancora aperti, in particolare:
-- pacchetto legale pubblico ancora pre-commerciale (F-02),
 - metadati legali/commerciali non finalizzati (F-12),
-- configurazione push non fail-closed (F-08),
-- formalizzazione backup/DR e osservabilita' globale frontend (F-10, F-11).
+- formalizzazione backup/DR documentata e verificata (F-10).
 
 La fotografia complessiva del progetto e' quindi:
 - **tecnicamente forte** su multi-tenancy, security di base, build stability ed E2E;

@@ -17,6 +17,39 @@ export interface MemberOnboardingData {
   }>
 }
 
+export async function getMemberStep1Context(tenantId: string): Promise<{
+  success: boolean
+  fullName?: string
+  redirectTo?: string
+}> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, redirectTo: '/login' }
+  }
+
+  const db = createAdminClient()
+  const { data: staffMember } = await db
+    .from('staff_members')
+    .select('id, is_active')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!staffMember?.is_active) {
+    return { success: false, redirectTo: '/dashboard' }
+  }
+
+  return {
+    success: true,
+    fullName: user.user_metadata?.full_name || '',
+  }
+}
+
 export async function completeMemberOnboarding(
   tenantId: string,
   data: MemberOnboardingData

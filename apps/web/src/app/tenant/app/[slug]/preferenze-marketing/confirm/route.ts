@@ -4,12 +4,29 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { extractConsentRequestContext } from '@/lib/consent-events'
 import { revokeMarketingConsentWithToken } from '@/lib/marketing-unsubscribe'
 import { getTenantBySlug } from '@/lib/tenant'
-import { buildTenantAppUrl } from '@/lib/auth/urls'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 
-function redirectToStatus(slug: string, status: 'revoked' | 'already' | 'invalid' | 'expired') {
+async function redirectToStatus(
+  request: NextRequest,
+  slug: string,
+  status: 'revoked' | 'already' | 'invalid' | 'expired',
+) {
+  const tp = await createTenantPaths(slug)
   return NextResponse.redirect(
-    buildTenantAppUrl(slug, `/preferenze-marketing?status=${status}`),
+    new URL(tp(`/preferenze-marketing?status=${status}`), request.url),
     { status: 303 },
+  )
+}
+
+function jsonStatus(status: 'revoked' | 'already' | 'invalid' | 'expired') {
+  const responseStatus =
+    status === 'invalid' || status === 'expired'
+      ? 400
+      : 200
+
+  return NextResponse.json(
+    { ok: responseStatus === 200, status },
+    { status: responseStatus },
   )
 }
 
@@ -17,6 +34,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  const wantsJson = request.headers.get('x-styll-ajax') === '1'
   const { slug } = await params
   const tenant = await getTenantBySlug(slug)
   if (!tenant || tenant.status !== 'active') {
@@ -25,7 +43,9 @@ export async function POST(
 
   const token = request.nextUrl.searchParams.get('token')?.trim() ?? ''
   if (!token) {
-    return redirectToStatus(slug, 'invalid')
+    return wantsJson
+      ? jsonStatus('invalid')
+      : redirectToStatus(request, slug, 'invalid')
   }
 
   const formData = await request.formData().catch(() => null)
@@ -38,7 +58,9 @@ export async function POST(
   if (!isBrowserForm && !isOneClick) {
     return isOneClick
       ? NextResponse.json({ ok: true }, { status: 200 })
-      : redirectToStatus(slug, 'invalid')
+      : wantsJson
+        ? jsonStatus('invalid')
+        : redirectToStatus(request, slug, 'invalid')
   }
 
   const db = createAdminClient()
@@ -52,7 +74,14 @@ export async function POST(
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  if (result === 'revoked') return redirectToStatus(slug, 'revoked')
-  if (result === 'already_unsubscribed') return redirectToStatus(slug, 'already')
-  return redirectToStatus(slug, 'expired')
+  const status =
+    result === 'revoked'
+      ? 'revoked'
+      : result === 'already_unsubscribed'
+        ? 'already'
+        : 'expired'
+
+  return wantsJson
+    ? jsonStatus(status)
+    : redirectToStatus(request, slug, status)
 }

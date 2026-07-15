@@ -2,19 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { OnboardingShell, NavFooter } from '@/components/onboarding/onboarding-shell'
+import { getMemberStep1Context } from '../actions'
 
 export default function MemberStep1Page() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const tenantId = searchParams.get('tenant')
 
-  const [user, setUser] = useState<any>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
-  const [loading, setLoading] = useState(true)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
@@ -24,35 +21,14 @@ export default function MemberStep1Page() {
         return
       }
 
-      // Validate user is staff in this tenant
-      const supabase = await createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        router.push('/login')
+      const result = await getMemberStep1Context(tenantId)
+      if (!result.success) {
+        router.push(result.redirectTo || '/dashboard')
         return
       }
 
-      const db = createAdminClient()
-      const { data: staffMember } = await db
-        .from('staff_members')
-        .select('id, is_active')
-        .eq('tenant_id', tenantId)
-        .eq('profile_id', user.id)
-        .is('deleted_at', null)
-        .maybeSingle()
-
-      if (!staffMember || !staffMember.is_active) {
-        router.push('/dashboard')
-        return
-      }
-
-      setUser(user)
-      setFullName(user?.user_metadata?.full_name || '')
+      setFullName(result.fullName || '')
       setHydrated(true)
-      setLoading(false)
     }
     validateAndLoad()
   }, [tenantId, router])

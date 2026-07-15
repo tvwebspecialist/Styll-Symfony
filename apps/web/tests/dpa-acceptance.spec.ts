@@ -1,5 +1,13 @@
 import { expect, test, type Page } from 'playwright/test'
 import { buildDpaAcceptanceFields, ensureTenantDpaAcceptance, getCurrentDpaDocumentMetadata } from '../src/lib/legal/dpa'
+import {
+  consumePendingB2bTermsAcceptanceProof,
+  createPendingB2bTermsAcceptanceProof,
+} from '../src/lib/legal/b2b-register-acceptance'
+import {
+  EMAIL_PASSWORD_REGISTER_SOURCE,
+  getCurrentB2bTermsAcceptanceDocument,
+} from '../src/lib/legal/b2b-register-acceptance-shared'
 import { assertNoSupabaseError, createTenantFixture, hasSupabaseSeedEnv, requireServiceClient } from './helpers/supabase-admin'
 import { randomEmail } from './helpers/e2e-env'
 
@@ -73,6 +81,20 @@ test.describe.serial('DPA acceptance persistence', () => {
     const businessName = `Playwright DPA ${Date.now()}`
 
     try {
+      const pendingProof = await createPendingB2bTermsAcceptanceProof({
+        acceptedByEmail: user.email,
+        db: service as any,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+      })
+
+      await consumePendingB2bTermsAcceptanceProof({
+        db: service as any,
+        rawToken: pendingProof.rawToken,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+        userEmail: user.email,
+        userId: user.userId,
+      })
+
       await loginForOnboarding(page, user.email, user.password)
 
       await page.getByLabel('Nome attività').fill(businessName)
@@ -151,6 +173,112 @@ test.describe.serial('DPA acceptance persistence', () => {
       expect(acceptedAtMs).toBeLessThanOrEqual(Date.now() + 5_000)
 
       await service.from('tenants').delete().eq('id', tenantId!)
+    } finally {
+      await user.cleanup()
+    }
+  })
+
+  test('explicit B2B terms acceptance is linked to the tenant whose onboarding records the DPA', async ({ page }) => {
+    test.setTimeout(120_000)
+    const service = requireServiceClient()
+    const user = await createVerifiedBarberUser('dpa-terms-link')
+    const businessName = `Playwright DPA Terms ${Date.now()}`
+
+    try {
+      const currentTermsDocument = getCurrentB2bTermsAcceptanceDocument()
+      const pendingProof = await createPendingB2bTermsAcceptanceProof({
+        acceptedByEmail: user.email,
+        db: service as any,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+      })
+
+      await consumePendingB2bTermsAcceptanceProof({
+        db: service as any,
+        rawToken: pendingProof.rawToken,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+        userEmail: user.email,
+        userId: user.userId,
+      })
+
+      await loginForOnboarding(page, user.email, user.password)
+
+      await page.getByLabel('Nome attività').fill(businessName)
+      await page.getByLabel('Città').fill('Milano')
+      await page.getByLabel('Indirizzo').fill('Via Torino 10')
+      await page.getByRole('button', { name: 'Avanti →' }).click()
+
+      await page.waitForURL(/\/onboarding\/step-2$/)
+      await page.getByRole('button', { name: 'Avanti →' }).click()
+
+      await page.waitForURL(/\/onboarding\/step-3$/)
+      await page.getByRole('button', { name: 'Avanti →' }).click()
+
+      await page.waitForURL(/\/onboarding\/step-4$/)
+      await page.getByRole('button', { name: 'Vai alla dashboard →' }).click()
+
+      await expect
+        .poll(async () => {
+          const { data: ownerStaff, error: ownerStaffError } = await service
+            .from('staff_members')
+            .select('tenant_id')
+            .eq('profile_id', user.userId)
+            .eq('role', 'owner')
+            .maybeSingle()
+          await assertNoSupabaseError('poll owner staff tenant for DPA terms link', ownerStaffError)
+          return ownerStaff?.tenant_id ?? null
+        }, {
+          timeout: 60_000,
+        })
+        .not.toBeNull()
+
+      const { data: ownerStaffAfterFinalize, error: ownerStaffAfterFinalizeError } = await service
+        .from('staff_members')
+        .select('tenant_id')
+        .eq('profile_id', user.userId)
+        .eq('role', 'owner')
+        .maybeSingle()
+      await assertNoSupabaseError('read owner staff tenant after DPA terms link onboarding', ownerStaffAfterFinalizeError)
+
+      const resolvedTenantId = ownerStaffAfterFinalize?.tenant_id ?? null
+      expect(resolvedTenantId).not.toBeNull()
+      if (!resolvedTenantId) {
+        throw new Error('missing tenant id after DPA terms link onboarding')
+      }
+
+      const { data: tenant, error: tenantError } = await service
+        .from('tenants')
+        .select('id, business_name, dpa_version, dpa_accepted_at, dpa_accepted_by')
+        .eq('id', resolvedTenantId)
+        .single()
+      await assertNoSupabaseError('read tenant after DPA terms link onboarding', tenantError)
+
+      expect(tenant).not.toBeNull()
+      if (!tenant) {
+        throw new Error('missing tenant after DPA terms link onboarding')
+      }
+
+      expect(tenant.business_name).toBe(businessName)
+      expect(tenant.dpa_accepted_by).toBe(user.userId)
+      expect(tenant.dpa_version).toBe(getCurrentDpaDocumentMetadata().version)
+      expect(tenant.dpa_accepted_at).not.toBeNull()
+
+      const { data: linkedAcceptance, error: linkedAcceptanceError } = await (service as any)
+        .from('legal_acceptance_events')
+        .select('tenant_id, document_type, document_version, privacy_notice_version, source')
+        .eq('user_id', user.userId)
+        .eq('document_type', currentTermsDocument.documentType)
+        .maybeSingle()
+      await assertNoSupabaseError('read linked legal acceptance event after onboarding', linkedAcceptanceError)
+
+      expect(linkedAcceptance).toMatchObject({
+        document_type: currentTermsDocument.documentType,
+        document_version: currentTermsDocument.documentVersion,
+        privacy_notice_version: currentTermsDocument.privacyNoticeVersion,
+        source: EMAIL_PASSWORD_REGISTER_SOURCE,
+        tenant_id: resolvedTenantId,
+      })
+
+      await service.from('tenants').delete().eq('id', resolvedTenantId)
     } finally {
       await user.cleanup()
     }

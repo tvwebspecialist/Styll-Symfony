@@ -19,9 +19,11 @@ import type { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import type { PushPayload } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { matchesBearerTokenHeader } from '@/lib/security/bearer-secret'
 
 type ReminderType = 'reminder_3d' | 'reminder_1d' | 'reminder_day'
 
@@ -161,7 +163,10 @@ async function processReminderWindow(
       channel = clientEmail ? 'email' : 'none'
     } else {
       channel = await getNotificationChannel(profileId, appt.tenant_id).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        (error: unknown) => {
+          if (isPushConfigError(error)) throw error
+          return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        }
       )
     }
 
@@ -222,7 +227,7 @@ export async function POST(req: NextRequest) {
     console.error('[cron/reminders] CRON_SECRET non configurato')
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  if (!matchesBearerTokenHeader(req.headers.get('authorization'), cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

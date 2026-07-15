@@ -12,6 +12,7 @@ import {
   issueMarketingUnsubscribeToken,
 } from '@/lib/marketing-unsubscribe'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 
@@ -675,9 +676,10 @@ async function sendLoyaltyNotifications(params: {
   // One channel determination — reused across all 3 loyalty events
   const channel = !profileId
     ? (clientEmail ? 'email' : 'none')
-    : await getNotificationChannel(profileId, tenantId).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
-      )
+    : await getNotificationChannel(profileId, tenantId).catch((error: unknown) => {
+        if (isPushConfigError(error)) throw error
+        return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      })
 
   // Load subs once — only if push channel
   const subs = channel === 'push' && profileId
@@ -693,7 +695,9 @@ async function sendLoyaltyNotifications(params: {
         title: `+${pointsEarned} punti guadagnati!`,
         body:  `Totale: ${newTotal} punti · ${businessName}`,
         tag:   `loyalty-points-${clientId}`,
-      }).catch(() => {})
+      }).catch((error: unknown) => {
+        console.error('[loyalty] points push failed:', error)
+      })
     } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
@@ -714,7 +718,9 @@ async function sendLoyaltyNotifications(params: {
         title: `Streak di ${newStreak} visite 🔥`,
         body:  `Stai andando alla grande da ${businessName}!`,
         tag:   `loyalty-streak-${clientId}`,
-      }).catch(() => {})
+      }).catch((error: unknown) => {
+        console.error('[loyalty] streak push failed:', error)
+      })
     } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
@@ -748,7 +754,9 @@ async function sendLoyaltyNotifications(params: {
           title: 'Premio sbloccato! 🎉',
           body:  `Hai sbloccato: ${unlockedReward.name} da ${businessName}`,
           tag:   `loyalty-reward-${clientId}`,
-        }).catch(() => {})
+        }).catch((error: unknown) => {
+          console.error('[loyalty] reward push failed:', error)
+        })
       } else if (channel === 'email' && clientEmail) {
         await sendTemplatedEmail({
           to:           clientEmail,

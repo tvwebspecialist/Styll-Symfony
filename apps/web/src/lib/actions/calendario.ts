@@ -10,6 +10,7 @@ import {
   issueMarketingUnsubscribeToken,
 } from '@/lib/marketing-unsubscribe'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import { MANAGER_ROLES } from '@/lib/constants'
@@ -1087,9 +1088,10 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
   // One channel determination covers both post_visit push and email
   const channel = !profileId
     ? (clientEmail ? 'email' : 'none')
-    : await getNotificationChannel(profileId, tenantId).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
-      )
+    : await getNotificationChannel(profileId, tenantId).catch((error: unknown) => {
+        if (isPushConfigError(error)) throw error
+        return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      })
 
   // Post-visit: push OR email (not both)
   if (postVisitEnabled) {
@@ -1100,7 +1102,9 @@ async function sendPostVisitNotifications(appointmentId: string, tenantId: strin
             title: '🙏 Grazie per la tua visita!',
             body:  `Speriamo tu sia soddisfatto. A presto da ${businessName}!`,
             tag:   `post-visit-${appointmentId}`,
-          }).catch(() => {})
+          }).catch((error: unknown) => {
+            console.error('[post-visit] push notification failed:', error)
+          })
         }
       }).catch(() => {})
     } else if (channel === 'email' && clientEmail) {

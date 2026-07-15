@@ -93,8 +93,8 @@ export function BottomNav({
           zIndex: 50,
           background: '#222222',
           borderRadius: 100,
-          alignItems: 'center',
-          padding: '5px 5px',
+          alignItems: 'stretch',
+          padding: '0 8px',
           justifyContent: 'space-between',
           overflow: 'hidden',
           boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
@@ -109,57 +109,41 @@ export function BottomNav({
               href={item.href}
               aria-label={item.label}
               style={{
-                flex: active ? '0 0 auto' : 1,
+                flex: 1,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 3,
                 textDecoration: 'none',
+                padding: '0 2px',
               }}
             >
-              <div
+              <Icon
+                size={22}
+                strokeWidth={active ? 2.2 : 1.6}
+                color={active ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                aria-hidden="true"
+                style={{ flexShrink: 0, transition: 'color 150ms ease' }}
+              />
+              <span
                 style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: active ? 8 : 0,
-                  backgroundColor: active ? '#FFFFFF' : 'transparent',
-                  borderRadius: 100,
-                  padding: active ? '0px 18px' : '0',
-                  width: active ? 'auto' : 52,
-                  height: active ? 62 : 52,
-                  overflow: 'hidden',
-                  transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  color: active ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+                  fontSize: 10,
+                  fontWeight: active ? 700 : 400,
+                  fontFamily: 'Outfit, sans-serif',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1,
+                  transition: 'color 150ms ease',
                 }}
               >
-                <Icon
-                  size={active ? 22 : 24}
-                  strokeWidth={active ? 2.2 : 1.6}
-                  color={active ? '#222222' : 'rgba(255,255,255,0.6)'}
-                  aria-hidden="true"
-                  style={{ flexShrink: 0 }}
-                />
-                <span
-                  style={{
-                    color: '#222222',
-                    fontSize: 15,
-                    fontWeight: 700,
-                    fontFamily: 'Outfit, sans-serif',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    maxWidth: active ? 120 : 0,
-                    opacity: active ? 1 : 0,
-                    transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  }}
-                >
-                  {item.label}
-                </span>
-              </div>
+                {item.label}
+              </span>
             </Link>
           )
         })}
 
-        {/* Menu button — stessa dimensione degli item inattivi */}
+        {/* Menu button — same fixed-width column as nav items */}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -167,26 +151,29 @@ export function BottomNav({
           style={{
             flex: 1,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: 3,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            padding: 0,
+            padding: '0 2px',
           }}
         >
-          <div
+          <Menu size={22} strokeWidth={1.6} color="rgba(255,255,255,0.45)" aria-hidden="true" />
+          <span
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 52,
-              height: 52,
-              borderRadius: 100,
+              color: 'rgba(255,255,255,0.45)',
+              fontSize: 10,
+              fontWeight: 400,
+              fontFamily: 'Outfit, sans-serif',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
             }}
           >
-            <Menu size={24} strokeWidth={1.6} color="rgba(255,255,255,0.6)" aria-hidden="true" />
-          </div>
+            Menu
+          </span>
         </button>
       </nav>
 

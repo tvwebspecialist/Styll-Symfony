@@ -1,0 +1,119 @@
+name: Security Gate
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-guard:
+    name: Static Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Client bundle secret guard
+        run: bash scripts/check-client-bundle-secrets.sh
+
+      - name: Security unit tests
+        run: pnpm test:security:unit
+
+      - name: Secret scan
+        run: bash scripts/secret-scan.sh
+
+      - name: Migration check
+        run: bash scripts/check-migrations.sh
+
+      - name: CSP/header smoke
+        env:
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_ROOT_DOMAIN: 127.0.0.1:3000
+          NEXT_PUBLIC_PWA_BASE_DOMAIN: 127.0.0.1:3000
+        run: pnpm --filter web exec playwright test tests/csp-headers.spec.ts --project chromium
+
+  dependency-review:
+    name: Dependency Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+
+  security-e2e:
+    name: Security E2E
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_ROOT_DOMAIN: 127.0.0.1:3000
+      NEXT_PUBLIC_PWA_BASE_DOMAIN: 127.0.0.1:3000
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      PLAYWRIGHT_SUPABASE_URL: ${{ secrets.PLAYWRIGHT_SUPABASE_URL }}
+      PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Security regression suite
+        run: |
+          pnpm --filter web exec playwright test \
+            tests/admin-shadow-cookie-hygiene.spec.ts \
+            tests/b2b-register-acceptance.spec.ts \
+            tests/csp-headers.spec.ts \
+            tests/dpa-acceptance.spec.ts \
+            tests/marketing-unsubscribe.spec.ts \
+            tests/owner-manager-surface-guard.spec.ts \
+            tests/portfolio-storage-isolation.spec.ts \
+            tests/profiles-privileged-fields-rls.spec.ts \
+            tests/realtime-tenant-isolation.spec.ts \
+            tests/security-definer-rpc-privileges.spec.ts \
+            tests/team-owner-role-guard.spec.ts \
+            --project chromium

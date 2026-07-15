@@ -1,8 +1,8 @@
 # ROPA — Registro delle Attività di Trattamento
 ## Art. 30 GDPR — Versione iniziale
 
-**Data:** 3 luglio 2026
-**Versione:** 1.0 (da aggiornare con dati reali post-lancio)
+**Data:** 15 luglio 2026
+**Versione:** 1.1 (allineata ai provider attivi rilevati nel repository al 15 luglio 2026)
 
 > **Nota:** Styll opera sia come **Titolare** (dati dei barbieri) sia come **Responsabile** (dati dei clienti finali).
 >
@@ -37,3 +37,14 @@
 | 7 | Site Analytics — navigazione PWA cliente | ID anonimo browser, URL visitati, user agent, eventi funnel (page_view, booking_started/completed, signup, login). `site_sessions.client_id` collega la sessione al cliente reale solo dopo identificazione volontaria (prenotazione o accesso) | Art. 6(1)(a) consenso per analytics opzionali; prova della scelta registrata in `analytics_consent_events`, con cache locale usata solo come supporto UI | Raw events 90 gg; rollup giornaliero indefinito (aggregato, non personale); prova del consenso governata dalla retention matrix | Supabase, Vercel |
 
 > **Workflow diritti B2C:** la matrice operativa dei diritti (accesso, rettifica, cancellazione, limitazione, marketing, portabilità) è documentata in [b2c-data-subject-rights-matrix.md](b2c-data-subject-rights-matrix.md) e riflette il centro self-service PWA `/profilo/dati`.
+
+## Sezione C — Inventario fornitori e trasferimenti rilevanti
+
+| Fornitore | Servizio | Finalità operative coperte | Ruolo | Localizzazione | Trasferimenti extra-SEE | Garanzia di trasferimento | Stato |
+|---|---|---|---|---|---|---|---|
+| Supabase Inc. | Database, autenticazione, storage e servizi collegati alla piattaforma dati | Erogazione core della piattaforma, autenticazione, storage, consenso e audit trail | Sub-responsabile | Regione primaria EU (Irlanda); possibili sub-trattamenti extra-SEE dichiarati dal fornitore | Possibili trasferimenti extra-SEE secondo la documentazione del provider | DPA/TIA del fornitore; la regione EU riduce l'esposizione ma non esclude automaticamente trasferimenti extra-SEE | Attivo |
+| Vercel Inc. | Hosting, CDN e Vercel Analytics cookieless | Hosting e delivery del servizio; analytics cookieless solo sulle superfici che li attivano | Sub-responsabile | USA / infrastruttura globale | Trasferimenti extra-SEE possibili secondo l'infrastruttura globale del provider | Documentazione contrattuale del fornitore, incluse SCC ove applicabili; DPF ove dichiarato dal provider | Attivo (hosting) / condizionale (analytics opzionali) |
+| Resend Inc. | Invio email transazionali e operative | Consegna email di verifica, onboarding, notifiche e comunicazioni di servizio | Sub-responsabile | USA | Trasferimenti extra-SEE possibili per l'invio e la consegna email | Documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili | Attivo |
+| Functional Software Inc. (Sentry) | Monitoraggio errori e diagnostica tecnica su superfici selezionate | Osservabilità applicativa, error tracking e replay su superfici supportate | Sub-responsabile | USA | Trasferimenti extra-SEE possibili verso l'infrastruttura del provider | SCC/DPF ove applicabili secondo la documentazione del fornitore | Condizionale (produzione; esclusa la PWA cliente) |
+| PostHog Inc. | Analytics del sito marketing e lead attribution | Misurazione del sito marketing e attribuzione lead solo dopo opt-in analytics | Sub-responsabile | Endpoint EU configurato; fornitore extra-SEE | Possibili trasferimenti extra-SEE in base alla configurazione del workspace | Documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili in base alla configurazione del workspace | Condizionale (solo dopo consenso analytics) |
+| Anthropic PBC | Funzioni AI assistite per utenti autenticati (es. aiuto chat e magic wand) | Assistenza AI e generazione contenuti su input dell'utente autenticato | Sub-responsabile (AI provider) | USA | Trasferimenti extra-SEE possibili per prompt, contesto e output delle funzioni AI attivate | Documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili alle funzionalità AI attivate | Condizionale (solo su richiesta esplicita) |

@@ -9,6 +9,7 @@ import {
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
   PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_PARTY_NAME,
   PUBLIC_B2B_LEGAL_REVIEW_NOTE,
   PUBLIC_B2B_SUBPROCESSORS,
   PUBLIC_DPA_SECTION_ID,
@@ -180,8 +181,11 @@ export default function PrivacyPage() {
 
         <Section title="1. Titolare del trattamento e contatti">
           <p>
-            Il titolare del trattamento per questa informativa è{' '}
-            <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>.
+            <strong style={{ color: C.primary }}>{PUBLIC_B2B_LEGAL_PARTY_NAME}</strong>, operante tramite il
+            servizio denominato <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>, è il
+            titolare del trattamento per i dati relativi al sito pubblico, alla registrazione, agli account
+            business, all&apos;onboarding, alle dashboard, alla fatturazione, all&apos;assistenza e alla
+            sicurezza del servizio.
           </p>
           <p>{PUBLIC_B2B_IDENTITY_NOTE}</p>
           <p>
@@ -202,8 +206,14 @@ export default function PrivacyPage() {
             che usano {PUBLIC_B2B_COMPANY_NAME} come clienti business.
           </p>
           <p>
-            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_COMPANY_NAME} opera come Responsabile del
-            trattamento nei termini previsti dall&apos;Accordo sul Trattamento dei Dati richiamato nei{' '}
+            La titolarità di {PUBLIC_B2B_LEGAL_PARTY_NAME} copre quindi la registrazione B2B, la gestione
+            account e autenticazione, l&apos;onboarding, i workspace e le dashboard, la fatturazione, il
+            rapporto commerciale, l&apos;assistenza e la sicurezza tecnica del servizio.
+          </p>
+          <p>
+            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_LEGAL_PARTY_NAME}, tramite il servizio{' '}
+            {PUBLIC_B2B_COMPANY_NAME}, opera come Responsabile del trattamento nei termini previsti
+            dall&apos;Accordo sul Trattamento dei Dati richiamato nei{' '}
             <Link
               href={`/termini#${PUBLIC_DPA_SECTION_ID}`}
               style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
@@ -315,8 +325,8 @@ export default function PrivacyPage() {
             SEE.
           </p>
           <p>
-            Quando ciò avviene, {PUBLIC_B2B_COMPANY_NAME} fa riferimento alla documentazione contrattuale del
-            fornitore e ai meccanismi di trasferimento applicabili (es. SCC o DPF ove dichiarati dal
+            Quando ciò avviene, {PUBLIC_B2B_LEGAL_PARTY_NAME} fa riferimento alla documentazione contrattuale
+            del fornitore e ai meccanismi di trasferimento applicabili (es. SCC o DPF ove dichiarati dal
             provider). Il dettaglio per singolo fornitore è riepilogato nella pagina{' '}
             <Link href="/sub-processor" style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}>
               Sub-responsabili
@@ -327,9 +337,10 @@ export default function PrivacyPage() {
 
         <Section title="7. Per quanto tempo li conserviamo">
           <p>
-            Teniamo i dati del tuo account finché il rapporto con Styll è attivo. Alcuni log tecnici vengono
-            conservati per periodi più brevi, solo quanto basta per sicurezza e troubleshooting. I dati
-            amministrativi e fiscali vengono tenuti per i tempi richiesti dalla legge.
+            Teniamo i dati del tuo account finché il rapporto per l&apos;uso del servizio {PUBLIC_B2B_COMPANY_NAME}
+            fornito da {PUBLIC_B2B_LEGAL_PARTY_NAME} è attivo. Alcuni log tecnici vengono conservati per
+            periodi più brevi, solo quanto basta per sicurezza e troubleshooting. I dati amministrativi e
+            fiscali vengono tenuti per i tempi richiesti dalla legge.
           </p>
         </Section>
 

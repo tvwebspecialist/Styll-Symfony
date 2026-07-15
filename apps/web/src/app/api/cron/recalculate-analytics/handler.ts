@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
+import { matchesBearerTokenHeader } from '@/lib/security/bearer-secret'
 
 // Gravita crescente: unknown < green < yellow < red
 const SEVERITY: Record<string, number> = {
@@ -117,8 +118,7 @@ export async function handleRecalculateAnalyticsRequest(
     return Response.json({ error: 'Service unavailable' }, { status: 503 })
   }
 
-  const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${cronSecret}`) {
+  if (!matchesBearerTokenHeader(req.headers.get('authorization'), cronSecret)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

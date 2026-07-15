@@ -6,7 +6,9 @@ import {
   PUBLIC_B2B_CONTACT_EMAIL,
   PUBLIC_B2B_DOCS,
   PUBLIC_B2B_IDENTITY_NOTE,
+  PUBLIC_B2B_LEGAL_PARTY_NAME,
   PUBLIC_B2B_LEGAL_REVIEW_NOTE,
+  PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE,
   PUBLIC_DPA_SECTION_ID,
 } from '@/lib/legal/public-b2b'
 
@@ -121,7 +123,7 @@ export default function TermsPage() {
           }}
         >
           <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.primary }}>
-            Versione pubblica pre-commerciale del pacchetto legale B2B.
+            Pacchetto legale pubblico B2B di riferimento.
           </p>
           <p style={{ margin: '8px 0 0', fontSize: 14, color: C.textMuted, lineHeight: 1.7 }}>
             {PUBLIC_B2B_LEGAL_REVIEW_NOTE}
@@ -130,9 +132,11 @@ export default function TermsPage() {
 
         <Section title="1. Identità del fornitore e stato del documento">
           <p>
-            Il fornitore del servizio descritto in questa pagina è{' '}
-            <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>.
+            Il servizio descritto in questa pagina è <strong style={{ color: C.primary }}>{PUBLIC_B2B_COMPANY_NAME}</strong>,
+            nome commerciale del servizio fornito da{' '}
+            <strong style={{ color: C.primary }}>{PUBLIC_B2B_LEGAL_PARTY_NAME}</strong>.
           </p>
+          <p>{PUBLIC_B2B_PUBLIC_LEGAL_PARTY_NOTE}</p>
           <p>{PUBLIC_B2B_IDENTITY_NOTE}</p>
           <p>
             Per chiarimenti contrattuali o privacy puoi scrivere a{' '}
@@ -152,8 +156,9 @@ export default function TermsPage() {
             gestire prenotazioni, CRM clienti, loyalty, retention e presenza digitale con il tuo brand.
           </p>
           <p>
-            Salvo accordi diversi scritti, Styll ti concede un diritto non esclusivo, non trasferibile e
-            revocabile di usare la piattaforma per la tua attività professionale.
+            Salvo accordi diversi scritti, {PUBLIC_B2B_LEGAL_PARTY_NAME} concede al cliente business un diritto
+            non esclusivo, non trasferibile e revocabile di usare la piattaforma per la propria attività
+            professionale.
           </p>
         </Section>
 
@@ -173,15 +178,20 @@ export default function TermsPage() {
           </ul>
         </Section>
 
-        <Section title="4. Piani, prezzi e attivazione commerciale">
+        <Section title="4. Piani, condizioni economiche essenziali e attivazione">
           <p>
-            Eventuali piani, canoni, periodi di prova, modalità di fatturazione e conseguenze del mancato
-            pagamento vengono comunicati nelle superfici di onboarding, nel billing e nell&apos;offerta
-            commerciale applicabile al tuo account.
+            Styll è erogato come servizio SaaS. L&apos;accesso può prevedere registrazione iniziale, eventuale
+            prova gratuita e successiva attivazione di un piano a pagamento quando applicabile.
           </p>
           <p>
-            Prima dell&apos;attivazione commerciale con clienti paganti, il pacchetto pubblico verrà aggiornato
-            con i dati societari definitivi e con la versione contrattuale B2B finalizzata.
+            Prima dell&apos;attivazione di qualsiasi piano a pagamento devono esserti resi visibili il prezzo o
+            listino applicabile, l&apos;eventuale prova gratuita, la cadenza di fatturazione, il rinnovo e la
+            decorrenza del piano.
+          </p>
+          <p>
+            Se tali condizioni economiche non ti sono ancora state mostrate al momento della registrazione,
+            questa pagina vale come informativa precontrattuale per gli aspetti economici e non comporta da
+            sola l&apos;attivazione di un piano a pagamento.
           </p>
         </Section>
 
@@ -191,7 +201,12 @@ export default function TermsPage() {
             cessazione del piano applicabile.
           </p>
           <p>
-            {PUBLIC_B2B_COMPANY_NAME} può sospendere o limitare l&apos;accesso in caso di uso illecito,
+            Puoi chiedere la cancellazione dell&apos;account o interrompere il rinnovo del piano prima della
+            scadenza del periodo in corso; salvo diversa informazione resa visibile prima dell&apos;attivazione,
+            l&apos;eventuale accesso a pagamento resta disponibile fino al termine del periodo già fatturato.
+          </p>
+          <p>
+            {PUBLIC_B2B_LEGAL_PARTY_NAME} può sospendere o limitare l&apos;accesso in caso di uso illecito,
             violazione grave di questi termini, rischi di sicurezza, mancato pagamento o richieste
             dell&apos;autorità competente.
           </p>
@@ -199,8 +214,9 @@ export default function TermsPage() {
 
         <Section title="6. Sicurezza, dati e sub-responsabili">
           <p>
-            {PUBLIC_B2B_COMPANY_NAME} adotta misure tecniche e organizzative per erogare il servizio e si
-            avvale di fornitori terzi necessari al funzionamento della piattaforma.
+            {PUBLIC_B2B_LEGAL_PARTY_NAME}, per erogare il servizio {PUBLIC_B2B_COMPANY_NAME}, adotta misure
+            tecniche e organizzative e si avvale di fornitori terzi necessari al funzionamento della
+            piattaforma.
           </p>
           <p>
             L&apos;elenco pubblico dei provider attivi è disponibile nella pagina{' '}
@@ -213,9 +229,9 @@ export default function TermsPage() {
 
         <Section title="7. Limitazioni di responsabilità">
           <p>
-            {PUBLIC_B2B_COMPANY_NAME} si impegna a mantenere la piattaforma ragionevolmente affidabile e
-            sicura, ma non garantisce assenza assoluta di interruzioni, bug o indisponibilità di servizi
-            terzi.
+            {PUBLIC_B2B_LEGAL_PARTY_NAME}, tramite il servizio {PUBLIC_B2B_COMPANY_NAME}, si impegna a
+            mantenere la piattaforma ragionevolmente affidabile e sicura, ma non garantisce assenza assoluta
+            di interruzioni, bug o indisponibilità di servizi terzi.
           </p>
           <p>
             Nei limiti consentiti dalla legge applicabile, resti responsabile dei contenuti, dei dati e
@@ -223,27 +239,23 @@ export default function TermsPage() {
             finali.
           </p>
           <p>
-            Eventuali clausole amministrative aggiuntive o limitazioni di responsabilità definitive saranno
-            incluse nella versione commerciale finale dei documenti.
+            Eventuali clausole amministrative o condizioni aggiuntive concordate per il tuo tenant devono
+            risultare in forma scritta nelle superfici contrattuali o commerciali collegate al tuo account.
           </p>
         </Section>
 
         <Section title="8. Legge applicabile e interpretazione">
           <p>
             I presenti termini sono regolati dalla <strong style={{ color: C.primary }}>legge italiana</strong>,
-            fatti salvi eventuali diritti inderogabili e le integrazioni che verranno pubblicate nella
-            versione commerciale definitiva del pacchetto legale.
+            fatti salvi eventuali diritti inderogabili e gli eventuali accordi integrativi validamente conclusi
+            con il cliente business.
           </p>
         </Section>
 
-        <Section title="9. Contatti e finalizzazione legale">
+        <Section title="9. Contatti contrattuali e privacy">
           <p>
-            Prima dell&apos;attivazione commerciale con clienti paganti, {PUBLIC_B2B_COMPANY_NAME} pubblicherà
-            i dati societari definitivi, gli eventuali estremi fiscali e le clausole amministrative
-            integrative.
-          </p>
-          <p>
-            Nel frattempo, il riferimento operativo per questo pacchetto legale resta{' '}
+            Per richieste relative a questi termini, al DPA o ai trattamenti privacy collegati al servizio,
+            il contatto operativo pubblico di riferimento è{' '}
             <a
               href={`mailto:${PUBLIC_B2B_CONTACT_EMAIL}`}
               style={{ color: C.accent, fontWeight: 600, textDecoration: 'none' }}
@@ -252,6 +264,11 @@ export default function TermsPage() {
             </a>
             .
           </p>
+          <p>
+            Comunicazioni contrattuali o istruzioni operative specifiche del cliente business possono essere
+            gestite anche tramite i canali riportati nell&apos;onboarding o nell&apos;offerta commerciale associata
+            all&apos;account.
+          </p>
         </Section>
 
         <Section
@@ -259,9 +276,9 @@ export default function TermsPage() {
           title="10. Trattamento dati e Accordo sul Trattamento dei Dati (DPA)"
         >
           <p>
-            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_COMPANY_NAME} opera come{' '}
-            <strong style={{ color: C.primary }}>Responsabile del trattamento</strong> ai sensi dell&apos;Art.
-            28 GDPR, mentre il barbiere resta il Titolare.
+            Per i dati dei clienti finali del barbiere, {PUBLIC_B2B_LEGAL_PARTY_NAME}, tramite il servizio{' '}
+            {PUBLIC_B2B_COMPANY_NAME}, opera come <strong style={{ color: C.primary }}>Responsabile del
+            trattamento</strong> ai sensi dell&apos;Art. 28 GDPR, mentre il barbiere resta il Titolare.
           </p>
           <p>
             L&apos;<strong style={{ color: C.primary }}>Accordo sul Trattamento dei Dati</strong> è allegato ai

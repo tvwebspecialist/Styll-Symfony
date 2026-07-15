@@ -4,13 +4,22 @@ import * as React from 'react'
 import { stopTenantImpersonation } from '@/app/admin/actions'
 import { buildRootAppUrl } from '@/lib/auth/urls'
 
+function resolveAdminExitUrl() {
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return '/admin'
+  }
+
+  return buildRootAppUrl('/admin')
+}
+
 export function StopImpersonationButton() {
   const [pending, startTransition] = React.useTransition()
 
   function handle() {
     startTransition(async () => {
       await stopTenantImpersonation()
-      window.location.href = buildRootAppUrl('/admin')
+      window.location.href = resolveAdminExitUrl()
     })
   }
 

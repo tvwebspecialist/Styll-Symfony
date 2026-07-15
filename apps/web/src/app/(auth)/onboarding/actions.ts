@@ -8,6 +8,10 @@ import {
   buildDpaAcceptanceFields,
   ensureTenantDpaAcceptance,
 } from '@/lib/legal/dpa'
+import {
+  hasAnyB2bTermsAcceptanceForUser,
+  linkB2bTermsAcceptanceToTenant,
+} from '@/lib/legal/b2b-register-acceptance'
 import { finalizeOnboardingSchema } from '@/lib/validations/auth'
 import { sendWelcomeEmail } from '@/lib/email'
 import type { Json, TablesUpdate } from '@/types'
@@ -106,6 +110,19 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
       .maybeSingle()
 
     const existingTenantId = ownerStaff?.tenant_id ?? null
+    if (!existingTenantId) {
+      const hasAcceptedTerms = await hasAnyB2bTermsAcceptanceForUser({
+        db: db as any,
+        userId: user.id,
+      })
+      if (!hasAcceptedTerms) {
+        return {
+          success: false,
+          error: 'Per completare l’onboarding devi registrarti accettando prima i Termini di Servizio.',
+        }
+      }
+    }
+
     const baseSlug = slugify(step1.name)
     const slug = await ensureUniqueSlug(db, baseSlug, existingTenantId)
 
@@ -170,6 +187,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
     }
 
     await ensureTenantDpaAcceptance(db, tenantId, dpaAcceptance)
+    await linkB2bTermsAcceptanceToTenant({ db: db as any, tenantId, userId: user.id })
 
     // 3) Location (single main location, upsert)
     const locationPayload = {
