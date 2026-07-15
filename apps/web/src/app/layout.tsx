@@ -1,14 +1,31 @@
 import type { Metadata, Viewport } from 'next'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { Inter, Outfit, Poppins } from 'next/font/google'
 import { ConsentAwareVercelAnalytics } from '@/components/shared/ConsentAwareVercelAnalytics'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
-const fontVariables = {
-  '--font-outfit': '"Outfit"',
-  '--font-poppins': '"Poppins"',
-  '--font-inter': '"Inter"',
-} as CSSProperties
+const outfit = Outfit({
+  variable: '--font-outfit',
+  subsets: ['latin'],
+  display: 'swap',
+  preload: true,
+})
+
+const poppins = Poppins({
+  variable: '--font-poppins',
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+  preload: false,
+})
+
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin'],
+  display: 'swap',
+  preload: false,
+})
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://styll.it'
 
@@ -97,8 +114,7 @@ export default function RootLayout({
   return (
     <html
       lang="it"
-      className="h-full antialiased"
-      style={fontVariables}
+      className={`${outfit.variable} ${poppins.variable} ${inter.variable} h-full antialiased`}
     >
       <body
         className="min-h-full flex flex-col"
