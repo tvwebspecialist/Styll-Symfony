@@ -19,7 +19,7 @@ Esito sintetico dopo validazione finale del report:
 - la validazione documentale finale ha chiuso come troppo pessimisti o smentiti F-01, F-06, F-07 e F-09;
 - la validazione ha chiuso F-03 e ridimensionato F-10: l'accettazione DPA B2B e' resa esplicita dal checkbox Termini in registrazione, persistita server-side e collegata al tenant durante l'onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
 - readiness GDPR/legale/commerciale: non ancora completa per uso pienamente produttivo con dati reali e primi clienti paganti;
-- principali blocker residui realmente dimostrati: metadati legali non definitivi, backup/DR non formalizzati nel repository e governance consenso/vendor ancora incompleta.
+- principali blocker residui realmente dimostrati: metadati legali non definitivi, backup/DR non formalizzati nel repository e vendor transparency/documentazione contrattuale ancora incompleta.
 
 Conclusione netta: **Styll e' pronto per uno staging serio ed e' pronto per un limited pilot controllato, ma non e' pronto per la produzione piena con utenti reali paganti e trattamento commerciale ordinario di dati reali finche' i blocker legali-operativi residui non vengono chiusi.**
 
@@ -44,16 +44,15 @@ Conteggio richiesto sullo stato open:
 
 Distribuzione completa rilevata dopo validazione finale:
 - **P0:** 0 OPEN, 0 PARTIAL, 4 CLOSED
-- **P1:** 1 OPEN, 1 PARTIAL, 4 CLOSED
+- **P1:** 1 OPEN, 0 PARTIAL, 5 CLOSED
 - **P2:** 0 OPEN, 2 PARTIAL, 1 CLOSED
 - **P3:** 3 CLOSED
 
 ## 4. Top 10 rischi
 
 1. **F-12 / P1 / Legal-readiness:** mancano riferimenti legali/commerciali completi e definitivi (P.IVA, PEC, indirizzo completo, assetto DPO/privacy formale).
-2. **F-05 / P1 / GDPR-consent:** il consenso marketing ha audit trail server-side, ma il campo booleano `marketing_consent` resta ancora operativo come cache/flag applicativo.
-3. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
-4. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
+2. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
+3. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
 
 ## 5. Findings completi
 
@@ -105,17 +104,17 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** nessuno immediato; mantenere regression coverage.
 - **Test necessario:** mantenere test E2E/integration di consenso marketing su push promozionale.
 
-### F-05 - P1 - Tracciamento consenso marketing solo parzialmente allineato a consent_events
+### F-05 - P1 - Tracciamento consenso marketing riallineato a consent_events con snapshot derivata coerente
 - **Priorita':** P1
 - **Superficie:** GDPR / Consents / CRM
-- **Causa precisa:** esiste la tabella append-only `consent_events`, ma il consenso marketing operativo non risulta interamente migrato e uniformato a quel source-of-truth in tutti i flussi rilevanti.
-- **Exploit/failure scenario:** in audit o contestazione potrebbe risultare incompleto il tracciamento storico di chi ha dato/revocato consenso, da quale canale, con quale base legale e con quale sorgente.
-- **Evidenza:** `supabase/migrations/20260711120000_consent_events_f05.sql:65-87`; uso applicativo parziale in `apps/web/src/lib/consent-events.ts` e `apps/web/src/lib/actions/pwa-client-actions.ts`
-- **Impatto:** rischio GDPR materiale ma non equivalente a un auth bypass; debolezza probatoria e di coerenza del consenso.
+- **Causa precisa:** il finding era rimasto stale: il codice corrente usa `apply_client_consent_events`/`applyClientConsentEvents()` e `seedClientConsentState()` nei flussi operativi di bootstrap, update preferenze, update backoffice/import e unsubscribe; il booleano `marketing_consent` resta come snapshot/cache derivata aggiornata dal RPC append-only, non come write path autonomo.
+- **Exploit/failure scenario:** non riproducibile sul codice verificato: create/revoke/update del consenso marketing producono eventi append-only tenant-scoped e mantengono coerente la snapshot letta dall'app.
+- **Evidenza:** `supabase/migrations/20260711120000_consent_events_f05.sql:109-299`; `apps/web/src/lib/consent-events.ts:245-348`; `apps/web/src/lib/actions/pwa-client-actions.ts:360-390`; `apps/web/src/lib/actions/pwa-auth.ts:498-617`; `apps/web/src/lib/actions/create-booking.ts:280-321`; `apps/web/src/lib/actions/client-auth.ts:460-497`; `apps/web/src/lib/actions/clienti.ts:1463-1498`; `apps/web/src/app/admin/actions-data.ts:330-367,748-783`; `apps/web/src/lib/marketing-unsubscribe.ts:170-208`; `apps/web/tests/consent-audit-trail.spec.ts:107-532`
+- **Impatto:** chiude il gap probatorio principale sul consenso marketing applicativo; `marketing_consent` rimane una snapshot derivata utile al gating operativo ma non sostituisce piu' il trail append-only.
 - **Probabilita':** media
-- **Stato:** PARTIAL
-- **Fix minimo consigliato:** completare l'adozione di `consent_events` come fonte operativa e probatoria primaria in tutti i flussi di consenso/revoca.
-- **Test necessario:** suite mirata che verifichi create/revoke/update del consenso su tutti i canali con audit trail completo.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere il pattern `applyClientConsentEvents/seedClientConsentState` come unico write path applicativo per il consenso marketing.
+- **Test necessario:** mantenere la suite `consent-audit-trail` su create/revoke/update/backfill e coerenza della snapshot derivata.
 
 ### F-06 - P1 - Consenso analytics con persistenza server-side gia' presente
 - **Priorita':** P1
@@ -275,7 +274,6 @@ Elementi positivi verificati:
 
 Gap materiali:
 - F-12: metadati societari/privacy non ancora chiusi per il go-live commerciale pieno;
-- F-05: il consenso marketing ha audit trail server-side, ma il booleano cache `marketing_consent` resta ancora operativo nel codice applicativo;
 - F-13: elenco sub-processors non pienamente coerente tra DPA e pagina pubblica.
 
 Verdetto GDPR pratico:
@@ -333,7 +331,7 @@ Punti forti:
 
 Gap operativi:
 - backup/restore non formalizzati nel repository e stato reale non verificabile dal repository (F-10);
-- alcuni gap di governance consenso/documentazione che complicano operation reale e audit trail (F-05, F-13).
+- alcuni gap documentali/vendor che complicano operation reale e allineamento contrattuale (F-13).
 
 Conclusione:
 - affidabilita' sufficiente per staging serio;
@@ -397,6 +395,8 @@ Test baseline eseguiti sul tag stabile:
 Validazione aggiuntiva sul working tree corrente:
 - `node --experimental-strip-types --test apps/web/src/app/global-error.test.ts` -> PASS
 - `repeat-each=10` sul test `apps/web/src/app/global-error.test.ts` -> PASS
+- `pnpm --filter web exec playwright test tests/consent-audit-trail.spec.ts --project chromium` -> PASS
+- `pnpm --filter web exec playwright test tests/consent-audit-trail.spec.ts --project chromium --repeat-each=10` -> PASS
 - `pnpm type-check` -> PASS
 - `pnpm build` -> PASS
 - `pnpm test:e2e` -> **127 passed, 1 failed, 5 did not run**; failure classificata come **flake/test drift di suite** su `tests/owner-manager-surface-guard.spec.ts:267` perche' il rerun isolato `pnpm --filter web exec playwright test tests/owner-manager-surface-guard.spec.ts --project chromium` e' risultato **6/6 PASS**
@@ -423,7 +423,7 @@ Attivita' aggiuntive di evidenza:
 - [ ] definire chiaramente il perimetro pre-commerciale del pilot
 - [x] verificare superfici B2C corrette per clienti finali
 - [x] verificare che l'accettazione ToS/DPA B2B sia esplicita e tracciata server-side
-- [ ] allineare consenso/tracciamento minimo necessario al pilot
+- [x] allineare consenso/tracciamento minimo necessario al pilot
 
 ### Prima del primo cliente pagante
 - [x] chiudere F-02
@@ -443,8 +443,7 @@ Attivita' aggiuntive di evidenza:
 1. mantenere la baseline stabile gia' raggiunta.
 
 ### Prima del pilot
-1. rafforzare il tracciamento consenso dove oggi e' solo parziale (F-05);
-2. mantenere il pilot nel perimetro pre-commerciale dichiarato.
+1. mantenere il pilot nel perimetro pre-commerciale dichiarato.
 
 ### Prima del primo cliente pagante
 1. finalizzare i metadati legali pubblici e contrattuali residui (F-12);
@@ -465,7 +464,7 @@ Styll, allo stato del codice auditato, **e' pronto per uno staging serio** e mos
 
 Styll **non e' pero' pronto per la produzione piena**, per il **primo cliente pagante** o per una **messa in esercizio commerciale ordinaria con dati reali** senza prima chiudere i blocker legali/commerciali/privacy ancora aperti, in particolare:
 - metadati legali/commerciali non finalizzati (F-12),
-- formalizzazione backup/DR e riallineamento governance consenso/vendor (F-10, F-05, F-13).
+- formalizzazione backup/DR e riallineamento vendor/sub-processors documentali (F-10, F-13).
 
 La fotografia complessiva del progetto e' quindi:
 - **tecnicamente forte** su multi-tenancy, security di base, build stability ed E2E;
