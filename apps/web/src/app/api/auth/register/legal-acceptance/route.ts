@@ -7,6 +7,7 @@ import {
   createPendingB2bTermsAcceptanceProof,
   setB2bRegisterCookies,
 } from '@/lib/legal/b2b-register-acceptance'
+import { toPublicErrorMessage } from '@/lib/security/public-error'
 
 const requestSchema = z.object({
   email: z.string().email().optional(),
@@ -59,9 +60,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return jsonError(
       500,
-      error instanceof Error
-        ? error.message
-        : 'Impossibile preparare la prova legale di registrazione',
+      toPublicErrorMessage(
+        error,
+        'Impossibile preparare la prova legale di registrazione',
+      ),
     )
   }
 }

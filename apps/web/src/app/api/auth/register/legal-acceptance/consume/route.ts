@@ -7,6 +7,7 @@ import {
   clearB2bRegisterCookies,
   consumePendingB2bTermsAcceptanceProof,
 } from '@/lib/legal/b2b-register-acceptance'
+import { toPublicErrorMessage } from '@/lib/security/public-error'
 
 const requestSchema = z.object({
   source: z.literal(EMAIL_PASSWORD_REGISTER_SOURCE).default(EMAIL_PASSWORD_REGISTER_SOURCE),
@@ -84,10 +85,11 @@ export async function POST(request: NextRequest) {
       },
     )
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Impossibile completare la registrazione dell’accettazione dei Termini'
+    const message = toPublicErrorMessage(
+      error,
+      'Impossibile completare la registrazione dell’accettazione dei Termini',
+      isRecoverableClientError,
+    )
 
     return jsonResponse(
       isRecoverableClientError(message) ? 400 : 500,

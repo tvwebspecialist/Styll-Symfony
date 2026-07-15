@@ -23,6 +23,7 @@ import { isPushConfigError } from '@/lib/push/config'
 import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { matchesBearerTokenHeader } from '@/lib/security/bearer-secret'
 
 type ReminderType = 'reminder_3d' | 'reminder_1d' | 'reminder_day'
 
@@ -226,7 +227,7 @@ export async function POST(req: NextRequest) {
     console.error('[cron/reminders] CRON_SECRET non configurato')
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  if (!matchesBearerTokenHeader(req.headers.get('authorization'), cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
