@@ -136,6 +136,7 @@ export function PreferenzeClient({
 
   const isPushSubscribed = status === 'subscribed'
   const isPushLoading = status === 'loading'
+  const isPushUnavailable = status === 'unavailable'
 
   return (
     <div className="pt-4 pb-10">
@@ -167,11 +168,17 @@ export function PreferenzeClient({
           <div>
             <p className="text-sm font-medium text-neutral-800">Notifiche push</p>
             <p className="text-xs text-neutral-400 mt-0.5">
-              {status === 'denied' ? 'Bloccate — abilita nelle impostazioni' : 'Notifiche in tempo reale'}
+              {isPushUnavailable
+                ? 'Non disponibili in questo ambiente'
+                : status === 'denied'
+                ? 'Bloccate — abilita nelle impostazioni'
+                : 'Notifiche in tempo reale'}
             </p>
           </div>
           {status === 'unsupported' ? (
             <span className="text-xs text-neutral-400">Non supportate</span>
+          ) : isPushUnavailable ? (
+            <span className="text-xs text-neutral-400">Non disponibili</span>
           ) : (
             <Toggle
               checked={isPushSubscribed}

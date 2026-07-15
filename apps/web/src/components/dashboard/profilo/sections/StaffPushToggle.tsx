@@ -15,6 +15,7 @@ export function StaffPushToggle({ tenantId }: Props) {
   const isLoading    = status === 'loading'
   const isSubscribed = status === 'subscribed'
   const isDenied     = status === 'denied'
+  const isUnavailable = status === 'unavailable'
 
   async function handleToggle() {
     if (isSubscribed) {
@@ -51,14 +52,18 @@ export function StaffPushToggle({ tenantId }: Props) {
         )}
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#222222' }}>
-            {isDenied
+            {isUnavailable
+              ? 'Notifiche push non disponibili'
+              : isDenied
               ? 'Notifiche push bloccate'
               : isSubscribed
               ? 'Notifiche push attive'
               : 'Attiva notifiche push'}
           </div>
           <div style={{ fontSize: 13, color: '#B0B0B0', marginTop: 2 }}>
-            {isDenied
+            {isUnavailable
+              ? 'Questa installazione non espone il canale push'
+              : isDenied
               ? 'Abilita nelle impostazioni del browser'
               : isSubscribed
               ? 'Ricevi alert in tempo reale su questo dispositivo'
@@ -67,7 +72,7 @@ export function StaffPushToggle({ tenantId }: Props) {
         </div>
       </div>
 
-      {!isDenied && !isLoading && (
+      {!isDenied && !isLoading && !isUnavailable && (
         <button
           type="button"
           onClick={handleToggle}

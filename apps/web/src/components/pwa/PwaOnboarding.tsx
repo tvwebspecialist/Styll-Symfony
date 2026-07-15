@@ -130,7 +130,7 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
   const pointsRef    = React.useRef<HTMLSpanElement>(null)
   const flowForceRef = React.useRef(0)
 
-  const { subscribe } = usePushSubscription(tenantId)
+  const { status, subscribe } = usePushSubscription(tenantId)
 
   const accent  = primaryColor ?? '#5567E8'
   const initial = businessName.charAt(0).toUpperCase()
@@ -551,11 +551,18 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
 
   React.useEffect(() => { goToRef.current = goTo }, [goTo])
 
+  React.useEffect(() => {
+    if (!show || step !== 3) return
+    if (status !== 'unsupported' && status !== 'unavailable') return
+    goTo(4)
+  }, [goTo, show, status, step])
+
   // ── Push notification CTA ────────────────────────────────────────────────
   async function handleActivate() {
     if (loading) return
     setLoading(true)
     try {
+      if (status === 'unsupported' || status === 'unavailable') { goTo(4); return }
       if (!('Notification' in window)) { goTo(4); return }
       const perm = await Notification.requestPermission()
       if (perm === 'granted') await subscribe()
@@ -1021,7 +1028,12 @@ export function PwaOnboarding({ primaryColor, logoUrl, businessName, tenantId }:
                   <>
                     <p style={headSt}>{"Ogni visita\nvale di più."}</p>
                     <p style={subSt}>{"Punti, streak e premi esclusivi\nper i clienti più fedeli."}</p>
-                    <button onClick={() => goTo(3)} style={btnSt}>Avanti →</button>
+                    <button
+                      onClick={() => goTo(status === 'unsupported' || status === 'unavailable' ? 4 : 3)}
+                      style={btnSt}
+                    >
+                      Avanti →
+                    </button>
                   </>
                 )}
 

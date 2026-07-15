@@ -56,7 +56,7 @@ export function NotificationOnboardingDashboard({ primaryColor, logoUrl, busines
   const [show,    setShow]    = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const cardRef               = React.useRef<HTMLDivElement>(null)
-  const { subscribe }         = usePushSubscription(tenantId)
+  const { status, subscribe } = usePushSubscription(tenantId)
 
   const accent   = primaryColor || '#111111'
   const darker   = darkenHex(accent)
@@ -110,6 +110,14 @@ export function NotificationOnboardingDashboard({ primaryColor, logoUrl, busines
     }
   }, [show])
 
+  React.useEffect(() => {
+    if (!show) return
+    if (status !== 'unsupported' && status !== 'unavailable') return
+
+    setShow(false)
+    updatePrefs({ push_prompted: true, push_accepted: false }).catch(console.error)
+  }, [show, status])
+
   async function animateOut(): Promise<void> {
     return new Promise<void>((resolve) => {
       const gsap = getGsap()
@@ -130,6 +138,11 @@ export function NotificationOnboardingDashboard({ primaryColor, logoUrl, busines
   async function handleActivate() {
     setLoading(true)
     try {
+      if (status === 'unsupported' || status === 'unavailable') {
+        await persistAndClose(false)
+        return
+      }
+
       if (!('Notification' in window)) { await persistAndClose(false); return }
       const permission = await Notification.requestPermission()
       if (permission === 'granted') {

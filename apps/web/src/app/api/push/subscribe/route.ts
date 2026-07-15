@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildPushBootstrapResponse, resolvePushConfig } from '@/lib/push/config'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 /**
@@ -34,11 +35,8 @@ const PushUnsubscribeSchema = z.object({
 })
 
 export async function GET() {
-  const key = process.env.VAPID_PUBLIC_KEY
-  if (!key) {
-    return NextResponse.json({ error: 'Push not configured' }, { status: 503 })
-  }
-  return NextResponse.json({ vapidPublicKey: key })
+  const response = buildPushBootstrapResponse(resolvePushConfig())
+  return NextResponse.json(response.body, { status: response.status })
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +52,11 @@ export async function POST(req: NextRequest) {
       { error: 'Too many requests' },
       { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
     )
+  }
+
+  const pushResponse = buildPushBootstrapResponse(resolvePushConfig())
+  if (pushResponse.status !== 200) {
+    return NextResponse.json(pushResponse.body, { status: pushResponse.status })
   }
 
   const body = await req.json()

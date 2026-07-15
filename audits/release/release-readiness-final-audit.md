@@ -6,7 +6,7 @@ Tag analizzato: `e2e-stable-2026-07-14`
 
 ## 1. Executive summary
 
-Questo audit finale e' stato eseguito sul codice e sulla configurazione presenti al tag stabile `e2e-stable-2026-07-14`, con verifica evidence-based su codice applicativo, migration Supabase, test E2E, documentazione legale e configurazione di deploy. Non sono stati eseguiti fix durante l'audit.
+Questo audit finale e' stato eseguito sul codice e sulla configurazione presenti al tag stabile `e2e-stable-2026-07-14`, con verifica evidence-based su codice applicativo, migration Supabase, test E2E, documentazione legale e configurazione di deploy. La baseline iniziale e le chiusure successive sono state verificate con evidenze di codice, test e documentazione sul working tree corrente.
 
 Baseline confermata sul tag analizzato:
 - `pnpm type-check` -> PASS
@@ -19,7 +19,7 @@ Esito sintetico dopo validazione finale del report:
 - la validazione documentale finale ha chiuso come troppo pessimisti o smentiti F-01, F-06, F-07 e F-09;
 - la validazione ha chiuso F-03 e ridimensionato F-10: l'accettazione DPA B2B e' resa esplicita dal checkbox Termini in registrazione, persistita server-side e collegata al tenant durante l'onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
 - readiness GDPR/legale/commerciale: non ancora completa per uso pienamente produttivo con dati reali e primi clienti paganti;
-- principali blocker residui realmente dimostrati: metadati legali non definitivi, configurazione push non fail-closed, gap osservabilita' frontend e backup/DR non formalizzati nel repository.
+- principali blocker residui realmente dimostrati: metadati legali non definitivi, backup/DR non formalizzati nel repository e governance consenso/vendor ancora incompleta.
 
 Conclusione netta: **Styll e' pronto per uno staging serio ed e' pronto per un limited pilot controllato, ma non e' pronto per la produzione piena con utenti reali paganti e trattamento commerciale ordinario di dati reali finche' i blocker legali-operativi residui non vengono chiusi.**
 
@@ -37,25 +37,23 @@ Interpretazione operativa del verdetto:
 
 Conteggio richiesto sullo stato open:
 - **P0 open:** 0
-- **P1 open:** 2
-- **P2 open:** 1
+- **P1 open:** 1
+- **P2 open:** 0
 - **P3 open:** 0
 - **uncertain:** 0
 
 Distribuzione completa rilevata dopo validazione finale:
 - **P0:** 0 OPEN, 0 PARTIAL, 4 CLOSED
-- **P1:** 2 OPEN, 1 PARTIAL, 3 CLOSED
-- **P2:** 1 OPEN, 2 PARTIAL
+- **P1:** 1 OPEN, 1 PARTIAL, 4 CLOSED
+- **P2:** 0 OPEN, 2 PARTIAL, 1 CLOSED
 - **P3:** 3 CLOSED
 
 ## 4. Top 10 rischi
 
 1. **F-12 / P1 / Legal-readiness:** mancano riferimenti legali/commerciali completi e definitivi (P.IVA, PEC, indirizzo completo, assetto DPO/privacy formale).
-2. **F-08 / P1 / Deploy-push:** chiavi VAPID non sono validate in modo fail-closed; l'invio push viene saltato con warning o key endpoint assente.
-3. **F-11 / P2 / Observability:** manca `global-error.tsx`, quindi la copertura Sentry per errori React globali resta incompleta nel repository.
-4. **F-05 / P1 / GDPR-consent:** il consenso marketing ha audit trail server-side, ma il campo booleano `marketing_consent` resta ancora operativo come cache/flag applicativo.
-5. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
-6. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
+2. **F-05 / P1 / GDPR-consent:** il consenso marketing ha audit trail server-side, ma il campo booleano `marketing_consent` resta ancora operativo come cache/flag applicativo.
+3. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
+4. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
 
 ## 5. Findings completi
 
@@ -143,17 +141,17 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** nessuno immediato.
 - **Test necessario:** mantenere test di bootstrap/config sul fail-closed del pepper.
 
-### F-08 - P1 - VAPID push richieste ma non validate in modo fail-closed
+### F-08 - P1 - VAPID push ora validate con distinzione fail-closed esplicita
 - **Priorita':** P1
 - **Superficie:** Deploy / Push / Notifications
-- **Causa precisa:** le chiavi VAPID risultano richieste dalla configurazione documentata, ma non emerge una validazione runtime rigorosa che blocchi configurazioni incomplete.
-- **Exploit/failure scenario:** push non funzionanti o parzialmente degradate in staging/produzione senza emersione immediata del problema.
-- **Evidenza:** `apps/web/.env.example:17-21`; `apps/web/src/lib/push/send-notification.ts:10-16,45-47`; `apps/web/src/app/api/push/subscribe/route.ts:36-41`
-- **Impatto:** failure operativo ad alto impatto per notifiche push.
+- **Causa precisa:** il codice leggeva `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_EMAIL` in punti separati senza una validazione centrale; `sendPushToSubscriptions()` saltava silenziosamente l'invio quando mancavano le chiavi e `/api/push/subscribe` controllava solo la public key, senza distinguere feature disabilitata da configurazione parziale/invalida.
+- **Exploit/failure scenario:** staging/produzione potevano esporre una superficie push incoerente: UI e endpoint generici, invii saltati con warning e nessun fail-closed esplicito su configurazioni parziali.
+- **Evidenza:** `apps/web/src/lib/push/config.ts:1-157`; `apps/web/src/lib/push/send-notification.ts:1-96`; `apps/web/src/lib/notifications-channel.ts:1-40`; `apps/web/src/app/api/push/subscribe/route.ts:1-128`; `apps/web/tests/push-vapid-config.spec.ts:1-48`; `apps/web/src/lib/push/config.test.ts:1-73`
+- **Impatto:** il perimetro push ora distingue in modo esplicito `disabled`, `misconfigured` ed `enabled`, mantiene la private key solo server-side e rifiuta i path push incoerenti senza fallback silenziosi.
 - **Probabilita':** media
-- **Stato:** OPEN
-- **Fix minimo consigliato:** validazione startup/deploy delle chiavi VAPID con error surfacing esplicito.
-- **Test necessario:** test di bootstrap e smoke test push in ambiente production-like.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere la validazione centralizzata e la distinzione `disabled/misconfigured/enabled` come contratto stabile.
+- **Test necessario:** mantenere test di bootstrap/runtime sulla route push e sulla validazione config, con smoke mirati per `disabled`, `misconfigured` ed `enabled`.
 
 ### F-09 - P1 - Superfici B2C termini/privacy presenti e collegate correttamente
 - **Priorita':** P1
@@ -179,22 +177,23 @@ Distribuzione completa rilevata dopo validazione finale:
 - **Fix minimo consigliato:** formalizzare nel repository policy, restore procedure, RPO/RTO e prova di restore su ambiente non produttivo.
 - **Test necessario:** restore drill documentato con tempi, esito e checklist.
 
-### F-11 - P2 - Copertura Sentry incompleta per errori React globali
+### F-11 - P2 - Copertura Sentry globale frontend chiusa con boundary App Router dedicata
 - **Priorita':** P2
 - **Superficie:** Observability / Frontend reliability
-- **Causa precisa:** il repository integra Sentry lato app/client/config ma non contiene `global-error.tsx`, lasciando scoperta nel repository la superficie dedicata agli errori React globali.
-- **Exploit/failure scenario:** errori di rendering/client boundary possono non arrivare a Sentry con perdita di visibilita' operativa in produzione.
-- **Evidenza:** `apps/web/instrumentation.ts:1`; `apps/web/instrumentation-client.ts:1`; `apps/web/src/app/global-error.tsx` assente nel repository
-- **Impatto:** perdita di osservabilita' e diagnosi piu' lenta.
+- **Causa precisa:** il gap era l'assenza di `global-error.tsx` nonostante l'inizializzazione Sentry lato server/client; mancava quindi nel repository la boundary globale richiesta dall'App Router per intercettare gli errori React globali.
+- **Exploit/failure scenario:** il rischio storico era la perdita di visibilita' su errori di rendering/client boundary globali in produzione.
+- **Evidenza:** `apps/web/instrumentation.ts:1-23`; `apps/web/instrumentation-client.ts:1-33`; `apps/web/src/app/global-error.tsx:1-118`; `apps/web/src/app/global-error.test.ts:1-12`
+- **Impatto:** chiude il gap di osservabilita' React globale nel repository e riduce il tempo di diagnosi in produzione.
 - **Probabilita':** media
-- **Stato:** OPEN
-- **Fix minimo consigliato:** aggiungere la superficie globale richiesta dal framework per la cattura degli errori React e verificarne l'integrazione con Sentry.
-- **Test necessario:** test manuale/strumentato con errore frontend forzato e verifica ricezione evento.
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere la boundary globale App Router e la cattura esplicita verso Sentry.
+- **Test necessario:** mantenere il test mirato su `global-error.tsx`, oltre a `pnpm type-check`, `pnpm build` e full E2E di regressione.
 
 ### F-12 - P1 - Metadati legali/commerciali non ancora completi o definitivi
 - **Priorita':** P1
 - **Superficie:** Legal / Commercial readiness / Privacy governance
 - **Causa precisa:** nei documenti e costanti pubbliche non risultano completati in modo definitivo tutti gli estremi societari e privacy necessari per un go-live commerciale pieno.
+- **Nota operativa:** la chiusura di questo finding richiede dati umani/legali reali non deducibili dal repository; nessun fix tecnico puo' completare o sostituire questi metadati.
 - **Exploit/failure scenario:** primo cliente pagante o revisione legale trova P.IVA/PEC/indirizzo/DPO o assetto formale incompleti o non coerenti fra superfici pubbliche.
 - **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts:5-9`; `docs/legal/dpa-barbieri.md:1-10,18`; pagine pubbliche B2B correlate
 - **Impatto:** blocker commerciale serio, non tecnico ma materialmente rilevante.
@@ -296,9 +295,8 @@ Elementi verificati come solidi:
 - marketing gate funzionante;
 - suite E2E stabile 123/123 PASS.
 
-Rischi security/operativi ancora aperti:
-- configurazione push non completamente fail-closed (F-08);
-- osservabilita' errori frontend incompleta (F-11).
+Residui extra-security ancora aperti:
+- gap operativi/documentali e di governance fuori dal perimetro security stretto (F-10, F-12, F-13).
 
 Non sono emersi, nel perimetro verificato, finding P0 di:
 - cross-tenant access riproducibile,
@@ -334,9 +332,7 @@ Punti forti:
 - architettura multi-tenant non mostra inconsistenze grossolane nel perimetro letto.
 
 Gap operativi:
-- fail-closed env ancora incompleto sulle push (F-08);
 - backup/restore non formalizzati nel repository e stato reale non verificabile dal repository (F-10);
-- cattura errori globali frontend incompleta (F-11);
 - alcuni gap di governance consenso/documentazione che complicano operation reale e audit trail (F-05, F-13).
 
 Conclusione:
@@ -371,8 +367,7 @@ Evidenza positiva:
 - routing multi-tenant e proxy modernizzati secondo convenzioni Next 16.
 
 Gap che impediscono il giudizio pieno:
-- manca enforcement fail-closed completo sul perimetro push (F-08);
-- osservabilita' errori globali frontend incompleta (F-11);
+- backup/DR non formalizzati nel repository (F-10);
 - readiness legale/commerciale non allineata al deploy con utenti reali paganti (F-12).
 
 Conclusione:
@@ -383,17 +378,15 @@ Conclusione:
 
 Blocker principali:
 1. **F-12:** metadati legali/commerciali non ancora definitivamente completi.
-2. **F-08:** configurazione push non fail-closed.
-3. **F-11:** copertura Sentry globale incompleta.
-4. **F-13:** disallineamento vendor/sub-processors tra superfici pubbliche e DPA.
+2. **F-13:** disallineamento vendor/sub-processors tra superfici pubbliche e DPA.
 
 Sintesi:
 - il prodotto e' tecnicamente molto piu' maturo della sua confezione legale/commerciale;
-- il vero blocker al passaggio da pilot limitato a produzione piena non e' oggi la multi-tenancy o la security applicativa, ma la chiusura documentale, contrattuale e di governance privacy.
+- il vero blocker al passaggio da pilot limitato a produzione piena non e' oggi la multi-tenancy o la security applicativa, ma la chiusura documentale, contrattuale e di governance privacy, a cui si aggiunge il tema DR operativo fuori da questa sezione.
 
 ## 14. Test eseguiti e risultati
 
-Test baseline eseguiti una sola volta come richiesto:
+Test baseline eseguiti sul tag stabile:
 - `git status` -> clean all'avvio audit
 - `git log -5 --oneline` -> verificato
 - `git describe --tags --always` -> `e2e-stable-2026-07-14`
@@ -401,13 +394,18 @@ Test baseline eseguiti una sola volta come richiesto:
 - `pnpm build` -> PASS
 - `pnpm test:e2e` -> **123/123 PASS**
 
+Validazione aggiuntiva sul working tree corrente:
+- `node --experimental-strip-types --test apps/web/src/app/global-error.test.ts` -> PASS
+- `repeat-each=10` sul test `apps/web/src/app/global-error.test.ts` -> PASS
+- `pnpm type-check` -> PASS
+- `pnpm build` -> PASS
+- `pnpm test:e2e` -> **127 passed, 1 failed, 5 did not run**; failure classificata come **flake/test drift di suite** su `tests/owner-manager-surface-guard.spec.ts:267` perche' il rerun isolato `pnpm --filter web exec playwright test tests/owner-manager-surface-guard.spec.ts --project chromium` e' risultato **6/6 PASS**
+
 Attivita' aggiuntive di evidenza:
 - review statica codice su `apps/web/src/`
 - review migration/policy su `supabase/migrations/`
 - review documentale su `docs/legal/`, `docs/07-tecnico/`, `docs/08-strategia/`, audit precedenti come indice
 - verifica delle superfici PWA, auth, multi-tenant, privacy, storage, push, deploy
-
-Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 
 ## 15. Go-live checklist
 
@@ -418,8 +416,8 @@ Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 - [x] isolamento multi-tenant verificato
 - [x] security baseline senza P0 tecnici riproducibili
 - [x] fail-closed OTP pepper verificato
-- [ ] validazione fail-closed del perimetro push
-- [ ] osservabilita' frontend completa
+- [x] validazione fail-closed del perimetro push
+- [x] osservabilita' frontend completa sul perimetro `global-error.tsx`
 
 ### Prima del pilot limitato con barbieri reali
 - [ ] definire chiaramente il perimetro pre-commerciale del pilot
@@ -442,9 +440,7 @@ Non sono stati rilanciati test full aggiuntivi in questa fase finale.
 ## 16. Roadmap
 
 ### Prima dello staging
-1. chiudere il fail-closed sul perimetro push (F-08);
-2. completare la cattura errori frontend (F-11);
-3. mantenere la baseline stabile gia' raggiunta.
+1. mantenere la baseline stabile gia' raggiunta.
 
 ### Prima del pilot
 1. rafforzare il tracciamento consenso dove oggi e' solo parziale (F-05);
@@ -469,8 +465,7 @@ Styll, allo stato del codice auditato, **e' pronto per uno staging serio** e mos
 
 Styll **non e' pero' pronto per la produzione piena**, per il **primo cliente pagante** o per una **messa in esercizio commerciale ordinaria con dati reali** senza prima chiudere i blocker legali/commerciali/privacy ancora aperti, in particolare:
 - metadati legali/commerciali non finalizzati (F-12),
-- configurazione push non fail-closed (F-08),
-- formalizzazione backup/DR e osservabilita' globale frontend (F-10, F-11).
+- formalizzazione backup/DR e riallineamento governance consenso/vendor (F-10, F-05, F-13).
 
 La fotografia complessiva del progetto e' quindi:
 - **tecnicamente forte** su multi-tenancy, security di base, build stability ed E2E;

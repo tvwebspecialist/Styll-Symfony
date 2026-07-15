@@ -6,16 +6,10 @@
  */
 import webpush from 'web-push'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-const VAPID_PUBLIC_KEY  = process.env.VAPID_PUBLIC_KEY  ?? ''
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? ''
-const VAPID_EMAIL       = process.env.VAPID_EMAIL       ?? 'mailto:noreply@styll.it'
-
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
-}
+import { resolvePushConfig, toPushConfigError, type EnabledPushConfig } from './config'
 
 const PUSH_TIMEOUT_MS = 5000
+let configuredFingerprint = ''
 
 export interface PushPayload {
   title: string
@@ -34,6 +28,25 @@ export interface PushSubscriptionRow {
   auth:     string
 }
 
+function ensureWebPushConfigured(config: EnabledPushConfig): void {
+  const nextFingerprint = `${config.subject}:${config.publicKey}:${config.privateKey}`
+  if (configuredFingerprint === nextFingerprint) {
+    return
+  }
+
+  try {
+    webpush.setVapidDetails(config.subject, config.publicKey, config.privateKey)
+  } catch {
+    throw toPushConfigError({
+      state: 'misconfigured',
+      reason: 'invalid_public_key',
+      message: 'Push VAPID configuration is invalid. The configured key pair could not be initialized.',
+    })
+  }
+
+  configuredFingerprint = nextFingerprint
+}
+
 /**
  * Invia una notifica a tutte le subscription fornite.
  * Restituisce il numero di invii riusciti.
@@ -42,10 +55,15 @@ export async function sendPushToSubscriptions(
   subscriptions: PushSubscriptionRow[],
   payload: PushPayload,
 ): Promise<number> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('[push] VAPID keys not configured — skipping push')
+  if (subscriptions.length === 0) {
     return 0
   }
+
+  const config = resolvePushConfig()
+  if (config.state === 'disabled') return 0
+  if (config.state === 'misconfigured') throw toPushConfigError(config)
+
+  ensureWebPushConfigured(config)
 
   const db = createAdminClient()
   let sent = 0

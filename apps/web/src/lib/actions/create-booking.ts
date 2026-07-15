@@ -11,6 +11,7 @@ import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
 import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getNotificationChannel } from '@/lib/notifications-channel'
@@ -548,9 +549,10 @@ async function sendBookingConfirmedNotification(params: {
 
   const channel = !profileId
     ? (clientEmail ? 'email' : 'none')
-    : await getNotificationChannel(profileId, params.tenantId).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
-      )
+    : await getNotificationChannel(profileId, params.tenantId).catch((error: unknown) => {
+        if (isPushConfigError(error)) throw error
+        return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      })
 
   const date = new Date(params.startTime).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
   const time = new Date(params.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })

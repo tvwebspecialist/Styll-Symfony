@@ -19,6 +19,7 @@ import type { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import type { PushPayload } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
@@ -161,7 +162,10 @@ async function processReminderWindow(
       channel = clientEmail ? 'email' : 'none'
     } else {
       channel = await getNotificationChannel(profileId, appt.tenant_id).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        (error: unknown) => {
+          if (isPushConfigError(error)) throw error
+          return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        }
       )
     }
 
