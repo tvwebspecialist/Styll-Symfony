@@ -86,7 +86,7 @@ export function BottomNav({
         style={{
           display: 'none',
           position: 'fixed',
-          bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+          bottom: 16,
           left: 16,
           right: 16,
           height: 90,
