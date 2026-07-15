@@ -2,8 +2,8 @@
 ## Allegato 1 ai Termini di Servizio Styll
 ### Styll (Responsabile) ↔ Barbiere (Titolare)
 
-**Data:** 3 luglio 2026
-**Versione:** 1.0
+**Data:** 15 luglio 2026
+**Versione:** 1.1
 **Base normativa:** Art. 28 GDPR, Linee guida EDPB 07/2020, Opinion EDPB 22/2024
 
 > **⚠️ Nota:** Bozza da sottoporre a revisione legale professionale prima dell'attivazione con barbieri reali.
@@ -51,14 +51,17 @@ Styll tratta i dati dei clienti finali del barbiere esclusivamente per erogare i
 
 ## Sezione 5 — Sub-responsabili
 
-Styll si avvale dei seguenti sub-responsabili, tutti vincolati contrattualmente:
+Styll si avvale dei seguenti sub-responsabili e fornitori operativi, allineati alle integrazioni attive del
+servizio e alle funzioni opzionali o esplicite richiamate nei ToS e nella pagina pubblica `styll.it/sub-processor`:
 
-| Sub-responsabile | Ruolo | Localizzazione dati |
-|---|---|---|
-| Supabase Inc. | Database, auth, storage | EU (Irlanda) |
-| Vercel Inc. | Hosting, CDN | DPF USA-UE |
-| Resend Inc. | Email transazionali | DPF USA-UE |
-| Sentry Inc. | Error tracking | DPF USA-UE |
+| Fornitore | Servizio | Finalità | Ruolo | Localizzazione | Trasferimenti extra-SEE / garanzie | Stato |
+|---|---|---|---|---|---|---|
+| Supabase Inc. | Database, autenticazione, storage e servizi collegati alla piattaforma dati | Erogazione core della piattaforma, autenticazione, storage, consenso e audit trail | Sub-responsabile | Regione primaria EU (Irlanda); possibili sub-trattamenti extra-SEE dichiarati dal fornitore | Possibili trasferimenti extra-SEE secondo la documentazione del provider; riferimento a DPA/TIA del fornitore | Attivo |
+| Vercel Inc. | Hosting, CDN e Vercel Analytics cookieless | Hosting e delivery del servizio; analytics cookieless solo sulle superfici che li attivano | Sub-responsabile | USA / infrastruttura globale | Trasferimenti extra-SEE possibili secondo l'infrastruttura globale del provider; documentazione contrattuale del fornitore, incluse SCC ove applicabili, e DPF ove dichiarato | Attivo (hosting) / condizionale (analytics opzionali) |
+| Resend Inc. | Invio email transazionali e operative | Consegna email di verifica, onboarding, notifiche e comunicazioni di servizio | Sub-responsabile | USA | Trasferimenti extra-SEE possibili per l'invio e la consegna email; documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili | Attivo |
+| Functional Software Inc. (Sentry) | Monitoraggio errori e diagnostica tecnica su superfici selezionate | Osservabilità applicativa, error tracking e replay su superfici supportate | Sub-responsabile | USA | Trasferimenti extra-SEE possibili verso l'infrastruttura del provider; SCC/DPF ove applicabili secondo la documentazione del fornitore | Condizionale (produzione; esclusa la PWA cliente) |
+| PostHog Inc. | Analytics del sito marketing e lead attribution | Misurazione del sito marketing e attribuzione lead solo dopo opt-in analytics | Sub-responsabile | Endpoint EU configurato; fornitore extra-SEE | Possibili trasferimenti extra-SEE in base alla configurazione del workspace; documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili | Condizionale (solo dopo consenso analytics) |
+| Anthropic PBC | Funzioni AI assistite per utenti autenticati (es. aiuto chat e magic wand) | Assistenza AI e generazione contenuti su input dell'utente autenticato | Sub-responsabile (AI provider) | USA | Trasferimenti extra-SEE possibili per prompt, contesto e output delle funzioni AI attivate; documentazione contrattuale del fornitore e meccanismi di trasferimento applicabili | Condizionale (solo su richiesta esplicita) |
 
 La lista aggiornata è disponibile su **styll.it/sub-processor**. Il Titolare sarà notificato con almeno **30 giorni di preavviso** in caso di aggiunta di nuovi sub-responsabili.
 

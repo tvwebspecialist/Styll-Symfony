@@ -18,8 +18,9 @@ Esito sintetico dopo validazione finale del report:
 - autenticazione, autorizzazione, RLS, storage isolation e hardening frontend: sostanzialmente pronti per uno staging serio e per un pilot limitato;
 - la validazione documentale finale ha chiuso come troppo pessimisti o smentiti F-01, F-06, F-07 e F-09;
 - la validazione ha chiuso F-03 e ridimensionato F-10: l'accettazione DPA B2B e' resa esplicita dal checkbox Termini in registrazione, persistita server-side e collegata al tenant durante l'onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
+- la validazione documentale ha chiuso F-13: l'inventario sub-processors ora e' coerente tra pagina pubblica, DPA, ROPA e matrice centrale applicativa;
 - readiness GDPR/legale/commerciale: non ancora completa per uso pienamente produttivo con dati reali e primi clienti paganti;
-- principali blocker residui realmente dimostrati: metadati legali non definitivi, backup/DR non formalizzati nel repository e vendor transparency/documentazione contrattuale ancora incompleta.
+- principali blocker residui realmente dimostrati: metadati legali non definitivi e backup/DR non formalizzati nel repository.
 
 Conclusione netta: **Styll e' pronto per uno staging serio ed e' pronto per un limited pilot controllato, ma non e' pronto per la produzione piena con utenti reali paganti e trattamento commerciale ordinario di dati reali finche' i blocker legali-operativi residui non vengono chiusi.**
 
@@ -45,14 +46,13 @@ Conteggio richiesto sullo stato open:
 Distribuzione completa rilevata dopo validazione finale:
 - **P0:** 0 OPEN, 0 PARTIAL, 4 CLOSED
 - **P1:** 1 OPEN, 0 PARTIAL, 5 CLOSED
-- **P2:** 0 OPEN, 2 PARTIAL, 1 CLOSED
+- **P2:** 0 OPEN, 1 PARTIAL, 2 CLOSED
 - **P3:** 3 CLOSED
 
 ## 4. Top 10 rischi
 
 1. **F-12 / P1 / Legal-readiness:** mancano riferimenti legali/commerciali completi e definitivi (P.IVA, PEC, indirizzo completo, assetto DPO/privacy formale).
 2. **F-10 / P2 / Operations-DR:** DR/RTO/RPO non sono formalizzati come procedura operativa attiva nel repository; lo stato reale di backup e restore va verificato fuori repository.
-3. **F-13 / P2 / Vendor transparency:** Anthropic compare nei sub-processors pubblici ma non nella DPA.
 
 ## 5. Findings completi
 
@@ -204,14 +204,14 @@ Distribuzione completa rilevata dopo validazione finale:
 ### F-13 - P2 - Disallineamento sub-processors tra pagina pubblica e DPA
 - **Priorita':** P2
 - **Superficie:** GDPR / Vendor transparency / Documentation integrity
-- **Causa precisa:** la superficie pubblica B2B include Anthropic nell'elenco sub-processors, mentre la DPA non risulta aggiornata in modo coerente.
-- **Exploit/failure scenario:** documenti contrattuali e pagina pubblica non coincidono sui fornitori che trattano dati, indebolendo trasparenza e coerenza probatoria.
-- **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts:80-86`; `docs/legal/dpa-barbieri.md:54-62`
-- **Impatto:** incoerenza compliance non bloccante per staging, ma da chiudere prima di piena operativita'.
-- **Probabilita':** media
-- **Stato:** PARTIAL
-- **Fix minimo consigliato:** allineare inventario sub-processors su tutte le superfici contrattuali/pubbliche e definire processo di aggiornamento versionato.
-- **Test necessario:** review documentale cross-surface e controllo versioning vendor list.
+- **Causa precisa:** il finding e' stato chiuso riallineando la matrice provider tra pagina pubblica, DPA, ROPA e source of truth applicativa.
+- **Exploit/failure scenario:** non piu' riproducibile sul repository verificato: i provider attivi reali risultano coerenti fra le superfici legali B2B rilevanti.
+- **Evidenza:** `apps/web/src/lib/legal/public-b2b.ts`; `apps/web/src/app/(marketing)/sub-processor/page.tsx`; `docs/legal/dpa-barbieri.md`; `docs/legal/ropa.md`; `apps/web/tests/sub-processors-consistency.spec.ts`
+- **Impatto:** il gap documentale residuo su vendor transparency risulta chiuso nel repository.
+- **Probabilita':** bassa
+- **Stato:** CLOSED
+- **Fix minimo consigliato:** nessuno ulteriore sul finding; mantenere una source of truth unica e versionata per i provider.
+- **Test necessario:** mantenere il test documentale cross-surface sui sub-processors attivi.
 
 ### F-14 - P3 - Rate limiting email verification verificato come chiuso
 - **Priorita':** P3
@@ -274,7 +274,6 @@ Elementi positivi verificati:
 
 Gap materiali:
 - F-12: metadati societari/privacy non ancora chiusi per il go-live commerciale pieno;
-- F-13: elenco sub-processors non pienamente coerente tra DPA e pagina pubblica.
 
 Verdetto GDPR pratico:
 - **pilot limitato:** possibile con forte controllo operativo e senza presentarlo come pacchetto commerciale definitivo;
@@ -294,7 +293,7 @@ Elementi verificati come solidi:
 - suite E2E stabile 123/123 PASS.
 
 Residui extra-security ancora aperti:
-- gap operativi/documentali e di governance fuori dal perimetro security stretto (F-10, F-12, F-13).
+- gap operativi/documentali e di governance fuori dal perimetro security stretto (F-10, F-12).
 
 Non sono emersi, nel perimetro verificato, finding P0 di:
 - cross-tenant access riproducibile,
@@ -331,7 +330,6 @@ Punti forti:
 
 Gap operativi:
 - backup/restore non formalizzati nel repository e stato reale non verificabile dal repository (F-10);
-- alcuni gap documentali/vendor che complicano operation reale e allineamento contrattuale (F-13).
 
 Conclusione:
 - affidabilita' sufficiente per staging serio;
@@ -376,7 +374,6 @@ Conclusione:
 
 Blocker principali:
 1. **F-12:** metadati legali/commerciali non ancora definitivamente completi.
-2. **F-13:** disallineamento vendor/sub-processors tra superfici pubbliche e DPA.
 
 Sintesi:
 - il prodotto e' tecnicamente molto piu' maturo della sua confezione legale/commerciale;
@@ -428,7 +425,7 @@ Attivita' aggiuntive di evidenza:
 ### Prima del primo cliente pagante
 - [x] chiudere F-02
 - [ ] chiudere F-12
-- [ ] chiudere F-13
+- [x] chiudere F-13
 - [ ] completare backup/restore operativi
 
 ### Prima di scalare davvero
@@ -447,8 +444,7 @@ Attivita' aggiuntive di evidenza:
 
 ### Prima del primo cliente pagante
 1. finalizzare i metadati legali pubblici e contrattuali residui (F-12);
-2. allineare l'elenco sub-processors su tutte le superfici (F-13);
-3. chiudere backup/DR readiness (F-10).
+2. chiudere backup/DR readiness (F-10).
 
 ### Prima di scalare
 1. formalizzare runbook operativi completi;
@@ -464,7 +460,7 @@ Styll, allo stato del codice auditato, **e' pronto per uno staging serio** e mos
 
 Styll **non e' pero' pronto per la produzione piena**, per il **primo cliente pagante** o per una **messa in esercizio commerciale ordinaria con dati reali** senza prima chiudere i blocker legali/commerciali/privacy ancora aperti, in particolare:
 - metadati legali/commerciali non finalizzati (F-12),
-- formalizzazione backup/DR e riallineamento vendor/sub-processors documentali (F-10, F-13).
+- formalizzazione backup/DR documentata e verificata (F-10).
 
 La fotografia complessiva del progetto e' quindi:
 - **tecnicamente forte** su multi-tenancy, security di base, build stability ed E2E;

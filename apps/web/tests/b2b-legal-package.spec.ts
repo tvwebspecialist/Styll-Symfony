@@ -42,8 +42,8 @@ test.describe('public B2B legal package', () => {
 
     expect(response?.status()).toBe(200)
     await expect(page.getByRole('heading', { name: 'Sub-responsabili del trattamento' })).toBeVisible()
-    await expect(page.locator('body')).toContainText('Aggiornato il 14 luglio 2026')
-    await expect(page.locator('body')).toContainText('Versione 1.3')
+    await expect(page.locator('body')).toContainText('Aggiornato il 15 luglio 2026')
+    await expect(page.locator('body')).toContainText('Versione 1.4')
     await expect(page.locator('body')).toContainText("Tommaso Vezzaro, per l'erogazione del servizio Styll")
     for (const provider of ['Supabase Inc.', 'Vercel Inc.', 'Resend Inc.', 'Functional Software Inc. (Sentry)', 'PostHog Inc.', 'Anthropic PBC']) {
       await expect(page.locator('body')).toContainText(provider)
@@ -80,8 +80,8 @@ test.describe('public B2B legal package', () => {
       {
         path: '/sub-processor',
         heading: 'Sub-responsabili del trattamento',
-        version: '1.3',
-        updatedOn: '14 luglio 2026',
+        version: '1.4',
+        updatedOn: '15 luglio 2026',
         requiredText: ['clienti B2B', 'Tommaso Vezzaro'],
       },
     ]

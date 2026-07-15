@@ -62,11 +62,19 @@ export default function SubProcessorPage() {
           </p>
         </div>
 
-        <div style={{ background: C.white, borderRadius: 16, border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: 32 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <div style={{ background: C.white, borderRadius: 16, border: `1px solid ${C.border}`, overflowX: 'auto', marginBottom: 32 }}>
+          <table style={{ width: '100%', minWidth: 1180, borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: C.lightBg, borderBottom: `1px solid ${C.border}` }}>
-                {['Fornitore', 'Servizio', 'Localizzazione / note', 'Garanzie dichiarate'].map((h) => (
+                {[
+                  'Fornitore',
+                  'Servizio',
+                  'Finalità',
+                  'Ruolo',
+                  'Localizzazione',
+                  'Trasferimenti / garanzie',
+                  'Stato',
+                ].map((h) => (
                   <th key={h} style={{ padding: '14px 20px', textAlign: 'left', fontWeight: 700, color: C.primary, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {h}
                   </th>
@@ -82,8 +90,15 @@ export default function SubProcessorPage() {
                     </a>
                   </td>
                   <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.service}</td>
+                  <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.purpose}</td>
+                  <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.role}</td>
                   <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.location}</td>
-                  <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.safeguards}</td>
+                  <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>
+                    <strong style={{ color: C.primary, fontWeight: 600 }}>Trasferimenti:</strong> {sp.transfers}
+                    <br />
+                    <strong style={{ color: C.primary, fontWeight: 600 }}>Garanzie:</strong> {sp.safeguards}
+                  </td>
+                  <td style={{ padding: '16px 20px', color: C.textMuted, verticalAlign: 'top' }}>{sp.status}</td>
                 </tr>
               ))}
             </tbody>
