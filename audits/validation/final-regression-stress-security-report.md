@@ -371,17 +371,15 @@ Date: 2026-07-16
 - `bash scripts/check-migrations.sh`: no changed migrations to lint
 
 ## 31. Commit
-- Planned / created commit message:
-  - `docs(audit): record final validation results`
+- `c8621b8 docs(audit): record final validation results`
 
 ## 32. Push
-- Push status to be recorded after local commit step.
+- Pushed to `origin/dev`
+- Remote update:
+  - `777830f..c8621b8  dev -> dev`
 
 ## 33. Working tree finale
-- Before report creation:
-  - clean
-- Expected after report creation:
-  - only report artifact differs until committed
+- Clean after commit and push
 
 ## 34. Blocchi esterni
 - Missing official local font files for permanent `next/font/local` migration
