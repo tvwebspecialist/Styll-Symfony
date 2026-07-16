@@ -15,7 +15,7 @@ Baseline confermata sul tag analizzato:
 
 Esito sintetico dopo validazione finale del report:
 - isolamento multi-tenant: solido nel codice verificato;
-- autenticazione, autorizzazione, RLS, storage isolation e hardening frontend: sostanzialmente pronti per uno staging serio e per un pilot limitato;
+- autenticazione, autorizzazione, RLS, storage isolation e hardening frontend: sostanzialmente pronti per uno staging serio e per un pilotttt limitato;
 - la validazione documentale finale ha chiuso come troppo pessimisti o smentiti F-01, F-06, F-07 e F-09;
 - la validazione ha chiuso F-03 e ridimensionato F-10: l'accettazione DPA B2B e' resa esplicita dal checkbox Termini in registrazione, persistita server-side e collegata al tenant durante l'onboarding, mentre backup/restore risultano non formalizzati nel repository ma non sono verificabili nel loro stato reale infrastrutturale;
 - la validazione documentale ha chiuso F-13: l'inventario sub-processors ora e' coerente tra pagina pubblica, DPA, ROPA e matrice centrale applicativa;
