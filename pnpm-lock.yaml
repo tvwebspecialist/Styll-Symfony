@@ -111,6 +111,9 @@ importers:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.15)(immer@11.1.4)(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
     devDependencies:
+      '@next/env':
+        specifier: 16.2.7
+        version: 16.2.7
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.2.4
