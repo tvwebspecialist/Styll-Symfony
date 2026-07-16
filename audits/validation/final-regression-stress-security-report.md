@@ -371,12 +371,15 @@ Date: 2026-07-16
 - `bash scripts/check-migrations.sh`: no changed migrations to lint
 
 ## 31. Commit
-- `c8621b8 docs(audit): record final validation results`
+- Validation documented with documentation-only commits on `dev`.
+- Commit messages used in this validation pass:
+  - `docs(audit): record final validation results`
+  - `docs(audit): finalize validation report metadata`
+  - metadata alignment commit for the final report state
 
 ## 32. Push
 - Pushed to `origin/dev`
-- Remote update:
-  - `777830f..c8621b8  dev -> dev`
+- Report and commit history were pushed after validation completion.
 
 ## 33. Working tree finale
 - Clean after commit and push
