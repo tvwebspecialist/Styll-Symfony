@@ -258,42 +258,59 @@ test('deduplication: migration declares UNIQUE on conversation_key', () => {
 
 // ── Auth guard — structural guarantee ─────────────────────────────────────────
 //
-// We cannot call requireTenantRole in unit tests without a live Supabase session.
+// We cannot call requireInboxTenantContext in unit tests without a live Supabase
+// session.
 // The guarantees below are verified by inspecting the action source:
 //
-//   - getInboxConversations calls requireTenantRole BEFORE any DB access
-//   - getInboxMessages calls requireTenantRole BEFORE any DB access
-//   - INBOX_ROLES includes 'receptionist' (not just owner/manager)
-//   - INBOX_ROLES does NOT include 'staff' (product decision pending)
+//   - getInboxConversations calls requireInboxTenantContext BEFORE any DB access
+//   - getInboxMessages calls requireInboxTenantContext BEFORE any DB access
+//   - tenant-role-guard exposes inbox access to owner/manager/receptionist/staff
+//   - inactive/deleted staff are still blocked in getTenantRoleContext()
 //
 // Integration tests (Supabase local or staging) are required to exercise the
 // actual 403 path. This is declared as a KNOWN OPEN RISK below.
 
-test('auth guard: inbox.ts calls requireTenantRole before DB (structural)', () => {
+test('auth guard: inbox.ts calls requireInboxTenantContext before DB (structural)', () => {
   const dir = path.dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(path.join(dir, '../../src/lib/actions/inbox.ts'), 'utf8')
 
   // Guard must be called BEFORE the DB client is instantiated inside the function body.
   // Search for the CALL (const db = ...), not the import, so the import line doesn't
   // trick the index comparison.
-  const guardIdx = src.indexOf('await requireTenantRole')
+  const guardIdx = src.indexOf('await requireInboxTenantContext')
   const dbCallIdx = src.indexOf('const db = createMessagingAdminClient')
-  assert.ok(guardIdx !== -1, 'requireTenantRole must be present')
+  assert.ok(guardIdx !== -1, 'requireInboxTenantContext must be present')
   assert.ok(dbCallIdx !== -1, 'createMessagingAdminClient() call must be present')
-  assert.ok(guardIdx < dbCallIdx, 'requireTenantRole must appear before createMessagingAdminClient() call')
+  assert.ok(guardIdx < dbCallIdx, 'requireInboxTenantContext must appear before createMessagingAdminClient() call')
 })
 
-test('auth guard: receptionist is in INBOX_ROLES', () => {
+test('auth guard: tenant-role-guard exposes staff access to inbox', () => {
   const dir = path.dirname(fileURLToPath(import.meta.url))
-  const src = readFileSync(path.join(dir, '../../src/lib/actions/inbox.ts'), 'utf8')
-  assert.ok(src.includes("'receptionist'"), 'receptionist must be in allowed roles')
+  const src = readFileSync(path.join(dir, '../../src/lib/tenant-role-guard.ts'), 'utf8')
+  const rolesLine = src.match(/export const INBOX_TENANT_ROLES\s*=\s*\[([^\]]+)\]/)
+  assert.ok(rolesLine, 'INBOX_TENANT_ROLES constant must exist')
+  assert.ok(rolesLine[1].includes("'owner'"), 'owner must be in inbox roles')
+  assert.ok(rolesLine[1].includes("'manager'"), 'manager must be in inbox roles')
+  assert.ok(rolesLine[1].includes("'receptionist'"), 'receptionist must be in inbox roles')
+  assert.ok(rolesLine[1].includes("'staff'"), 'staff must be in inbox roles')
 })
 
-test('auth guard: plain staff role is NOT in INBOX_ROLES (pending product decision)', () => {
+test('auth guard: tenant-role-guard still blocks inactive and deleted staff', () => {
   const dir = path.dirname(fileURLToPath(import.meta.url))
-  const src = readFileSync(path.join(dir, '../../src/lib/actions/inbox.ts'), 'utf8')
-  // INBOX_ROLES constant line must not include 'staff'
-  const rolesLine = src.match(/const INBOX_ROLES\s*=\s*\[([^\]]+)\]/)
-  assert.ok(rolesLine, 'INBOX_ROLES constant must exist')
-  assert.ok(!rolesLine[1].includes("'staff'"), "'staff' must not be in INBOX_ROLES without product approval")
+  const src = readFileSync(path.join(dir, '../../src/lib/tenant-role-guard.ts'), 'utf8')
+  assert.ok(src.includes(".eq('is_active', true)"), 'active-staff lookup must require is_active = true')
+  assert.ok(src.includes(".is('deleted_at', null)"), 'active-staff lookup must require deleted_at IS NULL')
+})
+
+test('auth guard: tenant-role-guard scopes inbox access to the requested tenant', () => {
+  const dir = path.dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(path.join(dir, '../../src/lib/tenant-role-guard.ts'), 'utf8')
+  assert.ok(src.includes(".eq('tenant_id', tenantId)"), 'tenant role lookup must scope staff membership by tenant_id')
+})
+
+test('tenant context: active tenant fallback ignores deleted staff memberships', () => {
+  const dir = path.dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(path.join(dir, '../../src/lib/tenant-context.ts'), 'utf8')
+  assert.ok(src.includes(".eq('is_active', true)"), 'active tenant fallback must require is_active = true')
+  assert.ok(src.includes(".is('deleted_at', null)"), 'active tenant fallback must require deleted_at IS NULL')
 })

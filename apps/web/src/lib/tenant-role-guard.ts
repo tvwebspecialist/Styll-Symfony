@@ -7,6 +7,8 @@ import { forbidden } from 'next/navigation'
 export type TenantRole = StaffRoleValue | 'superadmin'
 export const OWNER_MANAGER_TENANT_ROLES = ['owner', 'manager'] as const
 export type OwnerManagerTenantRole = typeof OWNER_MANAGER_TENANT_ROLES[number]
+export const INBOX_TENANT_ROLES = ['owner', 'manager', 'receptionist', 'staff'] as const
+export type InboxTenantRole = typeof INBOX_TENANT_ROLES[number]
 
 export const TENANT_PERMISSIONS = {
   MANAGE_MARKETING: 'manage_marketing',
@@ -143,4 +145,10 @@ export async function requireOwnerManagerTenantContext(
   explicitTenantId?: string
 ): Promise<TenantRoleContext> {
   return requireTenantRole(OWNER_MANAGER_TENANT_ROLES, explicitTenantId)
+}
+
+export async function requireInboxTenantContext(
+  explicitTenantId?: string
+): Promise<TenantRoleContext> {
+  return requireTenantRole(INBOX_TENANT_ROLES, explicitTenantId)
 }

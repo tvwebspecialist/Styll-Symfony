@@ -18,6 +18,7 @@ import {
   User,
   type LucideIcon,
 } from 'lucide-react'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface NavItem {
   label: string
@@ -40,6 +41,7 @@ const CARD_GRID: NavItem[] = [
   { label: 'Catalogo',    href: '/catalogo',     icon: Scissors },
   { label: 'La mia App',  href: '/app',          icon: Smartphone },
   { label: 'Impostazioni',href: '/impostazioni', icon: Settings },
+  { label: 'Profilo',     href: '/profilo',      icon: User },
 ]
 
 const OWNER_MANAGER_HREFS = new Set([
@@ -86,9 +88,9 @@ export function BottomNav({
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           boxSizing: 'content-box',
           zIndex: 50,
-          background: '#222222',
-          borderRadius: '16px 16px 0 0',
-          boxShadow: '0 -2px 20px rgba(0,0,0,0.22)',
+          background: '#FFFFFF',
+          borderRadius: '20px 20px 0 0',
+          boxShadow: '0 -1px 0 rgba(0,0,0,0.06), 0 -4px 20px rgba(0,0,0,0.08)',
           alignItems: 'stretch',
           justifyContent: 'space-between',
         }}
@@ -116,12 +118,12 @@ export function BottomNav({
               <Icon
                 size={20}
                 strokeWidth={active ? 2.3 : 1.6}
-                color={active ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+                color={active ? '#111111' : 'rgba(0,0,0,0.35)'}
                 aria-hidden="true"
               />
               <span
                 style={{
-                  color: active ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+                  color: active ? '#111111' : 'rgba(0,0,0,0.35)',
                   fontSize: 11,
                   fontWeight: active ? 700 : 400,
                   fontFamily: 'Outfit, sans-serif',
@@ -158,12 +160,12 @@ export function BottomNav({
           <Menu
             size={20}
             strokeWidth={open ? 2.3 : 1.6}
-            color={open ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+            color={open ? '#111111' : 'rgba(0,0,0,0.35)'}
             aria-hidden="true"
           />
           <span
             style={{
-              color: open ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+              color: open ? '#111111' : 'rgba(0,0,0,0.35)',
               fontSize: 11,
               fontWeight: open ? 700 : 400,
               fontFamily: 'Outfit, sans-serif',
@@ -198,12 +200,6 @@ export function BottomNav({
           right: 12,
           bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 8px)',
           zIndex: 70,
-          background: '#FFFFFF',
-          borderRadius: 20,
-          boxShadow: '0 8px 48px rgba(0,0,0,0.20), 0 2px 12px rgba(0,0,0,0.10)',
-          padding: '16px 16px 20px',
-          maxHeight: 'calc(100dvh - var(--bottom-nav-height, 64px) - env(safe-area-inset-bottom, 0px) - 72px)',
-          overflowY: 'auto',
           opacity: open ? 1 : 0,
           pointerEvents: open ? 'auto' : 'none',
           transform: open ? 'translateY(0) scale(1)' : 'translateY(10px) scale(0.97)',
@@ -213,97 +209,82 @@ export function BottomNav({
             : 'opacity 0.15s ease, transform 0.15s ease',
         }}
       >
-        {/* Header */}
-        <div
+        <FloatingCard
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 14,
+            margin: 0,
+            borderRadius: 20,
+            padding: '16px 16px 20px',
+            maxHeight: 'calc(100dvh - var(--bottom-nav-height, 64px) - env(safe-area-inset-bottom, 0px) - 72px)',
+            overflowY: 'auto',
           }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#222222' }}>Menu</span>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Chiudi menu"
+          {/* Header */}
+          <div
             style={{
-              border: 'none',
-              background: '#F5F5F5',
-              borderRadius: '50%',
-              width: 28,
-              height: 28,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0,
+              justifyContent: 'space-between',
+              marginBottom: 14,
             }}
           >
-            <X size={14} color="#555555" />
-          </button>
-        </div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#222222' }}>Menu</span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Chiudi menu"
+              style={{
+                border: 'none',
+                background: '#F5F5F5',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <X size={14} color="#555555" />
+            </button>
+          </div>
 
-        {/* Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 8,
-            marginBottom: 14,
-          }}
-        >
-          {cardItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '14px 14px',
-                  borderRadius: 12,
-                  background: '#F7F7F7',
-                  fontSize: 14,
-                  color: '#222222',
-                  textDecoration: 'none',
-                  fontWeight: 500,
-                  minHeight: 44,
-                }}
-              >
-                <Icon size={19} color="#444444" aria-hidden="true" />
-                <span style={{ lineHeight: 1.2 }}>{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
-
-        <div style={{ height: 1, background: '#F0F0F0', margin: '4px 0 10px' }} />
-
-        {/* Profilo */}
-        <Link
-          href="/profilo"
-          onClick={() => setOpen(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '14px 14px',
-            borderRadius: 12,
-            background: '#F7F7F7',
-            fontSize: 14,
-            color: '#222222',
-            textDecoration: 'none',
-            fontWeight: 500,
-            minHeight: 44,
-          }}
-        >
-          <User size={19} color="#444444" aria-hidden="true" />
-          <span>Profilo</span>
-        </Link>
+          {/* Grid — 8 items (4×2), Profilo included */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8,
+            }}
+          >
+            {cardItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '14px 14px',
+                    borderRadius: 12,
+                    background: '#F7F7F7',
+                    fontSize: 14,
+                    color: '#222222',
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                    minHeight: 44,
+                  }}
+                >
+                  <Icon size={19} color="#444444" aria-hidden="true" />
+                  <span style={{ lineHeight: 1.2 }}>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </FloatingCard>
       </div>
     </>
   )

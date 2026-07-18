@@ -2,7 +2,7 @@
 // No 'use server', no path aliases (@/) — only relative imports so this file
 // can be imported directly by Node.js unit tests with --experimental-strip-types.
 //
-// Auth is NOT here. Callers (server actions) MUST call requireTenantRole BEFORE
+// Auth is NOT here. Callers (server actions) MUST enforce inbox access BEFORE
 // calling these functions.
 
 import type { MessagingAdminClient } from './db'

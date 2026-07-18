@@ -18,6 +18,7 @@ import { InboxConversazioni } from './InboxConversazioni'
 
 interface MessaggiProps {
   tenantId: string
+  inboxOnly?: boolean
 }
 
 type SubTab = 'automatici' | 'mirato' | 'cronologia' | 'inbox'
@@ -116,16 +117,25 @@ function Toggle({ on, onToggle, disabled }: { on: boolean; onToggle: () => void;
   )
 }
 
-export function Messaggi({ tenantId }: MessaggiProps) {
-  const [subTab,         setSubTab]         = React.useState<SubTab>('automatici')
+export function Messaggi({ tenantId, inboxOnly = false }: MessaggiProps) {
+  const availableSubTabs = inboxOnly
+    ? SUB_TABS.filter((tab) => tab.key === 'inbox')
+    : SUB_TABS
+  const fallbackSubTab: SubTab = inboxOnly ? 'inbox' : 'automatici'
+
+  const [subTab,         setSubTab]         = React.useState<SubTab>(fallbackSubTab)
   const [data,           setData]           = React.useState<MessagesData | null>(null)
-  const [loading,        setLoading]        = React.useState(true)
+  const [loading,        setLoading]        = React.useState(!inboxOnly)
   const [logDays,        setLogDays]        = React.useState(30)
   const [segment,        setSegment]        = React.useState('all')
   const [message,        setMessage]        = React.useState('')
   const [segmentCounts,  setSegmentCounts]  = React.useState<SegmentCounts | null>(null)
   const [aiLoading,      setAiLoading]      = React.useState(false)
   const [sendLoading,    setSendLoading]    = React.useState(false)
+
+  React.useEffect(() => {
+    setSubTab(fallbackSubTab)
+  }, [fallbackSubTab])
 
   async function handleSend() {
     if (!message.trim() || sendLoading) return
@@ -153,19 +163,25 @@ export function Messaggi({ tenantId }: MessaggiProps) {
   }
 
   React.useEffect(() => {
+    if (inboxOnly) return
     getSegmentCounts(tenantId)
       .then(setSegmentCounts)
       .catch((err) => console.error('[Messaggi] error:', err))
-  }, [tenantId])
+  }, [tenantId, inboxOnly])
 
   React.useEffect(() => {
+    if (inboxOnly) {
+      setData(null)
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     getMessagesData(tenantId, logDays)
       .then((r) => { if (!cancelled) { setData(r); setLoading(false) } })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [tenantId, logDays])
+  }, [tenantId, logDays, inboxOnly])
 
   /* Optimistic toggle for real automations */
   function handleToggle(automation: MessageAutomation) {
@@ -196,7 +212,7 @@ export function Messaggi({ tenantId }: MessaggiProps) {
 
       {/* ── Sub-tab bar ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {SUB_TABS.map((t) => {
+        {availableSubTabs.map((t) => {
           const isActive = subTab === t.key
           return (
             <button
