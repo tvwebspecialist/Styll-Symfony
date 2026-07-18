@@ -287,7 +287,8 @@ export function ClientiClient({
       params.set('pageSize', String(nextPageSize))
     }
 
-    router.replace(params.size > 0 ? `${pathname}?${params.toString()}` : pathname)
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
   }, [filter, page, pageSize, pathname, queryInput, router])
 
   React.useEffect(() => {
@@ -557,7 +558,7 @@ export function ClientiClient({
             aria-label="Aggiungi cliente"
             style={{
               position: 'fixed',
-              bottom: 'calc(var(--bottom-nav-height, 106px) + 16px)',
+              bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px)',
               right: 20,
               width: 52, height: 52, borderRadius: 100,
               background: 'var(--color-fg)', border: 'none',
