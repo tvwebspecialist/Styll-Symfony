@@ -209,6 +209,7 @@ export async function getActiveTenantId(): Promise<string | null> {
     .select('tenant_id')
     .eq('profile_id', user.id)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
   return data?.tenant_id ?? null
