@@ -18,6 +18,7 @@ const TABS = [
   { href: '/clients', label: 'Clienti' },
   { href: '/migration', label: 'Migrazione' },
   { href: '/appointments', label: 'Appuntamenti' },
+  { href: '/whatsapp', label: 'WhatsApp' },
   { href: '/subscription', label: 'Abbonamento' },
   { href: '/audit', label: 'Audit Log' },
   { href: '/analytics', label: 'Analytics' },
