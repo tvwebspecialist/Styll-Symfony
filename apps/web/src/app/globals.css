@@ -1215,3 +1215,30 @@
   from { opacity: 0; transform: translateY(20px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
+
+/* ─── WhatsApp-style Inbox ───────────────────────────────────────────────────
+ * On mobile (<640px) the split panel collapses: list and thread alternate.
+ * inbox-panel-list--hidden / inbox-panel-thread--visible control visibility.
+ * Back button visible only on mobile.
+ * ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  .inbox-panel-list {
+    width: 100% !important;
+    border-right: none !important;
+  }
+  .inbox-panel-list--hidden {
+    display: none !important;
+  }
+  .inbox-panel-thread {
+    display: none;
+    position: absolute;
+    inset: 0;
+  }
+  .inbox-panel-thread--visible {
+    display: flex !important;
+    position: relative;
+  }
+  .inbox-back-btn {
+    display: flex !important;
+  }
+}
