@@ -2,7 +2,7 @@
 -- 20260717093000_messaging_inbox_foundation.sql
 -- Foundation per inbox conversazionale multi-tenant e transport
 -- messaging. Obiettivo: partire con inbox umana e aggiungere AI/
--- WhatsApp senza rifare il dominio o duplicare i canali.
+-- WhatsApp senza rifare il dominio o duplicare i canali....
 -- ============================================================
 
 -- ─── Trigger helper updated_at ───────────────────────────────
