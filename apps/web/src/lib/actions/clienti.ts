@@ -499,10 +499,6 @@ export async function getClienti(options: GetClientiOptions = {}): Promise<GetCl
         ? `client_analytics!inner(${CLIENT_ANALYTICS_LIST_SELECT})`
         : `client_analytics(${CLIENT_ANALYTICS_LIST_SELECT})`
     selectParts.push(analyticsRelation)
-    if (filter === 'inactive') {
-      selectParts.push('unknown_analytics:client_analytics()')
-      selectParts.push('any_analytics:client_analytics()')
-    }
   }
   if (ctx.currentStaff.role === 'staff') {
     selectParts.push('appointments!inner(id)')
@@ -534,11 +530,10 @@ export async function getClienti(options: GetClientiOptions = {}): Promise<GetCl
     if (filter === 'active' || filter === 'warning' || filter === 'danger') {
       clientsQuery = clientsQuery.eq('client_analytics.churn_status', UI_TO_DB_CHURN[filter])
     } else if (filter === 'inactive') {
-      // Use empty embed aliases so PostgREST can filter “unknown OR no analytics row”
-      // without collapsing the left join into a match-all predicate.
+      // Left join (no !inner) — match rows where churn_status is 'unknown'
+      // OR the analytics row doesn't exist at all (NULL from the left join).
       clientsQuery = clientsQuery
-        .eq('unknown_analytics.churn_status', 'unknown')
-        .or('unknown_analytics.not.is.null,any_analytics.is.null')
+        .or('client_analytics.churn_status.eq.unknown,client_analytics.churn_status.is.null')
     }
   }
 

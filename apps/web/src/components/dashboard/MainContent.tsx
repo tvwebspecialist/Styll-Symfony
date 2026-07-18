@@ -58,7 +58,7 @@ export function MainContent({ children }: { children: React.ReactNode }) {
   const mobileStyle: React.CSSProperties = {
     margin: 0,
     paddingTop: isHome ? MOBILE_HOME_PADDING_TOP : MOBILE_SIMPLE_PADDING_TOP,
-    paddingBottom: 'calc(116px + env(safe-area-inset-bottom, 0px))',
+    paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
     paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))',
     paddingRight: 'max(16px, env(safe-area-inset-right, 16px))',
     background: 'transparent',
