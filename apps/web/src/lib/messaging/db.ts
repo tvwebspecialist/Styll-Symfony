@@ -214,6 +214,69 @@ export interface MessagingDatabase {
         }
         Relationships: []
       }
+      messaging_outbox: {
+        Row: {
+          appointment_id: string | null
+          attempts: number
+          channel: 'whatsapp' | 'sms' | 'email' | 'push'
+          client_id: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_attempt_at: string | null
+          last_error: string | null
+          messages_log_id: string | null
+          payload: Json
+          provider: 'meta_whatsapp' | 'messagebird' | 'infobip' | 'twilio' | 'resend' | 'web_push'
+          recipient: string
+          scheduled_for: string
+          status: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
+          template_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          attempts?: number
+          channel: 'whatsapp' | 'sms' | 'email' | 'push'
+          client_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          messages_log_id?: string | null
+          payload?: Json
+          provider: 'meta_whatsapp' | 'messagebird' | 'infobip' | 'twilio' | 'resend' | 'web_push'
+          recipient: string
+          scheduled_for?: string
+          status?: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
+          template_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          attempts?: number
+          channel?: 'whatsapp' | 'sms' | 'email' | 'push'
+          client_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          messages_log_id?: string | null
+          payload?: Json
+          provider?: 'meta_whatsapp' | 'messagebird' | 'infobip' | 'twilio' | 'resend' | 'web_push'
+          recipient?: string
+          scheduled_for?: string
+          status?: 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
+          template_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       tenant_integrations: {
         Row: {
           connected_at: string | null

@@ -69,6 +69,7 @@ test('metaWhatsAppAdapter builds a minimal outbound text request', () => {
     to: '39333111222',
     type: 'text',
     text: {
+      preview_url: false,
       body: 'Promemoria appuntamento',
     },
   })

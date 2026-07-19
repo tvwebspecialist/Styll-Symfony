@@ -57,6 +57,25 @@ La migration foundation introduce queste aree:
 - inbox umana read-only;
 - invio manuale da dashboard via outbox.
 
+### Env server-side per reply manuale
+
+Per l'invio manuale WhatsApp dalla Inbox servono variabili solo server-side:
+
+- `META_WHATSAPP_ACCESS_TOKEN`
+  Access token usato dal route handler server-side per chiamare la WhatsApp Cloud API.
+- `META_WHATSAPP_GRAPH_API_VERSION`
+  Versione Graph API usata per l'endpoint `/PHONE_NUMBER_ID/messages`.
+- `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`
+  Token per la challenge del webhook.
+- `META_APP_SECRET`
+  Secret usato per verificare la firma `x-hub-signature-256`.
+
+Note operative minime:
+
+1. `PHONE_NUMBER_ID` non arriva mai dal client: viene risolto lato server dalla conversazione e dalla binding `tenant_integrations`.
+2. Il browser non riceve mai l'access token Meta.
+3. Se Meta accetta il messaggio ma il salvataggio DB fallisce, il server restituisce errore esplicito e marca l'outbox come `failed` senza fingere successo.
+
 ### Fase 2
 
 - assegnazione conversazioni;
