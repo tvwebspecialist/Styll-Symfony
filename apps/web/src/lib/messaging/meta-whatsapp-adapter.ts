@@ -205,6 +205,7 @@ export const metaWhatsAppAdapter: MessagingProviderAdapter = {
       to: message.recipient,
       type: 'text',
       text: {
+        preview_url: false,
         body: message.text,
       },
     }

@@ -3,6 +3,11 @@ import type { NextRequest } from 'next/server'
 import type { Json } from '@/types'
 import { metaWhatsAppAdapter } from '@/lib/messaging/meta-whatsapp-adapter'
 import { createMessagingAdminClient } from '@/lib/messaging/db'
+import {
+  coalesceMessageLogStatus,
+  getWebhookMessageStatus,
+  type MessageLogStatus,
+} from '@/lib/messaging/message-delivery'
 import { verifyMetaWebhookSignature } from '@/lib/messaging/meta-whatsapp-signature'
 import { resolveMetaWhatsAppIntegrationByPhoneNumberId } from '@/lib/messaging/tenant-resolution'
 
@@ -24,21 +29,6 @@ function normalizePhone(value: string | null): string | null {
   if (!value) return null
   const normalized = value.replace(/\s+/g, ' ').trim()
   return normalized.length > 0 ? normalized : null
-}
-
-function getStatusName(eventType: string): 'sent' | 'delivered' | 'read' | 'failed' | 'received' {
-  switch (eventType) {
-    case 'message.sent':
-      return 'sent'
-    case 'message.delivered':
-      return 'delivered'
-    case 'message.read':
-      return 'read'
-    case 'message.failed':
-      return 'failed'
-    default:
-      return 'received'
-  }
 }
 
 function jsonError(status: number, error: string) {
@@ -212,28 +202,54 @@ async function persistStatusUpdate(input: {
   eventType: string
 }) {
   const db = createMessagingAdminClient()
-  const nextStatus = getStatusName(input.eventType)
+  const nextStatus = getWebhookMessageStatus(input.eventType)
+  const providerMetadata: Json = {
+    provider_status_event: input.eventType,
+    provider_status_at: input.occurredAt,
+  }
 
-  const { data: existingLog, error: selectError } = await db
-    .from('messages_log')
-    .select('id')
-    .eq('provider', 'meta_whatsapp')
-    .eq('external_id', input.externalId)
+  const { data: linkedMessage, error: linkedMessageError } = await db
+    .from('inbox_messages')
+    .select('messages_log_id')
+    .eq('meta_message_id', input.externalId)
     .maybeSingle()
+
+  if (linkedMessageError) {
+    throw new Error(`inbox_messages status lookup failed: ${linkedMessageError.message}`)
+  }
+
+  const targetMessageLogId = linkedMessage?.messages_log_id ?? null
+
+  const logLookup = targetMessageLogId
+    ? db
+        .from('messages_log')
+        .select('id, status, sent_at')
+        .eq('id', targetMessageLogId)
+        .maybeSingle()
+    : db
+        .from('messages_log')
+        .select('id, status, sent_at')
+        .eq('provider', 'meta_whatsapp')
+        .eq('external_id', input.externalId)
+        .maybeSingle()
+
+  const { data: existingLog, error: selectError } = await logLookup
 
   if (selectError) {
     throw new Error(`messages_log status lookup failed: ${selectError.message}`)
   }
 
   if (existingLog) {
+    const currentStatus = existingLog.status as MessageLogStatus
+    const coalescedStatus = coalesceMessageLogStatus(currentStatus, nextStatus)
+    const nextSentAt = existingLog.sent_at ?? (nextStatus === 'sent' ? input.occurredAt : null)
+
     const { error: updateError } = await db
       .from('messages_log')
       .update({
-        status: nextStatus,
-        sent_at: input.occurredAt,
-        metadata: {
-          provider_status_event: input.eventType,
-        },
+        status: coalescedStatus,
+        sent_at: nextSentAt,
+        metadata: providerMetadata,
       })
       .eq('id', existingLog.id)
 
@@ -254,10 +270,8 @@ async function persistStatusUpdate(input: {
     recipient: input.recipient,
     external_id: input.externalId,
     status: nextStatus,
-    sent_at: input.occurredAt,
-    metadata: {
-      provider_status_event: input.eventType,
-    },
+    sent_at: nextStatus === 'sent' ? input.occurredAt : null,
+    metadata: providerMetadata,
   })
 
   if (insertError) {

@@ -3,7 +3,34 @@
 import * as React from 'react'
 import { MessageSquare, Search, Bot, User, Users, ArrowLeft, Phone, CheckCheck } from 'lucide-react'
 import { getInboxConversations, getInboxMessages, type InboxConversation, type InboxMessage } from '@/lib/actions/inbox'
-import { formatTime, formatMsgTime, getInitials, makeCancellableLoad } from '../inbox-utils'
+import { formatTime, formatMsgTime, getInitials } from '../inbox-utils'
+
+type UiInboxMessage = InboxMessage & {
+  deliveryStatus?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
+}
+
+type SendMessageApiResponse =
+  | {
+      ok: true
+      duplicate: boolean
+      message: {
+        id: string
+        conversationId: string
+        bodyText: string
+        direction: 'outbound'
+        authorKind: 'human'
+        createdAt: string
+        usedTemplate: false
+        deliveryStatus: 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
+      }
+    }
+  | {
+      ok: false
+      error: {
+        code: string
+        message: string
+      }
+    }
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -36,6 +63,38 @@ function OwnershipBadge({ mode }: { mode: 'ai' | 'human' | 'hybrid' }) {
       <span style={{ fontSize: 9, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{cfg.label}</span>
     </span>
   )
+}
+
+function appendOrReplaceMessage(
+  current: UiInboxMessage[],
+  next: UiInboxMessage,
+): UiInboxMessage[] {
+  const existingIndex = current.findIndex((message) => message.id === next.id)
+  if (existingIndex === -1) {
+    return [...current, next]
+  }
+
+  const cloned = current.slice()
+  cloned[existingIndex] = next
+  return cloned
+}
+
+function updateConversationAfterReply(
+  current: InboxConversation[],
+  conversationId: string,
+  bodyText: string,
+  createdAt: string,
+): InboxConversation[] {
+  const index = current.findIndex((conversation) => conversation.id === conversationId)
+  if (index === -1) return current
+
+  const updated: InboxConversation = {
+    ...current[index],
+    lastMessagePreview: bodyText,
+    lastMessageAt: createdAt,
+  }
+
+  return [updated, ...current.slice(0, index), ...current.slice(index + 1)]
 }
 
 // ── Conversation List Row ─────────────────────────────────────────────────────
@@ -136,7 +195,7 @@ function ConvRow({ conv, active, onClick }: { conv: InboxConversation; active: b
 
 // ── Message Bubble ────────────────────────────────────────────────────────────
 
-function MsgBubble({ msg }: { msg: InboxMessage }) {
+function MsgBubble({ msg }: { msg: UiInboxMessage }) {
   const isInbound = msg.direction === 'inbound'
   const isSystem = msg.direction === 'system'
 
@@ -157,6 +216,11 @@ function MsgBubble({ msg }: { msg: InboxMessage }) {
   }
 
   const bubbleBg = isInbound ? '#FFFFFF' : '#DCF8C6'
+  const deliveryColor = msg.deliveryStatus === 'failed'
+    ? '#EF4444'
+    : msg.deliveryStatus === 'pending'
+      ? '#94A3B8'
+      : '#53BDEB'
   const labelCfg = {
     customer:  { color: '#059669', label: null },
     assistant: { color: '#7C3AED', label: 'AI' },
@@ -191,7 +255,7 @@ function MsgBubble({ msg }: { msg: InboxMessage }) {
             {formatMsgTime(msg.createdAt)}
           </span>
           {!isInbound && (
-            <CheckCheck size={12} color="#53BDEB" />
+            <CheckCheck size={12} color={deliveryColor} />
           )}
         </div>
       </div>
@@ -241,32 +305,71 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
   const [convError, setConvError] = React.useState(false)
   const [search, setSearch] = React.useState('')
   const [activeId, setActiveId] = React.useState<string | null>(null)
-  const [messages, setMessages] = React.useState<InboxMessage[]>([])
+  const [messages, setMessages] = React.useState<UiInboxMessage[]>([])
   const [msgLoading, setMsgLoading] = React.useState(false)
   const [msgError, setMsgError] = React.useState(false)
   const [showThread, setShowThread] = React.useState(false)
+  const [draft, setDraft] = React.useState('')
+  const [sendPending, setSendPending] = React.useState(false)
+  const [sendError, setSendError] = React.useState<string | null>(null)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
-    setConvError(false)
-    setLoading(true)
-    return makeCancellableLoad(
-      () => getInboxConversations(tenantId),
-      (c) => { setConversations(c); setLoading(false) },
-      () => { setConvError(true); setLoading(false) },
-    )
+    let cancelled = false
+
+    async function loadConversations() {
+      setConvError(false)
+      setLoading(true)
+
+      try {
+        const data = await getInboxConversations(tenantId)
+        if (cancelled) return
+
+        setConversations(data)
+        setLoading(false)
+      } catch {
+        if (cancelled) return
+
+        setConvError(true)
+        setLoading(false)
+      }
+    }
+
+    void loadConversations()
+    return () => {
+      cancelled = true
+    }
   }, [tenantId])
 
   React.useEffect(() => {
     if (!activeId) return
-    setMsgError(false)
-    setMsgLoading(true)
-    setMessages([]) // clear stale messages immediately on conversation switch
-    return makeCancellableLoad(
-      () => getInboxMessages(tenantId, activeId),
-      (m) => { setMessages(m); setMsgLoading(false) },
-      () => { setMsgError(true); setMsgLoading(false) },
-    )
+    const conversationId = activeId
+
+    let cancelled = false
+
+    async function loadMessages() {
+      setMsgError(false)
+      setMsgLoading(true)
+      setMessages([]) // clear stale messages immediately on conversation switch
+
+      try {
+        const data = await getInboxMessages(tenantId, conversationId)
+        if (cancelled) return
+
+        setMessages(data)
+        setMsgLoading(false)
+      } catch {
+        if (cancelled) return
+
+        setMsgError(true)
+        setMsgLoading(false)
+      }
+    }
+
+    void loadMessages()
+    return () => {
+      cancelled = true
+    }
   }, [tenantId, activeId])
 
   React.useEffect(() => {
@@ -284,10 +387,72 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
   })
 
   const activeConv = conversations.find((c) => c.id === activeId) ?? null
+  const canSend = Boolean(activeConv) && draft.trim().length > 0 && !sendPending
 
   function selectConv(id: string) {
     setActiveId(id)
     setShowThread(true)
+    setDraft('')
+    setSendError(null)
+  }
+
+  async function handleSendMessage() {
+    if (!activeConv || !canSend) return
+
+    const conversationId = activeConv.id
+    const draftSnapshot = draft
+    setSendPending(true)
+    setSendError(null)
+
+    try {
+      const response = await fetch(`/api/inbox/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: draftSnapshot }),
+      })
+
+      const payload = await response.json() as SendMessageApiResponse
+      if (!response.ok || !payload.ok) {
+        setSendError(payload.ok ? 'Invio non riuscito.' : payload.error.message)
+        return
+      }
+
+      const sentMessage: UiInboxMessage = {
+        id: payload.message.id,
+        bodyText: payload.message.bodyText,
+        direction: payload.message.direction,
+        authorKind: payload.message.authorKind,
+        createdAt: payload.message.createdAt,
+        usedTemplate: payload.message.usedTemplate,
+        deliveryStatus: payload.message.deliveryStatus,
+      }
+
+      setMessages((current) => appendOrReplaceMessage(current, sentMessage))
+      setConversations((current) =>
+        updateConversationAfterReply(
+          current,
+          conversationId,
+          payload.message.bodyText,
+          payload.message.createdAt,
+        ))
+      setDraft('')
+      setSendError(null)
+    } catch {
+      setSendError('Errore di rete durante l\'invio del messaggio.')
+    } finally {
+      setSendPending(false)
+    }
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+      return
+    }
+
+    event.preventDefault()
+    void handleSendMessage()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -474,27 +639,69 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
               )}
             </div>
 
-            {/* Input bar — read-only for now */}
+            {/* Input bar */}
             <div style={{
               padding: '12px 16px',
               borderTop: '1px solid #EFEFEF',
               background: '#F7F8FA',
               display: 'flex',
-              alignItems: 'center',
-              gap: 10,
+              flexDirection: 'column',
+              gap: 8,
             }}>
               <div style={{
-                flex: 1,
-                background: '#fff',
-                border: '1px solid #E5E5E5',
-                borderRadius: 24,
-                padding: '10px 16px',
-                fontSize: 13,
-                color: '#AAA',
-                cursor: 'not-allowed',
+                width: '100%',
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 10,
               }}>
-                La risposta manuale sarà disponibile nella prossima versione…
+                <textarea
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
+                  placeholder="Scrivi una risposta..."
+                  disabled={sendPending || !activeConv}
+                  rows={1}
+                  style={{
+                    flex: 1,
+                    background: '#fff',
+                    border: '1px solid #E5E5E5',
+                    borderRadius: 18,
+                    padding: '11px 16px',
+                    fontSize: 13,
+                    color: '#222',
+                    minHeight: 44,
+                    maxHeight: 120,
+                    resize: 'none',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.45,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => { void handleSendMessage() }}
+                  disabled={!canSend}
+                  style={{
+                    border: 'none',
+                    borderRadius: 999,
+                    background: canSend ? '#25D366' : '#CFEFD9',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: '11px 16px',
+                    cursor: canSend ? 'pointer' : 'not-allowed',
+                    minWidth: 78,
+                  }}
+                >
+                  {sendPending ? 'Invio...' : 'Invia'}
+                </button>
               </div>
+              {sendError && (
+                <p style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
+                  {sendError}
+                </p>
+              )}
             </div>
           </>
         ) : (
