@@ -6,6 +6,70 @@
 
 ---
 
+## Sessione end-to-end scheletro backend — 2026-07-20
+
+Obiettivo: passare da componenti Symfony testati singolarmente a scheletro end-to-end verificato su PostgreSQL reale.
+
+### FASE 1 — Ambiente test PostgreSQL reale + integrazione TenantFilter ⚠️
+
+**Commit:** `test: integrazione TenantFilter su PostgreSQL reale`
+**Data:** 2026-07-20
+
+#### Implementato
+
+| File | Modifica |
+|---|---|
+| `docker/postgres/init/00_create_test_database.sql` | Crea `${POSTGRES_DB}_test` al primo avvio del container e applica gli stessi DDL `01..09` anche al DB di test |
+| `.env.test` | Configura Symfony test su PostgreSQL reale (`styll` con suffix Doctrine `_test`, quindi `styll_test`) |
+| `src/EventListener/TenantFilterSubscriber.php` | Abilita sempre `tenant_filter` sulle request principali; se manca tenant_id il filtro resta senza parametro e `TenantFilter` ritorna `1 = 0` |
+| `tests/Integration/TenantIsolationIntegrationTest.php` | Test reali su DB: 2 tenant, 2 set clienti/appuntamenti, token Symfony per tenant A/B, query Doctrine reali, caso senza autenticazione |
+
+#### DECISIONE PRESA — DB test separato
+
+**Scelta:** usare un database sibling `${POSTGRES_DB}_test` nello stesso container PostgreSQL e mantenere `dbname_suffix: _test` in Doctrine.
+**Motivo:** isola i dati dei test dal database di sviluppo senza introdurre SQLite o un secondo container. Gli init script applicano lo stesso DDL pulito a entrambi i database al primo bootstrap.
+
+#### DECISIONE PRESA — TenantFilter fail-closed anche senza autenticazione
+
+**Scelta:** il subscriber abilita il filtro anche quando `TenantContext` non risolve un tenant.
+**Motivo:** una query Doctrine eseguita in request senza tenant non deve mai degradare in fail-open. Con filtro abilitato e parametro assente, `TenantFilter` produce `1 = 0` e ritorna zero righe senza errore.
+
+#### Risultati test
+
+Comando eseguito contro PostgreSQL reale locale (`127.0.0.1:5432`, database `styll_test` preparato con gli stessi DDL):
+
+```bash
+cd symfony-app && DATABASE_URL='postgresql://tommasovezzaro@127.0.0.1:5432/styll?serverVersion=16&charset=utf8' ./bin/phpunit tests/Integration/TenantIsolationIntegrationTest.php tests/Doctrine/TenantFilterTest.php tests/Security/TenantContextTest.php
+```
+
+Output:
+
+```text
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.2.30
+Configuration: /Users/tommasovezzaro/Desktop/Styll-Symfony/symfony-app/phpunit.dist.xml
+
+...............                                                   15 / 15 (100%)
+
+Time: 00:00.935, Memory: 58.50 MB
+
+OK (15 tests, 29 assertions)
+```
+
+#### Verifica Docker
+
+La verifica richiesta con `docker-compose up -d postgres` **non è stata eseguibile in questa sessione** perché nell'ambiente CLI non sono disponibili né `docker-compose` né `docker`:
+
+```text
+/bin/bash: docker-compose: command not found
+/bin/bash: docker: command not found
+```
+
+Il comportamento del database è stato comunque verificato su PostgreSQL reale locale caricando tutti i DDL in `styll_test`. Prima del deploy scheletro su VPS resta da rieseguire il bootstrap Docker/Compose su una macchina con Docker installato.
+
+---
+
 ## Riepilogo sessione — 2026-07-20
 
 Sessione a tre fasi. FASE 1 e FASE 2 già committate su branch `symfony-schema-and-docs` nella sessione precedente. FASE 3 completata in questa sessione.

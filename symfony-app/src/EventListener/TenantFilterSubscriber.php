@@ -35,13 +35,10 @@ final class TenantFilterSubscriber
 
         $tenantId = $this->tenantContext->getTenantId();
 
-        if ($tenantId === null) {
-            // Unauthenticated or admin request — do NOT enable the filter.
-            // Unauthenticated API routes are protected by access_control in security.yaml.
-            return;
-        }
-
         $filter = $this->em->getFilters()->enable('tenant_filter');
-        $filter->setParameter('tenant_id', (string) $tenantId, 'uuid');
+
+        if ($tenantId !== null) {
+            $filter->setParameter('tenant_id', (string) $tenantId, 'uuid');
+        }
     }
 }
