@@ -10,23 +10,45 @@ import {
 
 // ── Mock DB builder ───────────────────────────────────────────────────────────
 //
-// Builds a minimal Supabase-shaped chain that resolves to `result` after
-// any sequence of .select/.eq/.order/.limit calls.
-// The `filters` map captures every .eq(column, value) call for assertions.
+// Builds a minimal Supabase-shaped mock with per-table response queues.
+// Every query resolves on `.limit(...)`, which is enough for the inbox query
+// layer implementation. Each table stores a list of captured filter maps.
 
-function makeMockDb(result, filters = {}) {
-  const chain = {
-    _filters: filters,
-    select: () => chain,
-    eq: (col, val) => {
-      chain._filters[col] = val
+function makeMockDb(tableResults, capturedCalls = {}) {
+  const queues = new Map(
+    Object.entries(tableResults).map(([table, results]) => [
+      table,
+      Array.isArray(results) ? results.slice() : [results],
+    ])
+  )
+
+  return {
+    from: (table) => {
+      const queryState = { filters: {} }
+      if (!capturedCalls[table]) capturedCalls[table] = []
+      capturedCalls[table].push(queryState)
+
+      const chain = {
+        select: () => chain,
+        eq: (col, val) => {
+          queryState.filters[col] = val
+          return chain
+        },
+        in: (col, val) => {
+          queryState.filters[col] = val
+          return chain
+        },
+        order: () => chain,
+        limit: () => {
+          const queue = queues.get(table) ?? []
+          const next = queue.shift() ?? { data: [], error: null }
+          queues.set(table, queue)
+          return Promise.resolve(next)
+        },
+      }
+
       return chain
     },
-    order: () => chain,
-    limit: () => Promise.resolve(result),
-  }
-  return {
-    from: () => chain,
   }
 }
 
@@ -42,9 +64,13 @@ test('queryInboxConversations: returns mapped conversations', async () => {
     unread_count: 3,
     status: 'new',
     ownership_mode: 'hybrid',
+    assigned_staff_id: 'staff-1',
+    ai_paused_at: '2026-07-19T08:00:00Z',
     channel: 'whatsapp',
   }]
-  const db = makeMockDb({ data: raw, error: null })
+  const db = makeMockDb({
+    inbox_conversations: { data: raw, error: null },
+  })
 
   const result = await queryInboxConversations(db, 'tenant-a')
 
@@ -53,26 +79,34 @@ test('queryInboxConversations: returns mapped conversations', async () => {
   assert.equal(result[0].contactName, 'Luca Rossi')
   assert.equal(result[0].unreadCount, 3)
   assert.equal(result[0].ownershipMode, 'hybrid')
+  assert.equal(result[0].assignedStaffId, 'staff-1')
+  assert.equal(result[0].aiPausedAt, '2026-07-19T08:00:00Z')
 })
 
 test('queryInboxConversations: tenant_id filter is always applied', async () => {
-  const capturedFilters = {}
-  const db = makeMockDb({ data: [], error: null }, capturedFilters)
+  const capturedCalls = {}
+  const db = makeMockDb({
+    inbox_conversations: { data: [], error: null },
+  }, capturedCalls)
 
   await queryInboxConversations(db, 'tenant-a')
 
-  assert.equal(capturedFilters['tenant_id'], 'tenant-a',
+  assert.equal(capturedCalls.inbox_conversations[0].filters['tenant_id'], 'tenant-a',
     'query must always filter by tenant_id')
 })
 
 test('queryInboxConversations: empty DB result → empty array, no error', async () => {
-  const db = makeMockDb({ data: null, error: null })
+  const db = makeMockDb({
+    inbox_conversations: { data: null, error: null },
+  })
   const result = await queryInboxConversations(db, 'tenant-a')
   assert.deepEqual(result, [])
 })
 
 test('queryInboxConversations: DB error → throws, does NOT return []', async () => {
-  const db = makeMockDb({ data: null, error: { message: 'connection refused' } })
+  const db = makeMockDb({
+    inbox_conversations: { data: null, error: { message: 'connection refused' } },
+  })
 
   await assert.rejects(
     () => queryInboxConversations(db, 'tenant-a'),
@@ -87,7 +121,8 @@ test('queryInboxConversations: DB error → throws, does NOT return []', async (
 
 test('queryInboxConversations: unread_count null → defaults to 0', async () => {
   const db = makeMockDb({
-    data: [{
+    inbox_conversations: {
+      data: [{
       id: 'conv-2',
       contact_display_name: null,
       contact_phone: null,
@@ -96,9 +131,12 @@ test('queryInboxConversations: unread_count null → defaults to 0', async () =>
       unread_count: null,  // DB could return null on brand-new row
       status: 'new',
       ownership_mode: 'human',
+      assigned_staff_id: null,
+      ai_paused_at: null,
       channel: 'whatsapp',
     }],
-    error: null,
+      error: null,
+    },
   })
   const result = await queryInboxConversations(db, 'tenant-a')
   assert.equal(result[0].unreadCount, 0)
@@ -107,42 +145,132 @@ test('queryInboxConversations: unread_count null → defaults to 0', async () =>
 // ── queryInboxMessages ────────────────────────────────────────────────────────
 
 test('queryInboxMessages: returns mapped messages', async () => {
-  const raw = [{
-    id: 'msg-1',
-    body_text: 'Ciao, avete posto?',
-    direction: 'inbound',
-    author_kind: 'customer',
-    created_at: '2026-07-18T10:05:00Z',
-    used_template: false,
-  }]
-  const db = makeMockDb({ data: raw, error: null })
+  const db = makeMockDb({
+    inbox_messages: {
+      data: [
+        {
+          id: 'msg-1',
+          body_text: 'Ciao, avete posto?',
+          direction: 'inbound',
+          author_kind: 'customer',
+          author_staff_id: null,
+          created_at: '2026-07-18T10:05:00Z',
+          used_template: false,
+          messages_log_id: null,
+        },
+        {
+          id: 'msg-2',
+          body_text: 'Ti confermo per domani.',
+          direction: 'outbound',
+          author_kind: 'human',
+          author_staff_id: 'staff-1',
+          created_at: '2026-07-18T10:06:00Z',
+          used_template: false,
+          messages_log_id: 'log-1',
+        },
+      ],
+      error: null,
+    },
+    messages_log: [
+      {
+        data: [{ id: 'log-1', status: 'delivered' }],
+        error: null,
+      },
+      {
+        data: [
+          {
+            id: 'audit-1',
+            type: 'conversation_audit',
+            body_sent: 'Sara ha preso in carico la conversazione.',
+            created_at: '2026-07-18T10:05:30Z',
+            metadata: { action: 'take_control' },
+          },
+          {
+            id: 'note-1',
+            type: 'internal_note',
+            body_sent: 'Cliente da richiamare nel pomeriggio.',
+            created_at: '2026-07-18T10:05:45Z',
+            metadata: {
+              actor: {
+                staff_id: 'staff-2',
+                display_name: 'Giulia',
+              },
+            },
+          },
+        ],
+        error: null,
+      },
+    ],
+  })
 
   const result = await queryInboxMessages(db, 'tenant-a', 'conv-1')
 
-  assert.equal(result.length, 1)
+  assert.equal(result.length, 4)
   assert.equal(result[0].bodyText, 'Ciao, avete posto?')
   assert.equal(result[0].direction, 'inbound')
   assert.equal(result[0].authorKind, 'customer')
   assert.equal(result[0].usedTemplate, false)
+  assert.equal(result[1].timelineKind, 'conversation_audit')
+  assert.equal(result[1].auditAction, 'take_control')
+  assert.equal(result[2].timelineKind, 'internal_note')
+  assert.equal(result[2].authorKind, 'human')
+  assert.equal(result[2].authorStaffId, 'staff-2')
+  assert.equal(result[2].authorName, 'Giulia')
+  assert.equal(result[3].deliveryStatus, 'delivered')
+  assert.equal(result[3].authorStaffId, 'staff-1')
 })
 
 test('queryInboxMessages: both tenant_id AND conversation_id filters applied (IDOR prevention)', async () => {
-  const capturedFilters = {}
-  const db = makeMockDb({ data: [], error: null }, capturedFilters)
+  const capturedCalls = {}
+  const db = makeMockDb({
+    inbox_messages: {
+      data: [{
+        id: 'msg-filter',
+        body_text: 'Ciao',
+        direction: 'outbound',
+        author_kind: 'human',
+        author_staff_id: 'staff-1',
+        created_at: '2026-07-18T10:00:00Z',
+        used_template: false,
+        messages_log_id: 'log-filter',
+      }],
+      error: null,
+    },
+    messages_log: [
+      { data: [{ id: 'log-filter', status: 'sent' }], error: null },
+      { data: [], error: null },
+    ],
+  }, capturedCalls)
 
   await queryInboxMessages(db, 'tenant-a', 'conv-xyz')
 
-  assert.equal(capturedFilters['tenant_id'], 'tenant-a',
+  assert.equal(capturedCalls.inbox_messages[0].filters['tenant_id'], 'tenant-a',
     'must filter by tenant_id')
-  assert.equal(capturedFilters['conversation_id'], 'conv-xyz',
+  assert.equal(capturedCalls.inbox_messages[0].filters['conversation_id'], 'conv-xyz',
     'must filter by conversation_id')
+  assert.equal(capturedCalls.messages_log[0].filters['tenant_id'], 'tenant-a',
+    'status query must keep tenant scope')
+  assert.deepEqual(capturedCalls.messages_log[0].filters['id'], ['log-filter'],
+    'status query must request only linked message_log ids')
+  assert.equal(capturedCalls.messages_log[1].filters['tenant_id'], 'tenant-a',
+    'audit query must keep tenant scope')
+  assert.equal(capturedCalls.messages_log[1].filters['conversation_id'], 'conv-xyz',
+    'audit query must keep conversation scope')
+  assert.deepEqual(capturedCalls.messages_log[1].filters['type'], ['conversation_audit', 'internal_note'],
+    'timeline query must only load audit and internal note rows')
 })
 
 test('queryInboxMessages: conversation from different tenant → empty (simulated IDOR attempt)', async () => {
   // The DB mock simulates what Supabase does: when tenant_id='tenant-a' AND
   // conversation_id belongs to 'tenant-b', the join returns 0 rows.
   // Here we simulate that the DB returns empty (correct behavior).
-  const db = makeMockDb({ data: [], error: null })
+  const db = makeMockDb({
+    inbox_messages: { data: [], error: null },
+    messages_log: [
+      { data: [], error: null },
+      { data: [], error: null },
+    ],
+  })
 
   const result = await queryInboxMessages(db, 'tenant-a', 'conv-from-tenant-b')
 
@@ -151,7 +279,9 @@ test('queryInboxMessages: conversation from different tenant → empty (simulate
 })
 
 test('queryInboxMessages: DB error → throws, not silently []', async () => {
-  const db = makeMockDb({ data: null, error: { message: 'timeout' } })
+  const db = makeMockDb({
+    inbox_messages: { data: null, error: { message: 'timeout' } },
+  })
 
   await assert.rejects(
     () => queryInboxMessages(db, 'tenant-a', 'conv-1'),
@@ -166,15 +296,23 @@ test('queryInboxMessages: DB error → throws, not silently []', async () => {
 
 test('queryInboxMessages: body_text null → preserved as null (not coerced)', async () => {
   const db = makeMockDb({
-    data: [{
+    inbox_messages: {
+      data: [{
       id: 'msg-media',
       body_text: null,
       direction: 'inbound',
       author_kind: 'customer',
+      author_staff_id: null,
       created_at: '2026-07-18T10:00:00Z',
       used_template: false,
+      messages_log_id: null,
     }],
-    error: null,
+      error: null,
+    },
+    messages_log: [
+      { data: [], error: null },
+      { data: [], error: null },
+    ],
   })
   const result = await queryInboxMessages(db, 'tenant-a', 'conv-1')
   assert.equal(result[0].bodyText, null,
@@ -183,18 +321,83 @@ test('queryInboxMessages: body_text null → preserved as null (not coerced)', a
 
 test('queryInboxMessages: used_template null → defaults to false', async () => {
   const db = makeMockDb({
-    data: [{
+    inbox_messages: {
+      data: [{
       id: 'msg-3',
       body_text: 'Hello',
       direction: 'outbound',
       author_kind: 'assistant',
+      author_staff_id: null,
       created_at: '2026-07-18T10:00:00Z',
       used_template: null,
+      messages_log_id: 'log-2',
     }],
-    error: null,
+      error: null,
+    },
+    messages_log: [
+      { data: [{ id: 'log-2', status: 'read' }], error: null },
+      { data: [], error: null },
+    ],
   })
   const result = await queryInboxMessages(db, 'tenant-a', 'conv-1')
   assert.equal(result[0].usedTemplate, false)
+  assert.equal(result[0].deliveryStatus, 'read')
+})
+
+test('queryInboxMessages: missing status for historical outbound degrades safely to sent', async () => {
+  const db = makeMockDb({
+    inbox_messages: {
+      data: [{
+        id: 'msg-historical',
+        body_text: 'Messaggio storico',
+        direction: 'outbound',
+        author_kind: 'human',
+        author_staff_id: 'staff-1',
+        created_at: '2026-07-18T10:00:00Z',
+        used_template: false,
+        messages_log_id: null,
+      }],
+      error: null,
+    },
+    messages_log: [
+      { data: [], error: null },
+      { data: [], error: null },
+    ],
+  })
+
+  const result = await queryInboxMessages(db, 'tenant-a', 'conv-1')
+  assert.equal(result[0].deliveryStatus, 'sent')
+})
+
+test('queryInboxMessages: audit log failure is surfaced', async () => {
+  const db = makeMockDb({
+    inbox_messages: {
+      data: [{
+        id: 'msg-audit',
+        body_text: 'Ciao',
+        direction: 'outbound',
+        author_kind: 'human',
+        author_staff_id: 'staff-1',
+        created_at: '2026-07-18T10:00:00Z',
+        used_template: false,
+        messages_log_id: 'log-audit',
+      }],
+      error: null,
+    },
+    messages_log: [
+      { data: [{ id: 'log-audit', status: 'sent' }], error: null },
+      { data: null, error: { message: 'audit timeout' } },
+    ],
+  })
+
+  await assert.rejects(
+    () => queryInboxMessages(db, 'tenant-a', 'conv-1'),
+    (err) => {
+      assert.ok(err instanceof Error)
+      assert.ok(err.message.includes('audit timeout'))
+      return true
+    }
+  )
 })
 
 // ── Webhook deduplication — structural guarantee ──────────────────────────────

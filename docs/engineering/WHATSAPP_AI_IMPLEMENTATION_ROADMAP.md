@@ -56,19 +56,20 @@ Priorita:
 ### Inbox, outbound e status
 
 - `partial` - inbox UI esiste in area dashboard (`InboxConversazioni.tsx`) e in admin tenant WhatsApp page; manca stabilizzazione completa operatore.
-- `partial` - reply manuale implementata in `apps/web/src/lib/messaging/manual-whatsapp-reply.ts` con draft su `messages_log` + `messaging_outbox`, invio diretto a Meta e persistenza coerente.
+- `partial` - reply manuale implementata in `apps/web/src/lib/messaging/manual-whatsapp-reply.ts` con draft su `messages_log` + `messaging_outbox`, invio diretto a Meta, persistenza coerente e nuovo worker locale per retry/reconciliation bounded.
 - `partial` - outbound reale dipende da env `META_WHATSAPP_ACCESS_TOKEN` e `META_WHATSAPP_GRAPH_API_VERSION`; non esiste evidenza nel repo di E2E con account Meta reale.
-- `partial` - delivery status gestiti in `message-delivery.ts` e dal webhook status; la UI inbox non legge ancora uno stato delivery persistito per tutta la timeline.
-- `todo` - retry worker server-side dell'outbox non implementato.
+- `done` - delivery status persistiti letti dalla timeline inbox via `messages_log`, con progressione monotona, fallback sicuro per storico privo di status e replay webhook idempotente coperto da test unitari.
+- `partial` - retry worker server-side dell'outbox implementato localmente con cron route autenticata, retry bounded e reconciliation locale; restano da aggiungere prove integration/SQL e gestione esplicita di stale `processing`.
 - `todo` - template enforcement per finestra 24 ore non implementato.
 - `todo` - allegati outbound/inbound oltre il payload minimale non completati.
 
 ### Realtime, handoff e AI
 
-- `todo` - nessuna sottoscrizione realtime inbox dedicata rilevata; realtime esiste altrove nel repo ma non nell'inbox WhatsApp.
-- `partial` - esistono stati conversazione e `ownership_mode` nello schema e nei contratti TypeScript.
+- `partial` - inbox realtime tenant-scoped implementato via sottoscrizioni Supabase su `inbox_conversations`, `inbox_messages` e `messages_log`, con refetch server-side conservativo; restano da aggiungere test realtime end-to-end su reconnessione e doppio evento.
+- `done` - state machine server-side centralizzata per `status`, `ownership_mode`, `assigned_staff_id` e `ai_paused_at`, con transizioni validate, audit append-only e route dedicate per la presa in carico.
 - `partial` - esiste una policy conservativa in `apps/web/src/lib/messaging/policy.ts` per handoff, sensitive data, tool policy e dispatch AI.
-- `todo` - nessun orchestratore AI draft-only, nessun prompt registry, nessun provider LLM astratto per inbox, nessuna UI di approvazione bozza.
+- `done` - Inbox operatore mostra assegnatario, stato AI pausata, autore umano, note interne e controlli `take_control` / `release_control` / `return_to_ai`; i `message echoes` umani del provider riallineano ownership e pausa AI tramite la stessa state machine.
+- `partial` - esistono contratti `draft-only`, tool registry tipizzato, prompt registry versionato e un runtime con persistenza `inbox_ai_runs`, provider selezionabile `fake|anthropic`, output strutturato `intent/confidence/handoff`, decision engine deterministico e approval UI minima; restano aperti retrieval storico delle bozze, consolidamento approval flow e feedback loop.
 
 ## Dipendenze esterne gia note
 
@@ -88,7 +89,13 @@ Priorita:
 - Test richiesti: unit test query mapping; test UI mirato; replay status webhook.
 - Definition of done: la timeline carica stati delivery persistiti anche dopo reload e non solo da optimistic update.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-19:
+
+- la query timeline mergea `inbox_messages` con `messages_log` per status delivery persistiti e audit sintetici;
+- la UI inbox renderizza `pending`, `sent`, `delivered`, `read`, `failed` anche dopo refresh;
+- i test coprono mapping DB -> UI, fallback su status assente e monotonicita degli update webhook.
 
 ### Task 1.2 - Realtime inbox e visual refresh coerente
 
@@ -99,7 +106,14 @@ Priorita:
 - Test richiesti: cross-tenant realtime test, test di doppio evento, test di reconnessione.
 - Definition of done: nuovi messaggi e status aggiornano conversazione e timeline senza ricaricare pagina e senza mostrare dati di tenant diversi.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- `InboxConversazioni.tsx` apre un canale realtime tenant-scoped e ascolta `inbox_conversations`, `inbox_messages` e `messages_log`;
+- gli eventi rilevanti ricaricano lista conversazioni e timeline tramite le query server-side esistenti, evitando merge client-side non autorizzati;
+- helper dedicati limitano il refresh ai tipi `conversation_audit`, `internal_note` e `whatsapp_status`;
+- restano da coprire con test integration/E2E la reconnessione, il doppio evento e la verifica realtime cross-tenant con Supabase locale.
 
 ### Task 1.3 - Retry e reconciliation outbound
 
@@ -110,7 +124,14 @@ Priorita:
 - Test richiesti: failure simulation, retry bounded, idempotency regression.
 - Definition of done: un fallimento transiente non richiede intervento manuale immediato e non produce falsi successi.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- `messaging_outbox` mantiene ora payload tipizzato, contesto attore e stato provider necessario alla riconciliazione locale;
+- nuova route autenticata `api/cron/messaging-outbox` processa la coda con retry bounded, dead-letter locale e claim condizionale;
+- i fallimenti di persistenza dopo un `send` provider accettato non reinviano il messaggio: il worker usa il `provider_result` salvato nel payload per riconciliare `inbox_messages`;
+- restano da coprire test integration/SQL su stale `processing`, replay completo con Supabase locale e validazione end-to-end con provider reale.
 
 ### Task 1.4 - E2E outbound reale, error UX e fallback operatore
 
@@ -132,7 +153,14 @@ Priorita:
 - Test richiesti: authorization test per assignment, audit trail test, cross-tenant UI test.
 - Definition of done: un operatore puo prendere in carico, lasciare note operative, rilasciare la conversazione e vedere l'autore dei messaggi umani.
 - Priorita: `P0`
-- Stato: `partial`
+- Stato: `done`
+
+Aggiornamento 2026-07-20:
+
+- presa in carico, rilascio, ritorno all'AI e autore outbound umano sono implementati nella Inbox esistente;
+- audit ownership e autore sono persistiti e visibili nella timeline;
+- le note interne tenant-scoped vengono persistite in `messages_log` con `type = internal_note`, autore strutturato e visibilita `tenant_staff_only`;
+- la UI offre composizione dedicata, loading/error state e rollback conservativo senza creare una seconda Inbox.
 
 ### Task 1.6 - Template fuori finestra 24 ore e allegati
 
@@ -156,7 +184,13 @@ Priorita:
 - Test richiesti: unit test su transizioni, regression test su transizioni vietate.
 - Definition of done: nessuna route aggiorna `status` con stringhe arbitrarie; tutte passano da un service con guardie.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-19:
+
+- nuovo core `conversation-state` con transizioni pure, idempotenza locale e race detection via conditional update;
+- route `api/inbox/conversations/[conversationId]/ownership` centralizza le mutazioni di ownership;
+- la manual reply sincronizza `HUMAN_ACTIVE` tramite lo stesso service server-side.
 
 ### Task 2.2 - Controlli operatore: AI paused, human assigned, take control, return to AI
 
@@ -167,7 +201,13 @@ Priorita:
 - Test richiesti: authorization, race tests, optimistic UI rollback.
 - Definition of done: lo stato operativo e sempre visibile e modificabile solo da ruoli autorizzati.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-19:
+
+- la Inbox esistente mostra assegnatario, stato AI pausata e controlli `Prendi in carico`, `Rilascia`, `Rimetti in AI`;
+- i controlli usano optimistic update con rollback su errore;
+- cross-tenant e membership inattiva restano bloccati dal service server-side e dai test del core.
 
 ### Task 2.3 - Message echoes e gestione race AI/human
 
@@ -178,7 +218,14 @@ Priorita:
 - Test richiesti: replay test con echo, race test AI/human.
 - Definition of done: un echo umano aggiorna ownership e impedisce output AI concorrente.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-20:
+
+- l'adapter Meta normalizza `smb_message_echoes` come eventi outbound umani idempotenti;
+- il webhook passa gli echo dalla stessa state machine server-side con azione `human_message_echo`, che porta la conversazione in `human_active`, forza `ownership_mode = human` e mette in pausa l'AI;
+- la persistenza locale usa `messages_log` e `inbox_messages` con dedupe su `meta_message_id`, senza downgrade degli stati gia acquisiti;
+- se l'assegnazione interna non e ricavabile dal payload provider, viene preservato l'assegnatario esistente oppure la conversazione resta human-owned non assegnata.
 
 ### Task 2.4 - Audit handoff e ownership
 
@@ -189,7 +236,13 @@ Priorita:
 - Test richiesti: audit persistence tests, visibility tests.
 - Definition of done: ogni passaggio di ownership e motivato, timestampato e attribuito.
 - Priorita: `P1`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-19:
+
+- ogni mutazione ownership scrive un audit append-only in `messages_log` con `type = conversation_audit`;
+- il payload audit conserva attore, motivo, stato/ownership da -> a, assignee e timestamp;
+- la timeline inbox espone questi eventi come messaggi di sistema senza richiedere nuove tabelle.
 
 ## Epic 3 - AI draft-only
 
@@ -202,7 +255,14 @@ Priorita:
 - Test richiesti: unit test su contracts, parsing e validation.
 - Definition of done: esiste un confine netto fra LLM provider, prompt, tool registry e policy gate.
 - Priorita: `P0`
-- Stato: `partial`
+- Stato: `done`
+
+Aggiornamento 2026-07-20:
+
+- aggiunto un contratto `AiDraftProvider` tipizzato in `apps/web/src/lib/ai/draft-provider.ts`;
+- aggiunto `tool-registry.ts` con metadata esaustivi per `InboxToolName`, categorie, conferme richieste e allineamento automatico con il policy gate;
+- aggiunto `prompt-registry.ts` per fissare prompt id/versione e istruzioni `draft-only` stabili;
+- il confine tra provider abstraction, prompt, tool registry e policy gate e ora esplicito; resta da costruire solo l orchestratore runtime delle bozze.
 
 ### Task 3.2 - Prompt registry, context builder e knowledge tenant
 
@@ -213,7 +273,16 @@ Priorita:
 - Test richiesti: unit test su sanitizzazione contesto, fixture prompt versions.
 - Definition of done: ogni bozza indica versione prompt e fonti dati usate.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `done`
+
+Aggiornamento 2026-07-20:
+
+- aggiunto `apps/web/src/lib/ai/prompt-registry.ts` con prompt versionato `whatsapp_inbox_draft_only@2026-07-20.v1`;
+- aggiunto `apps/web/src/lib/ai/inbox-draft-context-core.ts` con sanitizzazione deterministica del transcript, redazione minima di email/telefono, finestra messaggi limitata e sezioni di contesto ordinate;
+- aggiunto `apps/web/src/lib/ai/inbox-draft-context.ts` per caricare tenant profile, servizi, orari e messaggi recenti con guardia `requireInboxTenantContext` e query sempre tenant-scoped;
+- ogni richiesta draft-only preparata ora espone `promptId`, `promptVersion`, `systemPrompt`, `contextSections`, `allowedTools` e `sources` tracciate per l attribution futura delle bozze;
+- l audit successivo ha corretto un difetto reale del loader messaggi: il contesto ora legge la finestra piu recente in ordine deterministico (`created_at desc`, `id desc`) e usa gli stessi limiti del prompt registry per DB e costruzione pura;
+- nessuna chiamata LLM reale e stata introdotta in questa fase.
 
 ### Task 3.3 - Draft response, sources e approval UI
 
@@ -224,7 +293,21 @@ Priorita:
 - Test richiesti: UI approval flow, no-send invariant tests.
 - Definition of done: l'operatore vede bozza, fonti sintetiche e puo approvare/modificare/scartare.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- aggiunto `inbox-draft-orchestrator-core.ts` come orchestratore esplicito della bozza: prepara il contesto, invoca un provider, valida la risposta, normalizza fonti/tool advisory e non invia mai messaggi;
+- aggiunto `deterministic-fake-draft-provider.ts` come provider locale deterministico per test e harness offline, senza dipendenze esterne e senza esecuzione automatica dei tool richiesti;
+- aggiunto `anthropic-draft-provider.ts` come primo provider reale via SDK ufficiale Anthropic, con selezione configurabile tramite env `INBOX_AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, modello `claude-sonnet-5` e output JSON strutturato;
+- riusato `inbox_ai_runs` per audit/persistenza dei run `draft_only` con `status started/completed/failed`, `final_policy_decision`, `input_context` e `output_summary`, senza introdurre modelli paralleli;
+- aggiunta route `api/inbox/conversations/[conversationId]/draft` e una prima approval surface nella Inbox esistente: genera bozza, mostra fonti sintetiche, consente edit locale, scarto e approvazione esplicita nel box di risposta manuale;
+- il provider reale classifica ora `intent`, `handoff` e `confidence`, mantiene `requested_tools` solo advisory e non espone il reasoning interno agli operatori;
+- la UI non espone `sourceRef` interni, non esegue tool, non invia messaggi automaticamente e riusa il path manual-send gia esistente solo dopo approvazione esplicita dell operatore;
+- il runtime ora applica un decision engine deterministico che consuma `intent`, `confidence`, `handoff`, fonti citate, requested tools advisory, stato conversazione e config tenant-scoped senza delegare la decisione finale al modello;
+- il risultato pubblico della bozza espone decisione, motivo, suggerimento handoff e completezza delle richieste appointment, cosi l operatore puo distinguere draft review, handoff consigliato, FAQ candidate e action prepare candidate senza auto-send;
+- `inbox_ai_runs` registra ora anche esito decisionale, missing fields e `handoff_reason`, mentre la Inbox riusa la state machine esistente per accettare il suggerimento di handoff tramite `take_control`;
+- restano aperti retrieval della bozza dopo refresh, associazione esplicita `approval -> inbox_ai_run`, audit di discard/edit e surface piu ricca per requested tools/feedback.
 
 ### Task 3.4 - Feedback loop, safety gate ed evaluation dataset
 
@@ -235,7 +318,13 @@ Priorita:
 - Test richiesti: regression suite su dataset, safety scenarios, red-team prompts.
 - Definition of done: esiste un dataset locale versionato e un modo ripetibile di misurare regressioni.
 - Priorita: `P1`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- aggiunta una suite offline locale con conversazioni rappresentative per `booking`, `pricing`, `opening_hours`, `greeting`, `complaint`, `reschedule`, `cancellation`, informazioni mancanti e messaggi poco chiari;
+- i test di evaluation verificano classificazione conservativa, handoff, requested tools advisory e assenza di claim di auto-send;
+- resta da collegare il dataset ai futuri feedback operatori persistiti e a metriche comparative tra provider/versioni prompt.
 
 ## Epic 4 - FAQ automatiche
 
@@ -340,7 +429,14 @@ Priorita:
 - Test richiesti: routing fixtures, high-risk scenarios, false positive/negative review.
 - Definition of done: ogni messaggio inbound passa in una pipeline di classificazione esplicita.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- introdotto `apps/web/src/lib/ai/inbox-draft-decision.ts` come layer deterministico esplicito sopra l output provider;
+- il routing ora distingue `draft_review`, `human_handoff`, `auto_reply_candidate`, `action_prepare_candidate` e `blocked` usando codice applicativo tipizzato, non autorizzazioni delegate al modello;
+- le regole conservative coprono `complaint`, `human_request`, `unknown`, bassa confidenza, fonti insufficienti, AI pausata e ownership umana;
+- restano da collegare i futuri ingressi inbound automatici a questa pipeline prima di qualunque auto-reply reale.
 
 ### Task 6.2 - Automatic reply policy, cost quotas, fallback e handoff
 
@@ -351,7 +447,14 @@ Priorita:
 - Test richiesti: budget exhaustion tests, kill-switch tests, service-window tests.
 - Definition of done: le reply automatiche si spengono o scalano a umano in modo prevedibile.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- il decision engine applica gia gate espliciti per `auto_reply_candidate` solo su intent low-risk (`greeting`, `pricing`, `opening_hours`, `faq`) con soglia dedicata, fonti coerenti, nessun tool mutativo e nessun blocco ownership/AI pause;
+- l handoff e sempre deterministico e spiegabile, con suggerimento UI e persistenza audit su `inbox_ai_runs`, ma senza trasferimenti silenziosi o reply automatiche;
+- l automazione reale resta disabilitata: nessun invio WhatsApp automatico e nessuna esecuzione tool mutativa sono stati abilitati in questa fase;
+- restano aperti kill-switch globale esplicito, quote/costi runtime e fallback sull orchestratore inbound prima di consentire `faq_auto`.
 
 ### Task 6.3 - Gradual rollout e configurazione per tenant
 
@@ -362,7 +465,14 @@ Priorita:
 - Test richiesti: config matrix tests, rollout gating tests.
 - Definition of done: si puo abilitare per tenant, ambiente e fase funzionale.
 - Priorita: `P1`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- riusato `tenants.settings.ai_receptionist` come superficie minima di rollout, senza nuove tabelle o framework settings dedicati;
+- supportate modalita server-side `disabled`, `draft_only`, `supervised` e `autonomous_faq`, con default sicuro `draft_only`;
+- supportate soglie tenant-scoped, allowed autonomous intents e primi input di personalizzazione (`preferred_tone`, `greeting_style`, `escalation_instructions`) consumati da context builder/prompt;
+- resta aperta una surface amministrativa dedicata piu guidata rispetto all attuale editor JSON raw.
 
 ## Epic 7 - Compliance e governance
 
@@ -403,14 +513,11 @@ Priorita:
 
 Questi task sono adatti a una lunga sessione autonoma senza sistemi esterni:
 
-1. Implementare un service server-side di state machine conversazione che centralizzi `status` e `ownership_mode`.
-2. Estendere query/UI inbox per leggere lo stato delivery persistito dai `messages_log`.
-3. Aggiungere assegnazione e presa in carico con test di autorizzazione e cross-tenant.
-4. Aggiungere note interne e audit minimo autore/azione senza introdurre SQL arbitrario o integrazioni esterne.
-5. Consolidare `contracts.ts`, `policy.ts` e un registry tipizzato per tool AI draft-only.
-6. Costruire un evaluation harness locale con fixture e dataset per draft-only, senza chiamate LLM reali.
-7. Aggiungere sottoscrizione realtime inbox scoped per tenant con test di isolamento.
-8. Rafforzare la suite SQL/unit per dedupe, race e idempotenza booking-adjacent.
+1. Rafforzare la suite SQL/integration su assignment state, note interne, audit visibility, realtime tenant isolation e worker `messaging_outbox`, quando Supabase locale e disponibile.
+2. Completare `Task 3.3` con retrieval delle bozze persistite da `inbox_ai_runs` dopo refresh, audit approval/discard e collegamento esplicito della bozza approvata al send manuale.
+3. Rafforzare `Task 3.4` collegando feedback operatore, scoring comparativo e replay delle bozze persistite al dataset offline.
+4. Gestire recovery esplicito delle righe `messaging_outbox` stale in `processing` e aggiungere regression test dedicati.
+5. Implementare `Task 4.1` con FAQ deterministic engine read-only per business info, servizi, prezzi e orari.
 
 Task non adatti a batch autonomo non presidiato:
 

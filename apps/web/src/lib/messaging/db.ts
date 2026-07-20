@@ -33,8 +33,10 @@ export interface MessagingDatabase {
       }
       inbox_conversations: {
         Row: {
+          ai_paused_at: string | null
           assigned_staff_id: string | null
           channel: 'whatsapp'
+          closed_at: string | null
           client_id: string | null
           contact_display_name: string | null
           contact_phone: string | null
@@ -43,11 +45,15 @@ export interface MessagingDatabase {
           external_contact_id: string
           id: string
           integration_id: string | null
+          last_business_message_at: string | null
+          last_customer_message_at: string | null
           last_message_at: string | null
           last_message_preview: string | null
+          last_template_message_at: string | null
           ownership_mode: 'ai' | 'human' | 'hybrid'
           provider: 'meta_whatsapp'
           provider_phone_number_id: string
+          resolved_at: string | null
           service_window_expires_at: string | null
           status: string
           tenant_id: string
@@ -55,8 +61,10 @@ export interface MessagingDatabase {
           updated_at: string
         }
         Insert: {
+          ai_paused_at?: string | null
           assigned_staff_id?: string | null
           channel: 'whatsapp'
+          closed_at?: string | null
           client_id?: string | null
           contact_display_name?: string | null
           contact_phone?: string | null
@@ -65,11 +73,15 @@ export interface MessagingDatabase {
           external_contact_id: string
           id?: string
           integration_id?: string | null
+          last_business_message_at?: string | null
+          last_customer_message_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_template_message_at?: string | null
           ownership_mode?: 'ai' | 'human' | 'hybrid'
           provider: 'meta_whatsapp'
           provider_phone_number_id: string
+          resolved_at?: string | null
           service_window_expires_at?: string | null
           status?: string
           tenant_id: string
@@ -77,8 +89,10 @@ export interface MessagingDatabase {
           updated_at?: string
         }
         Update: {
+          ai_paused_at?: string | null
           assigned_staff_id?: string | null
           channel?: 'whatsapp'
+          closed_at?: string | null
           client_id?: string | null
           contact_display_name?: string | null
           contact_phone?: string | null
@@ -87,11 +101,15 @@ export interface MessagingDatabase {
           external_contact_id?: string
           id?: string
           integration_id?: string | null
+          last_business_message_at?: string | null
+          last_customer_message_at?: string | null
           last_message_at?: string | null
           last_message_preview?: string | null
+          last_template_message_at?: string | null
           ownership_mode?: 'ai' | 'human' | 'hybrid'
           provider?: 'meta_whatsapp'
           provider_phone_number_id?: string
+          resolved_at?: string | null
           service_window_expires_at?: string | null
           status?: string
           tenant_id?: string
@@ -154,6 +172,96 @@ export interface MessagingDatabase {
           raw_payload?: Json
           tenant_id?: string
           used_template?: boolean
+        }
+        Relationships: []
+      }
+      inbox_assignments: {
+        Row: {
+          assigned_by_profile_id: string | null
+          assigned_staff_id: string | null
+          assignment_reason: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          released_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          assigned_by_profile_id?: string | null
+          assigned_staff_id?: string | null
+          assignment_reason?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          released_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          assigned_by_profile_id?: string | null
+          assigned_staff_id?: string | null
+          assignment_reason?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          released_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      inbox_ai_runs: {
+        Row: {
+          completed_at: string | null
+          completion_tokens: number
+          conversation_id: string
+          cost_cents: number
+          created_at: string
+          final_policy_decision: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
+          handoff_reason: string | null
+          id: string
+          input_context: Json
+          message_id: string | null
+          mode: 'draft_only' | 'faq_auto' | 'transaction_prepare'
+          model: string
+          output_summary: string | null
+          prompt_tokens: number
+          status: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          tenant_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completion_tokens?: number
+          conversation_id: string
+          cost_cents?: number
+          created_at?: string
+          final_policy_decision?: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
+          handoff_reason?: string | null
+          id?: string
+          input_context?: Json
+          message_id?: string | null
+          mode: 'draft_only' | 'faq_auto' | 'transaction_prepare'
+          model: string
+          output_summary?: string | null
+          prompt_tokens?: number
+          status: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          tenant_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completion_tokens?: number
+          conversation_id?: string
+          cost_cents?: number
+          created_at?: string
+          final_policy_decision?: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
+          handoff_reason?: string | null
+          id?: string
+          input_context?: Json
+          message_id?: string | null
+          mode?: 'draft_only' | 'faq_auto' | 'transaction_prepare'
+          model?: string
+          output_summary?: string | null
+          prompt_tokens?: number
+          status?: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          tenant_id?: string
         }
         Relationships: []
       }

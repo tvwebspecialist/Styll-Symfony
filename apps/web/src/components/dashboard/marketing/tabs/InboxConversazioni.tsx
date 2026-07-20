@@ -2,12 +2,27 @@
 
 import * as React from 'react'
 import { MessageSquare, Search, Bot, User, Users, ArrowLeft, Phone, CheckCheck } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import {
+  approveInboxDraftApproval,
+  createInboxDraftApprovalState,
+  discardInboxDraftApproval,
+  editInboxDraftApprovalText,
+  type InboxDraftApprovalState,
+} from '@/lib/ai/inbox-draft-approval-core'
 import { getInboxConversations, getInboxMessages, type InboxConversation, type InboxMessage } from '@/lib/actions/inbox'
+import {
+  buildInboxRealtimeTenantFilter,
+  extractRealtimeConversationId,
+  shouldRefreshInboxMessagesFromLog,
+} from '@/lib/messaging/inbox-realtime'
 import { formatTime, formatMsgTime, getInitials } from '../inbox-utils'
 
 type UiInboxMessage = InboxMessage & {
   deliveryStatus?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
 }
+
+type OwnershipAction = 'take_control' | 'release_control' | 'return_to_ai'
 
 type SendMessageApiResponse =
   | {
@@ -19,9 +34,109 @@ type SendMessageApiResponse =
         bodyText: string
         direction: 'outbound'
         authorKind: 'human'
+        authorName: string | null
         createdAt: string
         usedTemplate: false
         deliveryStatus: 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
+      }
+    }
+  | {
+      ok: false
+      error: {
+        code: string
+        message: string
+      }
+    }
+
+type InternalNoteApiResponse =
+  | {
+      ok: true
+      note: {
+        id: string
+        conversationId: string
+        bodyText: string
+        direction: 'system'
+        authorKind: 'human'
+        authorStaffId: string
+        authorName: string | null
+        createdAt: string
+        usedTemplate: false
+        timelineKind: 'internal_note'
+      }
+    }
+  | {
+      ok: false
+      error: {
+        code: string
+        message: string
+      }
+    }
+
+type GenerateDraftApiResponse =
+  | {
+      ok: true
+      draft: {
+        text: string
+        promptId: string
+        promptVersion: string
+        providerLabel: string
+        sources: Array<{
+          kind: 'conversation' | 'knowledge' | 'policy' | 'tool_result'
+          label: string
+        }>
+        decision: {
+          kind: 'draft_review' | 'human_handoff' | 'auto_reply_candidate' | 'action_prepare_candidate' | 'blocked'
+          reasonCode: string
+          reasonSummary: string
+          handoffRecommended: boolean
+          appointmentPreparation: {
+            action: 'booking' | 'reschedule' | 'cancellation'
+            eligible: boolean
+            completeFields: Array<
+              | 'customer_identity'
+              | 'service'
+              | 'requested_date'
+              | 'requested_time_or_window'
+              | 'current_appointment_reference'
+            >
+            missingFields: Array<
+              | 'customer_identity'
+              | 'service'
+              | 'requested_date'
+              | 'requested_time_or_window'
+              | 'current_appointment_reference'
+            >
+            nextQuestion: string | null
+          } | null
+        }
+      }
+    }
+  | {
+      ok: false
+      error: {
+        code: string
+        message: string
+      }
+    }
+
+type DraftDecisionPayload = Extract<GenerateDraftApiResponse, { ok: true }>['draft']['decision']
+type AppointmentPreparationPayload = NonNullable<DraftDecisionPayload['appointmentPreparation']>
+
+type OwnershipApiResponse =
+  | {
+      ok: true
+      changed: boolean
+      conversation: {
+        conversationId: string
+        status: InboxConversation['status']
+        ownershipMode: InboxConversation['ownershipMode']
+        assignedStaffId: string | null
+        aiPausedAt: string | null
+      }
+      actor: {
+        staffId: string
+        displayName: string | null
+        role: string
       }
     }
   | {
@@ -50,6 +165,49 @@ function statusLabel(status: string): string {
   return map[status] ?? status
 }
 
+function decisionLabel(kind: DraftDecisionPayload['kind']): string {
+  const map = {
+    draft_review: 'Bozza con revisione umana',
+    human_handoff: 'Handoff consigliato',
+    auto_reply_candidate: 'FAQ candidata',
+    action_prepare_candidate: 'Azione preparabile',
+    blocked: 'Bloccata',
+  } as const
+
+  return map[kind]
+}
+
+function decisionAccent(kind: DraftDecisionPayload['kind']) {
+  switch (kind) {
+    case 'human_handoff':
+      return { color: '#B45309', background: '#FFFBEB', border: '#FCD34D' }
+    case 'auto_reply_candidate':
+      return { color: '#065F46', background: '#ECFDF5', border: '#A7F3D0' }
+    case 'action_prepare_candidate':
+      return { color: '#1D4ED8', background: '#EFF6FF', border: '#BFDBFE' }
+    case 'blocked':
+      return { color: '#B91C1C', background: '#FEF2F2', border: '#FECACA' }
+    case 'draft_review':
+    default:
+      return { color: '#6D28D9', background: '#F5F3FF', border: '#DDD6FE' }
+  }
+}
+
+function appointmentFieldLabel(field: AppointmentPreparationPayload['missingFields'][number]): string {
+  switch (field) {
+    case 'customer_identity':
+      return 'cliente associato'
+    case 'service':
+      return 'servizio'
+    case 'requested_date':
+      return 'data richiesta'
+    case 'requested_time_or_window':
+      return 'orario o fascia richiesta'
+    case 'current_appointment_reference':
+      return 'riferimento appuntamento attuale'
+  }
+}
+
 function OwnershipBadge({ mode }: { mode: 'ai' | 'human' | 'hybrid' }) {
   const cfg = {
     ai:     { icon: Bot,   color: '#7C3AED', bg: '#EDE9FE', label: 'AI'     },
@@ -63,6 +221,22 @@ function OwnershipBadge({ mode }: { mode: 'ai' | 'human' | 'hybrid' }) {
       <span style={{ fontSize: 9, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{cfg.label}</span>
     </span>
   )
+}
+
+function deliveryStatusLabel(status: UiInboxMessage['deliveryStatus']): string {
+  switch (status) {
+    case 'pending':
+      return 'In coda'
+    case 'delivered':
+      return 'Consegnato'
+    case 'read':
+      return 'Letto'
+    case 'failed':
+      return 'Fallito'
+    case 'sent':
+    default:
+      return 'Inviato'
+  }
 }
 
 function appendOrReplaceMessage(
@@ -79,22 +253,91 @@ function appendOrReplaceMessage(
   return cloned
 }
 
-function updateConversationAfterReply(
+function patchConversation(
   current: InboxConversation[],
   conversationId: string,
-  bodyText: string,
-  createdAt: string,
+  patch: Partial<InboxConversation>,
 ): InboxConversation[] {
   const index = current.findIndex((conversation) => conversation.id === conversationId)
   if (index === -1) return current
 
   const updated: InboxConversation = {
     ...current[index],
-    lastMessagePreview: bodyText,
-    lastMessageAt: createdAt,
+    ...patch,
   }
 
   return [updated, ...current.slice(0, index), ...current.slice(index + 1)]
+}
+
+function updateConversationAfterReply(
+  current: InboxConversation[],
+  input: {
+    conversationId: string
+    bodyText: string
+    createdAt: string
+    authorName: string | null
+  },
+): InboxConversation[] {
+  const conversation = current.find((item) => item.id === input.conversationId)
+  if (!conversation) return current
+
+  return patchConversation(current, input.conversationId, {
+    lastMessagePreview: input.bodyText,
+    lastMessageAt: input.createdAt,
+    status: 'human_active',
+    ownershipMode: 'human',
+    assignedStaffId: conversation.assignedStaffId ?? '__optimistic_self__',
+    assignedStaffName: input.authorName ?? conversation.assignedStaffName ?? 'Tu',
+    aiPausedAt: conversation.aiPausedAt ?? input.createdAt,
+  })
+}
+
+function getOptimisticOwnershipPatch(
+  conversation: InboxConversation,
+  action: OwnershipAction,
+): Partial<InboxConversation> {
+  const now = new Date().toISOString()
+
+  switch (action) {
+    case 'take_control':
+      return {
+        status: 'human_assigned',
+        ownershipMode: 'human',
+        assignedStaffId: conversation.assignedStaffId ?? '__optimistic_self__',
+        assignedStaffName: conversation.assignedStaffName ?? 'Tu',
+        aiPausedAt: conversation.aiPausedAt ?? now,
+      }
+    case 'release_control':
+      return {
+        status: 'ai_paused',
+        ownershipMode: 'hybrid',
+        assignedStaffId: null,
+        assignedStaffName: null,
+        aiPausedAt: now,
+      }
+    case 'return_to_ai':
+      return {
+        status: 'ai_active',
+        ownershipMode: 'ai',
+        assignedStaffId: null,
+        assignedStaffName: null,
+        aiPausedAt: null,
+      }
+  }
+}
+
+function getPersistedOwnershipPatch(
+  response: Extract<OwnershipApiResponse, { ok: true }>,
+): Partial<InboxConversation> {
+  return {
+    status: response.conversation.status,
+    ownershipMode: response.conversation.ownershipMode,
+    assignedStaffId: response.conversation.assignedStaffId,
+    assignedStaffName: response.conversation.assignedStaffId
+      ? response.actor.displayName ?? 'Operatore'
+      : null,
+    aiPausedAt: response.conversation.aiPausedAt,
+  }
 }
 
 // ── Conversation List Row ─────────────────────────────────────────────────────
@@ -188,6 +431,20 @@ function ConvRow({ conv, active, onClick }: { conv: InboxConversation; active: b
             )}
           </div>
         </div>
+        {(conv.assignedStaffName || conv.aiPausedAt) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+            {conv.assignedStaffName && (
+              <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                In carico: {conv.assignedStaffName}
+              </span>
+            )}
+            {conv.aiPausedAt && (
+              <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>
+                AI in pausa
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </button>
   )
@@ -197,9 +454,10 @@ function ConvRow({ conv, active, onClick }: { conv: InboxConversation; active: b
 
 function MsgBubble({ msg }: { msg: UiInboxMessage }) {
   const isInbound = msg.direction === 'inbound'
-  const isSystem = msg.direction === 'system'
+  const isAudit = msg.timelineKind === 'conversation_audit'
+  const isInternalNote = msg.timelineKind === 'internal_note'
 
-  if (isSystem) {
+  if (isAudit) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
         <span style={{
@@ -215,6 +473,38 @@ function MsgBubble({ msg }: { msg: UiInboxMessage }) {
     )
   }
 
+  if (isInternalNote) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '0 16px', margin: '10px 0' }}>
+        <div style={{
+          width: 'min(100%, 420px)',
+          background: '#FFF7ED',
+          border: '1px solid #FED7AA',
+          borderRadius: 14,
+          padding: '10px 12px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#C2410C', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Nota interna
+            </span>
+            <span style={{ fontSize: 10, color: '#9A3412' }}>
+              {formatMsgTime(msg.createdAt)}
+            </span>
+          </div>
+          {msg.authorName && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#B45309', marginBottom: 4 }}>
+              {msg.authorName}
+            </div>
+          )}
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: '#7C2D12', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {msg.bodyText ?? '—'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const bubbleBg = isInbound ? '#FFFFFF' : '#DCF8C6'
   const deliveryColor = msg.deliveryStatus === 'failed'
     ? '#EF4444'
@@ -224,7 +514,7 @@ function MsgBubble({ msg }: { msg: UiInboxMessage }) {
   const labelCfg = {
     customer:  { color: '#059669', label: null },
     assistant: { color: '#7C3AED', label: 'AI' },
-    human:     { color: '#D97706', label: 'Staff' },
+    human:     { color: '#D97706', label: msg.authorName ?? 'Operatore' },
     system:    { color: '#888',    label: 'Sistema' },
   }[msg.authorKind] ?? { color: '#888', label: null }
 
@@ -255,7 +545,12 @@ function MsgBubble({ msg }: { msg: UiInboxMessage }) {
             {formatMsgTime(msg.createdAt)}
           </span>
           {!isInbound && (
-            <CheckCheck size={12} color={deliveryColor} />
+            <>
+              <span style={{ fontSize: 10, color: deliveryColor, fontWeight: 600 }}>
+                {deliveryStatusLabel(msg.deliveryStatus)}
+              </span>
+              <CheckCheck size={12} color={deliveryColor} aria-label={deliveryStatusLabel(msg.deliveryStatus)} />
+            </>
           )}
         </div>
       </div>
@@ -310,8 +605,17 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
   const [msgError, setMsgError] = React.useState(false)
   const [showThread, setShowThread] = React.useState(false)
   const [draft, setDraft] = React.useState('')
+  const [noteDraft, setNoteDraft] = React.useState('')
+  const [notePending, setNotePending] = React.useState(false)
+  const [noteError, setNoteError] = React.useState<string | null>(null)
+  const [showNoteComposer, setShowNoteComposer] = React.useState(false)
+  const [aiDraft, setAiDraft] = React.useState<InboxDraftApprovalState | null>(null)
+  const [aiDraftPending, setAiDraftPending] = React.useState(false)
+  const [aiDraftError, setAiDraftError] = React.useState<string | null>(null)
   const [sendPending, setSendPending] = React.useState(false)
   const [sendError, setSendError] = React.useState<string | null>(null)
+  const [ownershipPending, setOwnershipPending] = React.useState<OwnershipAction | null>(null)
+  const [ownershipError, setOwnershipError] = React.useState<string | null>(null)
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -376,6 +680,97 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
     if (!msgLoading) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, msgLoading])
 
+  React.useEffect(() => {
+    if (!tenantId) return
+
+    const supabase = createClient()
+    const tenantFilter = buildInboxRealtimeTenantFilter(tenantId)
+
+    async function refreshConversations() {
+      try {
+        const data = await getInboxConversations(tenantId)
+        setConvError(false)
+        setConversations(data)
+      } catch {
+        setConvError(true)
+      }
+    }
+
+    async function refreshMessages(conversationId: string) {
+      try {
+        const data = await getInboxMessages(tenantId, conversationId)
+        setMsgError(false)
+        setMessages(data)
+      } catch {
+        setMsgError(true)
+      }
+    }
+
+    const channel = supabase
+      .channel(`inbox:${tenantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inbox_conversations',
+          filter: tenantFilter,
+        },
+        (payload) => {
+          const conversationId = extractRealtimeConversationId(payload.new ?? payload.old)
+          void refreshConversations()
+
+          if (activeId && conversationId === activeId) {
+            void refreshMessages(activeId)
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'inbox_messages',
+          filter: tenantFilter,
+        },
+        (payload) => {
+          const conversationId = extractRealtimeConversationId(payload.new)
+          void refreshConversations()
+
+          if (activeId && conversationId === activeId) {
+            void refreshMessages(activeId)
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages_log',
+          filter: tenantFilter,
+        },
+        (payload) => {
+          const row = payload.new ?? payload.old
+          const conversationId = extractRealtimeConversationId(row)
+          if (!activeId || conversationId !== activeId) {
+            return
+          }
+
+          if (!shouldRefreshInboxMessagesFromLog(row)) {
+            return
+          }
+
+          void refreshMessages(activeId)
+        },
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [tenantId, activeId])
+
   const filtered = conversations.filter((c) => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -388,12 +783,63 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
 
   const activeConv = conversations.find((c) => c.id === activeId) ?? null
   const canSend = Boolean(activeConv) && draft.trim().length > 0 && !sendPending
+  const showTakeControl = activeConv
+    ? !(activeConv.assignedStaffId && activeConv.ownershipMode === 'human')
+    : false
+  const showRelease = Boolean(activeConv?.assignedStaffId)
+  const showReturnToAi = activeConv
+    ? activeConv.status === 'ai_paused' || activeConv.ownershipMode === 'human'
+    : false
 
   function selectConv(id: string) {
     setActiveId(id)
     setShowThread(true)
     setDraft('')
+    setNoteDraft('')
+    setNoteError(null)
+    setShowNoteComposer(false)
+    setAiDraft(null)
+    setAiDraftError(null)
     setSendError(null)
+    setOwnershipError(null)
+  }
+
+  async function handleOwnershipAction(action: OwnershipAction) {
+    if (!activeConv || ownershipPending) return
+
+    const conversationId = activeConv.id
+    const previousConversations = conversations
+    const optimisticPatch = getOptimisticOwnershipPatch(activeConv, action)
+
+    setOwnershipPending(action)
+    setOwnershipError(null)
+    setConversations((current) => patchConversation(current, conversationId, optimisticPatch))
+
+    try {
+      const response = await fetch(`/api/inbox/conversations/${conversationId}/ownership`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action }),
+      })
+
+      const payload = await response.json() as OwnershipApiResponse
+      if (!response.ok || !payload.ok) {
+        setConversations(previousConversations)
+        setOwnershipError(payload.ok ? 'Aggiornamento non riuscito.' : payload.error.message)
+        return
+      }
+
+      setConversations((current) =>
+        patchConversation(current, conversationId, getPersistedOwnershipPatch(payload))
+      )
+    } catch {
+      setConversations(previousConversations)
+      setOwnershipError('Errore di rete durante l\'aggiornamento della conversazione.')
+    } finally {
+      setOwnershipPending(null)
+    }
   }
 
   async function handleSendMessage() {
@@ -424,19 +870,22 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
         bodyText: payload.message.bodyText,
         direction: payload.message.direction,
         authorKind: payload.message.authorKind,
+        authorName: payload.message.authorName,
+        authorStaffId: activeConv.assignedStaffId,
         createdAt: payload.message.createdAt,
         usedTemplate: payload.message.usedTemplate,
+        timelineKind: 'message',
         deliveryStatus: payload.message.deliveryStatus,
       }
 
       setMessages((current) => appendOrReplaceMessage(current, sentMessage))
       setConversations((current) =>
-        updateConversationAfterReply(
-          current,
+        updateConversationAfterReply(current, {
           conversationId,
-          payload.message.bodyText,
-          payload.message.createdAt,
-        ))
+          bodyText: payload.message.bodyText,
+          createdAt: payload.message.createdAt,
+          authorName: payload.message.authorName,
+        }))
       setDraft('')
       setSendError(null)
     } catch {
@@ -446,6 +895,86 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
     }
   }
 
+  async function handleSaveNote() {
+    if (!activeConv || notePending || noteDraft.trim().length === 0) return
+
+    const conversationId = activeConv.id
+    const draftSnapshot = noteDraft
+
+    setNotePending(true)
+    setNoteError(null)
+
+    try {
+      const response = await fetch(`/api/inbox/conversations/${conversationId}/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: draftSnapshot }),
+      })
+
+      const payload = await response.json() as InternalNoteApiResponse
+      if (!response.ok || !payload.ok) {
+        setNoteError(payload.ok ? 'Salvataggio nota non riuscito.' : payload.error.message)
+        return
+      }
+
+      setMessages((current) =>
+        appendOrReplaceMessage(current, {
+          ...payload.note,
+          deliveryStatus: undefined,
+          auditAction: null,
+        }))
+      setNoteDraft('')
+      setNoteError(null)
+      setShowNoteComposer(false)
+    } catch {
+      setNoteError('Errore di rete durante il salvataggio della nota interna.')
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  async function handleGenerateAiDraft() {
+    if (!activeConv || aiDraftPending) return
+
+    const conversationId = activeConv.id
+    setAiDraftPending(true)
+    setAiDraftError(null)
+
+    try {
+      const response = await fetch(`/api/inbox/conversations/${conversationId}/draft`, {
+        method: 'POST',
+      })
+
+      const payload = await response.json() as GenerateDraftApiResponse
+      if (!response.ok || !payload.ok) {
+        setAiDraftError(payload.ok ? 'Generazione bozza non riuscita.' : payload.error.message)
+        return
+      }
+
+      setAiDraft(createInboxDraftApprovalState(payload.draft))
+    } catch {
+      setAiDraftError('Errore di rete durante la generazione della bozza AI.')
+    } finally {
+      setAiDraftPending(false)
+    }
+  }
+
+  function handleApproveAiDraft() {
+    if (!aiDraft) return
+
+    const approval = approveInboxDraftApproval(aiDraft)
+    setDraft(approval.composerText)
+    setAiDraft(approval.nextDraft)
+    setAiDraftError(null)
+  }
+
+  function handleDiscardAiDraft() {
+    setAiDraft(discardInboxDraftApproval())
+    setAiDraftError(null)
+  }
+
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
       return
@@ -453,6 +982,19 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
 
     event.preventDefault()
     void handleSendMessage()
+  }
+
+  function handleNoteComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+      return
+    }
+
+    if (!(event.metaKey || event.ctrlKey)) {
+      return
+    }
+
+    event.preventDefault()
+    void handleSaveNote()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -597,11 +1139,211 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
                       {activeConv.contactPhone}
                     </span>
                   )}
-                  <span style={{ fontSize: 11, color: '#B0B0B0' }}>·</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, color: '#B0B0B0' }}>{statusLabel(activeConv.status)}</span>
+                  {activeConv.assignedStaffName && (
+                    <span style={{ fontSize: 11, color: '#B45309', fontWeight: 600 }}>
+                      Operatore: {activeConv.assignedStaffName}
+                    </span>
+                  )}
+                  {activeConv.aiPausedAt && (
+                    <span style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>
+                      AI pausata
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
+
+            <div style={{
+              padding: '10px 16px',
+              borderBottom: '1px solid #EFEFEF',
+              background: '#FCFCFD',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}>
+              {showTakeControl && (
+                <button
+                  type="button"
+                  onClick={() => { void handleOwnershipAction('take_control') }}
+                  disabled={ownershipPending !== null}
+                  aria-label="Prendi in carico la conversazione"
+                  style={{
+                    border: '1px solid #D1D5DB',
+                    borderRadius: 999,
+                    background: '#FFFFFF',
+                    color: '#111827',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '8px 12px',
+                    cursor: ownershipPending ? 'wait' : 'pointer',
+                  }}
+                >
+                  {ownershipPending === 'take_control' ? 'Presa in corso...' : 'Prendi in carico'}
+                </button>
+              )}
+              {showRelease && (
+                <button
+                  type="button"
+                  onClick={() => { void handleOwnershipAction('release_control') }}
+                  disabled={ownershipPending !== null}
+                  aria-label="Rilascia la conversazione"
+                  style={{
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 999,
+                    background: '#FFF7ED',
+                    color: '#C2410C',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '8px 12px',
+                    cursor: ownershipPending ? 'wait' : 'pointer',
+                  }}
+                >
+                  {ownershipPending === 'release_control' ? 'Rilascio...' : 'Rilascia'}
+                </button>
+              )}
+              {showReturnToAi && (
+                <button
+                  type="button"
+                  onClick={() => { void handleOwnershipAction('return_to_ai') }}
+                  disabled={ownershipPending !== null}
+                  aria-label="Restituisci la conversazione all'AI"
+                  style={{
+                    border: '1px solid #DDD6FE',
+                    borderRadius: 999,
+                    background: '#F5F3FF',
+                    color: '#6D28D9',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '8px 12px',
+                    cursor: ownershipPending ? 'wait' : 'pointer',
+                  }}
+                >
+                  {ownershipPending === 'return_to_ai' ? 'Aggiorno AI...' : 'Rimetti in AI'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { void handleGenerateAiDraft() }}
+                disabled={aiDraftPending}
+                aria-label="Genera una bozza AI da revisionare"
+                style={{
+                  border: '1px solid #DDD6FE',
+                  borderRadius: 999,
+                  background: '#F5F3FF',
+                  color: '#6D28D9',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '8px 12px',
+                  cursor: aiDraftPending ? 'wait' : 'pointer',
+                }}
+              >
+                {aiDraftPending ? 'Genero bozza...' : 'Genera bozza AI'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoteComposer((current) => !current)
+                  setNoteError(null)
+                }}
+                disabled={notePending}
+                aria-expanded={showNoteComposer}
+                aria-controls="inbox-note-composer"
+                style={{
+                  border: '1px solid #FCD34D',
+                  borderRadius: 999,
+                  background: '#FFFBEB',
+                  color: '#B45309',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: '8px 12px',
+                  cursor: notePending ? 'wait' : 'pointer',
+                }}
+              >
+                {showNoteComposer ? 'Chiudi nota interna' : 'Nota interna'}
+              </button>
+              {ownershipError && (
+                <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
+                  {ownershipError}
+                </p>
+              )}
+              {aiDraftError && (
+                <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
+                  {aiDraftError}
+                </p>
+              )}
+            </div>
+
+            {showNoteComposer && (
+              <div
+                id="inbox-note-composer"
+                style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #EFEFEF',
+                  background: '#FFFDF7',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                <label htmlFor="inbox-internal-note" style={{ fontSize: 12, fontWeight: 700, color: '#B45309' }}>
+                  Nota interna visibile solo allo staff del tenant
+                </label>
+                <textarea
+                  id="inbox-internal-note"
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  onKeyDown={handleNoteComposerKeyDown}
+                  placeholder="Annota passaggi, contesto o follow-up interni…"
+                  disabled={notePending}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    background: '#FFFFFF',
+                    border: '1px solid #FDE68A',
+                    borderRadius: 14,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    color: '#7C2D12',
+                    resize: 'vertical',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.45,
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: '#B45309' }}>
+                    Cmd/Ctrl + Invio salva la nota senza inviarla al cliente.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { void handleSaveNote() }}
+                    disabled={notePending || noteDraft.trim().length === 0}
+                    style={{
+                      border: 'none',
+                      borderRadius: 999,
+                      background: notePending || noteDraft.trim().length === 0 ? '#FDE68A' : '#F59E0B',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: '9px 14px',
+                      cursor: notePending || noteDraft.trim().length === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {notePending ? 'Salvataggio...' : 'Salva nota interna'}
+                  </button>
+                </div>
+                {noteError && (
+                  <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
+                    {noteError}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Messages */}
             <div style={{
@@ -648,6 +1390,204 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
               flexDirection: 'column',
               gap: 8,
             }}>
+              {aiDraft && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    border: '1px solid #DDD6FE',
+                    borderRadius: 18,
+                    padding: '12px 14px',
+                    background: '#FAF8FF',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#6D28D9', letterSpacing: '0.02em' }}>
+                        {aiDraft.providerLabel}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#7C3AED' }}>
+                        {aiDraft.promptVersion}
+                      </span>
+                    </div>
+                      <span style={{ fontSize: 11, color: '#6B7280' }}>
+                      Bozza locale, mai inviata automaticamente
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      borderRadius: 14,
+                      border: `1px solid ${decisionAccent(aiDraft.decision.kind).border}`,
+                      background: decisionAccent(aiDraft.decision.kind).background,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        border: `1px solid ${decisionAccent(aiDraft.decision.kind).border}`,
+                        color: decisionAccent(aiDraft.decision.kind).color,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: '0.02em',
+                        background: '#FFFFFF',
+                      }}>
+                        {decisionLabel(aiDraft.decision.kind)}
+                      </span>
+                      {aiDraft.decision.handoffRecommended && (
+                        <span style={{ fontSize: 11, color: decisionAccent(aiDraft.decision.kind).color, fontWeight: 700 }}>
+                          Revisione umana prioritaria
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#374151' }}>
+                      {aiDraft.decision.reasonSummary}
+                    </p>
+                    {aiDraft.decision.appointmentPreparation && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#1F2937' }}>
+                          Preparazione {aiDraft.decision.appointmentPreparation.action === 'booking'
+                            ? 'prenotazione'
+                            : aiDraft.decision.appointmentPreparation.action === 'reschedule'
+                              ? 'spostamento'
+                              : 'cancellazione'}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: '#4B5563' }}>
+                            Completi: {aiDraft.decision.appointmentPreparation.completeFields.length}
+                          </span>
+                          <span style={{ fontSize: 11, color: aiDraft.decision.appointmentPreparation.eligible ? '#065F46' : '#B45309', fontWeight: 700 }}>
+                            {aiDraft.decision.appointmentPreparation.eligible ? 'Tool preparabile' : 'Dati incompleti'}
+                          </span>
+                        </div>
+                        {aiDraft.decision.appointmentPreparation.missingFields.length > 0 && (
+                          <p style={{ margin: 0, fontSize: 11, color: '#6B7280', lineHeight: 1.45 }}>
+                            Mancano: {aiDraft.decision.appointmentPreparation.missingFields.map((field) => appointmentFieldLabel(field)).join(', ')}.
+                          </p>
+                        )}
+                        {aiDraft.decision.appointmentPreparation.nextQuestion && (
+                          <p style={{ margin: 0, fontSize: 11, color: '#4B5563', lineHeight: 1.45 }}>
+                            Prossima domanda consigliata: {aiDraft.decision.appointmentPreparation.nextQuestion}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {aiDraft.decision.handoffRecommended && showTakeControl && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+                        <button
+                          type="button"
+                          onClick={() => { void handleOwnershipAction('take_control') }}
+                          disabled={ownershipPending !== null}
+                          style={{
+                            border: '1px solid #D1D5DB',
+                            borderRadius: 999,
+                            background: '#FFFFFF',
+                            color: '#111827',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            padding: '8px 12px',
+                            cursor: ownershipPending ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {ownershipPending === 'take_control' ? 'Presa in corso...' : 'Accetta handoff'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <textarea
+                    value={aiDraft.text}
+                    onChange={(event) =>
+                      setAiDraft((current) =>
+                        current ? editInboxDraftApprovalText(current, event.target.value) : current
+                      )
+                    }
+                    rows={4}
+                    aria-label="Bozza AI modificabile"
+                    style={{
+                      width: '100%',
+                      background: '#FFFFFF',
+                      border: '1px solid #DDD6FE',
+                      borderRadius: 14,
+                      padding: '10px 12px',
+                      fontSize: 13,
+                      color: '#1F2937',
+                      resize: 'vertical',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      fontFamily: 'inherit',
+                      lineHeight: 1.45,
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {aiDraft.sources.map((source) => (
+                      <span
+                        key={`${source.kind}:${source.label}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 8px',
+                          borderRadius: 999,
+                          background: '#FFFFFF',
+                          border: '1px solid #E9D5FF',
+                          color: '#6D28D9',
+                          fontSize: 11,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {source.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>
+                      Approva per copiare la bozza nel box di risposta esistente.
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleDiscardAiDraft}
+                        style={{
+                          border: '1px solid #E5E7EB',
+                          borderRadius: 999,
+                          background: '#FFFFFF',
+                          color: '#6B7280',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Scarta
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApproveAiDraft}
+                        disabled={aiDraft.text.trim().length === 0}
+                        style={{
+                          border: 'none',
+                          borderRadius: 999,
+                          background: aiDraft.text.trim().length === 0 ? '#D8B4FE' : '#7C3AED',
+                          color: '#fff',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          padding: '8px 12px',
+                          cursor: aiDraft.text.trim().length === 0 ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Approva nel box risposta
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div style={{
                 width: '100%',
                 display: 'flex',
@@ -698,8 +1638,13 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
                 </button>
               </div>
               {sendError && (
-                <p style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
+                <p role="status" aria-live="polite" style={{ margin: 0, fontSize: 12, color: '#EF4444' }}>
                   {sendError}
+                </p>
+              )}
+              {showNoteComposer && (
+                <p style={{ margin: 0, fontSize: 11, color: '#A16207' }}>
+                  Le note interne restano nella timeline staff e non aggiornano l’anteprima cliente.
                 </p>
               )}
             </div>

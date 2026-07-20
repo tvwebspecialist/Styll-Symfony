@@ -54,6 +54,35 @@ test('normalizeMetaWhatsAppWebhook parses status updates separately from inbound
   assert.equal(events[0].authorKind, 'system')
 })
 
+test('normalizeMetaWhatsAppWebhook parses smb_message_echoes as outbound human messages', () => {
+  const events = normalizeMetaWhatsAppWebhook({
+    entry: [{
+      changes: [{
+        field: 'smb_message_echoes',
+        value: {
+          metadata: { phone_number_id: '123456789' },
+          message_echoes: [{
+            from: '390200300400',
+            to: '39333111222',
+            id: 'wamid.echo-1',
+            timestamp: '1784300600',
+            type: 'text',
+            text: { body: 'Ti confermo l’orario in app.' },
+          }],
+        },
+      }],
+    }],
+  })
+
+  assert.equal(events.length, 1)
+  assert.equal(events[0].eventType, 'message.echoed')
+  assert.equal(events[0].direction, 'outbound')
+  assert.equal(events[0].authorKind, 'human')
+  assert.equal(events[0].externalContactId, '39333111222')
+  assert.equal(events[0].messageId, 'wamid.echo-1')
+  assert.equal(events[0].text, 'Ti confermo l’orario in app.')
+})
+
 test('metaWhatsAppAdapter builds a minimal outbound text request', () => {
   const payload = metaWhatsAppAdapter.buildOutboundRequest({
     channel: 'whatsapp',

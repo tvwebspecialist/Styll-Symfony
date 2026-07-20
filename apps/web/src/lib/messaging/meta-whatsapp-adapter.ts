@@ -15,6 +15,7 @@ type MetaWebhookValue = {
     profile?: { name?: string }
     wa_id?: string
   }>
+  message_echoes?: Array<MetaEchoMessage>
   messages?: Array<MetaIncomingMessage>
   metadata?: {
     display_phone_number?: string
@@ -23,10 +24,9 @@ type MetaWebhookValue = {
   statuses?: Array<MetaStatusMessage>
 }
 
-type MetaIncomingMessage = {
+type MetaMessagePayload = {
   button?: { text?: string }
   document?: MetaMedia
-  from?: string
   id?: string
   image?: MetaMedia
   interactive?: {
@@ -38,6 +38,17 @@ type MetaIncomingMessage = {
   type?: string
   video?: MetaMedia
   audio?: MetaMedia
+}
+
+type MetaIncomingMessage = MetaMessagePayload & {
+  from?: string
+}
+
+type MetaEchoMessage = MetaMessagePayload & {
+  from?: string
+  to?: string
+  to_user_id?: string
+  to_parent_user_id?: string
 }
 
 type MetaStatusMessage = {
@@ -63,7 +74,7 @@ function toIsoTimestamp(input: string | undefined): string {
   return new Date().toISOString()
 }
 
-function extractMessageText(message: MetaIncomingMessage): string | null {
+function extractMessageText(message: MetaMessagePayload): string | null {
   if (typeof message.text?.body === 'string' && message.text.body.trim().length > 0) {
     return message.text.body.trim()
   }
@@ -86,7 +97,7 @@ function extractMessageText(message: MetaIncomingMessage): string | null {
   return null
 }
 
-function extractMedia(message: MetaIncomingMessage): NormalizedWebhookEvent['media'] {
+function extractMedia(message: MetaMessagePayload): NormalizedWebhookEvent['media'] {
   const media: NormalizedWebhookEvent['media'] = []
   const candidates: Array<{ kind: NormalizedWebhookEvent['media'][number]['kind']; payload?: MetaMedia }> = [
     { kind: 'image', payload: message.image },
@@ -106,6 +117,21 @@ function extractMedia(message: MetaIncomingMessage): NormalizedWebhookEvent['med
   }
 
   return media
+}
+
+function extractEchoContactId(message: MetaEchoMessage): string | null {
+  const candidates = [
+    message.to?.trim(),
+    message.to_user_id?.trim(),
+    message.to_parent_user_id?.trim(),
+  ]
+
+  return candidates.find((candidate) => typeof candidate === 'string' && candidate.length > 0) ?? null
+}
+
+function toContactPhone(candidate: string | null): string | null {
+  if (!candidate) return null
+  return /^[0-9+]+$/.test(candidate) ? candidate : null
 }
 
 function normalizeMessageEvents(value: MetaWebhookValue): NormalizedWebhookEvent[] {
@@ -180,6 +206,37 @@ function normalizeStatusEvents(value: MetaWebhookValue): NormalizedWebhookEvent[
   })
 }
 
+function normalizeMessageEchoEvents(value: MetaWebhookValue): NormalizedWebhookEvent[] {
+  const phoneNumberId = value.metadata?.phone_number_id?.trim()
+  if (!phoneNumberId || !Array.isArray(value.message_echoes) || value.message_echoes.length === 0) {
+    return []
+  }
+
+  return value.message_echoes.flatMap((message) => {
+    const externalContactId = extractEchoContactId(message)
+    const messageId = message.id?.trim() ?? null
+    if (!externalContactId || !messageId) return []
+
+    return [{
+      provider: 'meta_whatsapp',
+      eventId: `echo:${messageId}`,
+      eventType: 'message.echoed',
+      occurredAt: toIsoTimestamp(message.timestamp),
+      phoneNumberId,
+      conversationKey: buildConversationKey('meta_whatsapp', phoneNumberId, externalContactId),
+      externalContactId,
+      contactPhone: toContactPhone(message.to?.trim() ?? null),
+      contactDisplayName: null,
+      messageId,
+      direction: 'outbound',
+      authorKind: 'human',
+      text: extractMessageText(message),
+      media: extractMedia(message),
+      rawPayload: message,
+    }]
+  })
+}
+
 export const metaWhatsAppAdapter: MessagingProviderAdapter = {
   provider: 'meta_whatsapp',
   normalizeWebhook(input: unknown): NormalizedWebhookEvent[] {
@@ -190,9 +247,17 @@ export const metaWhatsAppAdapter: MessagingProviderAdapter = {
 
     for (const entry of payload.entry) {
       for (const change of entry.changes ?? []) {
-        if (change.field !== 'messages' || !change.value) continue
-        normalized.push(...normalizeMessageEvents(change.value))
-        normalized.push(...normalizeStatusEvents(change.value))
+        if (!change.value) continue
+
+        if (change.field === 'messages') {
+          normalized.push(...normalizeMessageEvents(change.value))
+          normalized.push(...normalizeStatusEvents(change.value))
+          continue
+        }
+
+        if (change.field === 'smb_message_echoes') {
+          normalized.push(...normalizeMessageEchoEvents(change.value))
+        }
       }
     }
 
