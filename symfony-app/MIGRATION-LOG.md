@@ -68,6 +68,49 @@ La verifica richiesta con `docker-compose up -d postgres` **non è stata eseguib
 
 Il comportamento del database è stato comunque verificato su PostgreSQL reale locale caricando tutti i DDL in `styll_test`. Prima del deploy scheletro su VPS resta da rieseguire il bootstrap Docker/Compose su una macchina con Docker installato.
 
+### FASE 2 — JWT keypair dev/test + fixture utente staff ✅
+
+**Commit:** `auth: keypair JWT ambiente test + fixture utente`
+**Data:** 2026-07-20
+
+#### Implementato
+
+| File / area | Modifica |
+|---|---|
+| `config/jwt/private.pem`, `config/jwt/public.pem` | Keypair generata con `php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction`; file locali ignorati da Git |
+| `.gitignore` | Già presente `/config/jwt/*.pem`, nessuna modifica necessaria |
+| `tests/Support/TestTenantFixture.php` | Fixture test-only che crea due tenant, due staff user e due clienti per tenant; password nota solo per ambiente test: `styll-test-password-only` |
+
+#### Verifica sicurezza chiavi
+
+```bash
+git log --all --full-history -- "**/jwt/*" --oneline
+```
+
+Risultato: nessun file sotto `config/jwt/` risulta committato nella history del branch.
+
+```bash
+git status --short --ignored -- symfony-app/config/jwt symfony-app/tests/Support/TestTenantFixture.php
+```
+
+Risultato rilevante:
+
+```text
+!! symfony-app/config/jwt/
+```
+
+La private key locale è stata lasciata fuori da Git e i permessi locali sono stati corretti a `600` per `private.pem` e `644` per `public.pem`.
+
+#### Risultati verifica
+
+```bash
+cd symfony-app && php -l tests/Support/TestTenantFixture.php
+```
+
+```text
+No syntax errors detected in tests/Support/TestTenantFixture.php
+```
+
 ---
 
 ## Riepilogo sessione — 2026-07-20
