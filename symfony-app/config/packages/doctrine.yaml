@@ -26,6 +26,10 @@ doctrine:
                 alias: App
         controller_resolver:
             auto_mapping: false
+        filters:
+            tenant_filter:
+                class: App\Doctrine\TenantFilter
+                enabled: false  # enabled per-request by TenantFilterSubscriber after JWT auth
 
 when@test:
     doctrine:

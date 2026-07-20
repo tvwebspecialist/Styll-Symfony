@@ -6,6 +6,107 @@
 
 ---
 
+## FASE 2 — Isolamento multi-tenant (risolve D6) ✅
+
+**Commit:** `security: isolamento multi-tenant via Doctrine filter + test`  
+**Data:** 2026-07-20
+
+### Componenti implementati
+
+| File | Ruolo |
+|---|---|
+| `src/Security/TenantContext.php` | Risolve `tenant_id` dal JWT → StaffMember → Tenant |
+| `src/Doctrine/TenantFilter.php` | SQLFilter globale: aggiunge `WHERE tenant_id = ?` |
+| `src/EventListener/TenantFilterSubscriber.php` | Abilita il filter dopo JWT auth (priority 0) |
+| `config/packages/doctrine.yaml` | Registra `tenant_filter` (disabled per default) |
+| `tests/Doctrine/TenantFilterTest.php` | 7 test unit del filter |
+| `tests/Security/TenantContextTest.php` | 5 test unit del TenantContext |
+
+### Risultati test
+
+```
+PHPUnit 11.5.56 — PHP 8.2.30
+
+............                                    12 / 12 (100%)
+
+Tenant Context (App\Tests\Security\TenantContext)
+ ✔ Returns null when no token
+ ✔ Returns null when user has no staff member
+ ✔ Returns tenant id for authenticated staff
+ ✔ Tenant id is cached after first call
+ ✔ Reset clears cached tenant id
+
+Tenant Filter (App\Tests\Doctrine\TenantFilter)
+ ✔ Filter adds where clause for client entity
+ ✔ Filter adds where clause for appointment entity
+ ✔ Tenant a and b get different constraints
+ ✔ Filter without tenant id blocks all rows
+ ✔ User entity is not filtered
+ ✔ Profile entity is not filtered
+ ✔ Client note entity is filtered
+
+OK (12 tests, 18 assertions)
+```
+
+### Garanzie di sicurezza verificate
+
+| Scenario | Comportamento atteso | Test |
+|---|---|---|
+| Tenant A legge dati Tenant B | Bloccato (`WHERE tenant_id = A`) | `testTenantAAndBGetDifferentConstraints` |
+| Request non autenticata | Zero righe (`1 = 0`, fail-closed) | `testFilterWithoutTenantIdBlocksAllRows` |
+| Entità globali (User, Profile) | Non filtrate (no tenant_id) | `testUserEntityIsNotFiltered`, `testProfileEntityIsNotFiltered` |
+| Cache tenant_id | Solo 1 query DB per request | `testTenantIdIsCachedAfterFirstCall` |
+
+### Note tecniche (soluzioni ai problemi incontrati)
+
+- `SQLFilter::__construct()` è `final` in Doctrine ORM 3 — impossibile usare `getMockBuilder`. Soluzione: costruire `TenantFilter` reale con `EntityManagerInterface` mockato (chain `getFilters()->setFiltersStateDirty()` + `getConnection()->quote()`)
+- `SQLFilter::getParameter()` è `final` — impossibile override. L'approccio precedente con `onlyMethods(['getParameter'])` non funziona. Soluzione: usare la vera `setParameter()` per iniettare valori nel test
+- `QueryBuilder::getQuery()` tipizza il ritorno come `Doctrine\ORM\Query` (non `AbstractQuery`). Il mock di `AbstractQuery` fallisce la type check PHPUnit 11 strict. Soluzione: mock `Doctrine\ORM\Query::class`
+- `ClassMetadata::$columnNames` e `::$associationMappings` sono public properties con default `[]` — il mock non le popola. Eliminata la early-exit che accedeva alle property direttamente; la logica usa solo method calls (`getAssociationMappings()`, `getColumnNames()`)
+
+**D6 risolto.** Il filter è production-ready; integration tests su DB reale sono raccomandati prima del go-live.
+
+---
+
+## FASE 1 — Migrazione schema (risolve D5) ✅
+
+**Commit:** `migration: import schema Supabase + entità pilota (Clienti+Appuntamenti)`  
+**Data:** 2026-07-20
+
+### Schema DDL pulito (senza Supabase/RLS)
+
+Creati in `symfony-app/docker/postgres/init/` (eseguiti in ordine al primo avvio del container):
+
+| File | Contenuto |
+|---|---|
+| `01_extensions.sql` | `pgcrypto`, `btree_gist` |
+| `02_helpers.sql` | Trigger `set_updated_at()` |
+| `03_auth.sql` | `users`, `profiles` (sostituisce `auth.users` Supabase) |
+| `04_business.sql` | `subscription_plans`, `tenants`, `locations`, `tenant_subscriptions` |
+| `05_staff.sql` | `staff_members`, `staff_locations` |
+| `06_catalog.sql` | `service_categories`, `services`, `staff_services`, `products`, `product_inventory`, `client_product_wishlist` |
+| `07_crm.sql` | `clients` (UNIQUE tenant_id+phone), `client_notes`, `client_consents`, `client_analytics` |
+| `08_calendar.sql` | `working_hours`, `working_hour_overrides`, `appointments` (exclusion constraint + optimistic lock), `appointment_services`, `appointment_products`, `payments` |
+| `09_loyalty.sql` | `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions`, `tier_configs`, `badges`, `client_badges` |
+
+Le RLS originali sono archiviate in `supabase/migrations-rls-legacy.sql` (356 righe, solo riferimento).
+
+### Entità Doctrine (15 entity + 15 repository)
+
+Pilota Area 4 (Calendar): `Appointment`, `AppointmentService`, `AppointmentProduct`, `Payment`, `WorkingHour`, `WorkingHourOverride`  
+Pilota Area 5 (CRM): `Client`, `ClientNote`  
+Dipendenze: `User`, `Profile`, `Tenant`, `Location`, `StaffMember`, `Service`, `Product`
+
+**Validazione mapping:**
+```
+doctrine:schema:validate --skip-sync
+[OK] The mapping files are correct.
+```
+
+**D5 risolto.** Strategia scelta: DDL clean importato come init scripts Docker (approccio ibrido).
+
+---
+
 ## Cosa è stato fatto in questo scaffold
 
 ### 1. Progetto Symfony 7.4 LTS
