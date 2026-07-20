@@ -6,6 +6,63 @@
 
 ---
 
+## Riepilogo sessione — 2026-07-20
+
+Sessione a tre fasi. FASE 1 e FASE 2 già committate su branch `symfony-schema-and-docs` nella sessione precedente. FASE 3 completata in questa sessione.
+
+| Fase | Commit | Stato |
+|---|---|---|
+| FASE 1 — Schema DDL + entità pilota | `migration: import schema Supabase + entità pilota` | ✅ |
+| FASE 2 — Isolamento multi-tenant (TenantFilter + test) | `security: isolamento multi-tenant via Doctrine filter + test` | ✅ |
+| FASE 3 — Riscrittura documentazione tecnica | `docs: riscrittura documentazione tecnica per stack Symfony` | ✅ |
+
+### FASE 3 — riepilogo file
+
+**Archiviati** (spostati con `git mv` in `docs/_archivio-supabase/`, history conservata):
+
+| File originale | Archiviato come |
+|---|---|
+| `docs/07-tecnico/architettura.md` | `architettura-supabase.md` |
+| `docs/07-tecnico/database-mvp.md` | `database-mvp-supabase.md` |
+| `docs/07-tecnico/database-schema.md` | `database-schema-supabase.md` |
+| `docs/07-tecnico/whatsapp-inbox-v1-implementation.md` | `whatsapp-inbox-v1-implementation-supabase.md` |
+| `docs/08-strategia/analisi-strategica.md` | `analisi-strategica-supabase.md` |
+| `docs/08-strategia/internazionalizzazione.md` | `internazionalizzazione-supabase.md` |
+| `docs/08-strategia/legal-compliance.md` | `legal-compliance-supabase.md` |
+| `docs/08-strategia/partnership-ecosistem.md` | `partnership-ecosistem-supabase.md` |
+
+**Riscritti** (nuovi file con stack Symfony, stesso path dei file originali):
+
+| File | Principali aggiornamenti |
+|---|---|
+| `docs/07-tecnico/architettura.md` | Stack Symfony 7.4+API Platform, Docker Compose 4 servizi, tabella costi Hetzner (€8-€38/mo), Mercure SSE, TenantFilter |
+| `docs/07-tecnico/database-mvp.md` | 24 tabelle MVP, Doctrine entities, DDL in `symfony-app/docker/postgres/init/`, confronto Supabase vs Symfony |
+| `docs/07-tecnico/database-schema.md` | Decisioni architetturali DA-1–DA-9, schema per area, confronto RLS vs TenantFilter, checklist go-live |
+| `docs/07-tecnico/whatsapp-inbox-v1-implementation.md` | Riferimento Supabase Realtime → Mercure SSE (layer Next.js attuale), auth.uid() → TenantFilter |
+| `docs/08-strategia/analisi-strategica.md` | Stack FASE 0, tabella concorrenti, analisi criticità VPS/Symfony, budget VPS €8-18/mo |
+| `docs/08-strategia/internazionalizzazione.md` | Sub-processors (Hetzner sostituisce Supabase), i18n Symfony Translation, GDPR data residency EU |
+| `docs/08-strategia/legal-compliance.md` | Sub-processors (Hetzner), tabella GDPR, nota VPS EU advantage |
+| `docs/08-strategia/partnership-ecosistem.md` | API Platform v4 sostituisce PostgREST, Symfony Messenger+Mercure sostituisce Supabase Realtime+Edge Functions, prerequisiti table aggiornata |
+
+### DECISIONI DA CONFERMARE ancora aperte
+
+| ID | Decisione | Stato |
+|---|---|---|
+| D2 | Nginx vs Caddy per HTTPS su VPS | ⚠️ Aperta |
+| D4 | Mercure SSE vs WebSocket bidirezionale per WhatsApp inbox live | ⚠️ Aperta |
+| D7 | OTP SMS per clienti: bundle esistente vs implementazione custom | ⚠️ Aperta |
+
+---
+
+## FASE 3 — Riscrittura documentazione tecnica ✅
+
+**Commit:** `docs: riscrittura documentazione tecnica per stack Symfony, archivio Supabase in docs/_archivio-supabase/`  
+**Data:** 2026-07-20
+
+8 documenti archiviati con `git mv` (history git preservata). 8 documenti riscritti per stack Symfony 7.4 + API Platform + PostgreSQL VPS Hetzner. Nessun file in `apps/`, `packages/`, `docs/01-09` (escluso `07-`, `08-`) è stato toccato.
+
+---
+
 ## FASE 2 — Isolamento multi-tenant (risolve D6) ✅
 
 **Commit:** `security: isolamento multi-tenant via Doctrine filter + test`  
