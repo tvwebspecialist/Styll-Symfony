@@ -47,9 +47,10 @@ class TenantFilter extends SQLFilter
         // Check for 'tenant' ManyToOne join column named tenant_id
         $hasColumn = false;
         foreach ($targetEntity->getAssociationMappings() as $assocName => $assoc) {
-            if ($assocName === 'tenant' && isset($assoc['joinColumns'])) {
-                foreach ($assoc['joinColumns'] as $joinCol) {
-                    if (($joinCol['name'] ?? '') === 'tenant_id') {
+            $joinColumns = $this->joinColumnsForAssociation($assocName, $assoc);
+            if ($joinColumns !== null) {
+                foreach ($joinColumns as $joinCol) {
+                    if ($this->joinColumnName($joinCol) === 'tenant_id') {
                         $hasColumn = true;
                         break 2;
                     }
@@ -74,5 +75,38 @@ class TenantFilter extends SQLFilter
         }
 
         return sprintf('%s.tenant_id = %s', $targetTableAlias, $tenantId);
+    }
+
+    /**
+     * @return iterable<mixed>|null
+     */
+    private function joinColumnsForAssociation(string $assocName, mixed $assoc): ?iterable
+    {
+        if ($assocName !== 'tenant') {
+            return null;
+        }
+
+        if (is_array($assoc)) {
+            return $assoc['joinColumns'] ?? null;
+        }
+
+        if (is_object($assoc) && property_exists($assoc, 'joinColumns')) {
+            return $assoc->joinColumns;
+        }
+
+        return null;
+    }
+
+    private function joinColumnName(mixed $joinColumn): ?string
+    {
+        if (is_array($joinColumn)) {
+            return isset($joinColumn['name']) && is_string($joinColumn['name']) ? $joinColumn['name'] : null;
+        }
+
+        if (is_object($joinColumn) && property_exists($joinColumn, 'name')) {
+            return is_string($joinColumn->name) ? $joinColumn->name : null;
+        }
+
+        return null;
     }
 }

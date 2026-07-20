@@ -4,14 +4,23 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\GetCollection;
 use App\Repository\ClientRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
 /**
  * AREA 5 — CRM: Client entity
  * Multi-tenant: every row belongs to one tenant. tenant_id is enforced by TenantFilter.
  */
+#[ApiResource(
+    operations: [
+        new GetCollection(),
+    ],
+    normalizationContext: ['groups' => ['client:read']],
+)]
 #[ORM\Entity(repositoryClass: ClientRepository::class)]
 #[ORM\Table(name: 'clients')]
 #[ORM\UniqueConstraint(name: 'uniq_tenant_phone', columns: ['tenant_id', 'phone'])]
@@ -20,6 +29,7 @@ class Client
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['client:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -31,12 +41,15 @@ class Client
     private ?Profile $profile = null;
 
     #[ORM\Column(name: 'full_name', type: 'string', length: 255)]
+    #[Groups(['client:read'])]
     private string $fullName;
 
     #[ORM\Column(type: 'string', length: 30)]
+    #[Groups(['client:read'])]
     private string $phone;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[Groups(['client:read'])]
     private ?string $email = null;
 
     #[ORM\Column(name: 'date_of_birth', type: 'date_immutable', nullable: true)]

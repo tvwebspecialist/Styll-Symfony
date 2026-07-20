@@ -111,6 +111,67 @@ cd symfony-app && php -l tests/Support/TestTenantFixture.php
 No syntax errors detected in tests/Support/TestTenantFixture.php
 ```
 
+### FASE 3 — Primo endpoint end-to-end GET /api/clients ✅
+
+**Commit:** `feat: primo endpoint end-to-end (GET /api/clients) con test funzionale multi-tenant`
+**Data:** 2026-07-20
+
+#### Implementato
+
+| File | Modifica |
+|---|---|
+| `config/packages/security.yaml` | Aggiunto `json_login` su firewall `api` per emettere JWT reali da `/api/login` |
+| `config/routes/security.yaml` | Aggiunta route `POST /api/login` come `check_path` del firewall |
+| `src/Entity/Client.php` | Esposta collection API Platform `GET /api/clients` con gruppi serializer `client:read` |
+| `src/Doctrine/TenantFilter.php` | Rimosso accesso deprecated ArrayAccess ai metadata Doctrine; compatibile con mapping object ORM 3 e array dei test unit |
+| `config/services.yaml` | Registrata fixture test-only `App\Tests\Support\TestTenantFixture` in `when@test` |
+| `tests/Functional/ClientsEndpointTest.php` | Test funzionale: login JWT vero, `GET /api/clients`, isolamento tenant A/B, 401 senza JWT |
+
+#### DECISIONE PRESA — endpoint minimo
+
+**Scelta:** esporre solo `GetCollection` su `Client` via API Platform e serializzare solo `id`, `fullName`, `phone`, `email`.
+**Motivo:** è il minimo necessario per dimostrare auth JWT + TenantFilter + query Doctrine reale senza esporre mutazioni o relazioni tenant/staff non ancora hardenizzate.
+
+#### Risultato test funzionale richiesto
+
+Comando eseguito contro PostgreSQL reale locale (`styll_test`):
+
+```bash
+cd symfony-app && DATABASE_URL='postgresql://tommasovezzaro@127.0.0.1:5432/styll?serverVersion=16&charset=utf8' ./bin/phpunit tests/Functional/ClientsEndpointTest.php
+```
+
+Risultato finale dopo correzione della deprecazione Doctrine:
+
+```text
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.2.30
+Configuration: /Users/tommasovezzaro/Desktop/Styll-Symfony/symfony-app/phpunit.dist.xml
+
+...                                                                 3 / 3 (100%)
+
+OK (3 tests, 28 assertions)
+```
+
+Suite Symfony completa:
+
+```bash
+cd symfony-app && DATABASE_URL='postgresql://tommasovezzaro@127.0.0.1:5432/styll?serverVersion=16&charset=utf8' ./bin/phpunit
+```
+
+```text
+PHPUnit 11.5.56 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.2.30
+Configuration: /Users/tommasovezzaro/Desktop/Styll-Symfony/symfony-app/phpunit.dist.xml
+
+..................                                                18 / 18 (100%)
+
+Time: 00:00.573, Memory: 40.50 MB
+
+OK (18 tests, 57 assertions)
+```
+
 ---
 
 ## Riepilogo sessione — 2026-07-20
