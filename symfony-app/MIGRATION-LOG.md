@@ -195,15 +195,19 @@ Nessun valore reale di produzione è stato scritto nei template. Tutti i campi s
 
 ### Stato: pronto per primo deploy scheletro?
 
-**NO.**
+**SÌ — bootstrap Docker verificato il 2026-07-20.**
 
-Il backend Symfony ha ora uno scheletro end-to-end verificato su PostgreSQL reale locale: JWT login, `GET /api/clients`, TenantFilter fail-closed e suite Symfony passante (`18 tests, 57 assertions`). Tuttavia prima di dichiararlo pronto per deploy scheletro su VPS manca una verifica non sostituibile: eseguire `docker compose up -d postgres` / `docker-compose up -d postgres` su una macchina con Docker installato e confermare che il bootstrap fresh del container esegua correttamente `docker/postgres/init/00..09` sia su `styll` sia su `styll_test`.
+Bootstrap Docker `fresh` eseguito su macchina locale con Docker Desktop (macOS). Tutti i container avviati, tutti gli script `docker/postgres/init/00..09` eseguiti senza `ERROR` su `styll` e `styll_test`. Suite PHPUnit eseguita dentro il container `php`: **18/18 test passanti, 57 assertions**. Inclusi i test di integrazione TenantFilter su PostgreSQL reale (`TenantIsolationIntegration`) che in precedenza erano "non verificabili per mancanza di Docker".
+
+Bug trovati e corretti durante il bootstrap:
+- `docker/php/Dockerfile`: mancava `ENV APP_ENV=prod` prima di `composer install --no-dev`; la symfony-app `/.env` interna ha `APP_ENV=dev` come default, causando `ClassNotFoundError: MakerBundle` durante `cache:clear` nella build.
+- `docker/php/Dockerfile`: fix committato su branch `symfony-schema-and-docs`.
 
 Rischi/approvazioni prima del deploy reale:
 
 | Area | Stato |
 |---|---|
-| Docker bootstrap fresh | Da verificare fuori da questa CLI: qui `docker` e `docker-compose` non sono disponibili |
+| Docker bootstrap fresh | ✅ Verificato 2026-07-20: `18/18 tests, 57 assertions` passanti su PostgreSQL reale |
 | Segreti produzione | Da generare solo sulla VPS seguendo `docs/DEPLOY-CHECKLIST.md` |
 | Dominio, DNS, TLS, reverse proxy | Richiedono scelta/approvazione umana prima del go-live |
 | CORS browser finale | Placeholder documentato; va cablato/verificato quando il frontend chiamerà l'API cross-origin |

@@ -22,6 +22,8 @@ WORKDIR /var/www
 
 COPY . .
 
+ENV APP_ENV=prod
+
 RUN composer install --no-interaction --optimize-autoloader --no-dev \
     && mkdir -p config/jwt \
     && chmod -R 777 var/
