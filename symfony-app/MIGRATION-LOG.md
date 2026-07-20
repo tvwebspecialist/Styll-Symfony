@@ -172,6 +172,42 @@ Time: 00:00.573, Memory: 40.50 MB
 OK (18 tests, 57 assertions)
 ```
 
+### FASE 4 — Template env produzione + checklist deploy ✅
+
+**Commit:** `docs: template env produzione + checklist deploy`
+**Data:** 2026-07-20
+
+#### Implementato
+
+| File | Modifica |
+|---|---|
+| `.env.prod.example` | Template produzione Symfony/Docker con soli placeholder `CHANGE_ME_*` per DB, JWT, Mercure, CORS, proxy e provider opzionali |
+| `docs/DEPLOY-CHECKLIST.md` | Checklist comandi VPS per generare segreti reali, keypair JWT produzione, file env non committati, bootstrap Docker e check sicurezza |
+
+#### DECISIONE PRESA — nessun segreto produzione generato localmente
+
+**Scelta:** la sessione genera solo keypair dev/test locale ignorata da Git; tutti i segreti produzione sono documentati come comandi da eseguire sulla VPS.
+**Motivo:** evita di creare o trasferire segreti reali fuori dal contesto di deploy e rende ripetibile la procedura sotto pressione.
+
+#### Verifica
+
+Nessun valore reale di produzione è stato scritto nei template. Tutti i campi sensibili usano placeholder espliciti `CHANGE_ME_*` o variabili shell generate al momento del deploy.
+
+### Stato: pronto per primo deploy scheletro?
+
+**NO.**
+
+Il backend Symfony ha ora uno scheletro end-to-end verificato su PostgreSQL reale locale: JWT login, `GET /api/clients`, TenantFilter fail-closed e suite Symfony passante (`18 tests, 57 assertions`). Tuttavia prima di dichiararlo pronto per deploy scheletro su VPS manca una verifica non sostituibile: eseguire `docker compose up -d postgres` / `docker-compose up -d postgres` su una macchina con Docker installato e confermare che il bootstrap fresh del container esegua correttamente `docker/postgres/init/00..09` sia su `styll` sia su `styll_test`.
+
+Rischi/approvazioni prima del deploy reale:
+
+| Area | Stato |
+|---|---|
+| Docker bootstrap fresh | Da verificare fuori da questa CLI: qui `docker` e `docker-compose` non sono disponibili |
+| Segreti produzione | Da generare solo sulla VPS seguendo `docs/DEPLOY-CHECKLIST.md` |
+| Dominio, DNS, TLS, reverse proxy | Richiedono scelta/approvazione umana prima del go-live |
+| CORS browser finale | Placeholder documentato; va cablato/verificato quando il frontend chiamerà l'API cross-origin |
+
 ---
 
 ## Riepilogo sessione — 2026-07-20
