@@ -17,6 +17,7 @@ interface Props {
   logoUrl: string | null
   primaryColor: string | null
   secondaryColor: string | null
+  splashColor: string | null
   fontFamily: string | null
   clientName: string | null
   clientAvatarUrl: string | null
@@ -64,6 +65,7 @@ export function PwaPreviewShell({
   logoUrl,
   primaryColor,
   secondaryColor,
+  splashColor,
   fontFamily,
   clientName,
   clientAvatarUrl,
@@ -75,6 +77,7 @@ export function PwaPreviewShell({
   const activeBusinessName = preview.businessName ?? businessName
   const activeLogoUrl = preview.logoUrl ?? logoUrl
   const activePrimaryColor = preview.primaryColor ?? primaryColor ?? '#1A1A1A'
+  const activeSplashColor = splashColor ?? activePrimaryColor
   const activeSecondaryColor = secondaryColor ?? '#666666'
   const activeFontKey = (preview.fontFamily ?? fontFamily ?? 'outfit').toLowerCase()
   const activeFontFamily = resolveFontFamily(activeFontKey)
@@ -110,25 +113,41 @@ export function PwaPreviewShell({
 
   return (
     <div
-      style={{ ...brandVars, background: '#ffffff', minHeight: '100dvh' }}
+      style={{ ...brandVars, background: '#ffffff' }}
       className="text-foreground [font-family:var(--font-active)]"
     >
       <style>{`
+        /* White background fills viewport via body — no forced height on wrapper */
+        body { background: #ffffff; }
+        /* Page height = content height — PwaShell owns bottom padding/nav clearance */
+        main { min-height: 0; }
         /* PWA tap feedback — :active unlocked by touchstart listener above */
-        button:active:not(:disabled) { opacity: 0.72; }
+        button:active:not(:disabled) { transform: scale(0.97); opacity: 0.78; }
+        /* Shared pressable pattern for Link-cards and non-button interactives */
+        .pwa-pressable {
+          -webkit-tap-highlight-color: transparent;
+          transition: transform 130ms ease, opacity 130ms ease, background-color 150ms ease;
+        }
+        .pwa-pressable:active {
+          transform: scale(0.97);
+          opacity: 0.82;
+        }
         .pwa-nav-item:active > div {
           opacity: 0.65;
           transform: scale(0.91);
         }
         @media (prefers-reduced-motion: reduce) {
-          button:active:not(:disabled) { opacity: 0.72; transform: none !important; }
-          .pwa-nav-item:active > div { transform: none !important; }
+          button:active:not(:disabled) { transform: none !important; opacity: 0.78 !important; }
+          .pwa-pressable { transition: none !important; }
+          .pwa-pressable:active { transform: none !important; opacity: 0.82 !important; }
+          .pwa-nav-item:active > div { transform: none !important; opacity: 0.65 !important; }
         }
       `}</style>
       {!preview.enabled && (
         <PwaSplash
           businessName={activeBusinessName}
           primaryColor={activePrimaryColor}
+          splashColor={activeSplashColor}
           logoUrl={activeLogoUrl}
         />
       )}

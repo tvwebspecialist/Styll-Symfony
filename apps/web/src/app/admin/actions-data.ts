@@ -1,8 +1,16 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  applyClientConsentEvents,
+  buildMarketingConsentEvents,
+  extractConsentRequestContext,
+  seedClientConsentState,
+} from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import type { Json, TablesUpdate, TablesInsert } from '@/types'
 
 import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
@@ -51,11 +59,13 @@ export async function listTenantClients(
     from: (t: string) => {
       select: (s: string) => {
         eq: (c: string, v: string) => {
-          order: (
-            c: string,
-            opts: { ascending: boolean }
-          ) => {
-            limit: (n: number) => Promise<{ data: TenantClientRow[] | null; error: { message: string } | null }>
+          is: (c: string, v: null) => {
+            order: (
+              c: string,
+              opts: { ascending: boolean }
+            ) => {
+              limit: (n: number) => Promise<{ data: TenantClientRow[] | null; error: { message: string } | null }>
+            }
           }
         }
       }
@@ -65,6 +75,7 @@ export async function listTenantClients(
     .from('clients')
     .select('id, full_name, phone, email, created_at')
     .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }
@@ -73,7 +84,7 @@ export async function listTenantClients(
 
 export interface TenantAppointmentRow {
   id: string
-  starts_at: string
+  start_time: string
   status: string
   client_name: string | null
 }
@@ -95,7 +106,7 @@ export async function listTenantAppointments(
               data:
                 | Array<{
                     id: string
-                    starts_at: string
+                    start_time: string
                     status: string
                     client: { full_name: string | null } | { full_name: string | null }[] | null
                   }>
@@ -109,16 +120,16 @@ export async function listTenantAppointments(
   }
   const { data, error } = await db
     .from('appointments')
-    .select('id, starts_at, status, client:clients(full_name)')
+    .select('id, start_time, status, client:clients(full_name)')
     .eq('tenant_id', tenantId)
-    .order('starts_at', { ascending: false })
+    .order('start_time', { ascending: false })
     .limit(200)
   if (error) return { success: false, error: error.message }
   const rows: TenantAppointmentRow[] = (data ?? []).map((r) => {
     const c = Array.isArray(r.client) ? r.client[0] : r.client
     return {
       id: r.id,
-      starts_at: r.starts_at,
+      start_time: r.start_time,
       status: r.status,
       client_name: c?.full_name ?? null,
     }
@@ -144,16 +155,46 @@ export async function createTenantClient(
   if ('error' in auth) return { success: false, error: auth.error }
   if (!input.full_name?.trim()) return { success: false, error: 'Nome obbligatorio.' }
   const db = createAdminClient()
-  const { error } = await db.from('clients').insert({
-    tenant_id: tenantId,
-    full_name: input.full_name.trim(),
-    email: input.email?.trim() || null,
-    phone: input.phone?.trim() || null,
-    marketing_consent: true,
-    preferred_contact_channel: 'whatsapp',
-    tags: '["active"]',
-  })
+  const { data, error } = await db
+    .from('clients')
+    .insert({
+      tenant_id: tenantId,
+      full_name: input.full_name.trim(),
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      marketing_consent: false,
+      preferred_contact_channel: 'whatsapp',
+      tags: '["active"]',
+    })
+    .select('id, created_at')
+    .single()
   if (error) return { success: false, error: error.message }
+  if (!data?.id || !data.created_at) return { success: false, error: 'Cliente non creato.' }
+
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    await seedClientConsentState(db, {
+      tenantId,
+      clientId: data.id,
+      marketingAllowed: false,
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.SUPERADMIN,
+      actorProfileId: auth.id,
+      source: CONSENT_SOURCE.SUPERADMIN_PANEL,
+      occurredAt: data.created_at,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'admin_create_tenant_client',
+      },
+    })
+  } catch (consentError) {
+    await db.from('clients').delete().eq('id', data.id).eq('tenant_id', tenantId)
+    return {
+      success: false,
+      error: consentError instanceof Error ? consentError.message : 'Cliente non creato.',
+    }
+  }
   await logAdminAction(auth.id, 'client.created', 'client', null, tenantId, {
     name: input.full_name,
   })
@@ -218,13 +259,43 @@ export async function seedDemoClients(
       full_name: `${first} ${last}`,
       email: `${slug}${suffix}@${pick(DEMO_DOMAINS)}`,
       phone: randomPhone(),
-      marketing_consent: true,
+      marketing_consent: false,
       preferred_contact_channel: 'whatsapp',
       tags: '["active"]',
     }
   })
-  const { error, data } = await db.from('clients').insert(rows).select('id')
+  const { error, data } = await db
+    .from('clients')
+    .insert(rows)
+    .select('id, created_at, marketing_consent')
   if (error) return { success: false, error: error.message }
+
+  try {
+    for (const row of data ?? []) {
+      await seedClientConsentState(db, {
+        tenantId,
+        clientId: row.id,
+        marketingAllowed: Boolean(row.marketing_consent),
+        churnAllowed: true,
+        actor: CONSENT_ACTOR.SUPERADMIN,
+        actorProfileId: auth.id,
+        source: CONSENT_SOURCE.SUPERADMIN_SEED,
+        occurredAt: row.created_at,
+        metadata: {
+          surface: 'admin_seed_demo_clients',
+        },
+      })
+    }
+  } catch (consentError) {
+    const insertedIds = (data ?? []).map((row) => row.id)
+    if (insertedIds.length > 0) {
+      await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
+    }
+    return {
+      success: false,
+      error: consentError instanceof Error ? consentError.message : 'Errore audit consenso seed.',
+    }
+  }
   await logAdminAction(auth.id, 'client.seeded', 'client', null, tenantId, {
     count: data?.length ?? rows.length,
   })
@@ -253,21 +324,55 @@ export async function updateTenantClient(
   if ('error' in auth) return { success: false, error: auth.error }
   const db = createAdminClient()
   const patch: TablesUpdate<'clients'> = {}
+  let marketingConsent: boolean | undefined
   if (input.full_name !== undefined) patch.full_name = input.full_name?.trim() || undefined
   if (input.email !== undefined) patch.email = input.email?.trim() || null
   if (input.phone !== undefined) patch.phone = input.phone?.trim() || null
   if (input.tags !== undefined) {
     patch.tags = input.tags ? JSON.stringify(input.tags) : null
   }
-  if (input.marketing_consent !== undefined) patch.marketing_consent = !!input.marketing_consent
-  const { error } = await db
-    .from('clients')
-    .update(patch)
-    .eq('id', clientId)
-    .eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
+  if (input.marketing_consent !== undefined) marketingConsent = !!input.marketing_consent
+  if (Object.keys(patch).length > 0) {
+    const { error } = await db
+      .from('clients')
+      .update(patch)
+      .eq('id', clientId)
+      .eq('tenant_id', tenantId)
+    if (error) return { success: false, error: error.message }
+  }
+
+  if (marketingConsent !== undefined) {
+    try {
+      const requestContext = extractConsentRequestContext(await headers())
+      await applyClientConsentEvents(db, {
+        tenantId,
+        clientId,
+        actor: CONSENT_ACTOR.SUPERADMIN,
+        actorProfileId: auth.id,
+        source: CONSENT_SOURCE.SUPERADMIN_PANEL,
+        events: buildMarketingConsentEvents({
+          allowed: marketingConsent,
+          channel: CONSENT_CHANNEL.BACKOFFICE,
+          source: CONSENT_SOURCE.SUPERADMIN_PANEL,
+          occurredAt: new Date().toISOString(),
+          ipAddress: requestContext.ipAddress ?? null,
+          metadata: {
+            surface: 'admin_update_tenant_client',
+            ip_address: requestContext.ipAddress ?? null,
+            user_agent: requestContext.userAgent ?? null,
+          },
+          userAgent: requestContext.userAgent ?? null,
+        }),
+      })
+    } catch (consentError) {
+      return {
+        success: false,
+        error: consentError instanceof Error ? consentError.message : 'Errore audit consenso.',
+      }
+    }
+  }
   await logAdminAction(auth.id, 'client.updated', 'client', clientId, tenantId, {
-    fields: Object.keys(patch),
+    fields: marketingConsent === undefined ? Object.keys(patch) : [...Object.keys(patch), 'marketing_consent'],
   })
   revalidatePath(`/admin/tenants/${tenantId}/clients`)
   return { success: true }
@@ -517,12 +622,10 @@ import type {
   ImportError,
 } from '@/lib/actions/clienti'
 import {
-  normalizePhone,
-  normalizeEmail,
-  parseDateOfBirth,
-  parseBooleanField,
-  parseCsvTags,
-} from '@/lib/utils/client-import-utils'
+  buildImportClientsResult,
+  prepareClientImportPlan,
+  type ClientImportUpdate,
+} from '@/lib/utils/client-import-core'
 
 /**
  * Variant of importClients for superadmin concierge mode.
@@ -535,20 +638,61 @@ export async function importClientsForTenant(
 ): Promise<ImportClientsResult> {
   const auth = await requireSuperadmin()
   if ('error' in auth) {
-    return { success: false, error: auth.error, imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: auth.error,
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
+  const adminActorId = auth.id
   if (!tenantId) {
-    return { success: false, error: 'Tenant ID mancante', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Tenant ID mancante',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   if (!input.rows || input.rows.length === 0) {
-    return { success: false, error: 'Nessuna riga', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Nessuna riga',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   if (input.rows.length > 10_000) {
-    return { success: false, error: 'Massimo 10.000 righe', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Massimo 10.000 righe',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
   const hasName = Object.values(input.mapping).includes('full_name')
   if (!hasName) {
-    return { success: false, error: 'Mappa la colonna Nome', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Mappa la colonna Nome',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
 
   const db = createAdminClient()
@@ -559,85 +703,146 @@ export async function importClientsForTenant(
     .eq('id', tenantId)
     .maybeSingle()
   if (!tenantRow) {
-    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+    return {
+      success: false,
+      status: 'failed',
+      error: 'Tenant non trovato',
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [],
+    }
   }
 
   const { data: existing } = await db
     .from('clients')
-    .select('id, email, phone')
+    .select('id, full_name, email, phone, date_of_birth, marketing_consent, tags')
     .eq('tenant_id', tenantId)
     .is('deleted_at', null)
 
-  const existingByEmail = new Map<string, string>()
-  const existingByPhone = new Map<string, string>()
-  ;(existing ?? []).forEach((c) => {
-    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
-    if (c.phone) { const norm = normalizePhone(c.phone); if (norm) existingByPhone.set(norm, c.id) }
+  const plan = prepareClientImportPlan({
+    tenantId,
+    existingClients: (existing ?? []) as Array<{
+      id: string
+      full_name: string | null
+      email: string | null
+      phone: string | null
+      date_of_birth: string | null
+      marketing_consent: boolean
+      tags: Json | null
+    }>,
+    rows: input.rows,
+    mapping: input.mapping,
+    duplicateStrategy: input.duplicateStrategy,
+    fallbackTags: ['imported'],
+    alwaysAddTags: ['concierge'],
   })
 
-  const errors: ImportError[] = []
-  const toInsert: TablesInsert<'clients'>[] = []
-  let skipped = 0
+  const errors: ImportError[] = [...plan.errors]
+  const toInsert: TablesInsert<'clients'>[] = plan.toInsert
+  const skipped = plan.skipped
+  const merged = plan.merged
 
-  const inv: Partial<Record<string, string>> = {}
-  for (const [orig, styll] of Object.entries(input.mapping)) {
-    if (styll !== 'ignore') inv[styll] = orig
+  async function applyClientUpdate(update: ClientImportUpdate): Promise<void> {
+    const patch: TablesUpdate<'clients'> = { ...update.patch }
+    const marketingConsent = patch.marketing_consent
+    delete patch.marketing_consent
+    if (Object.keys(patch).length > 0) {
+      const { error } = await db
+        .from('clients')
+        .update(patch)
+        .eq('tenant_id', tenantId)
+        .eq('id', update.id)
+
+      if (error) {
+        errors.push({ rowIndex: 0, message: `Errore DB (merge): ${error.message}` })
+        return
+      }
+    }
+
+    if (marketingConsent !== undefined) {
+      try {
+        await applyClientConsentEvents(db, {
+          tenantId,
+          clientId: update.id,
+          actor: CONSENT_ACTOR.SUPERADMIN,
+          actorProfileId: adminActorId,
+          source: CONSENT_SOURCE.CLIENT_IMPORT,
+          events: buildMarketingConsentEvents({
+            allowed: Boolean(marketingConsent),
+            channel: CONSENT_CHANNEL.IMPORT,
+            source: CONSENT_SOURCE.CLIENT_IMPORT,
+            occurredAt: new Date().toISOString(),
+            metadata: {
+              import_source: input.source,
+              import_filename: input.filename ?? null,
+              initiated_by: adminActorId,
+            },
+          }),
+        })
+      } catch (consentError) {
+        errors.push({
+          rowIndex: 0,
+          message: consentError instanceof Error ? `Errore audit consenso (merge): ${consentError.message}` : 'Errore audit consenso (merge)',
+        })
+      }
+    }
   }
 
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = input.rows[i]
-    const rowNum = i + 1
-
-    const rawName = inv.full_name ? row[inv.full_name] ?? '' : ''
-    const fullName = rawName.trim()
-    if (!fullName) { errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' }); continue }
-
-    const rawEmail = inv.email ? row[inv.email] ?? '' : ''
-    const email = rawEmail ? normalizeEmail(rawEmail) : null
-    if (rawEmail && !email) errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
-
-    const rawPhone = inv.phone ? row[inv.phone] ?? '' : ''
-    const phone = rawPhone ? normalizePhone(rawPhone) : null
-    if (rawPhone && !phone) errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
-
-    const dupId = (email && existingByEmail.get(email)) || (phone && existingByPhone.get(phone)) || null
-    if (dupId) { skipped++; continue }
-
-    const rawDob = inv.date_of_birth ? row[inv.date_of_birth] ?? '' : ''
-    const dob = rawDob ? parseDateOfBirth(rawDob) : null
-
-    const rawTags = inv.tags ? row[inv.tags] ?? '' : ''
-    const tagsArr = parseCsvTags(rawTags)
-    if (tagsArr.length === 0) tagsArr.push('imported')
-    if (!tagsArr.includes('concierge')) tagsArr.push('concierge')
-
-    const rawConsent = inv.marketing_consent ? row[inv.marketing_consent] ?? '' : ''
-    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
-
-    toInsert.push({
-      tenant_id: tenantId,
-      full_name: fullName,
-      email,
-      phone,
-      date_of_birth: dob,
-      marketing_consent: marketingConsent,
-      preferred_contact_channel: 'whatsapp',
-      tags: JSON.stringify(tagsArr),
-    })
+  for (const update of plan.toUpdate) {
+    await applyClientUpdate(update)
   }
 
   let imported = 0
   if (toInsert.length > 0) {
     for (let i = 0; i < toInsert.length; i += 500) {
       const chunk = toInsert.slice(i, i + 500)
-      const { error, count } = await db.from('clients').insert(chunk, { count: 'exact' })
+      const { data: insertedRows, error, count } = await db
+        .from('clients')
+        .insert(chunk, { count: 'exact' })
+        .select('id, created_at, marketing_consent')
       if (error) { errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` }); break }
+
+      try {
+        for (const row of insertedRows ?? []) {
+          await seedClientConsentState(db, {
+            tenantId,
+            clientId: row.id,
+            marketingAllowed: Boolean(row.marketing_consent),
+            churnAllowed: true,
+            actor: CONSENT_ACTOR.SUPERADMIN,
+            actorProfileId: adminActorId,
+            source: CONSENT_SOURCE.CLIENT_IMPORT,
+            occurredAt: row.created_at,
+            metadata: {
+              import_source: input.source,
+              import_filename: input.filename ?? null,
+              initiated_by: adminActorId,
+            },
+          })
+        }
+      } catch (consentError) {
+        const insertedIds = (insertedRows ?? []).map((row) => row.id)
+        if (insertedIds.length > 0) {
+          await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
+        }
+        errors.push({
+          rowIndex: 0,
+          message: consentError instanceof Error ? `Errore audit consenso import: ${consentError.message}` : 'Errore audit consenso import',
+        })
+        break
+      }
+
       imported += count ?? chunk.length
     }
   }
 
-  const status: 'completed' | 'partial' | 'failed' =
-    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+  const result = buildImportClientsResult({
+    imported,
+    merged,
+    skipped,
+    errors,
+  })
 
   const { data: jobRow } = await db
     .from('client_import_jobs')
@@ -648,10 +853,11 @@ export async function importClientsForTenant(
       filename: input.filename ?? null,
       total_rows: input.rows.length,
       imported_count: imported,
+      merged_count: merged,
       skipped_count: skipped,
       error_count: errors.length,
       errors: errors.slice(0, 100) as unknown as Json,
-      status,
+      status: result.status,
     })
     .select('id')
     .single()
@@ -662,6 +868,7 @@ export async function importClientsForTenant(
     filename: input.filename ?? null,
     total: input.rows.length,
     imported,
+    merged,
     skipped,
     errors: errors.length,
   })
@@ -670,11 +877,8 @@ export async function importClientsForTenant(
   revalidatePath(`/admin/tenants/${tenantId}/clients`)
 
   return {
-    success: imported > 0 || errors.length === 0,
+    ...result,
     jobId: jobRow?.id,
-    imported,
-    skipped,
-    errors,
   }
 }
 
@@ -684,6 +888,7 @@ export interface ImportJobRow {
   filename: string | null
   total_rows: number
   imported_count: number
+  merged_count: number
   skipped_count: number
   error_count: number
   status: string
@@ -701,7 +906,7 @@ export async function listTenantImportJobs(
   const db = createAdminClient()
   const { data, error } = await db
     .from('client_import_jobs')
-    .select('id, source, filename, total_rows, imported_count, skipped_count, error_count, status, initiated_by, created_at')
+    .select('id, source, filename, total_rows, imported_count, merged_count, skipped_count, error_count, status, initiated_by, created_at')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
     .limit(50)

@@ -6,16 +6,30 @@
  */
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions } from './send-notification'
-import type { PushSubscriptionRow } from './send-notification'
+import type { PushPayload, PushSubscriptionRow } from './send-notification'
+
+export type PromotionPushDb = Pick<ReturnType<typeof createAdminClient>, 'from'>
+
+type PromotionPushSender = (
+  subscriptions: PushSubscriptionRow[],
+  payload: PushPayload,
+) => Promise<number>
+
+interface PromotionPushDeps {
+  db?: PromotionPushDb
+  sendPush?: PromotionPushSender
+}
 
 export async function sendPromotionPush(
   promotionId: string,
   tenantId: string,
+  deps: PromotionPushDeps = {},
 ): Promise<{ sent: number; failed: number; skipped?: boolean }> {
-  const db = createAdminClient()
+  const db = deps.db ?? createAdminClient()
+  const sendPush = deps.sendPush ?? sendPushToSubscriptions
 
   // 1. Verifica che la promozione esista, sia attiva, appartenga al tenant
-  const { data: promo } = await (db as any)
+  const { data: promo } = await db
     .from('promotions')
     .select('id, title, show_in_app')
     .eq('id', promotionId)
@@ -23,10 +37,10 @@ export async function sendPromotionPush(
     .eq('status', 'active')
     .maybeSingle()
 
-  if (!promo || !(promo as any).show_in_app) return { sent: 0, failed: 0 }
+  if (!promo?.show_in_app) return { sent: 0, failed: 0 }
 
   // 2. Idempotenza: se già inviato per questa promozione, salta
-  const { count } = await (db as any)
+  const { count } = await db
     .from('notification_log')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
@@ -38,38 +52,69 @@ export async function sendPromotionPush(
   // 3. Leggi logo tenant per l'icona
   const { data: tenant } = await db
     .from('tenants')
-    .select('logo_url, slug')
+    .select('logo_url')
     .eq('id', tenantId)
     .maybeSingle()
 
-  const icon = (tenant as any)?.logo_url ?? '/icon-192.png'
-  const slug = (tenant as any)?.slug ?? ''
+  const icon = tenant?.logo_url ?? '/icon-192.png'
 
-  // 4. Leggi le subscription del tenant — solo clienti (user_type = 'client')
-  //    Il barbiere ha spesso una propria subscription per le notifiche dashboard;
-  //    il join con profiles esclude staff/owner/manager dall'invio.
-  const { data: allSubs } = await (db as any)
-    .from('push_subscriptions')
-    .select('id, profile_id, endpoint, p256dh, auth, profiles!inner(user_type)')
+  // 4. Seleziona solo i profili client con un record `clients` valido nel tenant
+  //    e con consenso marketing esplicito attivo.
+  const { data: eligibleClients } = await db
+    .from('clients')
+    .select('profile_id')
     .eq('tenant_id', tenantId)
-    .eq('profiles.user_type', 'client')
+    .eq('marketing_consent', true)
+    .is('deleted_at', null)
+    .not('profile_id', 'is', null)
 
-  if (!allSubs || (allSubs as any[]).length === 0) return { sent: 0, failed: 0 }
+  const candidateProfileIds = Array.from(
+    new Set(
+      (eligibleClients ?? [])
+        .map((client) => client.profile_id)
+        .filter((profileId): profileId is string => !!profileId),
+    ),
+  )
 
-  // 5. Raggruppa per profile_id (un profilo può avere più dispositivi)
+  if (candidateProfileIds.length === 0) return { sent: 0, failed: 0 }
+
+  // Difesa aggiuntiva: invia solo a profili esplicitamente marcati come `client`.
+  const { data: eligibleProfiles } = await db
+    .from('profiles')
+    .select('id')
+    .eq('user_type', 'client')
+    .in('id', candidateProfileIds)
+
+  const eligibleProfileIds = Array.from(
+    new Set((eligibleProfiles ?? []).map((profile) => profile.id)),
+  )
+
+  if (eligibleProfileIds.length === 0) return { sent: 0, failed: 0 }
+
+  // 5. Leggi le subscription del tenant solo per i client con consenso marketing.
+  const { data: allSubs } = await db
+    .from('push_subscriptions')
+    .select('id, profile_id, endpoint, p256dh, auth')
+    .eq('tenant_id', tenantId)
+    .in('profile_id', eligibleProfileIds)
+
+  if (!allSubs || allSubs.length === 0) return { sent: 0, failed: 0 }
+
+  // 6. Raggruppa per profile_id (un profilo può avere più dispositivi)
   const byProfile = new Map<string, PushSubscriptionRow[]>()
-  for (const sub of allSubs as any[]) {
+  for (const sub of allSubs) {
     const arr = byProfile.get(sub.profile_id) ?? []
     arr.push({ id: sub.id, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth })
     byProfile.set(sub.profile_id, arr)
   }
 
+  const promoUrl = `/offerte/${promotionId}`
   const payload = {
     title: 'Nuova offerta per te 🎉',
-    body:   (promo as any).title as string,
+    body:   promo.title,
     icon,
     badge: '/icon-192.png',
-    url:   `/offerte/${promotionId}`,
+    url:   promoUrl,
     tag:   `promotion-${promotionId}`,
   }
 
@@ -77,12 +122,12 @@ export async function sendPromotionPush(
   let totalFailed = 0
 
   for (const [profileId, subs] of byProfile) {
-    const sent = await sendPushToSubscriptions(subs, payload)
+    const sent = await sendPush(subs, payload)
     totalSent  += sent
     totalFailed += subs.length - sent
 
     if (sent > 0) {
-      await (db as any)
+      await db
         .from('notification_log')
         .insert({
           tenant_id:      tenantId,
@@ -91,6 +136,16 @@ export async function sendPromotionPush(
           appointment_id: null,
           promotion_id:   promotionId,
         })
+      const { error: notifErr } = await db.from('notifications').insert({
+        tenant_id: tenantId,
+        profile_id: profileId,
+        type: 'promotion_published',
+        title: payload.title,
+        body: payload.body,
+        is_read: false,
+        meta: { url: promoUrl, promotion_id: promotionId },
+      })
+      if (notifErr) console.error('[promotion-push] notifications insert failed:', notifErr.message)
     }
   }
 

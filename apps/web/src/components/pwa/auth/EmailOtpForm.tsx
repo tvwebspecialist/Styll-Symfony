@@ -3,11 +3,24 @@
 import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { checkEmailExists, sendEmailOtp, verifyEmailOtp } from '@/lib/actions/pwa-auth'
+import {
+  completeEmailOtpProfile,
+  sendEmailOtp,
+  verifyEmailOtp,
+} from '@/lib/actions/pwa-auth'
+import {
+  MARKETING_SIGNUP_PREFIX,
+  MARKETING_SIGNUP_SUFFIX,
+} from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/client'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
+import { hasAnalyticsConsent } from '@/lib/analytics-consent'
+import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
+import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
+import { buildRootAppUrl } from '@/lib/auth/urls'
 
 function GoogleIcon() {
   return (
@@ -24,11 +37,13 @@ interface Props {
   tenantId: string
   tenantSlug: string
   mode: 'page' | 'modal'
+  businessName?: string
   prefillEmail?: string
   prefillFullName?: string
   prefillPhone?: string
   returnTo?: string
   onSuccess?: (data: { email: string; fullName: string; phone: string }) => void
+  appSurface?: AppSurface
 }
 
 type Step = 'email' | 'profile-data' | 'otp'
@@ -39,24 +54,50 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+function SignupLegalNotice({
+  privacyHref,
+  termsHref,
+}: {
+  privacyHref: string
+  termsHref: string
+}) {
+  return (
+    <p className="text-[11px] leading-relaxed text-gray-500">
+      Continuando confermi di aver letto la{' '}
+      <Link href={privacyHref} className="font-medium underline underline-offset-2 text-gray-700">
+        Privacy Policy
+      </Link>{' '}
+      e i{' '}
+      <Link href={termsHref} className="font-medium underline underline-offset-2 text-gray-700">
+        Termini e condizioni
+      </Link>
+      .
+    </p>
+  )
+}
+
 export function EmailOtpForm({
   tenantId,
   tenantSlug,
   mode,
+  businessName,
   prefillEmail = '',
   prefillFullName = '',
   prefillPhone = '',
   returnTo,
   onSuccess,
+  appSurface = 'pwa',
 }: Props) {
   const router = useRouter()
   const tenantPath = useTenantPath(tenantSlug)
-
+  const privacyHref = tenantPath('/privacy')
+  const termsHref = tenantPath('/termini')
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState(prefillEmail)
   const [fullName, setFullName] = useState(prefillFullName)
   const [phone, setPhone] = useState(prefillPhone)
-  const [isNewUser, setIsNewUser] = useState(false)
+  const [marketingConsent, setMarketingConsent] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const [otp, setOtp] = useState<string[]>(EMPTY_OTP)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -76,44 +117,17 @@ export function EmailOtpForm({
   }, [countdown])
 
   useEffect(() => {
+    setIsReady(true)
+  }, [])
+
+  useEffect(() => {
     if (step !== 'otp') return
     const timer = window.setTimeout(() => otpRefs.current[0]?.focus(), 120)
     return () => window.clearTimeout(timer)
   }, [step])
 
   async function handleEmailContinue() {
-    if (loading || !isValidEmail(email)) return
-    setLoading(true)
-    setError(null)
-
-    const { isExisting } = await checkEmailExists(email)
-
-    if (isExisting) {
-      const result = await sendEmailOtp(email)
-      setLoading(false)
-      if (!result.success) {
-        setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
-        return
-      }
-      setIsNewUser(false)
-      setStep('otp')
-      setCountdown(60)
-    } else {
-      setLoading(false)
-      setIsNewUser(true)
-      setStep('profile-data')
-    }
-  }
-
-  async function handleProfileDataContinue() {
-    if (loading || !fullName.trim()) {
-      setError('Il nome è obbligatorio.')
-      return
-    }
-    if (!phone.trim()) {
-      setError('Il numero di telefono è obbligatorio.')
-      return
-    }
+    if (!isReady || loading || !isValidEmail(email)) return
     setLoading(true)
     setError(null)
 
@@ -123,12 +137,14 @@ export function EmailOtpForm({
       setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
       return
     }
+    setOtp(EMPTY_OTP)
+    setOtpStatus('normal')
     setStep('otp')
     setCountdown(60)
   }
 
   async function handleResendOtp() {
-    if (loading) return
+    if (!isReady || loading) return
     setLoading(true)
     setError(null)
     setOtp(EMPTY_OTP)
@@ -143,6 +159,27 @@ export function EmailOtpForm({
     setCountdown(60)
   }
 
+  async function finalizeAuthenticatedAccess(isSignup: boolean) {
+    if (hasAnalyticsConsent()) {
+      trackEvent({ tenantId, eventType: isSignup ? 'signup_completed' : 'login', appSurface })
+      const anonymousId = getCurrentAnonymousId()
+      if (anonymousId) {
+        linkSessionByAuthUser(tenantId, anonymousId).catch(() => {})
+      }
+    }
+
+    if (onSuccess) {
+      onSuccess({
+        email: email.trim().toLowerCase(),
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+      })
+      return
+    }
+
+    window.location.replace(tenantPath(returnTo ?? '/profilo'))
+  }
+
   const triggerShake = useCallback(() => {
     const el = otpContainerRef.current
     if (!el) return
@@ -152,15 +189,12 @@ export function EmailOtpForm({
   }, [])
 
   async function handleVerifyOtp(code: string) {
-    if (loading || code.length !== 6) return
+    if (!isReady || loading || code.length !== 6) return
     setLoading(true)
     setError(null)
 
     const normalizedEmail = email.trim().toLowerCase()
-    const profileData = isNewUser
-      ? { fullName: fullName.trim() || undefined, phone: phone.trim() || undefined }
-      : undefined
-    const result = await verifyEmailOtp(normalizedEmail, code, tenantId, profileData)
+    const result = await verifyEmailOtp(normalizedEmail, code, tenantId)
 
     if (!result.success) {
       setLoading(false)
@@ -178,40 +212,65 @@ export function EmailOtpForm({
     try {
       const cookieClient = createClient()
       const pwaClient = createPwaClient()
-      const {
-        data: { session },
-      } = await cookieClient.auth.getSession()
-      if (session) {
-        await pwaClient.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        })
+      if (result.session) {
+        const sessionPayload = {
+          access_token: result.session.accessToken,
+          refresh_token: result.session.refreshToken,
+        }
+
+        await Promise.all([
+          cookieClient.auth.setSession(sessionPayload),
+          pwaClient.auth.setSession(sessionPayload),
+        ])
       }
     } catch {
       // Non-blocking — session works via cookies
     }
 
-    if (onSuccess) {
-      onSuccess({
-        email: normalizedEmail,
-        fullName: fullName.trim(),
-        phone: phone.trim(),
-      })
+    if (result.isNewClient) {
+      setLoading(false)
+      setStep('profile-data')
       return
     }
 
-    router.push(tenantPath(returnTo ?? '/profilo'))
-    router.refresh()
+    setLoading(false)
+    await finalizeAuthenticatedAccess(false)
+  }
+
+  async function handleProfileDataContinue() {
+    if (!isReady || loading || !fullName.trim()) {
+      setError('Il nome è obbligatorio.')
+      return
+    }
+    if (!phone.trim()) {
+      setError('Il numero di telefono è obbligatorio.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+
+    const result = await completeEmailOtpProfile(tenantId, {
+      fullName,
+      phone,
+      marketingConsent,
+    })
+
+    setLoading(false)
+    if (!result.success) {
+      setError(result.error ?? 'Qualcosa è andato storto. Riprova.')
+      return
+    }
+
+    await finalizeAuthenticatedAccess(true)
   }
 
   async function handleGoogleSignIn() {
-    if (googleLoading) return
+    if (!isReady || googleLoading) return
     setGoogleLoading(true)
     setError(null)
 
     try {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-      const callbackUrl = new URL(`https://${rootDomain}/auth/callback`)
+      const callbackUrl = new URL(buildRootAppUrl('/auth/callback'))
       callbackUrl.searchParams.set('next', 'pwa')
       callbackUrl.searchParams.set('tenantSlug', tenantSlug)
       callbackUrl.searchParams.set('tenantId', tenantId)
@@ -298,6 +357,7 @@ export function EmailOtpForm({
             autoComplete="email"
             placeholder="La tua email"
             value={email}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setEmail(e.target.value)
               setError(null)
@@ -305,14 +365,14 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleEmailContinue()
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
           />
           {error && <p className="px-1 text-[12px] text-red-500">{error}</p>}
           <button
             type="button"
             onClick={() => void handleEmailContinue()}
-            disabled={!isValidEmail(email) || loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
+            disabled={!isReady || !isValidEmail(email) || loading}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
             {loading ? (
@@ -321,7 +381,7 @@ export function EmailOtpForm({
                 Caricamento…
               </>
             ) : (
-              'Continua →'
+              'Continua'
             )}
           </button>
           <div className="flex items-center gap-2">
@@ -332,8 +392,8 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleGoogleSignIn()}
-            disabled={googleLoading}
-            className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-gray-200 bg-white text-[14px] font-medium text-gray-700 transition-all active:scale-[0.98] disabled:opacity-60"
+            disabled={!isReady || googleLoading}
+            className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white text-[14px] font-medium text-gray-700 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
               <span className="size-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" aria-hidden="true" />
@@ -350,13 +410,14 @@ export function EmailOtpForm({
       return (
         <div className="flex flex-col gap-3">
           <p className="text-[13px] text-gray-500">
-            Benvenuto/a! Dicci come ti chiami prima di continuare.
+            Ti chiediamo questi dati solo per completare il tuo primo accesso.
           </p>
           <input
             type="text"
             autoComplete="name"
             placeholder="Nome e cognome"
             value={fullName}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setFullName(e.target.value)
               setError(null)
@@ -364,7 +425,7 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && fullName.trim()) void handleProfileDataContinue()
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
@@ -373,18 +434,35 @@ export function EmailOtpForm({
             autoComplete="tel"
             placeholder="+39 333 123 4567"
             value={phone}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setPhone(e.target.value)
               setError(null)
             }}
-            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
+            className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
           />
           {error && <p className="px-1 text-[12px] text-red-500">{error}</p>}
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              disabled={!isReady || loading}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded"
+              style={{ accentColor: 'var(--brand-primary, #222222)' }}
+            />
+            <span className="text-[11px] leading-relaxed text-gray-500">
+              {MARKETING_SIGNUP_PREFIX}{' '}
+              <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
+              {MARKETING_SIGNUP_SUFFIX}
+            </span>
+          </label>
+          <SignupLegalNotice privacyHref={privacyHref} termsHref={termsHref} />
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || !phone.trim() || loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
+            disabled={!isReady || !fullName.trim() || !phone.trim() || loading}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-60"
             style={{ backgroundColor: 'var(--brand-primary, #222222)' }}
           >
             {loading ? (
@@ -393,7 +471,7 @@ export function EmailOtpForm({
                 Invio in corso…
               </>
             ) : (
-              'Invia codice →'
+              'Completa accesso'
             )}
           </button>
           <button
@@ -420,7 +498,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => {
-              setStep(isNewUser ? 'profile-data' : 'email')
+              setStep('email')
               setOtp(EMPTY_OTP)
               setError(null)
             }}
@@ -457,7 +535,7 @@ export function EmailOtpForm({
               onKeyDown={(e) => handleOtpKeyDown(idx, e)}
               onFocus={() => setFocusedIdx(idx)}
               onBlur={() => setFocusedIdx(null)}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="h-12 w-11 rounded-xl text-center text-[22px] font-black outline-none transition-all disabled:opacity-50"
               style={{
                 borderWidth: focusedIdx === idx ? 2 : 1.5,
@@ -517,7 +595,7 @@ export function EmailOtpForm({
             <button
               type="button"
               onClick={() => void handleResendOtp()}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="mt-1 text-[12px] font-bold disabled:opacity-40"
               style={{ color: 'var(--brand-primary, #222222)' }}
             >
@@ -535,7 +613,7 @@ export function EmailOtpForm({
     return (
       <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="relative mb-8 mt-2">
-          <div className="flex size-28 items-center justify-center rounded-full bg-[var(--brand-primary)]/10">
+          <div className="flex size-28 items-center justify-center rounded-full styll-bg-brand-primary-soft">
             <Mail className="size-12 text-[var(--brand-primary)]" strokeWidth={1.5} aria-hidden="true" />
           </div>
         </div>
@@ -543,7 +621,7 @@ export function EmailOtpForm({
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-black text-neutral-950">Accedi con la tua email</h1>
           <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-neutral-500">
-            Niente password da ricordare — ti inviamo un codice a 6 cifre direttamente in email.
+            Niente password da ricordare — se l&apos;indirizzo è valido, riceverai un codice a 6 cifre direttamente in email.
           </p>
         </div>
 
@@ -558,6 +636,7 @@ export function EmailOtpForm({
             autoComplete="email"
             placeholder="nome@esempio.it"
             value={email}
+            disabled={!isReady || loading}
             onChange={(e) => {
               setEmail(e.target.value)
               setError(null)
@@ -565,10 +644,10 @@ export function EmailOtpForm({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && isValidEmail(email)) void handleEmailContinue()
             }}
-            className={`h-[54px] w-full rounded-2xl border px-4 text-neutral-950 outline-none transition focus:ring-2 focus:ring-[var(--brand-primary)]/30 ${
+            className={`h-[54px] w-full rounded-2xl border px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring ${
               error
                 ? 'border-red-400'
-                : 'border-neutral-200 focus:border-[var(--brand-primary)]'
+                : 'border-neutral-200'
             }`}
             style={{ fontSize: 16 }}
             aria-describedby={error ? 'email-otp-error' : undefined}
@@ -581,7 +660,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleEmailContinue()}
-            disabled={!isValidEmail(email) || loading}
+            disabled={!isReady || !isValidEmail(email) || loading}
             className="mt-4 flex h-[52px] w-full items-center justify-center rounded-full text-base font-semibold text-white transition disabled:opacity-40"
             style={{ backgroundColor: 'var(--brand-primary, #1a1a1a)' }}
           >
@@ -607,7 +686,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => void handleGoogleSignIn()}
-            disabled={googleLoading}
+            disabled={!isReady || googleLoading}
             className="flex h-[52px] w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
@@ -626,9 +705,9 @@ export function EmailOtpForm({
     return (
       <main className="flex min-h-[calc(100dvh-164px)] flex-col items-center bg-white px-5 pb-10 pt-10">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-black text-neutral-950">Come ti chiami?</h1>
+          <h1 className="text-2xl font-black text-neutral-950">Completa il tuo profilo</h1>
           <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-neutral-500">
-            Sarà il tuo nome sul profilo e visibile al salone.
+            Ti chiediamo questi dati solo per completare il tuo primo accesso nell&apos;app del salone.
           </p>
         </div>
 
@@ -644,6 +723,7 @@ export function EmailOtpForm({
                 autoComplete="name"
                 placeholder="Mario Rossi"
                 value={fullName}
+                disabled={!isReady || loading}
                 onChange={(e) => {
                   setFullName(e.target.value)
                   setError(null)
@@ -651,7 +731,7 @@ export function EmailOtpForm({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && fullName.trim()) void handleProfileDataContinue()
                 }}
-                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/30"
+                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring"
                 style={{ fontSize: 16 }}
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
@@ -667,11 +747,12 @@ export function EmailOtpForm({
                 autoComplete="tel"
                 placeholder="+39 333 123 4567"
                 value={phone}
+                disabled={!isReady || loading}
                 onChange={(e) => {
                   setPhone(e.target.value)
                   setError(null)
                 }}
-                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/30"
+                className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring"
                 style={{ fontSize: 16 }}
               />
             </div>
@@ -681,10 +762,28 @@ export function EmailOtpForm({
               {error}
             </p>
           )}
+          <label className="mt-1 flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={marketingConsent}
+              disabled={!isReady || loading}
+              onChange={(e) => setMarketingConsent(e.target.checked)}
+              className="mt-0.5 size-4 shrink-0 rounded"
+              style={{ accentColor: 'var(--brand-primary, #1a1a1a)' }}
+            />
+            <span className="text-xs leading-relaxed text-neutral-500">
+              {MARKETING_SIGNUP_PREFIX}{' '}
+              <span className="font-semibold">{businessName ?? 'il salone'}</span>.{' '}
+              {MARKETING_SIGNUP_SUFFIX}
+            </span>
+          </label>
+          <div className="mt-3">
+            <SignupLegalNotice privacyHref={privacyHref} termsHref={termsHref} />
+          </div>
           <button
             type="button"
             onClick={() => void handleProfileDataContinue()}
-            disabled={!fullName.trim() || !phone.trim() || loading}
+            disabled={!isReady || !fullName.trim() || !phone.trim() || loading}
             className="mt-5 flex h-[52px] w-full items-center justify-center rounded-full text-base font-semibold text-white transition disabled:opacity-40"
             style={{ backgroundColor: 'var(--brand-primary, #1a1a1a)' }}
           >
@@ -697,7 +796,7 @@ export function EmailOtpForm({
                 Invio in corso…
               </span>
             ) : (
-              'Invia codice'
+              'Completa accesso'
             )}
           </button>
           <button
@@ -727,7 +826,7 @@ export function EmailOtpForm({
           <button
             type="button"
             onClick={() => {
-              setStep(isNewUser ? 'profile-data' : 'email')
+              setStep('email')
               setOtp(EMPTY_OTP)
               setError(null)
             }}
@@ -766,7 +865,7 @@ export function EmailOtpForm({
                 onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                 onFocus={() => setFocusedIdx(idx)}
                 onBlur={() => setFocusedIdx(null)}
-                disabled={loading}
+                disabled={!isReady || loading}
                 className="h-12 w-12 rounded-xl text-center text-2xl font-black outline-none transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   borderWidth: focusedIdx === idx ? 2.5 : 2,
@@ -836,7 +935,7 @@ export function EmailOtpForm({
             <button
               type="button"
               onClick={() => void handleResendOtp()}
-              disabled={loading}
+              disabled={!isReady || loading}
               className="mt-1.5 text-sm font-bold text-[var(--brand-primary)] disabled:opacity-40"
             >
               Reinvia il codice

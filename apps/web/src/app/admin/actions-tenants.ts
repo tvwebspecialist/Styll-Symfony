@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 
+import {
+  clearAdminShadowCookie,
+  parseAdminShadowCookieValue,
+  setAdminShadowCookie,
+} from '@/lib/admin-shadow-cookie'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
@@ -235,20 +240,8 @@ export async function startTenantImpersonation(
     }
   }
 
-  const cookieDomain =
-    process.env.NODE_ENV === 'production'
-      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
-      : undefined
-
   const cookieStore = await cookies()
-  cookieStore.set(IMPERSONATE_COOKIE, tenantId, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 60 * 60 * 4, // 4h max
-    ...(cookieDomain ? { domain: cookieDomain } : {}),
-  })
+  setAdminShadowCookie(cookieStore, tenantId, auth.id)
 
   await logAdminAction(auth.id, 'tenant.impersonation_started', 'tenant', tenantId, tenantId, {
     business_name: t.business_name,
@@ -263,24 +256,19 @@ export async function stopTenantImpersonation(): Promise<ActionResult> {
   } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Sessione non valida.' }
 
-  const cookieDomain =
-    process.env.NODE_ENV === 'production'
-      ? `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'}`
-      : undefined
-
   const cookieStore = await cookies()
   const previous = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
-  cookieStore.set(IMPERSONATE_COOKIE, '', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 0,
-    ...(cookieDomain ? { domain: cookieDomain } : {}),
-  })
+  clearAdminShadowCookie(cookieStore)
 
-  if (previous) {
-    await logAdminAction(user.id, 'tenant.impersonation_stopped', 'tenant', previous, previous)
+  const previousTenantId = parseAdminShadowCookieValue(previous)?.tenantId ?? null
+  if (previousTenantId) {
+    await logAdminAction(
+      user.id,
+      'tenant.impersonation_stopped',
+      'tenant',
+      previousTenantId,
+      previousTenantId,
+    )
   }
   return { success: true }
 }

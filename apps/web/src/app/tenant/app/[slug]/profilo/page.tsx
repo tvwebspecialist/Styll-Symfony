@@ -6,6 +6,7 @@ import { createTenantPaths } from '@/lib/pwa-redirect'
 import { ProfileLoginGate } from '../_components/ProfileLoginGate'
 import { ProfiloAuthGuard } from './_components/ProfiloAuthGuard'
 import { AvatarHero } from './_components/AvatarHero'
+import { GamificationBox } from './_components/GamificationBox'
 import { SettingsList } from './_components/SettingsList'
 
 interface Props {
@@ -79,7 +80,7 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!client) {
     return (
-      <main className="min-h-screen bg-white px-4 pb-8 pt-6">
+      <main className="bg-white px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
           <div className="rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-amber-900">
             <h1 className="text-lg font-extrabold">Profilo non collegato</h1>
@@ -133,7 +134,7 @@ export default async function ProfiloPage({ params }: Props) {
 
   if (!fetchResults) {
     return (
-      <main className="min-h-screen bg-white px-4 pb-8 pt-6">
+      <main className="bg-white px-4 pb-8 pt-6">
         <div className="mx-auto max-w-xl">
           <div className="rounded-[20px] border border-red-200 bg-red-50 p-5 text-red-900">
             <h1 className="text-lg font-extrabold">Qualcosa è andato storto</h1>
@@ -163,21 +164,22 @@ export default async function ProfiloPage({ params }: Props) {
   const primaryColor = tenant.primary_color ?? '#1a1a1a'
 
   return (
-    <main className="min-h-screen bg-white pb-24">
+    <main className="bg-white">
       <div className="mx-auto max-w-xl px-4 pt-4">
         <div className="flex flex-col gap-3">
 
-          {/* Hero card */}
+          {/* Hero — avatar, nome, email */}
           <AvatarHero
-            userId={user.id}
             avatarUrl={avatarUrl}
             fullName={profileFullName}
             email={profileEmail}
-            tierLabel={tierLabel}
-            upcoming={upcomingCount}
-            completed={completedCount}
-            cancelled={cancelledCount}
+          />
+
+          {/* Punti e tier — sezione separata */}
+          <GamificationBox
             availablePoints={availablePoints}
+            totalPoints={totalPoints}
+            tierLabel={tierLabel}
             nextTierLabel={nextTierLabel}
             pointsToNextTier={pointsToNextTier}
             progress={progress}
@@ -192,6 +194,7 @@ export default async function ProfiloPage({ params }: Props) {
             puntiPath={tp('/punti')}
             modificaPath={tp('/profilo/modifica')}
             preferenzePath={tp('/profilo/preferenze')}
+            privacyPath={tp('/privacy')}
             basePath={tp('')}
             profile={{
               fullName: profileFullName,
@@ -201,7 +204,7 @@ export default async function ProfiloPage({ params }: Props) {
           />
 
           {/* Version footer */}
-          <p className="text-center text-[11px] text-neutral-300 pb-2 mt-1">Styll v1.0</p>
+          <p className="text-center text-[11px] text-neutral-300 pb-2 mt-1">Versione app 1.0</p>
 
         </div>
       </div>

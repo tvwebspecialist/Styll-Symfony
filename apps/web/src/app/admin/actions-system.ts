@@ -71,7 +71,7 @@ export interface AdminStats {
   total_tenants: number
   active_tenants: number
   suspended_tenants: number
-  total_users: number
+  total_staff: number
   new_signups_7d: number
   new_signups_30d: number
   total_services: number
@@ -80,6 +80,7 @@ export interface AdminStats {
   tenants_without_services: number
   tenants_without_hours: number
   tenants_without_locations: number
+  tenants_without_owner: number
   growth_by_month: { month: string; count: number }[]
   signups_by_month: { month: string; count: number }[]
   recent_events: Array<{
@@ -117,13 +118,14 @@ export async function getAdminStats(): Promise<{
     subs,
     tenantList,
     auditEvents,
+    ownerMembers,
   ] = await Promise.all([
     db.from('tenants').select('id, created_at, status'),
     db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     db.from('tenants').select('*', { count: 'exact', head: true }).eq('status', 'suspended'),
-    db.from('profiles').select('*', { count: 'exact', head: true }),
-    db.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', d7),
-    db.from('profiles').select('id, created_at').gte('created_at', d365),
+    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
+    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true').gte('created_at', d7),
+    db.from('profiles').select('id, created_at').or('user_type.eq.staff,is_superadmin.eq.true').gte('created_at', d365),
     db.from('services').select('*', { count: 'exact', head: true }),
     db.from('subscription_plans').select('*', { count: 'exact', head: true }),
     db
@@ -137,7 +139,13 @@ export async function getAdminStats(): Promise<{
       .from('admin_audit_log')
       .select('id, action, entity_type, created_at, details')
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(30),
+    db
+      .from('staff_members')
+      .select('tenant_id')
+      .eq('role', 'owner')
+      .is('deleted_at', null)
+      .eq('is_active', true),
   ])
 
   const tenantsArr = (tenants.data ?? []) as Array<{
@@ -202,13 +210,18 @@ export async function getAdminStats(): Promise<{
   const noHours = tenantList2.filter((t) => (t.working_hours?.[0]?.count ?? 0) === 0).length
   const noLocations = tenantList2.filter((t) => (t.locations?.[0]?.count ?? 0) === 0).length
 
+  const tenantIdsWithOwner = new Set(
+    ((ownerMembers.data ?? []) as Array<{ tenant_id: string }>).map((r) => r.tenant_id)
+  )
+  const noOwner = tenantsArr.filter((t) => !tenantIdsWithOwner.has(t.id)).length
+
   return {
     success: true,
     data: {
       total_tenants: tenantsArr.length,
       active_tenants: activeTenants.count ?? 0,
       suspended_tenants: suspendedTenants.count ?? 0,
-      total_users: users.count ?? 0,
+      total_staff: users.count ?? 0,
       new_signups_7d: newSignups7Count,
       new_signups_30d: allRecentUsers.filter(
         (u) => new Date(u.created_at).getTime() >= new Date(d30).getTime()
@@ -219,6 +232,7 @@ export async function getAdminStats(): Promise<{
       tenants_without_services: noServices,
       tenants_without_hours: noHours,
       tenants_without_locations: noLocations,
+      tenants_without_owner: noOwner,
       growth_by_month: growth,
       signups_by_month: signups,
       recent_events:
@@ -355,6 +369,7 @@ export async function adminGlobalSearch(query: string): Promise<{
       .from('profiles')
       .select('id, full_name, email')
       .or(`full_name.ilike.${q},email.ilike.${q}`)
+      .or('user_type.eq.staff,is_superadmin.eq.true')
       .limit(8),
     db
       .from('services')

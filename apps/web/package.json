@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node -e \"require('node:fs').rmSync('.next',{ recursive: true, force: true })\" && next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "type-check": "node -e \"require('node:fs').rmSync('.next-typecheck',{ recursive: true, force: true })\" && NEXT_DIST_DIR=.next-typecheck NODE_ENV=production next typegen && tsc --noEmit --project tsconfig.typecheck.json",
+    "test:security:unit": "node --experimental-strip-types --test tests/unit/bearer-secret.test.mjs tests/unit/endpoint-ownership.test.mjs tests/unit/magic-wand.test.mjs tests/unit/public-error.test.mjs",
+    "test:inbox:unit": "node --experimental-strip-types --test tests/unit/anthropic-draft-provider.test.mjs tests/unit/conversation-state-core.test.mjs tests/unit/inbox-ai-config.test.mjs tests/unit/inbox-draft-approval-core.test.mjs tests/unit/inbox-draft-context-core.test.mjs tests/unit/inbox-draft-decision-evaluation.test.mjs tests/unit/inbox-draft-decision.test.mjs tests/unit/inbox-draft-evaluation.test.mjs tests/unit/inbox-draft-orchestrator-core.test.mjs tests/unit/inbox-draft-provider-selection.test.mjs tests/unit/inbox-helpers.test.mjs tests/unit/inbox-queries.test.mjs tests/unit/inbox-realtime.test.mjs tests/unit/inbox-server-tenant-scope.test.mjs tests/unit/internal-inbox-note-core.test.mjs tests/unit/manual-whatsapp-outbox-core.test.mjs tests/unit/manual-whatsapp-reply-core.test.mjs tests/unit/message-delivery.test.mjs tests/unit/messaging-outbox-route.test.mjs tests/unit/messaging-policy.test.mjs tests/unit/meta-whatsapp-adapter.test.mjs tests/unit/meta-whatsapp-signature.test.mjs tests/unit/prompt-registry.test.mjs tests/unit/tool-registry.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:ci": "playwright test --reporter=github"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -23,11 +29,12 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
     "gsap": "^3.15.0",
-    "lenis": "^1.3.23",
+    "lenis": "^1.3.25",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.3",
+    "posthog-js": "^1.396.6",
     "qrcode.react": "^4.2.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -42,6 +49,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@next/env": "16.2.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
@@ -50,6 +58,7 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^6.0.3"
   }

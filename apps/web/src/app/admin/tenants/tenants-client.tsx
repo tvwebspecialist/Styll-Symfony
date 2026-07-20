@@ -53,6 +53,7 @@ export interface TenantRow {
   staff_count: number
   active_staff_count: number
   locations_count: number
+  clients_count: number
   plan_id: string | null
   plan_name: string | null
   subscription_status: string | null
@@ -445,11 +446,11 @@ export function TenantsClient({
     },
     {
       key: 'counts',
-      header: 'Sedi / Staff / Servizi',
+      header: 'Sedi / Staff / Clienti / Servizi',
       hideOnMobile: true,
       accessor: (r) => (
         <span className="text-xs tabular-nums text-muted-foreground">
-          {r.locations_count} / {r.staff_count} / {r.services_count}
+          {r.locations_count} / {r.staff_count} / {r.clients_count} / {r.services_count}
         </span>
       ),
     },

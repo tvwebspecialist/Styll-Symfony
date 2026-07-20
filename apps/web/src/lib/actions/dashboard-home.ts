@@ -33,6 +33,7 @@ export interface WeekStats {
 export interface AtRiskClient {
   client_id: string
   full_name: string | null
+  avatar_url: string | null
   days_since: number
   avg_frequency: number | null
   churn_status: 'red' | 'yellow'
@@ -46,6 +47,23 @@ export interface TopLoyaltyClient {
   currentTier: string
 }
 
+export interface LowStockProduct {
+  product_id: string
+  name: string
+  photo_url: string | null
+  quantity: number
+  low_stock_threshold: number
+  risk: 'red' | 'yellow'
+}
+
+export interface PendingReward {
+  client_id: string
+  full_name: string | null
+  reward_name: string
+  points_available: number
+  points_cost: number
+}
+
 export interface YesterdayStats {
   appointment_count: number
   revenue: number
@@ -55,6 +73,109 @@ export interface WorkingHour {
   day_of_week: number   // 0=Dom … 6=Sab
   start_time: string    // "HH:MM:SS"
   end_time: string      // "HH:MM:SS"
+}
+
+type Relation<T> = T | T[] | null | undefined
+
+interface StaffProfileRelationRow {
+  full_name: string | null
+}
+
+interface StaffMembershipRow {
+  id: string
+  profiles: Relation<StaffProfileRelationRow>
+}
+
+interface AppointmentClientRelationRow {
+  full_name: string | null
+}
+
+interface AppointmentServiceNameRelationRow {
+  name: string | null
+}
+
+interface AppointmentServiceRow {
+  price_at_booking: number | null
+  services: Relation<AppointmentServiceNameRelationRow>
+}
+
+interface AppointmentWindowRow {
+  id: string
+  start_time: string
+  end_time: string | null
+  status: string
+  client_id: string | null
+  clients: Relation<AppointmentClientRelationRow>
+  appointment_services: AppointmentServiceRow[] | null
+}
+
+interface AtRiskClientRelationRow {
+  full_name: string | null
+  avatar_url: string | null
+}
+
+interface AtRiskAnalyticsRow {
+  client_id: string
+  churn_status: string | null
+  days_since_last_visit: number | null
+  avg_frequency_days: number | null
+  clients: Relation<AtRiskClientRelationRow>
+}
+
+const EMPTY_WEEK_STATS: WeekStats = {
+  revenue: 0,
+  revenue_prev: 0,
+  client_count: 0,
+  client_count_prev: 0,
+}
+
+const EMPTY_YESTERDAY_STATS: YesterdayStats = {
+  appointment_count: 0,
+  revenue: 0,
+}
+
+const DAY_MS = 86_400_000
+
+function readSingleRelation<T>(value: Relation<T>): T | null {
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+
+  return value ?? null
+}
+
+function getIsoDatePart(value: string): string {
+  return value.slice(0, 10)
+}
+
+function mapAppointmentRow(row: AppointmentWindowRow): TodayAppointment {
+  const services = row.appointment_services ?? []
+  const serviceNames = services
+    .map((service) => readSingleRelation(service.services)?.name ?? '')
+    .filter(Boolean)
+
+  return {
+    id: row.id,
+    start_time: row.start_time,
+    end_time: row.end_time ?? row.start_time,
+    status: row.status,
+    client_id: row.client_id ?? '',
+    client_name: readSingleRelation(row.clients)?.full_name ?? 'Cliente',
+    service_names: serviceNames,
+    total_price: services.reduce((sum, service) => sum + (service.price_at_booking ?? 0), 0),
+  }
+}
+
+function sumAppointmentRevenue(appointments: TodayAppointment[]): number {
+  return appointments.reduce((sum, appointment) => sum + appointment.total_price, 0)
+}
+
+function countDistinctClients(appointments: TodayAppointment[]): number {
+  return new Set(
+    appointments
+      .map((appointment) => appointment.client_id)
+      .filter((clientId): clientId is string => Boolean(clientId)),
+  ).size
 }
 
 export interface DashboardHomeData {
@@ -67,22 +188,27 @@ export interface DashboardHomeData {
   atRiskClients: AtRiskClient[]
   topLoyaltyClients: TopLoyaltyClient[]
   workingHours: WorkingHour[]
+  lowStockProducts: LowStockProduct[]
+  pendingRewards: PendingReward[]
+}
+
+const EMPTY_DASHBOARD_HOME_DATA: DashboardHomeData = {
+  staffName: null,
+  todayAppointments: [],
+  weekAppointments: [],
+  weekSlots: [],
+  weekStats: EMPTY_WEEK_STATS,
+  yesterdayStats: EMPTY_YESTERDAY_STATS,
+  atRiskClients: [],
+  topLoyaltyClients: [],
+  workingHours: [],
+  lowStockProducts: [],
+  pendingRewards: [],
 }
 
 export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const tenantId = await getActiveTenantId()
-  const empty: DashboardHomeData = {
-    staffName: null,
-    todayAppointments: [],
-    weekAppointments: [],
-    weekSlots: [],
-    weekStats: { revenue: 0, revenue_prev: 0, client_count: 0, client_count_prev: 0 },
-    yesterdayStats: { appointment_count: 0, revenue: 0 },
-    atRiskClients: [],
-    topLoyaltyClients: [],
-    workingHours: [],
-  }
-  if (!tenantId) return empty
+  if (!tenantId) return EMPTY_DASHBOARD_HOME_DATA
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -91,7 +217,6 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   // Date helpers (UTC-safe: use local day boundaries via date strings)
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
-  const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10)
   const yesterdayStr = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
 
   // Week boundaries (Mon–Sun of current week)
@@ -100,12 +225,12 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const weekMonday = new Date(now.getTime() - daysFromMon * 86400000)
   const weekMondayStr = weekMonday.toISOString().slice(0, 10)
   const weekSundayStr = new Date(weekMonday.getTime() + 6 * 86400000).toISOString().slice(0, 10)
+  const nextWeekMondayStr = new Date(weekMonday.getTime() + 7 * DAY_MS).toISOString().slice(0, 10)
 
   // Previous week boundaries
-  const prevMonStr = new Date(weekMonday.getTime() - 7 * 86400000).toISOString().slice(0, 10)
-  const prevSunStr = new Date(weekMonday.getTime() - 1).toISOString().slice(0, 10)
+  const prevMonStr = new Date(weekMonday.getTime() - 7 * DAY_MS).toISOString().slice(0, 10)
 
-  const [staffRes, todayRes, weekRes, prevWeekRes, atRiskRes, yesterdayRes] = await Promise.all([
+  const [staffRes, appointmentWindowRes, atRiskRes, inventoryRes, rewardsRes] = await Promise.all([
     // Staff name
     user
       ? db
@@ -118,7 +243,8 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
           .maybeSingle()
       : Promise.resolve({ data: null }),
 
-    // Today's appointments
+    // A single bounded appointment window drives both the visible agenda
+    // and the hidden summary fields, avoiding repeated appointment scans.
     db
       .from('appointments')
       .select(`
@@ -127,56 +253,47 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
         appointment_services(price_at_booking, services(name))
       `)
       .eq('tenant_id', tenantId)
-      .gte('start_time', `${todayStr}T00:00:00`)
-      .lt('start_time', `${tomorrowStr}T00:00:00`)
-      .not('status', 'eq', 'cancelled')
-      .order('start_time', { ascending: true }),
-
-    // This week's appointments for heatmap + mini calendar
-    db
-      .from('appointments')
-      .select('id, start_time, end_time, status, client_id, clients(full_name), appointment_services(price_at_booking, services(name))')
-      .eq('tenant_id', tenantId)
-      .gte('start_time', `${weekMondayStr}T00:00:00`)
-      .lte('start_time', `${weekSundayStr}T23:59:59`)
-      .not('status', 'eq', 'cancelled')
-      .order('start_time', { ascending: true }),
-
-    // Previous week for stats
-    db
-      .from('appointments')
-      .select('client_id, appointment_services(price_at_booking)')
-      .eq('tenant_id', tenantId)
+      .is('deleted_at', null)
       .gte('start_time', `${prevMonStr}T00:00:00`)
-      .lte('start_time', `${prevSunStr}T23:59:59`)
-      .eq('status', 'completed'),
+      .lt('start_time', `${nextWeekMondayStr}T00:00:00`)
+      .not('status', 'eq', 'cancelled')
+      .order('start_time', { ascending: true }),
 
     // At-risk clients
     db
       .from('client_analytics')
       .select(`
         client_id, churn_status, days_since_last_visit, avg_frequency_days,
-        clients(full_name)
+        clients(full_name, avatar_url)
       `)
       .eq('tenant_id', tenantId)
       .in('churn_status', ['yellow', 'red'])
       .order('days_since_last_visit', { ascending: false })
       .limit(10),
 
-    // Yesterday's appointments (for KPI trend)
+    // Low stock inventory
     db
-      .from('appointments')
-      .select('client_id, appointment_services(price_at_booking)')
+      .from('product_inventory')
+      .select('product_id, quantity, low_stock_threshold, products(name, photo_url)')
       .eq('tenant_id', tenantId)
-      .gte('start_time', `${yesterdayStr}T00:00:00`)
-      .lt('start_time', `${todayStr}T00:00:00`)
-      .not('status', 'eq', 'cancelled'),
+      .gt('low_stock_threshold', 0)
+      .order('quantity', { ascending: true })
+      .limit(20),
+
+    // Active rewards (to cross-match with loyal clients)
+    db
+      .from('rewards')
+      .select('id, name, points_cost')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('points_cost', { ascending: true })
+      .limit(10),
   ])
 
   // Staff name + id
-  const staffProfile = (staffRes.data as any)?.profiles ?? null
-  const staffName: string | null = staffProfile?.full_name ?? null
-  const staffMemberId: string | null = (staffRes.data as any)?.id ?? null
+  const staff = (staffRes.data ?? null) as StaffMembershipRow | null
+  const staffName = readSingleRelation(staff?.profiles)?.full_name ?? null
+  const staffMemberId = staff?.id ?? null
 
   // Working hours (all days of week for this staff member)
   let workingHours: WorkingHour[] = []
@@ -186,36 +303,33 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
       .select('day_of_week, start_time, end_time')
       .eq('tenant_id', tenantId)
       .eq('staff_id', staffMemberId)
-    workingHours = (whData ?? []).map((row: any) => ({
-      day_of_week: row.day_of_week as number,
-      start_time: row.start_time as string,
-      end_time: row.end_time as string,
-    }))
+    workingHours = (whData ?? []) as WorkingHour[]
   }
 
-  // Today appointments
-  const todayAppointments: TodayAppointment[] = (todayRes.data ?? []).map((appt: any) => {
-    const services: any[] = appt.appointment_services ?? []
-    const serviceNames = services.map((s: any) => s.services?.name ?? '').filter(Boolean)
-    const totalPrice = services.reduce((sum: number, s: any) => sum + (s.price_at_booking ?? 0), 0)
-    return {
-      id: appt.id,
-      start_time: appt.start_time,
-      end_time: appt.end_time,
-      status: appt.status,
-      client_id: appt.client_id,
-      client_name: appt.clients?.full_name ?? 'Cliente',
-      service_names: serviceNames,
-      total_price: totalPrice,
-    }
+  const appointmentWindow = ((appointmentWindowRes.data ?? []) as AppointmentWindowRow[]).map(mapAppointmentRow)
+  const weekAppointments = appointmentWindow.filter((appointment) => {
+    const appointmentDate = getIsoDatePart(appointment.start_time)
+    return appointmentDate >= weekMondayStr && appointmentDate <= weekSundayStr
+  })
+  const todayAppointments = weekAppointments.filter(
+    (appointment) => getIsoDatePart(appointment.start_time) === todayStr,
+  )
+  const yesterdayAppointments = appointmentWindow.filter(
+    (appointment) => getIsoDatePart(appointment.start_time) === yesterdayStr,
+  )
+  const previousWeekCompletedAppointments = appointmentWindow.filter((appointment) => {
+    const appointmentDate = getIsoDatePart(appointment.start_time)
+    return appointment.status === 'completed'
+      && appointmentDate >= prevMonStr
+      && appointmentDate < weekMondayStr
   })
 
   // Week heatmap slots
   const weekSlots: WeekSlot[] = []
   const bookedSet = new Set<string>()
-  for (const appt of weekRes.data ?? []) {
-    const d = (appt as any).start_time?.slice(0, 10)
-    const h = Math.floor(getLocalMinutes((appt as any).start_time, DEFAULT_TIMEZONE) / 60)
+  for (const appointment of weekAppointments) {
+    const d = getIsoDatePart(appointment.start_time)
+    const h = Math.floor(getLocalMinutes(appointment.start_time, DEFAULT_TIMEZONE) / 60)
     if (d && h >= DASHBOARD_HOURS.SLOT_START && h <= DASHBOARD_HOURS.SLOT_END) bookedSet.add(`${d}:${h}`)
   }
   for (let d = 0; d < 6; d++) {
@@ -226,76 +340,92 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
     }
   }
 
-  const weekRevenue = (weekRes.data ?? []).reduce((sum: number, appt: any) => {
-    const svcs: any[] = appt.appointment_services ?? []
-    return sum + svcs.reduce((s: number, sv: any) => s + (sv.price_at_booking ?? 0), 0)
-  }, 0)
-  const weekClientIds = new Set((weekRes.data ?? []).map((a: any) => (a as any).client_id).filter(Boolean))
-
-  const prevRevenue = (prevWeekRes.data ?? []).reduce((sum: number, appt: any) => {
-    const svcs: any[] = appt.appointment_services ?? []
-    return sum + svcs.reduce((s: number, sv: any) => s + (sv.price_at_booking ?? 0), 0)
-  }, 0)
-  const prevClientIds = new Set((prevWeekRes.data ?? []).map((a: any) => (a as any).client_id).filter(Boolean))
-
   const weekStats: WeekStats = {
-    revenue: weekRevenue,
-    revenue_prev: prevRevenue,
-    client_count: weekClientIds.size,
-    client_count_prev: prevClientIds.size,
+    revenue: sumAppointmentRevenue(weekAppointments),
+    revenue_prev: sumAppointmentRevenue(previousWeekCompletedAppointments),
+    client_count: countDistinctClients(weekAppointments),
+    client_count_prev: countDistinctClients(previousWeekCompletedAppointments),
   }
-
-  // Week appointments for mini calendar
-  const weekAppointments: TodayAppointment[] = (weekRes.data ?? []).map((appt: any) => {
-    const services: any[] = appt.appointment_services ?? []
-    const serviceNames = services.map((s: any) => s.services?.name ?? '').filter(Boolean)
-    const totalPrice = services.reduce((sum: number, s: any) => sum + (s.price_at_booking ?? 0), 0)
-    return {
-      id: appt.id,
-      start_time: appt.start_time,
-      end_time: appt.end_time ?? appt.start_time,
-      status: appt.status,
-      client_id: appt.client_id,
-      client_name: appt.clients?.full_name ?? 'Cliente',
-      service_names: serviceNames,
-      total_price: totalPrice,
-    }
-  })
 
   // Yesterday stats (for KPI trend)
   const yesterdayStats: YesterdayStats = {
-    appointment_count: (yesterdayRes.data ?? []).length,
-    revenue: (yesterdayRes.data ?? []).reduce((sum: number, appt: any) => {
-      const svcs: any[] = appt.appointment_services ?? []
-      return sum + svcs.reduce((s: number, sv: any) => s + (sv.price_at_booking ?? 0), 0)
-    }, 0),
+    appointment_count: yesterdayAppointments.length,
+    revenue: sumAppointmentRevenue(yesterdayAppointments),
   }
 
   // At-risk clients
-  const atRiskClients: AtRiskClient[] = (atRiskRes.data ?? []).map((row: any) => ({
-    client_id: row.client_id,
-    full_name: row.clients?.full_name ?? null,
-    days_since: row.days_since_last_visit ?? 0,
-    avg_frequency: row.avg_frequency_days ?? null,
-    churn_status: row.churn_status as 'red' | 'yellow',
-  }))
+  const atRiskClients: AtRiskClient[] = ((atRiskRes.data ?? []) as unknown as AtRiskAnalyticsRow[]).map((row) => {
+    const clientRel = readSingleRelation(row.clients)
+    return {
+      client_id: row.client_id,
+      full_name: clientRel?.full_name ?? null,
+      avatar_url: clientRel?.avatar_url ?? null,
+      days_since: row.days_since_last_visit ?? 0,
+      avg_frequency: row.avg_frequency_days ?? null,
+      churn_status: row.churn_status as 'red' | 'yellow',
+    }
+  })
 
-  // Top loyalty clients (max 10)
-  const { data: topLoyaltyRaw } = await db
-    .from('client_loyalty')
-    .select('client_id, total_points, current_streak, current_tier, clients(full_name)')
-    .eq('tenant_id', tenantId)
-    .order('total_points', { ascending: false })
-    .limit(10)
+  // Low stock products (filter client-side: quantity <= threshold)
+  interface InventoryRow { product_id: string; quantity: number | null; low_stock_threshold: number | null; products: { name: string | null; photo_url: string | null } | { name: string | null; photo_url: string | null }[] | null }
+  const lowStockProducts: LowStockProduct[] = ((inventoryRes.data ?? []) as InventoryRow[])
+    .filter((row) => (row.quantity ?? 0) <= (row.low_stock_threshold ?? 0))
+    .slice(0, 6)
+    .map((row) => {
+      const qty = row.quantity ?? 0
+      const threshold = row.low_stock_threshold ?? 0
+      const productRel = readSingleRelation(row.products as { name: string | null; photo_url: string | null } | { name: string | null; photo_url: string | null }[] | null)
+      return {
+        product_id: row.product_id,
+        name: productRel?.name ?? 'Prodotto',
+        photo_url: productRel?.photo_url ?? null,
+        quantity: qty,
+        low_stock_threshold: threshold,
+        risk: qty === 0 ? 'red' : 'yellow',
+      }
+    })
 
-  type TopRow = { client_id: string; total_points: number; current_streak: number; current_tier: string; clients: { full_name: string } | null }
-  const topLoyaltyClients: TopLoyaltyClient[] = ((topLoyaltyRaw ?? []) as unknown as TopRow[]).map((r) => ({
-    clientId: r.client_id,
-    fullName: r.clients?.full_name ?? '—',
-    totalPoints: r.total_points ?? 0,
-    currentStreak: r.current_streak ?? 0,
-    currentTier: r.current_tier ?? 'bronze',
-  }))
+  // Pending rewards: find clients who can afford at least the cheapest reward
+  interface RewardRow { id: string; name: string | null; points_cost: number | null }
+  const rewards = (rewardsRes.data ?? []) as RewardRow[]
+  const minCost = rewards.length > 0
+    ? Math.min(...rewards.map((r) => r.points_cost ?? Infinity))
+    : Infinity
 
-  return { staffName, todayAppointments, weekAppointments, weekSlots, weekStats, yesterdayStats, atRiskClients, topLoyaltyClients, workingHours }
+  let pendingRewards: PendingReward[] = []
+  if (Number.isFinite(minCost)) {
+    interface LoyaltyRow { client_id: string; available_points: number | null; clients: { full_name: string | null } | { full_name: string | null }[] | null }
+    const { data: loyaltyData } = await db
+      .from('client_loyalty')
+      .select('client_id, available_points, clients(full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('available_points', minCost)
+      .order('available_points', { ascending: false })
+      .limit(5)
+    pendingRewards = ((loyaltyData ?? []) as LoyaltyRow[]).map((row) => {
+      const pts = row.available_points ?? 0
+      const affordableReward = rewards.find((r) => (r.points_cost ?? Infinity) <= pts)
+      return {
+        client_id: row.client_id,
+        full_name: readSingleRelation(row.clients as { full_name: string | null } | { full_name: string | null }[] | null)?.full_name ?? null,
+        reward_name: affordableReward?.name ?? 'Premio',
+        points_available: pts,
+        points_cost: affordableReward?.points_cost ?? 0,
+      }
+    })
+  }
+
+  return {
+    staffName,
+    todayAppointments,
+    weekAppointments,
+    weekSlots,
+    weekStats,
+    yesterdayStats,
+    atRiskClients,
+    topLoyaltyClients: [],
+    workingHours,
+    lowStockProducts,
+    pendingRewards,
+  }
 }

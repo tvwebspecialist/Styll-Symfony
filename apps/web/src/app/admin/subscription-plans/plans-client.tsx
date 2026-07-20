@@ -313,28 +313,114 @@ export function PlansClient({
     },
   ]
 
+  const planKey = (name: string) => {
+    const n = name.toLowerCase()
+    if (n.includes('pro')) return 'pro'
+    if (n.includes('growth') || n.includes('plus')) return 'growth'
+    return 'starter'
+  }
+
+  const planAccent: Record<string, string> = {
+    pro: 'var(--admin-accent)',
+    growth: '#16a34a',
+    starter: 'var(--admin-text-muted)',
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6" style={{ fontFamily: 'var(--font-primary)' }}>
       <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Piani' }]} />
 
-      <div className="rounded-xl border bg-white p-6 shadow-sm  ">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              MRR totale
-            </p>
-            <p className="mt-1 text-4xl font-semibold tabular-nums text-foreground">
-              {formatEuro(mrr)}
-              <span className="ml-1 text-base font-normal text-muted-foreground">
-                /mese
-              </span>
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {activeTenantsTotal} tenant attivi su {plans.length} piani
-            </p>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>Piani</h1>
+        <p className="text-sm" style={{ color: 'var(--admin-text-muted)' }}>Gestisci i piani di abbonamento della piattaforma.</p>
       </div>
+
+      {/* MRR hero */}
+      <div className="admin-card p-6">
+        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--admin-text-subtle)' }}>
+          MRR totale
+        </p>
+        <p className="mt-1 text-4xl font-bold tabular-nums" style={{ color: 'var(--admin-text)' }}>
+          {formatEuro(mrr)}
+          <span className="ml-2 text-base font-normal" style={{ color: 'var(--admin-text-muted)' }}>/mese</span>
+        </p>
+        <p className="mt-2 text-sm" style={{ color: 'var(--admin-text-muted)' }}>
+          {activeTenantsTotal} tenant attivi · {plans.length} piani configurati
+        </p>
+      </div>
+
+      {/* Pricing cards */}
+      {plans.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {plans.map((p) => {
+            const key = planKey(p.name)
+            const accent = planAccent[key]
+            const isPro = key === 'pro'
+            const features = featureLabels(p.feature_flags as Record<string, unknown>)
+            return (
+              <div
+                key={p.id}
+                className="relative flex flex-col gap-4 rounded-[var(--radius-xl)] border p-6 transition-shadow hover:shadow-[var(--shadow-lg)]"
+                style={{
+                  background: 'var(--admin-surface)',
+                  borderColor: isPro ? accent : 'var(--admin-border)',
+                  borderWidth: isPro ? 2 : 1,
+                  boxShadow: 'var(--shadow-md)',
+                }}
+              >
+                {isPro && (
+                  <span
+                    className="absolute right-4 top-4 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-widest text-white"
+                    style={{ background: accent }}
+                  >
+                    POPOLARE
+                  </span>
+                )}
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: accent }}>{p.name}</p>
+                  <p className="mt-2 text-3xl font-bold tabular-nums" style={{ color: 'var(--admin-text)' }}>
+                    {formatEuro(p.price_monthly)}
+                    <span className="text-base font-normal" style={{ color: 'var(--admin-text-muted)' }}>/mese</span>
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {p.max_staff && (
+                    <p className="flex items-center gap-2 text-sm" style={{ color: 'var(--admin-text-muted)' }}>
+                      <span className="text-[10px]" style={{ color: accent }}>✓</span>
+                      Max {p.max_staff} staff
+                    </p>
+                  )}
+                  {p.max_locations && (
+                    <p className="flex items-center gap-2 text-sm" style={{ color: 'var(--admin-text-muted)' }}>
+                      <span className="text-[10px]" style={{ color: accent }}>✓</span>
+                      Max {p.max_locations} sedi
+                    </p>
+                  )}
+                  {features.slice(0, 4).map((f) => (
+                    <p key={f} className="flex items-center gap-2 text-sm" style={{ color: 'var(--admin-text-muted)' }}>
+                      <span className="text-[10px]" style={{ color: accent }}>✓</span>
+                      {f}
+                    </p>
+                  ))}
+                </div>
+                <div className="mt-auto flex items-center justify-between border-t pt-3" style={{ borderColor: 'var(--admin-border)' }}>
+                  <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--admin-text)' }}>
+                    {p.active_tenants_count} tenant
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors styll-hover-admin-hover-bg"
+                    style={{ color: accent }}
+                  >
+                    Modifica
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <AdminTable
         rows={plans}

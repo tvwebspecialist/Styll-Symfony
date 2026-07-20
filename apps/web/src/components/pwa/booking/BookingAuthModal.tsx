@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { EmailOtpForm } from '@/components/pwa/auth/EmailOtpForm'
+import { floatingCardShellStyle } from '@/components/pwa/FloatingCard'
 
 interface BookingAuthModalProps {
   primaryColor: string
@@ -166,7 +167,8 @@ export default function BookingAuthModal({
 
       {/* Floating panel */}
       <motion.div
-        className="fixed bottom-6 left-4 right-4 z-[70] rounded-3xl bg-white shadow-[0_8px_40px_rgba(0,0,0,0.18)] overflow-hidden"
+        className="fixed bottom-2 left-2 right-2 z-[70] overflow-hidden"
+        style={{ ...floatingCardShellStyle }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -240,10 +242,10 @@ export default function BookingAuthModal({
                 <button
                   type="button"
                   onClick={handleGuestSubmit}
-                  className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-white transition-all active:scale-[0.98]"
+                  className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold text-white transition-all active:scale-[0.98]"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  Prenota senza account →
+                  Prenota senza account
                 </button>
                 <button
                   type="button"
@@ -278,6 +280,7 @@ export default function BookingAuthModal({
                 tenantId={tenantId}
                 tenantSlug={tenantSlug}
                 mode="modal"
+                businessName={businessName}
                 prefillEmail={prefillEmail}
                 prefillFullName={prefillFullName}
                 prefillPhone={prefillPhone}

@@ -445,7 +445,7 @@ export function CalendarioMobileGiorno({
         aria-label="Aggiungi appuntamento"
         style={{
           position: 'fixed',
-          bottom: 'calc(var(--bottom-nav-height, 80px) + 16px)',
+          bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px)',
           right: 20,
           width: 56,
           height: 56,

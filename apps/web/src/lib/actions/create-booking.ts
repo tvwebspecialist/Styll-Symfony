@@ -1,19 +1,29 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { extractConsentRequestContext, seedClientConsentState } from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { getAvailableSlots } from '@/lib/actions/booking-slots'
 import { getTenantTimezone } from '@/lib/actions/public-booking'
 import { localDatetimeToUtc } from '@/lib/utils/timezone'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { insertStaffNotification, abbrevName } from '@/lib/notifications'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { buildTenantAppUrl } from '@/lib/auth/urls'
 import type { TablesInsert } from '@/types'
 import { getActiveOffersForBooking } from '@/lib/actions/offers'
 import { applyBestPromotion } from '@/lib/utils/offer-pricing'
+import {
+  buildBookingConfirmationTokenExpiresAt,
+  createBookingConfirmationToken,
+  hashBookingConfirmationToken,
+} from '@/lib/booking-confirmation-token'
 
 const createGuestBookingSchema = z.object({
   slug: z.string().min(1),
@@ -39,9 +49,15 @@ const createGuestBookingSchema = z.object({
   rescheduleFromId: z.string().uuid().optional(),
 })
 
+type ClientLookupRow = {
+  id: string
+  profile_id: string | null
+}
+
 export interface CreateGuestBookingResult {
   success: boolean
   appointmentId?: string
+  clientId?: string
   error?: string
 }
 
@@ -49,6 +65,17 @@ function sanitizePhone(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+function buildBookingSuccessSearchParams(appointmentId: string, token: string): string {
+  return new URLSearchParams({ appointment: appointmentId, token }).toString()
+}
+
+function buildBookingSuccessRelativePath(appointmentId: string, token: string): string {
+  return `/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`
+}
+
+function buildBookingSuccessAbsoluteUrl(slug: string, appointmentId: string, token: string): string {
+  return buildTenantAppUrl(slug, `/prenota/successo?${buildBookingSuccessSearchParams(appointmentId, token)}`)
+}
 
 function buildAppointmentDate(date: string, time: string, timezone: string = 'Europe/Rome'): Date {
   return localDatetimeToUtc(date, time, timezone)
@@ -158,18 +185,20 @@ export async function createGuestBooking(
   }
 
   // ── Lookup by profile_id for authenticated users (handles Google users with phone: null) ──
+  let authUserId: string | null = null
   let existingClientId: string | null = null
   {
     const supabase = await createServerClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (user?.id) {
+    authUserId = user?.id ?? null
+    if (authUserId) {
       const { data: byProfile } = await db
         .from('clients')
         .select('id')
         .eq('tenant_id', data.tenantId)
-        .eq('profile_id', user.id)
+        .eq('profile_id', authUserId)
         .is('deleted_at', null)
         .maybeSingle()
       if (byProfile) {
@@ -187,10 +216,10 @@ export async function createGuestBooking(
 
   const [{ data: clientRow }, { data: serviceRows }] = await Promise.all([
     existingClientId
-      ? db.from('clients').select('id').eq('id', existingClientId).maybeSingle()
+      ? db.from('clients').select('id, profile_id').eq('id', existingClientId).maybeSingle()
       : db
           .from('clients')
-          .select('id')
+          .select('id, profile_id')
           .eq('tenant_id', data.tenantId)
           .eq('phone', phone)
           .is('deleted_at', null)
@@ -203,6 +232,7 @@ export async function createGuestBooking(
       .in('id', data.serviceIds),
   ])
 
+  const matchedClient = (clientRow as ClientLookupRow | null) ?? null
   const services = (serviceRows ?? []) as Array<{
     id: string
     name: string
@@ -217,12 +247,37 @@ export async function createGuestBooking(
     }
   }
 
-  let clientId = (clientRow as { id: string } | null)?.id ?? null
+  let clientId = matchedClient?.id ?? null
+  if (clientId && authUserId) {
+    const matchedProfileId = matchedClient?.profile_id ?? null
+
+    if (matchedProfileId === null) {
+      const { error: linkClientError } = await db
+        .from('clients')
+        .update({
+          profile_id: authUserId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', clientId)
+        .is('profile_id', null)
+
+      if (linkClientError) {
+        return {
+          success: false,
+          error: linkClientError.message,
+        }
+      }
+    } else if (matchedProfileId !== authUserId) {
+      clientId = null
+    }
+  }
+
   const isNewClient = clientId === null
 
   if (!clientId) {
     const clientPayload: TablesInsert<'clients'> = {
       tenant_id: data.tenantId,
+      profile_id: authUserId,
       full_name: data.fullName,
       phone,
       email,
@@ -245,6 +300,31 @@ export async function createGuestBooking(
     }
 
     clientId = (insertedClient as { id: string }).id
+
+    try {
+      const requestContext = extractConsentRequestContext(await headers())
+      await seedClientConsentState(db, {
+        tenantId: data.tenantId,
+        clientId,
+        marketingAllowed: Boolean(data.marketingConsent),
+        churnAllowed: true,
+        actor: authUserId ? CONSENT_ACTOR.CLIENT_PROFILE : CONSENT_ACTOR.GUEST_SUBMISSION,
+        actorProfileId: authUserId ?? null,
+        source: CONSENT_SOURCE.GUEST_BOOKING,
+        occurredAt: new Date().toISOString(),
+        ipAddress: requestContext.ipAddress ?? null,
+        userAgent: requestContext.userAgent ?? null,
+        metadata: {
+          surface: 'guest_booking',
+        },
+      })
+    } catch (error) {
+      await db.from('clients').delete().eq('id', clientId).eq('tenant_id', data.tenantId)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Impossibile creare il profilo cliente.',
+      }
+    }
   }
 
   const totalMinutes = services.reduce(
@@ -263,6 +343,10 @@ export async function createGuestBooking(
   const endDate = new Date(startDate)
   endDate.setMinutes(endDate.getMinutes() + totalMinutes)
 
+  const bookingConfirmationToken = createBookingConfirmationToken()
+  const bookingConfirmationTokenHash = hashBookingConfirmationToken(bookingConfirmationToken)
+  const bookingConfirmationTokenExpiresAt = buildBookingConfirmationTokenExpiresAt()
+
   const appointmentPayload: TablesInsert<'appointments'> = {
     tenant_id: data.tenantId,
     client_id: clientId,
@@ -273,6 +357,8 @@ export async function createGuestBooking(
     status: 'confirmed',
     booking_source: 'pwa',
     notes,
+    booking_confirmation_token_hash: bookingConfirmationTokenHash,
+    booking_confirmation_token_expires_at: bookingConfirmationTokenExpiresAt,
   }
 
   const { data: appointmentRow, error: appointmentError } = await db
@@ -420,6 +506,7 @@ export async function createGuestBooking(
     tenantId:     data.tenantId,
     slug:         data.slug,
     appointmentId,
+    bookingConfirmationToken,
     clientId,
     staffId:      data.staffId,
     startTime:    startDate.toISOString(),
@@ -431,6 +518,7 @@ export async function createGuestBooking(
   return {
     success: true,
     appointmentId,
+    clientId,
   }
 }
 
@@ -438,6 +526,7 @@ async function sendBookingConfirmedNotification(params: {
   tenantId:      string
   slug:          string
   appointmentId: string
+  bookingConfirmationToken: string
   clientId:      string
   staffId:       string
   startTime:     string
@@ -460,12 +549,22 @@ async function sendBookingConfirmedNotification(params: {
 
   const channel = !profileId
     ? (clientEmail ? 'email' : 'none')
-    : await getNotificationChannel(profileId, params.tenantId).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
-      )
+    : await getNotificationChannel(profileId, params.tenantId).catch((error: unknown) => {
+        if (isPushConfigError(error)) throw error
+        return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      })
 
   const date = new Date(params.startTime).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
   const time = new Date(params.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
+  const successRelativePath = buildBookingSuccessRelativePath(
+    params.appointmentId,
+    params.bookingConfirmationToken,
+  )
+  const successAbsoluteUrl = buildBookingSuccessAbsoluteUrl(
+    params.slug,
+    params.appointmentId,
+    params.bookingConfirmationToken,
+  )
 
   if (channel === 'push' && profileId) {
     const subs = await getSubscriptionsForProfile(params.tenantId, profileId)
@@ -473,22 +572,45 @@ async function sendBookingConfirmedNotification(params: {
       await sendPushToSubscriptions(subs, {
         title: '✅ Prenotazione confermata!',
         body:  `${date} alle ${time} da ${businessName}`,
-        url:   `/tenant/app/${params.slug}/prenota/successo?appointment=${params.appointmentId}`,
+        url:   successRelativePath,
         tag:   `booking-confirmed-${params.appointmentId}`,
       })
       await db.from('notification_log').upsert(
         { tenant_id: params.tenantId, profile_id: profileId, appointment_id: params.appointmentId, type: 'booking_confirmed' },
         { onConflict: 'appointment_id,type' }
       )
+      const { error: notifErr } = await db.from('notifications').insert({
+        tenant_id: params.tenantId,
+        profile_id: profileId,
+        type: 'booking_confirmed',
+        title: '✅ Prenotazione confermata!',
+        body: `${date} alle ${time} da ${businessName}`,
+        is_read: false,
+        meta: { url: successRelativePath, appointment_id: params.appointmentId },
+      })
+      if (notifErr) console.error('[booking-confirmed] notifications insert failed:', notifErr.message)
     }
   } else if (channel === 'email' && clientEmail) {
     await sendTemplatedEmail({
       to:           clientEmail,
       templateSlug: 'booking_confirmed',
-      variables:    { client_name: clientName, staff_name: staffName, date, time, services: params.serviceNames.join(', ') },
-      tenant:       { business_name: businessName, primary_color: primaryColor },
+      variables:    {
+        client_name: clientName,
+        staff_name: staffName,
+        date,
+        time,
+        services: params.serviceNames.join(', '),
+        confirmation_url: successAbsoluteUrl,
+      },
+      tenant:       buildClientFacingEmailTenantBranding({
+        business_name: businessName,
+        primary_color: primaryColor,
+        slug: params.slug,
+      }),
       category:     'Prenotazione confermata',
       details:      { Data: date, Orario: time, Servizi: params.serviceNames.join(', '), Con: staffName },
+      ctaText:      'Vedi prenotazione',
+      ctaUrl:       successAbsoluteUrl,
     })
   }
 }

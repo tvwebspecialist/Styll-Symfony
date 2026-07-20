@@ -1,4 +1,10 @@
 import Link from 'next/link'
+import { buildPathWithTrialIntent, TRIAL_INTENT } from '@/lib/trial-intent'
+import { PUBLIC_DPA_SECTION_ID } from '@/lib/legal/public-b2b'
+import {
+  ANALYTICS_CONSENT_SURFACE,
+  buildAnalyticsPreferencesHref,
+} from '@/lib/analytics-consent-copy'
 
 export const dynamic = 'force-static'
 
@@ -14,6 +20,11 @@ const C = {
   border: '#E2E8F0',
   success: '#10B981',
 }
+
+const TRIAL_REGISTER_HREF = buildPathWithTrialIntent('/register', TRIAL_INTENT)
+const PLATFORM_ANALYTICS_PREFERENCES_HREF = buildAnalyticsPreferencesHref({
+  surface: ANALYTICS_CONSENT_SURFACE.PLATFORM,
+})
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
@@ -31,7 +42,7 @@ function Nav() {
           <a href="#pricing" style={{ fontSize: 14, color: C.textMuted, textDecoration: 'none', fontWeight: 500 }}>Prezzi</a>
           <Link href="/login" style={{ fontSize: 14, color: C.textMuted, textDecoration: 'none', fontWeight: 500 }}>Accedi</Link>
           <Link
-            href="/onboarding/step-1"
+            href={TRIAL_REGISTER_HREF}
             style={{ fontSize: 14, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.primary, borderRadius: 8, padding: '8px 18px', whiteSpace: 'nowrap' }}
           >
             Prova gratis
@@ -64,7 +75,7 @@ function Hero() {
               Non ti portiamo clienti. Ti aiutiamo a non perderli. Prenotazioni, loyalty e churn detection per barbieri indipendenti.
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <Link href="/onboarding/step-1" style={{ fontSize: 16, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 12, padding: '14px 28px', display: 'inline-block' }}>
+              <Link href={TRIAL_REGISTER_HREF} style={{ fontSize: 16, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 12, padding: '14px 28px', display: 'inline-block' }}>
                 Prova gratis 14 giorni
               </Link>
               <a href="#come-funziona" style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.75)', textDecoration: 'none', borderRadius: 12, padding: '14px 28px', display: 'inline-block', border: '1px solid rgba(255,255,255,0.2)' }}>
@@ -599,7 +610,7 @@ function Pricing() {
                 ))}
               </ul>
               <Link
-                href="/onboarding/step-1"
+                href={TRIAL_REGISTER_HREF}
                 style={{
                   display: 'block',
                   textAlign: 'center',
@@ -636,7 +647,7 @@ function FinalCTA() {
           Nessuna carta di credito. Nessun contratto. Cancelli quando vuoi.
         </p>
         <Link
-          href="/onboarding/step-1"
+          href={TRIAL_REGISTER_HREF}
           style={{ display: 'inline-block', fontSize: 18, fontWeight: 700, color: C.white, textDecoration: 'none', background: C.accent, borderRadius: 14, padding: '16px 40px' }}
         >
           Prova Styll gratis →
@@ -668,9 +679,16 @@ function Footer() {
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>Legale</div>
-            {['Privacy Policy', 'Termini di servizio', 'Cookie Policy'].map((l) => (
-              <div key={l} style={{ marginBottom: 10 }}>
-                <a href="#" style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>{l}</a>
+            {([
+              { label: 'Privacy Policy', href: '/privacy' },
+              { label: 'Termini di servizio', href: '/termini' },
+              { label: 'Accordo trattamento dati (DPA)', href: `/termini#${PUBLIC_DPA_SECTION_ID}` },
+              { label: 'Cookie Policy', href: '/cookie' },
+              { label: 'Gestisci cookie', href: PLATFORM_ANALYTICS_PREFERENCES_HREF },
+              { label: 'Sub-responsabili', href: '/sub-processor' },
+            ] as const).map(({ label, href }) => (
+              <div key={label} style={{ marginBottom: 10 }}>
+                <Link href={href} style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>{label}</Link>
               </div>
             ))}
           </div>

@@ -3,8 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { cn } from '@/lib/utils'
-
 interface Props {
   tenantId: string
   tabs: { href: string; label: string }[]
@@ -13,8 +11,12 @@ interface Props {
 export function TenantTabs({ tenantId, tabs }: Props) {
   const pathname = usePathname() ?? ''
   const base = `/admin/tenants/${tenantId}`
+
   return (
-    <div className="flex flex-wrap gap-1 border-b">
+    <div
+      className="flex gap-0 overflow-x-auto border-b [scrollbar-width:none] [-webkit-overflow-scrolling:touch]"
+      style={{ borderColor: 'var(--admin-border)' }}
+    >
       {tabs.map((t) => {
         const href = `${base}${t.href}`
         const active = t.href === '' ? pathname === base : pathname.startsWith(href)
@@ -22,12 +24,12 @@ export function TenantTabs({ tenantId, tabs }: Props) {
           <Link
             key={t.href || 'overview'}
             href={href}
-            className={cn(
-              'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-              active
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
+            className="shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors"
+            style={{
+              borderBottomColor: active ? 'var(--admin-accent)' : 'transparent',
+              color: active ? 'var(--admin-accent)' : 'var(--admin-text-muted)',
+              fontFamily: 'var(--font-primary)',
+            }}
           >
             {t.label}
           </Link>

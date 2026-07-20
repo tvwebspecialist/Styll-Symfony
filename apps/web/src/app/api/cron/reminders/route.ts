@@ -19,11 +19,19 @@ import type { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
 import type { PushPayload } from '@/lib/push/send-notification'
-import { sendTemplatedEmail } from '@/lib/email'
+import { isPushConfigError } from '@/lib/push/config'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import { matchesBearerTokenHeader } from '@/lib/security/bearer-secret'
 
 type ReminderType = 'reminder_3d' | 'reminder_1d' | 'reminder_day'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+interface NotificationLogRow {
+  appointment_id: string | null
+}
 
 interface RawAppointmentRow {
   id:         string
@@ -64,14 +72,37 @@ function getTimeRange(type: ReminderType): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+function isUuid(value: string | null | undefined): value is string {
+  return !!value && UUID_RE.test(value)
+}
+
 async function processReminderWindow(
   type: ReminderType,
 ): Promise<{ processed: number; pushSent: number; emailSent: number }> {
   const db    = createAdminClient()
   const range = getTimeRange(type)
 
+  const { data: notifiedRows, error: notifiedError } = await db
+    .from('notification_log')
+    .select('appointment_id')
+    .in('type', [type, `${type}_email`])
+    .not('appointment_id', 'is', null)
+
+  if (notifiedError) {
+    console.error('[cron/reminders] notification_log query error', {
+      type,
+      message: notifiedError.message,
+      code: notifiedError.code,
+    })
+    throw new Error(`notification_log query failed for ${type}`)
+  }
+
+  const notifiedAppointmentIds = ((notifiedRows ?? []) as NotificationLogRow[])
+    .map((row) => row.appointment_id)
+    .filter(isUuid)
+
   // Exclude appointments already notified via ANY channel (old _email types included for migration safety)
-  const { data: appointments } = await db
+  let appointmentsQuery = db
     .from('appointments')
     .select(
       `id, start_time, tenant_id,
@@ -83,11 +114,27 @@ async function processReminderWindow(
     .is('deleted_at', null)
     .gte('start_time', range.from)
     .lte('start_time', range.to)
-    .not(
+
+  if (notifiedAppointmentIds.length > 0) {
+    appointmentsQuery = appointmentsQuery.not(
       'id',
       'in',
-      `(SELECT appointment_id FROM notification_log WHERE type IN ('${type}', '${type}_email') AND appointment_id IS NOT NULL)`
+      `(${notifiedAppointmentIds.join(',')})`
     )
+  }
+
+  const { data: appointments, error: appointmentsError } = await appointmentsQuery
+
+  if (appointmentsError) {
+    console.error('[cron/reminders] appointments query error', {
+      type,
+      range,
+      notifiedCount: notifiedAppointmentIds.length,
+      message: appointmentsError.message,
+      code: appointmentsError.code,
+    })
+    throw new Error(`appointments query failed for ${type}`)
+  }
 
   const rows = ((appointments ?? []) as unknown as RawAppointmentRow[])
   let pushSent  = 0
@@ -108,7 +155,7 @@ async function processReminderWindow(
     const businessName = appt.tenants?.business_name ?? 'il tuo salone'
     const primaryColor = appt.tenants?.primary_color ?? '#111111'
     const slug         = appt.tenants?.slug ?? ''
-    const url          = `/tenant/app/${slug}`
+    const url          = '/appuntamenti'
 
     // Determine channel — guest clients (no profile) get email directly
     let channel: 'push' | 'email' | 'none'
@@ -116,7 +163,10 @@ async function processReminderWindow(
       channel = clientEmail ? 'email' : 'none'
     } else {
       channel = await getNotificationChannel(profileId, appt.tenant_id).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        (error: unknown) => {
+          if (isPushConfigError(error)) throw error
+          return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+        }
       )
     }
 
@@ -125,8 +175,22 @@ async function processReminderWindow(
     if (channel === 'push' && profileId) {
       const subs = await getSubscriptionsForProfile(appt.tenant_id, profileId)
       if (subs.length > 0) {
-        const sent = await sendPushToSubscriptions(subs, buildPushPayload(type, businessName, appt.start_time, url))
-        if (sent > 0) { pushSent++; notifSent = true }
+        const pushPayload = buildPushPayload(type, businessName, appt.start_time, url)
+        const sent = await sendPushToSubscriptions(subs, pushPayload)
+        if (sent > 0) {
+          pushSent++
+          notifSent = true
+          const { error: notifErr } = await db.from('notifications').insert({
+            tenant_id: appt.tenant_id,
+            profile_id: profileId,
+            type,
+            title: pushPayload.title,
+            body: pushPayload.body ?? null,
+            is_read: false,
+            meta: { url, appointment_id: appt.id },
+          })
+          if (notifErr) console.error('[cron/reminders] notifications insert failed:', notifErr.message)
+        }
       }
     } else if (channel === 'email' && clientEmail) {
       const date = new Date(appt.start_time).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome' })
@@ -135,7 +199,11 @@ async function processReminderWindow(
         to:           clientEmail,
         templateSlug: 'reminder',
         variables:    { client_name: clientName, date, time, staff_name: staffName },
-        tenant:       { business_name: businessName, primary_color: primaryColor },
+        tenant:       buildClientFacingEmailTenantBranding({
+          business_name: businessName,
+          primary_color: primaryColor,
+          slug,
+        }),
         category:     'Promemoria appuntamento',
         details:      { Data: date, Orario: time, Con: staffName },
       })
@@ -159,28 +227,34 @@ export async function POST(req: NextRequest) {
     console.error('[cron/reminders] CRON_SECRET non configurato')
     return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
   }
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  if (!matchesBearerTokenHeader(req.headers.get('authorization'), cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const [r3d, r1d, rDay] = await Promise.all([
-    processReminderWindow('reminder_3d'),
-    processReminderWindow('reminder_1d'),
-    processReminderWindow('reminder_day'),
-  ])
+  try {
+    const [r3d, r1d, rDay] = await Promise.all([
+      processReminderWindow('reminder_3d'),
+      processReminderWindow('reminder_1d'),
+      processReminderWindow('reminder_day'),
+    ])
 
-  const summary = {
-    reminder_3d:    r3d,
-    reminder_1d:    r1d,
-    reminder_day:   rDay,
-    totalPushSent:  r3d.pushSent  + r1d.pushSent  + rDay.pushSent,
-    totalEmailSent: r3d.emailSent + r1d.emailSent + rDay.emailSent,
+    const summary = {
+      reminder_3d:    r3d,
+      reminder_1d:    r1d,
+      reminder_day:   rDay,
+      totalPushSent:  r3d.pushSent  + r1d.pushSent  + rDay.pushSent,
+      totalEmailSent: r3d.emailSent + r1d.emailSent + rDay.emailSent,
+    }
+
+    console.info('[cron/reminders]', JSON.stringify(summary))
+    return NextResponse.json(summary)
+  } catch (error) {
+    console.error('[cron/reminders] processing failed', error)
+    return NextResponse.json({ error: 'Reminder processing failed' }, { status: 500 })
   }
-
-  console.info('[cron/reminders]', JSON.stringify(summary))
-  return NextResponse.json(summary)
 }
 
-export async function GET() {
-  return NextResponse.json({ status: 'ok', message: 'Use POST to trigger reminders' })
+// Vercel Cron always calls GET — delegate to the same handler as POST.
+export async function GET(req: NextRequest) {
+  return POST(req)
 }

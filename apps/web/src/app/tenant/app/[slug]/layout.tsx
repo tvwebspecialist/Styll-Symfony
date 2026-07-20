@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
+import { CookieBanner } from '@/components/shared/CookieBanner'
 import { PwaPreviewShell } from '@/components/pwa/PwaPreviewShell'
+import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
 import { PwaOnboardingLoader } from '@/components/pwa/PwaOnboardingLoader'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getClientProfile } from '@/lib/actions/pwa-auth'
+import { createTenantPaths } from '@/lib/pwa-redirect'
 import {
   GOOGLE_FONT_URLS,
   isRuntimeGoogleFont,
@@ -89,8 +92,8 @@ export async function generateMetadata({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      title: 'App cliente | Styll',
-      description: 'Prenota i tuoi appuntamenti con Styll.',
+      title: 'App del salone non disponibile',
+      description: 'Apri l’app del tuo salone per prenotare e gestire il tuo profilo.',
     }
   }
 
@@ -103,7 +106,6 @@ export async function generateMetadata({
     title: `${tenant.business_name} | App cliente`,
     description: `Apri l'app di ${tenant.business_name} per prenotare, scoprire promozioni e gestire il tuo profilo.`,
     manifest: `/api/pwa-manifest?slug=${encodeURIComponent(slug)}`,
-    themeColor: tenant.primary_color ?? '#1a1a1a',
     icons: {
       apple: [
         {
@@ -135,7 +137,7 @@ export async function generateViewport({
   const tenant = await getTenantBySlug(slug)
 
   return {
-    themeColor: tenant?.primary_color ?? '#1a1a1a',
+    themeColor: tenant?.splash_color ?? tenant?.primary_color ?? '#1a1a1a',
     viewportFit: 'cover',
   }
 }
@@ -170,6 +172,8 @@ export default async function AppLayout({ params, children }: Props) {
   // on its div for the unsaved live preview.
   const brandPrimary = sanitizeBrandColor(tenant.primary_color, DEFAULT_BRAND_PRIMARY)
   const brandSecondary = sanitizeBrandColor(tenant.secondary_color, DEFAULT_BRAND_SECONDARY)
+  const tenantPath = await createTenantPaths(slug)
+  const cookiePath = tenantPath('/cookie')
 
   return (
     <>
@@ -239,13 +243,14 @@ export default async function AppLayout({ params, children }: Props) {
       ))}
 
       {/* position: relative wrapper allows PwaOnboarding to use position: absolute overlay */}
-      <div style={{ position: 'relative', minHeight: '100dvh' }}>
+      <div style={{ position: 'relative' }}>
         <PwaPreviewShell
           slug={slug}
           businessName={tenant.business_name}
           logoUrl={tenant.logo_url}
           primaryColor={tenant.primary_color}
           secondaryColor={tenant.secondary_color}
+          splashColor={tenant.splash_color ?? null}
           fontFamily={tenant.font_family}
           clientName={clientProfile?.fullName ?? null}
           clientAvatarUrl={clientProfile?.avatarUrl ?? null}
@@ -258,6 +263,8 @@ export default async function AppLayout({ params, children }: Props) {
           businessName={tenant.business_name}
           tenantId={tenant.tenant_id}
         />
+        <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="pwa" />
+        <CookieBanner cookiePath={cookiePath} brandColor={brandPrimary} />
       </div>
     </>
   )

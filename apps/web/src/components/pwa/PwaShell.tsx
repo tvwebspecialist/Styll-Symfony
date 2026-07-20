@@ -1,9 +1,11 @@
 'use client'
 
 import { Suspense, type ReactNode } from 'react'
+import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { BottomNavPWA } from './BottomNavPWA'
 import { PwaTopBar } from './PwaTopBar'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 
 const AUTH_SEGMENTS = ['/accesso', '/auth/callback']
@@ -56,6 +58,7 @@ export function PwaShell({
 }: PwaShellProps) {
   const pathname = usePathname() ?? ''
   const tenantPath = useTenantPath(slug)
+  const analyticsPreferencesHref = appendAnalyticsPreferencesHash(tenantPath('/cookie'))
   const isAuthPage = AUTH_SEGMENTS.some((seg) => pathname.includes(seg))
 
   // Hide the bottom nav (and its padding) for all prenota subroutes — BottomCTA handles spacing there
@@ -64,6 +67,10 @@ export function PwaShell({
   const isProductDetail = pathname.startsWith(`${tenantPath('/prodotti')}/`)
   // Offer detail is fullscreen — no bottom nav (same as product detail)
   const isOfferDetail = pathname.startsWith(`${tenantPath('/offerte')}/`)
+  // Edit profile is fullscreen — no bottom nav (BottomCTA handles its own bar)
+  const isModificaProfilo = pathname.startsWith(tenantPath('/profilo/modifica'))
+  // Notifications page is a sub-page — no bottom nav (consistent with all other sub-pages)
+  const isNotifiche = pathname === tenantPath('/notifiche')
 
   if (isAuthPage) {
     return <>{children}</>
@@ -85,10 +92,29 @@ export function PwaShell({
           slug={slug}
         />
       )}
-      <div style={{ paddingBottom: (isPrenotaSubroute || isProductDetail || isOfferDetail) ? 0 : 96 }}>
+      <div>
         {children}
+        {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
+          <footer style={{ fontSize: 11, color: '#CCCCCC', textAlign: 'center', padding: '24px 0 8px' }}>
+            <a
+              href="https://styll.it"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#CCCCCC', textDecoration: 'none' }}
+            >
+              Powered by Styll
+            </a>
+            {' · '}
+            <Link
+              href={analyticsPreferencesHref}
+              style={{ color: '#CCCCCC', textDecoration: 'none' }}
+            >
+              Gestisci cookie
+            </Link>
+          </footer>
+        )}
       </div>
-      {!(isPrenotaSubroute || isProductDetail || isOfferDetail) && (
+      {!(isPrenotaSubroute || isProductDetail || isOfferDetail || isModificaProfilo || isNotifiche) && (
         <BottomNavPWA slug={slug} primaryColor={primaryColor} fontFamily={fontFamily} />
       )}
       {isPrenotaSubroute && (

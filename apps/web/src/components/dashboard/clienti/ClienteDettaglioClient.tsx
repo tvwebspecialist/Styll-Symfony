@@ -233,15 +233,16 @@ export function ClienteDettaglioClient({ data }: { data: ClienteDettaglioData })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Back link */}
+      {/* Back link — desktop only; on mobile the TopBarDetail back button handles this */}
       <Link
         href="/clienti"
+        className="desktop-only"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#5e5e5b', textDecoration: 'none', fontWeight: 500, alignSelf: 'flex-start' }}
       >
         <ChevronLeft size={15} />Tutti i clienti
       </Link>
 
-      <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? 12 : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? '12px 0' : 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── 1. HEADER ───────────────────────────────────────────────────────── */}
         <div style={{ background: 'linear-gradient(170deg, #111 3%, #444 97%)', borderRadius: 20, padding: isMobile ? '20px 20px' : '28px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>

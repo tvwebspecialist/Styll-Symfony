@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { uploadAvatar } from '@/lib/actions/profilo'
 import { updateClientProfileData } from '@/lib/actions/pwa-client-actions'
+import { BottomCTA } from '@/components/pwa/ui/BottomCTA'
 
 interface InitialData {
   fullName: string
@@ -24,7 +25,7 @@ interface Props {
 function Toast({ message, type }: { message: string; type: 'success' | 'error' }) {
   return (
     <div
-      className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-medium text-white shadow-lg ${
+      className={`fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-sm font-medium text-white shadow-lg ${
         type === 'success' ? 'bg-emerald-500' : 'bg-red-500'
       }`}
     >
@@ -94,10 +95,10 @@ export function ModificaProfiloClient({ tenantId, userId: _userId, initialData, 
     })
   }
 
-  const inputCls = 'h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm text-neutral-900 outline-none focus:border-[var(--brand-primary)] transition-colors'
+  const inputCls = 'h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm text-neutral-900 outline-none transition-colors styll-focus-brand-primary'
 
   return (
-    <div className="px-4 pt-4 pb-10">
+    <div className="px-4 pt-4">
       {/* Avatar */}
       <div className="flex flex-col items-center mb-6">
         <button
@@ -185,20 +186,14 @@ export function ModificaProfiloClient({ tenantId, userId: _userId, initialData, 
         </div>
       </div>
 
-      {/* Sticky save button */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-4 bg-white/90 backdrop-blur-sm border-t border-neutral-100">
-        <div className="mx-auto max-w-xl">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex h-12 w-full items-center justify-center rounded-xl text-sm font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {isSaving ? 'Salvataggio…' : 'Salva modifiche'}
-          </button>
-        </div>
-      </div>
+      <BottomCTA
+        primary={{
+          label: 'Salva modifiche',
+          onClick: handleSave,
+          loading: isSaving,
+        }}
+        tenantPrimary={primaryColor}
+      />
 
       {toast && <Toast message={toast.message} type={toast.type} />}
     </div>

@@ -3,7 +3,9 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildPushBootstrapResponse, resolvePushConfig } from '@/lib/push/config'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { classifyPushEndpointClaim } from '@/lib/push/endpoint-ownership'
 
 /**
  * GET /api/push/subscribe
@@ -34,11 +36,8 @@ const PushUnsubscribeSchema = z.object({
 })
 
 export async function GET() {
-  const key = process.env.VAPID_PUBLIC_KEY
-  if (!key) {
-    return NextResponse.json({ error: 'Push not configured' }, { status: 503 })
-  }
-  return NextResponse.json({ vapidPublicKey: key })
+  const response = buildPushBootstrapResponse(resolvePushConfig())
+  return NextResponse.json(response.body, { status: response.status })
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +53,11 @@ export async function POST(req: NextRequest) {
       { error: 'Too many requests' },
       { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
     )
+  }
+
+  const pushResponse = buildPushBootstrapResponse(resolvePushConfig())
+  if (pushResponse.status !== 200) {
+    return NextResponse.json(pushResponse.body, { status: pushResponse.status })
   }
 
   const body = await req.json()
@@ -84,20 +88,88 @@ export async function POST(req: NextRequest) {
   if (!clientRow && !staffRow) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
 
   const userAgent = req.headers.get('user-agent') ?? null
+  const subscriptionPayload = {
+    tenant_id: tenantId,
+    profile_id: user.id,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.keys.p256dh,
+    auth: subscription.keys.auth,
+    user_agent: userAgent,
+    last_seen_at: new Date().toISOString(),
+  }
 
-  // Upsert: se l'endpoint esiste già, aggiorna last_seen_at
-  const { error } = await db.from('push_subscriptions').upsert(
-    {
-      tenant_id:    tenantId,
-      profile_id:   user.id,
-      endpoint:     subscription.endpoint,
-      p256dh:       subscription.keys.p256dh,
-      auth:         subscription.keys.auth,
-      user_agent:   userAgent,
-      last_seen_at: new Date().toISOString(),
-    },
-    { onConflict: 'endpoint' }
+  const { data: existingSubscription, error: existingSubscriptionError } = await db
+    .from('push_subscriptions')
+    .select('profile_id')
+    .eq('endpoint', subscription.endpoint)
+    .maybeSingle()
+
+  if (existingSubscriptionError) {
+    console.error('[push/subscribe] endpoint lookup error:', existingSubscriptionError)
+    return NextResponse.json({ error: 'DB error' }, { status: 500 })
+  }
+
+  const claimStatus = classifyPushEndpointClaim(
+    existingSubscription
+      ? { profileId: existingSubscription.profile_id as string | null }
+      : null,
+    user.id,
   )
+
+  if (claimStatus === 'owned_by_other_user') {
+    return NextResponse.json(
+      { error: 'Subscription endpoint already belongs to a different account' },
+      { status: 409 },
+    )
+  }
+
+  let error = null
+
+  if (claimStatus === 'owned_by_request_user') {
+    const result = await db
+      .from('push_subscriptions')
+      .update(subscriptionPayload)
+      .eq('endpoint', subscription.endpoint)
+      .eq('profile_id', user.id)
+    error = result.error
+  } else {
+    const insertResult = await db.from('push_subscriptions').insert(subscriptionPayload)
+    error = insertResult.error
+
+    if (error?.code === '23505') {
+      const { data: conflictingSubscription, error: conflictingSubscriptionError } = await db
+        .from('push_subscriptions')
+        .select('profile_id')
+        .eq('endpoint', subscription.endpoint)
+        .maybeSingle()
+
+      if (conflictingSubscriptionError) {
+        console.error('[push/subscribe] endpoint conflict lookup error:', conflictingSubscriptionError)
+        return NextResponse.json({ error: 'DB error' }, { status: 500 })
+      }
+
+      const retryClaimStatus = classifyPushEndpointClaim(
+        conflictingSubscription
+          ? { profileId: conflictingSubscription.profile_id as string | null }
+          : null,
+        user.id,
+      )
+
+      if (retryClaimStatus === 'owned_by_other_user') {
+        return NextResponse.json(
+          { error: 'Subscription endpoint already belongs to a different account' },
+          { status: 409 },
+        )
+      }
+
+      const retryResult = await db
+        .from('push_subscriptions')
+        .update(subscriptionPayload)
+        .eq('endpoint', subscription.endpoint)
+        .eq('profile_id', user.id)
+      error = retryResult.error
+    }
+  }
 
   if (error) {
     console.error('[push/subscribe] DB error:', error)

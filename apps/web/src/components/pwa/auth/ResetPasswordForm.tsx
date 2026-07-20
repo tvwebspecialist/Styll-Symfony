@@ -100,14 +100,14 @@ export function ResetPasswordForm({ slug }: { slug: string }) {
               type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              className="mt-2 h-[52px] w-full rounded-2xl border border-neutral-200 bg-white px-4 text-base text-neutral-950 outline-none transition focus:border-[var(--brand-primary)]"
+              className="mt-2 h-[52px] w-full rounded-2xl border border-neutral-200 bg-white px-4 text-base text-neutral-950 outline-none styll-focus-brand-primary"
             />
           </label>
 
           <button
             type="submit"
             disabled={isPending}
-            className="flex min-h-[52px] w-full items-center justify-center rounded-full bg-[var(--brand-primary)] px-5 py-3 text-base font-bold text-white shadow-lg shadow-black/10 disabled:opacity-60"
+            className="flex min-h-[52px] w-full items-center justify-center rounded-full styll-bg-brand-primary px-5 py-3 text-base font-bold text-white shadow-lg shadow-black/10 disabled:opacity-60"
           >
             {isPending ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
             Aggiorna password

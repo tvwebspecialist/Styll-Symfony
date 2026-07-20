@@ -101,7 +101,7 @@ export default async function OffertaDetailPage({ params }: Props) {
 
       {/* ── Card 1: immagine ────────────────────────────────────────── */}
       <FloatingCard style={{
-        margin: '0 16px',
+        margin: '0 8px',
         padding: 0,
         flexShrink: 0,
         aspectRatio: '16/9',
@@ -134,7 +134,7 @@ export default async function OffertaDetailPage({ params }: Props) {
 
       {/* ── Card 2: contenuto ───────────────────────────────────────── */}
       <FloatingCard style={{
-        margin: '0 16px 16px',
+        margin: '0 8px 8px',
         padding: `16px 24px max(env(safe-area-inset-bottom, 0px), 16px)`,
         flex: 1,
         display: 'flex',

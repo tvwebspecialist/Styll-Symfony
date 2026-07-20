@@ -6,8 +6,13 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
+import {
+  buildMarketingEmailLinks,
+  issueMarketingUnsubscribeToken,
+} from '@/lib/marketing-unsubscribe'
 import { sendPushToSubscriptions, getSubscriptionsForProfile } from '@/lib/push/send-notification'
+import { isPushConfigError } from '@/lib/push/config'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 
@@ -56,12 +61,10 @@ export async function checkAndUnlockBadges(
 ): Promise<void> {
   const db = createAdminClient()
 
-  // @ts-expect-error TODO: migration pending — 'badges' table not yet in DB schema
   const { data: badges } = await (db.from('badges').select('id, condition_type, condition_value').eq('tenant_id', tenantId).eq('is_active', true) as unknown as Promise<{ data: Array<{ id: string; condition_type: string; condition_value: number }> | null }>)
 
   if (!badges?.length) return
 
-  // @ts-expect-error TODO: migration pending — 'client_badges' table not yet in DB schema
   const { data: alreadyUnlocked } = await (db.from('client_badges').select('badge_id').eq('tenant_id', tenantId).eq('client_id', clientId) as unknown as Promise<{ data: Array<{ badge_id: string }> | null }>)
 
   const unlockedSet = new Set((alreadyUnlocked ?? []).map((b) => b.badge_id))
@@ -95,7 +98,6 @@ export async function checkAndUnlockBadges(
 
   if (toUnlock.length > 0) {
     // ON CONFLICT DO NOTHING — unique index prevents doubles
-    // @ts-expect-error TODO: migration pending — 'client_badges' table not yet in DB schema
     await db.from('client_badges').upsert(toUnlock, { onConflict: 'tenant_id,client_id,badge_id', ignoreDuplicates: true })
   }
 }
@@ -112,7 +114,6 @@ export async function checkAndUpdateTier(
   const db = createAdminClient()
 
   // Load tenant tier thresholds
-  // @ts-expect-error TODO: migration pending — 'tier_configs' table not yet in DB schema
   const { data: tiers } = await (db.from('tier_configs').select('tier_name, min_points').eq('tenant_id', tenantId).order('display_order', { ascending: true }) as unknown as Promise<{ data: Array<{ tier_name: string; min_points: number }> | null }>)
 
   const tierList = (tiers ?? []).length > 0
@@ -141,7 +142,6 @@ export async function checkAndUpdateTier(
     if (computedIdx <= currentIdx) return // no upgrade, stay put
   }
 
-  // @ts-expect-error TODO: migration pending — client_loyalty.current_tier not yet in schema
   await db.from('client_loyalty').update({ current_tier: computedTier }).eq('id', loyaltyState.id)
 }
 
@@ -234,7 +234,6 @@ export async function assignPointsOnCompletion(
 
   if (!loyaltyRow) {
     // Create loyalty record for this client
-    // @ts-expect-error TODO: migration pending — client_loyalty.current_tier, tier_points_this_year, tier_year not in schema
     const newRowResult = await (db.from('client_loyalty').insert({ tenant_id: tenantId, client_id: appt.client_id, total_points: 0, available_points: 0, current_streak: 0, longest_streak: 0, current_tier: 'bronze', tier_points_this_year: 0, tier_year: currentYear, last_visit_date: null }).select().single() as unknown as Promise<{ data: ClientLoyaltyState | null }>)
     loyaltyRow = newRowResult.data
   }
@@ -290,7 +289,6 @@ export async function assignPointsOnCompletion(
     description: `Visita completata`,
     appointment_id: appointmentId,
     staff_id: appt.staff_id ?? null,
-    // @ts-expect-error TODO: migration pending — loyalty_transactions.loyalty_config_version not yet in schema
     loyalty_config_version: config.version ?? 1,
   })
 
@@ -310,7 +308,6 @@ export async function assignPointsOnCompletion(
     last_visit_date: now.toISOString(),
   }
 
-  // @ts-expect-error TODO: migration pending — client_loyalty.tier_points_this_year, tier_year not in schema
   await db.from('client_loyalty').update({ total_points: newTotal, available_points: newAvailable, current_streak: newStreak, longest_streak: newLongest, last_visit_date: now.toISOString(), tier_points_this_year: newTierPoints, tier_year: currentYear }).eq('id', loyaltyRow.id)
 
   // Check badges and tier
@@ -371,7 +368,6 @@ export async function addManualPoints(input: {
   const currentYear = new Date().getFullYear()
 
   if (!existing) {
-    // @ts-expect-error TODO: migration pending — client_loyalty.current_tier, tier_points_this_year, tier_year not in schema
     await db.from('client_loyalty').insert({ tenant_id: tenantId, client_id: input.clientId, total_points: input.points, available_points: input.points, current_streak: 0, longest_streak: 0, current_tier: 'bronze', tier_points_this_year: input.points, tier_year: currentYear })
   } else {
     const newTotal = (existing.total_points ?? 0) + input.points
@@ -386,7 +382,6 @@ export async function addManualPoints(input: {
       available_points: newAvailable,
     }
 
-    // @ts-expect-error TODO: migration pending — client_loyalty.tier_points_this_year, tier_year not in schema
     await db.from('client_loyalty').update({ total_points: newTotal, available_points: newAvailable, tier_points_this_year: newTierPoints, tier_year: currentYear }).eq('id', existing.id)
 
     await checkAndUpdateTier(input.clientId, tenantId, updatedState)
@@ -648,7 +643,7 @@ async function sendLoyaltyNotifications(params: {
     rewardEnabled,
   ] = await Promise.all([
     db.from('clients').select('email, full_name, profile_id, marketing_consent').eq('id', clientId).maybeSingle(),
-    db.from('tenants').select('business_name, primary_color').eq('id', tenantId).maybeSingle(),
+    db.from('tenants').select('business_name, primary_color, slug').eq('id', tenantId).maybeSingle(),
     getAutomationEnabled(tenantId, 'loyalty_points'),
     getAutomationEnabled(tenantId, 'loyalty_streak'),
     getAutomationEnabled(tenantId, 'loyalty_reward'),
@@ -661,14 +656,30 @@ async function sendLoyaltyNotifications(params: {
   const profileId    = client.profile_id ?? null
   const businessName = tenant?.business_name ?? 'il tuo salone'
   const primaryColor = tenant?.primary_color ?? '#111111'
-  const tenantMeta   = { business_name: businessName, primary_color: primaryColor }
+  const tenantSlug = tenant?.slug ?? ''
+  const tenantMeta   = buildClientFacingEmailTenantBranding({
+    business_name: businessName,
+    primary_color: primaryColor,
+    slug: tenantSlug,
+  })
+  const unsubscribeToken = await issueMarketingUnsubscribeToken(db, {
+    tenantId,
+    clientId,
+  })
+  const marketingLinks = buildMarketingEmailLinks(tenantSlug, unsubscribeToken)
+  const marketingEmail = {
+    unsubscribeUrl: marketingLinks.unsubscribeUrl,
+    oneClickUrl: marketingLinks.oneClickUrl,
+    managePreferencesUrl: marketingLinks.managePreferencesUrl,
+  }
 
   // One channel determination — reused across all 3 loyalty events
   const channel = !profileId
     ? (clientEmail ? 'email' : 'none')
-    : await getNotificationChannel(profileId, tenantId).catch(
-        () => (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
-      )
+    : await getNotificationChannel(profileId, tenantId).catch((error: unknown) => {
+        if (isPushConfigError(error)) throw error
+        return (clientEmail ? 'email' : 'none') as 'push' | 'email' | 'none'
+      })
 
   // Load subs once — only if push channel
   const subs = channel === 'push' && profileId
@@ -684,13 +695,16 @@ async function sendLoyaltyNotifications(params: {
         title: `+${pointsEarned} punti guadagnati!`,
         body:  `Totale: ${newTotal} punti · ${businessName}`,
         tag:   `loyalty-points-${clientId}`,
-      }).catch(() => {})
+      }).catch((error: unknown) => {
+        console.error('[loyalty] points push failed:', error)
+      })
     } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
         templateSlug: 'loyalty_points',
         variables:    { client_name: clientName, business_name: businessName, points: String(pointsEarned), total_points: String(newTotal) },
         tenant:       tenantMeta,
+        marketing:    marketingEmail,
         category:     'Punti guadagnati',
         details:      { 'Punti guadagnati': String(pointsEarned), Totale: String(newTotal) },
       })
@@ -704,13 +718,16 @@ async function sendLoyaltyNotifications(params: {
         title: `Streak di ${newStreak} visite 🔥`,
         body:  `Stai andando alla grande da ${businessName}!`,
         tag:   `loyalty-streak-${clientId}`,
-      }).catch(() => {})
+      }).catch((error: unknown) => {
+        console.error('[loyalty] streak push failed:', error)
+      })
     } else if (channel === 'email' && clientEmail) {
       await sendTemplatedEmail({
         to:           clientEmail,
         templateSlug: 'loyalty_streak',
         variables:    { client_name: clientName, business_name: businessName, streak: String(newStreak) },
         tenant:       tenantMeta,
+        marketing:    marketingEmail,
         category:     'Streak',
         details:      { 'Visite consecutive': String(newStreak) },
       })
@@ -737,13 +754,16 @@ async function sendLoyaltyNotifications(params: {
           title: 'Premio sbloccato! 🎉',
           body:  `Hai sbloccato: ${unlockedReward.name} da ${businessName}`,
           tag:   `loyalty-reward-${clientId}`,
-        }).catch(() => {})
+        }).catch((error: unknown) => {
+          console.error('[loyalty] reward push failed:', error)
+        })
       } else if (channel === 'email' && clientEmail) {
         await sendTemplatedEmail({
           to:           clientEmail,
           templateSlug: 'loyalty_reward',
           variables:    { client_name: clientName, business_name: businessName, reward_name: unlockedReward.name },
           tenant:       tenantMeta,
+          marketing:    marketingEmail,
           category:     'Premio sbloccato',
           details:      { Premio: unlockedReward.name },
         })

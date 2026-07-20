@@ -15,15 +15,15 @@ const IS_DEV =
   self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 const OFFLINE_URL = '/offline'
-const PRECACHE = 'styll-offline-v3'
+const PRECACHE = 'styll-offline-v5'
 const PAGES_CACHE = 'styll-pages'
+const SUPABASE_API_CACHE = 'supabase-api'
+const SENSITIVE_CACHE_NAMES = [PAGES_CACHE, SUPABASE_API_CACHE]
 
-// Runtime caches (nomi allineati alle strategie richieste).
+// Runtime caches pubbliche: nessun HTML autenticato o REST Supabase.
 const RUNTIME_CACHE_NAMES = [
   PRECACHE,
-  PAGES_CACHE,
   'next-static',
-  'supabase-api',
   'tenant-assets',
   'google-fonts-css',
   'google-fonts-files',
@@ -64,6 +64,29 @@ self.addEventListener('activate', (event) => {
       await self.clients.claim()
     })(),
   )
+})
+
+async function clearSensitiveCaches() {
+  await Promise.all(SENSITIVE_CACHE_NAMES.map((cacheName) => caches.delete(cacheName)))
+}
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'CLEAR_SENSITIVE_CACHES') return
+
+  const task = clearSensitiveCaches()
+    .then(() => {
+      event.ports?.[0]?.postMessage({ ok: true })
+    })
+    .catch((error) => {
+      event.ports?.[0]?.postMessage({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+  if (typeof event.waitUntil === 'function') {
+    event.waitUntil(task)
+  }
 })
 
 /* ─── Helpers caching ───────────────────────────────────────────────────────── */
@@ -200,25 +223,12 @@ async function staleWhileRevalidate(event, cfg) {
   return network ?? cached ?? Response.error()
 }
 
-// Navigazioni (HTML): NetworkFirst con fallback alla pagina cachata, poi /offline.
-// Permette al cliente di rivedere offline l'ultima pagina visitata (es. i suoi
-// appuntamenti) e, in mancanza, una pagina di cortesia brandizzata.
+// Navigazioni (HTML): network-only con fallback alla shell offline minima.
 async function handleNavigation(event) {
   try {
     const preload = await event.preloadResponse
-    const network = preload || (await fetch(event.request))
-    if (network && network.ok) {
-      event.waitUntil(
-        putWithTimestamp(PAGES_CACHE, event.request, network).then(() =>
-          trimCache(PAGES_CACHE, 50),
-        ),
-      )
-    }
-    return network
+    return preload || (await fetch(event.request))
   } catch {
-    const pages = await caches.open(PAGES_CACHE)
-    const cachedPage = await pages.match(event.request)
-    if (cachedPage) return cachedPage
     const precache = await caches.open(PRECACHE)
     const fallback = await precache.match(OFFLINE_URL)
     return fallback || Response.error()
@@ -267,16 +277,8 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // API Supabase REST — NetworkFirst, timeout 3s, fallback cache 5 min.
+  // API Supabase REST: mai in cache — contiene dati autenticati e tenant-scoped.
   if (isSupabase && url.pathname.startsWith('/rest/')) {
-    event.respondWith(
-      networkFirst(event, {
-        cacheName: 'supabase-api',
-        networkTimeoutSeconds: 3,
-        maxEntries: 50,
-        maxAgeSeconds: 60 * 5,
-      }),
-    )
     return
   }
 

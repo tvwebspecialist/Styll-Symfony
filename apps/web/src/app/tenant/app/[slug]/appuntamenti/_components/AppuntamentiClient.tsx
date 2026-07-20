@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
 import { cancelClientAppointment } from '@/lib/actions/pwa-client-actions'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 export type AppStatus = 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show'
 
@@ -273,11 +274,6 @@ function DetailSheet({
     })
   }
 
-  const changeDateUrl =
-    apt.staffId && apt.locationId
-      ? `${prenotaPath}/data?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&excludeAppointmentId=${apt.id}&rescheduleAppointmentId=${apt.id}`
-      : prenotaPath
-
   const modifyUrl =
     apt.staffId && apt.locationId
       ? `${prenotaPath}/servizi?location=${apt.locationId}&staff=${apt.staffId}&services=${apt.serviceIds.join(',')}&cancelAppointmentId=${apt.id}`
@@ -317,19 +313,17 @@ function DetailSheet({
       />
 
       {/* Sheet — floats 12px from all edges, rounded on all sides */}
-      <div
+      <FloatingCard
         style={{
           position: 'relative',
           zIndex: 1,
           margin: 12,
           width: 'calc(100% - 24px)',
           maxHeight: '85dvh',
-          backgroundColor: '#ffffff',
-          borderRadius: 24,
-          boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
           overflowY: 'auto',
           transform: visible ? 'translateY(0)' : 'translateY(110%)',
           transition: 'transform 290ms cubic-bezier(0.32, 0.72, 0, 1)',
+          padding: 0,
         }}
       >
         {/* Handle bar */}
@@ -398,25 +392,6 @@ function DetailSheet({
             <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {!confirmDelete ? (
                 <>
-                  <Link
-                    href={changeDateUrl}
-                    onClick={close}
-                    style={{
-                      display: 'flex',
-                      height: 50,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: 16,
-                      backgroundColor: 'transparent',
-                      border: `2px solid ${primaryColor}`,
-                      color: primaryColor,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    Cambia data e ora
-                  </Link>
                   <Link
                     href={modifyUrl}
                     onClick={close}
@@ -516,7 +491,7 @@ function DetailSheet({
             </div>
           )}
         </div>
-      </div>
+      </FloatingCard>
     </div>
   )
 }

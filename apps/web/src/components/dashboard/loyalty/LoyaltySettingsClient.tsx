@@ -61,7 +61,7 @@ export function LoyaltySettingsClient({ data }: { data: LoyaltySettingsData }) {
   const [activeTab, setActiveTab] = React.useState<'config' | 'rewards' | 'badges' | 'tiers'>('config')
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 pb-24">
+    <div className="mx-auto max-w-3xl py-6 pb-24">
       <header className="mb-6">
         <h1 className="text-2xl font-black text-[var(--color-fg)]">Programma Fedeltà</h1>
         <p className="mt-1 text-sm text-[var(--color-fg-secondary)]">
@@ -389,7 +389,7 @@ function RewardsTab({ data }: { data: LoyaltySettingsData }) {
                 <button
                   type="button"
                   onClick={() => setEditReward({ ...reward })}
-                  className="rounded-lg p-2 transition-colors hover:bg-[var(--color-bg-secondary)]"
+                  className="rounded-lg p-2 transition-colors styll-hover-color-bg-secondary"
                   style={{ color: 'var(--color-fg-secondary)' }}
                 >
                   <Edit3 className="h-4 w-4" />
@@ -414,7 +414,7 @@ function RewardsTab({ data }: { data: LoyaltySettingsData }) {
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center">
           <form
             onSubmit={handleSave}
-            className="w-full max-w-md rounded-t-3xl bg-[var(--color-bg)] p-6 sm:rounded-2xl"
+            className="w-full max-w-md rounded-t-3xl styll-bg-color-bg p-6 sm:rounded-2xl"
           >
             <div className="mb-4 flex items-center justify-between">
               <p className="text-base font-bold text-[var(--color-fg)]">

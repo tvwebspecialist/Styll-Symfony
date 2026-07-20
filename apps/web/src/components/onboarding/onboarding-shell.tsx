@@ -378,7 +378,7 @@ export function NavFooter({
       {backHref ? (
         <Link
           href={backHref}
-          className="tap-target inline-flex items-center rounded-[12px] border px-5 py-3 text-sm font-medium transition-colors hover:bg-[color:var(--color-bg-secondary)]"
+          className="tap-target inline-flex items-center rounded-[12px] border px-5 py-3 text-sm font-medium transition-colors styll-hover-color-bg-secondary"
           style={{
             color: 'var(--color-fg-secondary)',
             borderColor: 'var(--color-border)',

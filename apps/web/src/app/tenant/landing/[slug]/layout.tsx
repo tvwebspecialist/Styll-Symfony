@@ -1,7 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import { notFound } from 'next/navigation'
+import { CookieBanner } from '@/components/shared/CookieBanner'
+import { serializeJsonLd } from '@/lib/security/json-ld'
 import { getTenantBySlug } from '@/lib/tenant'
+import { SiteAnalyticsTracker } from '@/components/pwa/SiteAnalyticsTracker'
+import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
 
 const FONT_MAP: Record<string, string> = {
   outfit: 'var(--font-outfit)',
@@ -27,7 +31,7 @@ export async function generateMetadata({
 
   if (!tenant || tenant.status !== 'active') {
     return {
-      title: 'Barbiere non trovato',
+      title: 'Salone non trovato',
       robots: { index: false },
     }
   }
@@ -117,6 +121,8 @@ export default async function LandingLayout({ params, children }: Props) {
       description: 'Prenotazione online disponibile',
     },
   }
+  const landingPath = await createTenantSurfacePaths('landing', slug)
+  const cookiePath = landingPath('/cookie')
 
   return (
     <div
@@ -125,9 +131,14 @@ export default async function LandingLayout({ params, children }: Props) {
     >
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
+      <SiteAnalyticsTracker tenantId={tenant.tenant_id} appSurface="website" />
       {children}
+      <CookieBanner
+        cookiePath={cookiePath}
+        brandColor={tenant.primary_color ?? '#1a1a1a'}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { LandingTenant, LandingLocation } from '@/types/landing'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
 
 // ── Social icon SVGs ──────────────────────────────────────────────────────────
 
@@ -42,16 +43,18 @@ function WhatsAppSVG() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
+  cookiePath: string
   tenant: LandingTenant
   locations: LandingLocation[]
 }
 
-export default function LandingFooter({ tenant, locations }: Props) {
+export default function LandingFooter({ cookiePath, tenant, locations }: Props) {
   const firstLocation = locations[0] ?? null
   const contactPhone = tenant.contact_phone || firstLocation?.phone || null
   const contactEmail = tenant.contact_email || firstLocation?.email || null
   const bookingUrl = `https://${tenant.slug}-app.styll.it/prenota?source=booking`
   const { instagram, facebook, tiktok, whatsapp } = tenant.social_links
+  const analyticsPreferencesHref = appendAnalyticsPreferencesHash(cookiePath)
 
   const socialLinks: Array<{ href: string; label: string; icon: ReactNode }> = [
     ...(instagram ? [{ href: instagram, label: 'Instagram', icon: <InstagramSVG /> }] : []),
@@ -209,6 +212,12 @@ export default function LandingFooter({ tenant, locations }: Props) {
               className="text-[11px] text-white/20 hover:text-white/40 transition-colors no-underline"
             >
               Powered by Styll
+            </a>
+            <a
+              href={analyticsPreferencesHref}
+              className="text-[11px] text-white/20 hover:text-white/40 transition-colors no-underline"
+            >
+              Gestisci cookie
             </a>
           </div>
         </div>

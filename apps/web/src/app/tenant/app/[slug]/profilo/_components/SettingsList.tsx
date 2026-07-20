@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { logoutClient } from '@/lib/actions/client-auth'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
+import { createClient as createCookieClient } from '@/lib/supabase/client'
+import { clearSensitivePwaCaches } from '@/lib/pwa/clear-sensitive-caches'
 
 interface Props {
   appuntamentiPath: string
@@ -22,6 +24,7 @@ interface Props {
   puntiPath: string
   modificaPath: string
   preferenzePath: string
+  privacyPath: string
   basePath: string
   profile: {
     fullName: string | null
@@ -53,7 +56,7 @@ function SettingRow({
   href?: string
   danger?: boolean
 }) {
-  const cls = `flex items-center gap-3 px-4 py-3.5 w-full text-left active:bg-neutral-50 transition-colors`
+  const cls = `pwa-pressable flex items-center gap-3 px-4 py-3.5 w-full text-left active:bg-neutral-100`
 
   const content = (
     <>
@@ -98,6 +101,7 @@ export function SettingsList({
   puntiPath,
   modificaPath,
   preferenzePath,
+  privacyPath,
   basePath,
 }: Props) {
   const [, startTransition] = useTransition()
@@ -106,7 +110,13 @@ export function SettingsList({
   function handleLogout() {
     startTransition(async () => {
       const pwa = createPwaClient()
-      await Promise.all([logoutClient(), pwa.auth.signOut({ scope: 'local' })])
+      const cookie = createCookieClient()
+      await Promise.all([
+        logoutClient(),
+        pwa.auth.signOut({ scope: 'local' }),
+        cookie.auth.signOut({ scope: 'local' }),
+      ])
+      await clearSensitivePwaCaches()
       router.push(basePath)
       router.refresh()
     })
@@ -152,8 +162,8 @@ export function SettingsList({
       <SectionCard title="Altro">
         <SettingRow
           icon={<GreyIcon icon={<FileText className="size-5" />} />}
-          label="Termini e Privacy"
-          href="https://styll.it/privacy"
+          label="Privacy Policy"
+          href={privacyPath}
         />
         <SettingRow
           icon={<div className="size-5 shrink-0 flex items-center justify-center" style={{ color: '#dc2626' }}><LogOut className="size-5" /></div>}

@@ -72,8 +72,8 @@ export default async function ServiziPage({ params, searchParams }: Props) {
   }
 
   const [{ services }, staffMember] = await Promise.all([
-    getServicesForStaff(tenant.tenant_id, staffId),
-    getPublicStaffMemberById(tenant.tenant_id, staffId),
+    getServicesForStaff(tenant.tenant_id, staffId, locationId),
+    getPublicStaffMemberById(tenant.tenant_id, staffId, locationId),
   ])
 
   // Resolve logged-in client for offer pricing (graceful degradation on any error)

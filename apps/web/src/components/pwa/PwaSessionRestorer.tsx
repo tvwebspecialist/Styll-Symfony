@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { createClient as createCookieClient } from '@/lib/supabase/client'
+import { clearSensitivePwaCaches } from '@/lib/pwa/clear-sensitive-caches'
 
 export function PwaSessionRestorer() {
   const router = useRouter()
@@ -43,6 +44,7 @@ export function PwaSessionRestorer() {
     const { data: { subscription } } = pwa.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         cookie.auth.signOut({ scope: 'local' }).catch(() => {})
+        void clearSensitivePwaCaches()
       }
     })
 

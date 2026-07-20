@@ -1,7 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import { Calendar, TrendingUp, Clock } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react'
 import type { TodayAppointment, YesterdayStats } from '@/lib/actions/dashboard-home'
 
 const WORK_START = 8
@@ -30,152 +31,212 @@ function fmt(t: string) {
   return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
+function PillBadge({ diff, suffix = '' }: { diff: number; suffix?: string }) {
+  if (diff === 0) return null
+  const positive = diff > 0
+  return (
+    <span style={{
+      fontSize: 10,
+      fontWeight: 700,
+      padding: '2px 6px',
+      borderRadius: 99,
+      background: positive ? '#D1FAE5' : '#FEE2E2',
+      color: positive ? '#059669' : '#DC2626',
+      fontFamily: 'Outfit, sans-serif',
+      letterSpacing: '0.01em',
+      lineHeight: 1.5,
+      whiteSpace: 'nowrap',
+    }}>
+      {diff > 0 ? '+' : ''}{diff}{suffix} ieri
+    </span>
+  )
+}
+
+interface IconBoxProps {
+  icon: React.ReactNode
+  bg: string
+}
+function IconBox({ icon, bg }: IconBoxProps) {
+  return (
+    <div style={{
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      background: bg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      {icon}
+    </div>
+  )
+}
+
+interface CardDef {
+  key: string
+  icon: React.ReactNode
+  iconBg: string
+  label: string
+  href: string
+}
+
+interface CardValue {
+  main: React.ReactNode
+  sub: string
+  trend?: React.ReactNode
+}
+
 interface Props {
   appointments: TodayAppointment[]
   yesterdayStats: YesterdayStats
+  basePath: string
 }
 
-const CARDS = [
-  {
-    key: 'appt',
-    bg: '#F0F4FF',
-    accent: '#3B6FE8',
-    icon: Calendar,
-    label: 'Appuntamenti oggi',
-    imgSrc: '/img/Appuntamenti.png',
-  },
-  {
-    key: 'revenue',
-    bg: '#F0FFF4',
-    accent: '#16A34A',
-    icon: TrendingUp,
-    label: 'Incassi di oggi',
-    imgSrc: '/img/guadagni.png',
-  },
-  {
-    key: 'slots',
-    bg: '#FFF7ED',
-    accent: '#EA580C',
-    icon: Clock,
-    label: 'Ore libere oggi',
-    imgSrc: '/img/megafono_icon.png',
-  },
-] as const
-
-export function TodayKpiStrip({ appointments }: Props) {
+export function TodayKpiStrip({ appointments, yesterdayStats, basePath }: Props) {
+  const router = useRouter()
   const active = appointments.filter((a) => a.status !== 'cancelled')
-  const todayCount = active.length
+  const todayCount   = active.length
   const todayRevenue = active.reduce((s, a) => s + a.total_price, 0)
-  const freeSlots = calcFreeSlotCount(active)
+  const freeSlots    = calcFreeSlotCount(active)
+  const confirmed    = active.filter((a) => a.status === 'confirmed').length
+  const confirmRate  = todayCount > 0 ? Math.round((confirmed / todayCount) * 100) : null
 
   const now = new Date()
-  const nextAppt =
-    [...active]
-      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
-      .find((a) => new Date(a.end_time) > now && a.status !== 'completed') ?? null
+  const nextAppt = [...active]
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .find((a) => new Date(a.end_time) > now && a.status !== 'completed') ?? null
 
-  const values: Record<string, { main: React.ReactNode; sub: string }> = {
+  const CARDS: CardDef[] = [
+    {
+      key: 'appt',
+      icon: <Calendar size={16} color="#3B82F6" strokeWidth={2} />,
+      iconBg: 'rgba(59,130,246,0.10)',
+      label: 'Appuntamenti',
+      href: 'calendario',
+    },
+    {
+      key: 'revenue',
+      icon: <TrendingUp size={16} color="#22C55E" strokeWidth={2} />,
+      iconBg: 'rgba(34,197,94,0.10)',
+      label: 'Incassi oggi',
+      href: 'vendite',
+    },
+    {
+      key: 'slots',
+      icon: <Clock size={16} color="#F97316" strokeWidth={2} />,
+      iconBg: 'rgba(249,115,22,0.10)',
+      label: 'Slot liberi',
+      href: 'calendario',
+    },
+    {
+      key: 'confirm',
+      icon: <CheckCircle2 size={16} color="#8B5CF6" strokeWidth={2} />,
+      iconBg: 'rgba(139,92,246,0.10)',
+      label: 'Confermati',
+      href: 'clienti',
+    },
+  ]
+
+  const values: Record<string, CardValue> = {
     appt: {
       main: todayCount,
       sub: nextAppt
-        ? `Prossimo alle ${fmt(nextAppt.start_time)}`
-        : todayCount === 0
-          ? 'Nessuno oggi'
-          : 'Tutti completati',
+        ? `Prossimo: ${fmt(nextAppt.start_time)}`
+        : todayCount === 0 ? 'Nessuno oggi' : 'Tutti completati',
+      trend: <PillBadge diff={todayCount - yesterdayStats.appointment_count} />,
     },
     revenue: {
       main: `€${todayRevenue}`,
       sub: 'Stimati dai confermati',
+      trend: <PillBadge diff={todayRevenue - yesterdayStats.revenue} suffix="€" />,
     },
     slots: {
       main: freeSlots,
-      sub: freeSlots === 0 ? 'Agenda piena!' : `Disponibili (≥${MIN_FREE_SLOT}min)`,
+      sub: freeSlots === 0 ? 'Agenda piena!' : `≥${MIN_FREE_SLOT}min liberi`,
+    },
+    confirm: {
+      main: confirmRate !== null ? `${confirmRate}%` : '–',
+      sub: confirmRate !== null
+        ? `${confirmed}/${todayCount} confermati`
+        : 'Nessun appuntamento',
     },
   }
 
   return (
-    <div className="home-kpi-row">
-      {CARDS.map(({ key, bg, accent, icon: Icon, label, imgSrc }) => {
-        const { main, sub } = values[key]!
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 12,
+    }}>
+      {CARDS.map(({ key, icon, iconBg, label, href }) => {
+        const v = values[key]!
         return (
           <div
             key={key}
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`${basePath}/${href}`)}
+            onKeyDown={(e) => { if (e.key === 'Enter') router.push(`${basePath}/${href}`) }}
+            aria-label={`${label}: ${v.main}`}
             style={{
-              position: 'relative',
-              overflow: 'hidden',
-              borderRadius: 'var(--card-radius)',
-              padding: '20px 20px 16px 20px',
-              flex: '1 1 0',
-              minWidth: 0,
-              minHeight: 140,
-              background: bg,
-              border: 'none',
-            }}
-          >
-            {/* Label */}
-            <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.07em',
-              textTransform: 'uppercase',
-              color: accent,
-              opacity: 0.75,
-              marginBottom: 8,
+              background: 'var(--card-bg, #FFFFFF)',
+              border: '1px solid var(--card-border, #E9E9E9)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              cursor: 'pointer',
+              outline: 'none',
+              WebkitTapHighlightColor: 'rgba(0,0,0,0)',
+              transition: 'background 0.15s ease, transform 0.15s ease',
               display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              fontFamily: 'Outfit, sans-serif',
-            }}>
-              <Icon size={12} strokeWidth={2} />
-              {label}
+              flexDirection: 'column',
+              gap: 8,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F7F7F7'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--card-bg, #FFFFFF)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)' }}
+          >
+            {/* Icon + label inline */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconBox icon={icon} bg={iconBg} />
+              <span style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                fontFamily: 'Outfit, sans-serif',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                lineHeight: 1,
+              }}>
+                {label}
+              </span>
             </div>
 
-            {/* Main value */}
-            <div className="kpi-card-value" style={{
-              fontSize: 40,
-              fontWeight: 800,
-              lineHeight: 1,
-              color: '#111827',
-              letterSpacing: '-0.02em',
-              paddingRight: 130,
-              marginBottom: 6,
-              fontFamily: 'Outfit, sans-serif',
-            }}>
-              {main}
+            {/* Main value + trend */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+              <span style={{
+                fontSize: 28,
+                fontWeight: 800,
+                color: '#111111',
+                fontFamily: 'Outfit, sans-serif',
+                lineHeight: 1,
+                letterSpacing: '-0.03em',
+              }}>
+                {v.main}
+              </span>
+              {v.trend}
             </div>
 
-            {/* Subtitle */}
-            <div style={{
-              fontSize: 12,
-              color: '#6B7280',
+            {/* Sub */}
+            <span style={{
+              fontSize: 11,
+              color: '#9CA3AF',
+              fontFamily: 'Outfit, sans-serif',
               fontWeight: 500,
-              fontFamily: 'Outfit, sans-serif',
+              lineHeight: 1.3,
+              marginTop: 2,
             }}>
-              {sub}
-            </div>
-
-            {/* 3D icon */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imgSrc}
-              alt=""
-              aria-hidden="true"
-              className="kpi-card-3d-icon"
-              style={{
-                position: 'absolute',
-                bottom: -28,
-                right: -22,
-                width: 160,
-                height: 160,
-                objectFit: 'contain',
-                opacity: 1,
-                pointerEvents: 'none',
-                userSelect: 'none',
-                transform: 'rotate(-12deg) scale(1.05)',
-                filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.18))',
-              }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
+              {v.sub}
+            </span>
           </div>
         )
       })}

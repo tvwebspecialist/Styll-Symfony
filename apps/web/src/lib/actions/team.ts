@@ -28,6 +28,149 @@ export interface TeamData {
   currentStaff: { staffId: string; role: string } | null
 }
 
+type TeamRole = StaffMemberRow['role']
+type TeamActorRole = TeamRole | 'superadmin'
+
+type CurrentStaffRow = {
+  id: string
+  role: TeamActorRole
+}
+
+type TargetStaffRow = {
+  id: string
+  role: TeamRole
+}
+
+async function getTeamActorContext(): Promise<{
+  tenantId: string
+  db: ReturnType<typeof createAdminClient>
+  currentStaff: CurrentStaffRow
+} | null> {
+  const tenantId = await getActiveTenantId()
+  if (!tenantId) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const db = createAdminClient()
+  const { data: currentStaff } = await db
+    .from('staff_members')
+    .select('id, role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (!currentStaff) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile?.is_superadmin) return null
+
+    return {
+      tenantId,
+      db,
+      currentStaff: {
+        id: user.id,
+        role: 'superadmin',
+      },
+    }
+  }
+
+  return {
+    tenantId,
+    db,
+    currentStaff: currentStaff as CurrentStaffRow,
+  }
+}
+
+async function getTargetStaffInTenant(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  staffId: string,
+): Promise<TargetStaffRow | null> {
+  const { data: targetStaff } = await db
+    .from('staff_members')
+    .select('id, role')
+    .eq('id', staffId)
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return (targetStaff as TargetStaffRow | null) ?? null
+}
+
+function isOwnerRole(role: TeamRole): boolean {
+  return role === 'owner'
+}
+
+function canAssignOwnerRole(
+  currentStaff: CurrentStaffRow,
+  role: TeamRole,
+): boolean {
+  return !isOwnerRole(role) || currentStaff.role === 'owner' || currentStaff.role === 'superadmin'
+}
+
+function hasTeamManagementPermissions(currentStaff: CurrentStaffRow): boolean {
+  return currentStaff.role === 'superadmin'
+    || MANAGER_ROLES.includes(currentStaff.role as typeof MANAGER_ROLES[number])
+}
+
+function canManageTargetStaff(
+  currentStaff: CurrentStaffRow,
+  targetStaff: TargetStaffRow,
+  allowStaffSelf = false,
+): boolean {
+  if (currentStaff.role === 'owner' || currentStaff.role === 'superadmin') {
+    return true
+  }
+
+  if (currentStaff.role === 'manager') {
+    return !isOwnerRole(targetStaff.role)
+  }
+
+  return allowStaffSelf && currentStaff.role === 'staff' && currentStaff.id === targetStaff.id
+}
+
+async function validateServiceIdsForTenant(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  serviceIds: string[],
+): Promise<boolean> {
+  if (serviceIds.length === 0) return true
+
+  const { data: services } = await db
+    .from('services')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('id', serviceIds)
+
+  return (services?.length ?? 0) === new Set(serviceIds).size
+}
+
+async function validateLocationIdsForTenant(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  locationIds: string[],
+): Promise<boolean> {
+  if (locationIds.length === 0) return true
+
+  const { data: locations } = await db
+    .from('locations')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('id', locationIds)
+
+  return (locations?.length ?? 0) === new Set(locationIds).size
+}
+
 // ─── getTeamData ──────────────────────────────────────────────────────────────
 
 export async function getTeamData(): Promise<TeamData> {
@@ -41,7 +184,7 @@ export async function getTeamData(): Promise<TeamData> {
 
   const db = createAdminClient()
 
-  const [staffRes, locsRes, currentStaffRes] = await Promise.all([
+  const [staffRes, locsRes, currentStaffRes, currentProfileRes] = await Promise.all([
     db
       .from('staff_members')
       .select('id, profile_id, role, is_active, photo_url, profiles(full_name, email, avatar_url)')
@@ -57,6 +200,13 @@ export async function getTeamData(): Promise<TeamData> {
           .eq('profile_id', user.id)
           .eq('is_active', true)
           .is('deleted_at', null)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    user
+      ? db
+          .from('profiles')
+          .select('is_superadmin')
+          .eq('id', user.id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
@@ -95,6 +245,8 @@ export async function getTeamData(): Promise<TeamData> {
   const currentStaffData = currentStaffRes.data as any
   const currentStaff = currentStaffData
     ? { staffId: currentStaffData.id as string, role: currentStaffData.role as string }
+    : (currentProfileRes.data as { is_superadmin?: boolean } | null)?.is_superadmin
+      ? { staffId: user!.id, role: 'superadmin' }
     : null
 
   return { staffMembers, currentStaff }
@@ -103,8 +255,20 @@ export async function getTeamData(): Promise<TeamData> {
 // ─── getStaffServices ─────────────────────────────────────────────────────────
 
 export async function getStaffServices(staffId: string): Promise<{ serviceIds: string[] }> {
-  const db = createAdminClient()
-  const { data } = await db.from('staff_services').select('service_id').eq('staff_id', staffId)
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { serviceIds: [] }
+
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
+    return { serviceIds: [] }
+  }
+
+  const { data } = await ctx.db
+    .from('staff_services')
+    .select('service_id')
+    .eq('tenant_id', ctx.tenantId)
+    .eq('staff_id', staffId)
+
   return { serviceIds: (data ?? []).map((r: any) => r.service_id) }
 }
 
@@ -114,20 +278,32 @@ export async function setStaffServices(
   staffId: string,
   serviceIds: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  const db = createAdminClient()
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
+    return { success: false, error: 'Non autorizzato' }
+  }
 
-  await db.from('staff_services').delete().eq('staff_id', staffId)
+  const servicesBelongToTenant = await validateServiceIdsForTenant(ctx.db, ctx.tenantId, serviceIds)
+  if (!servicesBelongToTenant) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  await ctx.db
+    .from('staff_services')
+    .delete()
+    .eq('tenant_id', ctx.tenantId)
+    .eq('staff_id', staffId)
 
   if (serviceIds.length > 0) {
     const rows = serviceIds.map((sid) => ({
       staff_id: staffId,
       service_id: sid,
-      tenant_id: tenantId,
+      tenant_id: ctx.tenantId,
     }))
-    const { error } = await db.from('staff_services').insert(rows)
+    const { error } = await ctx.db.from('staff_services').insert(rows)
     if (error) return { success: false, error: error.message }
   }
 
@@ -142,9 +318,17 @@ export async function inviteTeamMember(
   role: 'owner' | 'manager' | 'staff' | 'receptionist'
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const tenantId = await getActiveTenantId()
-    if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+    const ctx = await getTeamActorContext()
+    if (!ctx) return { success: false, error: 'Non autorizzato' }
+    if (!hasTeamManagementPermissions(ctx.currentStaff)) {
+      return { success: false, error: 'Non hai i permessi per invitare membri' }
+    }
+    if (!canAssignOwnerRole(ctx.currentStaff, role)) {
+      return { success: false, error: 'Solo il titolare può invitare un altro titolare' }
+    }
 
+    const tenantId = ctx.tenantId
+    const db = ctx.db
     const supabase = await createClient()
     const {
       data: { user },
@@ -152,125 +336,109 @@ export async function inviteTeamMember(
 
     if (!user) return { success: false, error: 'Non autenticato' }
 
-    const db = createAdminClient()
-
-    // Verify user is owner or manager
-  const { data: staffData, error: staffError } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (staffError || !staffData || !MANAGER_ROLES.includes(staffData.role as typeof MANAGER_ROLES[number])) {
-    return { success: false, error: 'Non hai i permessi per invitare membri' }
-  }
-
-  // Check if there's already a pending invitation for this email
-  const { data: existingInvite } = await db
-    .from('team_invitations')
-    .select('id, status')
-    .eq('tenant_id', tenantId)
-    .eq('email', email.toLowerCase())
-    .eq('status', 'pending')
-    .maybeSingle()
-
-  if (existingInvite) {
-    return { success: false, error: 'Un invito è già stato inviato a questo email' }
-  }
-
-  // Check if user already exists as staff member
-  let profiles = null
-  try {
-    const result = await db
-      .from('profiles')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .single()
-    profiles = result.data
-  } catch (e) {
-    // Profile not found during team member removal — non-critical
-    console.warn('[team] Profile lookup failed during removal:', e)
-  }
-
-  if (profiles) {
-    const { data: existingStaff } = await db
-      .from('staff_members')
-      .select('id')
+    // Check if there's already a pending invitation for this email
+    const { data: existingInvite } = await db
+      .from('team_invitations')
+      .select('id, status')
       .eq('tenant_id', tenantId)
-      .eq('profile_id', profiles.id)
-      .is('deleted_at', null)
+      .eq('email', email.toLowerCase())
+      .eq('status', 'pending')
       .maybeSingle()
 
-    if (existingStaff) {
-      return { success: false, error: 'Questo utente è già membro del team' }
+    if (existingInvite) {
+      return { success: false, error: 'Un invito è già stato inviato a questo email' }
     }
-  }
 
-  // Generate invitation token
-  const token = randomBytes(32).toString('hex')
+   // Check if user already exists as staff member
+   let profiles = null
+   try {
+     const result = await db
+       .from('profiles')
+       .select('id')
+       .eq('email', email.toLowerCase())
+       .single()
+     profiles = result.data
+   } catch (e) {
+     // Profile not found during team member removal — non-critical
+     console.warn('[team] Profile lookup failed during removal:', e)
+   }
 
-  // Create invitation record
-  const { data: invitationData, error: invitationError } = await db
-    .from('team_invitations')
-    .insert({
-      tenant_id: tenantId,
-      email: email.toLowerCase(),
-      token,
-      role,
-      created_by: user.id,
-      status: 'pending',
-    })
-    .select('id, expires_at')
-    .single()
+   if (profiles) {
+     const { data: existingStaff } = await db
+       .from('staff_members')
+       .select('id')
+       .eq('tenant_id', tenantId)
+       .eq('profile_id', profiles.id)
+       .is('deleted_at', null)
+       .maybeSingle()
 
-  if (invitationError) {
-    console.error('[inviteTeamMember] Invitation creation error:', invitationError)
-    return { success: false, error: 'Errore nella creazione dell\'invito' }
-  }
+     if (existingStaff) {
+       return { success: false, error: 'Questo utente è già membro del team' }
+     }
+   }
 
-  // Get tenant name and inviter name for email
-  const { data: tenantData } = await db
-    .from('tenants')
-    .select('business_name')
-    .eq('id', tenantId)
-    .single()
+   // Generate invitation token
+   const token = randomBytes(32).toString('hex')
 
-  const { data: profileData } = await db
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single()
+   // Create invitation record
+   const { data: invitationData, error: invitationError } = await db
+     .from('team_invitations')
+     .insert({
+       tenant_id: tenantId,
+       email: email.toLowerCase(),
+       token,
+       role,
+       created_by: user.id,
+       status: 'pending',
+     })
+     .select('id, expires_at')
+     .single()
 
-  const tenantName = tenantData?.business_name || 'Styll'
-  const inviterName = profileData?.full_name || 'Un membro del team'
+   if (invitationError) {
+     console.error('[inviteTeamMember] Invitation creation error:', invitationError)
+     return { success: false, error: 'Errore nella creazione dell\'invito' }
+   }
 
-  // Send invitation email
-  const { sendInvitationEmail } = await import('@/lib/email')
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const invitationLink = `${appUrl}/invite?token=${token}`
+   // Get tenant name and inviter name for email
+   const { data: tenantData } = await db
+     .from('tenants')
+     .select('business_name')
+     .eq('id', tenantId)
+     .single()
 
-  const emailResult = await sendInvitationEmail({
-    recipientEmail: email.toLowerCase(),
-    tenantName,
-    inviterName,
-    role,
-    invitationLink,
-  })
+   const { data: profileData } = await db
+     .from('profiles')
+     .select('full_name')
+     .eq('id', user.id)
+     .single()
 
-  if (!emailResult.success) {
-    // Delete the invitation if email fails
-    await db.from('team_invitations').delete().eq('id', invitationData.id)
-    return { success: false, error: `Errore nell'invio dell'email: ${emailResult.error}` }
-  }
+   const tenantName = tenantData?.business_name || 'Styll'
+   const inviterName = profileData?.full_name || 'Un membro del team'
 
-  revalidatePath('/dashboard/team')
-  return { success: true }
+   // Send invitation email
+   const { sendInvitationEmail } = await import('@/lib/email')
+   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+   const invitationLink = `${appUrl}/invite?token=${token}`
+
+   const emailResult = await sendInvitationEmail({
+     recipientEmail: email.toLowerCase(),
+     tenantName,
+     inviterName,
+     role,
+     invitationLink,
+   })
+
+   if (!emailResult.success) {
+     // Delete the invitation if email fails
+     await db.from('team_invitations').delete().eq('id', invitationData.id)
+     return { success: false, error: `Errore nell'invio dell'email: ${emailResult.error}` }
+   }
+
+   revalidatePath('/dashboard/team')
+   return { success: true }
   } catch (error) {
-    console.error('[inviteTeamMember] Unexpected error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio'
+   console.error('[inviteTeamMember] Unexpected error:', error)
+   const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto durante l\'invio'
     return { success: false, error: errorMessage }
   }
 }
@@ -282,25 +450,22 @@ export async function updateStaffRole(
   role: 'owner' | 'manager' | 'staff' | 'receptionist',
   isActive?: boolean
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Non autenticato' }
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff) {
+    return { success: false, error: 'Non autorizzato' }
+  }
 
-  const db = createAdminClient()
-  const { data: currentStaff } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!currentStaff || !MANAGER_ROLES.includes(currentStaff.role as typeof MANAGER_ROLES[number])) {
+  if (!hasTeamManagementPermissions(ctx.currentStaff)) {
     return { success: false, error: 'Non hai i permessi per modificare i membri' }
+  }
+  if (!canManageTargetStaff(ctx.currentStaff, targetStaff)) {
+    return { success: false, error: 'Solo il titolare può modificare un titolare' }
+  }
+  if (!canAssignOwnerRole(ctx.currentStaff, role)) {
+    return { success: false, error: 'Solo il titolare può assegnare il ruolo di titolare' }
   }
 
   const updates: TablesUpdate<'staff_members'> = {
@@ -308,11 +473,11 @@ export async function updateStaffRole(
     ...(typeof isActive === 'boolean' ? { is_active: isActive } : {}),
   }
 
-  const { error } = await db
+  const { error } = await ctx.db
     .from('staff_members')
     .update(updates)
     .eq('id', staffId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
 
   if (error) return { success: false, error: error.message }
 
@@ -323,35 +488,24 @@ export async function updateStaffRole(
 // ─── removeStaffMember ────────────────────────────────────────────────────────
 
 export async function removeStaffMember(staffId: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Non autenticato' }
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff) return { success: false, error: 'Non autorizzato' }
 
-  const db = createAdminClient()
-  const { data: currentStaff } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!currentStaff || currentStaff.role !== 'owner') {
-    return { success: false, error: 'Solo il titolare può rimuovere i membri' }
+  if (ctx.currentStaff.role !== 'owner' && ctx.currentStaff.role !== 'superadmin') {
+    return { success: false, error: 'Solo il titolare o il superadmin possono rimuovere i membri' }
   }
-  if (currentStaff.id === staffId) {
+  if (ctx.currentStaff.id === staffId) {
     return { success: false, error: 'Non puoi rimuovere te stesso' }
   }
 
-  const { error } = await db
+  const { error } = await ctx.db
     .from('staff_members')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', staffId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
 
   if (error) return { success: false, error: error.message }
 
@@ -378,20 +532,24 @@ export interface StaffAvailabilityData {
 }
 
 export async function getStaffAvailability(staffId: string): Promise<StaffAvailabilityData> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { days: [], locations: [] }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { days: [], locations: [] }
 
-  const db = createAdminClient()
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
+    return { days: [], locations: [] }
+  }
+
   const [whRes, locsRes] = await Promise.all([
-    db
+    ctx.db
       .from('working_hours')
       .select('day_of_week, start_time, end_time, location_id')
       .eq('staff_id', staffId)
-      .eq('tenant_id', tenantId),
-    db
+      .eq('tenant_id', ctx.tenantId),
+    ctx.db
       .from('locations')
       .select('id, name')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', ctx.tenantId)
       .eq('is_active', true)
       .order('name', { ascending: true }),
   ])
@@ -424,24 +582,36 @@ export async function saveStaffAvailability(
   staffId: string,
   days: AvailabilityDay[]
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  const db = createAdminClient()
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff || !canManageTargetStaff(ctx.currentStaff, targetStaff, true)) {
+    return { success: false, error: 'Non autorizzato' }
+  }
+
+  const locationIds = days
+    .map((d) => d.location_id)
+    .filter((id): id is string => id !== null)
+
+  const locationsBelongToTenant = await validateLocationIdsForTenant(ctx.db, ctx.tenantId, locationIds)
+  if (!locationsBelongToTenant) {
+    return { success: false, error: 'Non autorizzato' }
+  }
 
   // Delete all existing hours then re-insert active ones (clean approach)
-  const { error: delErr } = await db
+  const { error: delErr } = await ctx.db
     .from('working_hours')
     .delete()
     .eq('staff_id', staffId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
   if (delErr) return { success: false, error: delErr.message }
 
   const activeDays = days.filter((d) => d.is_active)
   if (activeDays.length > 0) {
-    const { error: insErr } = await db.from('working_hours').insert(
+    const { error: insErr } = await ctx.db.from('working_hours').insert(
       activeDays.map((d) => ({
-        tenant_id: tenantId,
+        tenant_id: ctx.tenantId,
         staff_id: staffId,
         day_of_week: d.day_of_week,
         start_time: d.start_time,
@@ -457,11 +627,11 @@ export async function saveStaffAvailability(
     ...new Set(activeDays.map((d) => d.location_id).filter((id): id is string => id !== null)),
   ]
 
-  const { data: currentLinks } = await db
+  const { data: currentLinks } = await ctx.db
     .from('staff_locations')
     .select('id, location_id')
     .eq('staff_id', staffId)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
 
   const currentLocIds = ((currentLinks ?? []) as Array<{ id: string; location_id: string }>).map(
     (r) => r.location_id
@@ -470,16 +640,16 @@ export async function saveStaffAvailability(
   const toRemove = currentLocIds.filter((id) => !usedLocationIds.includes(id))
 
   if (toRemove.length > 0) {
-    await db
+    await ctx.db
       .from('staff_locations')
       .delete()
       .eq('staff_id', staffId)
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', ctx.tenantId)
       .in('location_id', toRemove)
   }
   if (toAdd.length > 0) {
-    await db.from('staff_locations').insert(
-      toAdd.map((locId) => ({ tenant_id: tenantId, staff_id: staffId, location_id: locId }))
+    await ctx.db.from('staff_locations').insert(
+      toAdd.map((locId) => ({ tenant_id: ctx.tenantId, staff_id: staffId, location_id: locId }))
     )
   }
 
@@ -495,29 +665,18 @@ export async function startStaffView(
   staffId: string,
   staffName: string
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getTeamActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Non autenticato' }
+  const targetStaff = await getTargetStaffInTenant(ctx.db, ctx.tenantId, staffId)
+  if (!targetStaff) return { success: false, error: 'Non autorizzato' }
 
-  const db = createAdminClient()
-  const { data: currentStaff } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (currentStaff?.role !== 'owner') {
-    return { success: false, error: 'Solo il titolare può attivare la staff view' }
+  if (ctx.currentStaff.role !== 'owner' && ctx.currentStaff.role !== 'superadmin') {
+    return { success: false, error: 'Solo il titolare o il superadmin possono attivare la staff view' }
   }
 
   const cookieStore = await cookies()
-  cookieStore.set(STAFF_VIEW_COOKIE, JSON.stringify({ staffId, staffName, tenantId }), {
+  cookieStore.set(STAFF_VIEW_COOKIE, JSON.stringify({ staffId, staffName, tenantId: ctx.tenantId }), {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

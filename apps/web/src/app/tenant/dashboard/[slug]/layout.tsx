@@ -14,6 +14,8 @@ import { getImpersonationState, resolveActiveProfileForTenant } from '@/lib/tena
 import { getTenantBySlug } from '@/lib/tenant'
 import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
 import { NotificationOnboardingDashboard } from '@/components/dashboard/NotificationOnboardingDashboard'
+import { CookieBanner } from '@/components/shared/CookieBanner'
+import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -135,7 +137,7 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     redirect(selectTenantUrl('error=access_denied'))
   }
 
-  const [{ data: ownerProfile }, { data: adminProfile }, { count: unreadNotifCount }] = await Promise.all([
+  const [{ data: ownerProfile }, { data: adminProfile }, { count: unreadNotifCount }, { data: currentStaffRow }] = await Promise.all([
     db
       .from('profiles')
       .select('full_name, avatar_url, email')
@@ -150,6 +152,14 @@ export default async function TenantDashboardLayout({ params, children }: Props)
       .eq('tenant_id', tenantBySlug.tenant_id)
       .eq('is_read', false)
       .or(`profile_id.is.null,profile_id.eq.${ctx.profileId}`),
+    db
+      .from('staff_members')
+      .select('role')
+      .eq('tenant_id', tenantBySlug.tenant_id)
+      .eq('profile_id', ctx.realUserId)
+      .eq('is_active', true)
+      .is('deleted_at', null)
+      .maybeSingle(),
   ])
 
   if (tenantBySlug.status === 'suspended' && !impersonation.active) {
@@ -166,6 +176,11 @@ export default async function TenantDashboardLayout({ params, children }: Props)
       (adminProfile?.full_name ||
         (adminProfile?.email as string | null | undefined))) ||
     'Admin'
+
+  const canAccessManagementSurfaces =
+    isSuperadmin || currentStaffRow?.role === 'owner' || currentStaffRow?.role === 'manager'
+  const dashboardPath = await createTenantSurfacePaths('dashboard', slug)
+  const cookiePath = dashboardPath('/cookie')
 
   return (
     <TenantProvider
@@ -214,18 +229,22 @@ export default async function TenantDashboardLayout({ params, children }: Props)
                   : null
               }
             />
-            <Sidebar />
+            <Sidebar canAccessManagementSurfaces={canAccessManagementSurfaces} />
             <MobileTopBar
               fullName={displayName}
               avatarUrl={ownerProfile?.avatar_url ?? null}
             />
-            <BottomNav />
+            <BottomNav canAccessManagementSurfaces={canAccessManagementSurfaces} />
             <MainContent>{children}</MainContent>
             <NotificationOnboardingDashboard
               primaryColor={tenantBySlug.primary_color ?? '#111111'}
               logoUrl={tenantBySlug.logo_url}
               businessName={tenantBySlug.business_name}
               tenantId={tenantBySlug.tenant_id}
+            />
+            <CookieBanner
+              cookiePath={cookiePath}
+              brandColor={tenantBySlug.primary_color ?? '#1A1A1A'}
             />
           </div>
         </NotificationCountProvider>

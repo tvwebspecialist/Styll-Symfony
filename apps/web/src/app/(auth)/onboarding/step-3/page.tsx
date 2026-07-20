@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Check } from 'lucide-react'
 
 import { NavFooter, OnboardingShell } from '@/components/onboarding/onboarding-shell'
@@ -13,6 +13,7 @@ import {
   totalSteps,
   type OnboardingServiceItem,
 } from '@/lib/onboarding-storage'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 import { cn } from '@/lib/utils'
 import type { WorkMode } from '@/types/database'
 
@@ -32,15 +33,17 @@ function presetKeyForBusiness(value: string): ServicePresetKey {
 
 export default function OnboardingStep3Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [hydrated, setHydrated] = useState(false)
   const [workMode, setWorkMode] = useState<WorkMode>('solo')
   const [presetKey, setPresetKey] = useState<ServicePresetKey>('barbiere')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
 
   useEffect(() => {
     const s = onboardingStorage.read()
     if (!s.step1.name.trim()) {
-      router.replace('/onboarding/step-1')
+      router.replace(buildPathWithTrialIntent('/onboarding/step-1', intent))
       return
     }
     const initialPreset = presetKeyForBusiness(s.step1.business_type || 'barbiere')
@@ -54,7 +57,7 @@ export default function OnboardingStep3Page() {
     setSelectedIds(ids)
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [router])
+  }, [intent, router])
 
   const presets = useMemo(() => SERVICE_PRESETS[presetKey], [presetKey])
 
@@ -82,7 +85,7 @@ export default function OnboardingStep3Page() {
         duration_minutes: p.duration_minutes,
       }))
     onboardingStorage.set('step3', { services })
-    router.push('/onboarding/step-4')
+    router.push(buildPathWithTrialIntent('/onboarding/step-4', intent))
   }
 
   if (!hydrated) return null
@@ -97,7 +100,7 @@ export default function OnboardingStep3Page() {
       illustration={<MenuIllustration />}
       footer={
         <NavFooter
-          backHref="/onboarding/step-2"
+          backHref={buildPathWithTrialIntent('/onboarding/step-2', intent)}
           nextDisabled={selectedIds.size === 0}
           onNext={handleNext}
         />

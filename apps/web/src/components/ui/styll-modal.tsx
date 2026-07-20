@@ -88,7 +88,7 @@ export function StyllModal({
             </div>
             <DialogPrimitive.Close
               aria-label="Chiudi"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-fg-secondary)] transition-colors hover:bg-[color:var(--color-bg-secondary)] active:scale-95"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-fg-secondary)] transition-colors styll-hover-color-bg-secondary active:scale-95"
             >
               <X size={15} />
             </DialogPrimitive.Close>

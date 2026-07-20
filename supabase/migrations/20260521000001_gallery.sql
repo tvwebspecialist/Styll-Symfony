@@ -11,10 +11,12 @@ create table if not exists public.gallery_photos (
 alter table public.gallery_photos enable row level security;
 
 -- Staff del tenant può vedere e modificare le proprie foto
-create policy "gallery_tenant_access" on public.gallery_photos
-  using (
-    tenant_id in (
-      select tenant_id from public.staff_members
-      where profile_id = auth.uid() and is_active = true and deleted_at is null
-    )
-  );
+do $$ begin
+  create policy "gallery_tenant_access" on public.gallery_photos
+    using (
+      tenant_id in (
+        select tenant_id from public.staff_members
+        where profile_id = auth.uid() and is_active = true and deleted_at is null
+      )
+    );
+exception when duplicate_object then null; end $$;

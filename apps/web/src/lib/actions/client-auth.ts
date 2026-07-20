@@ -2,6 +2,9 @@
 
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
+import { buildTenantAppUrl } from '@/lib/auth/urls'
+import { extractConsentRequestContext, seedClientConsentState } from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import type { TablesInsert, TablesUpdate } from '@/types'
@@ -73,34 +76,8 @@ function mapAuthError(message: string): { error: string; type: AuthErrorType } {
   return { error: 'Qualcosa è andato storto. Riprova.', type: 'generic' }
 }
 
-async function getBaseUrl(): Promise<string> {
-  const headerStore = await headers()
-
-  // origin is sent by browsers on Server Action POST requests.
-  // Guard against the literal string "null" that browsers send when the
-  // origin is opaque (e.g. file://, data: URIs, or stripped cross-origin).
-  const origin = headerStore.get('origin')
-  if (origin && origin !== 'null') return origin
-
-  // x-forwarded-host is set by Vercel and nginx reverse-proxies so the
-  // downstream app sees the original public hostname instead of the
-  // internal one.  x-forwarded-proto carries the original scheme.
-  const fwdHost = headerStore.get('x-forwarded-host')
-  const fwdProto = headerStore.get('x-forwarded-proto')
-  if (fwdHost) {
-    const proto = fwdProto?.split(',')[0]?.trim() ?? 'https'
-    return `${proto}://${fwdHost.split(',')[0]?.trim()}`
-  }
-
-  // Direct Next.js: host header is the hostname (Vercel also sets this to
-  // the public hostname for edge/serverless functions).
-  const host = headerStore.get('host')
-  const protocol = host?.includes('localhost') ? 'http' : 'https'
-  return host ? `${protocol}://${host}` : 'http://localhost:3000'
-}
-
-function buildCallbackUrl(baseUrl: string, tenantSlug: string, type: 'signup' | 'recovery'): string {
-  const url = new URL(`/tenant/app/${tenantSlug}/auth/callback`, baseUrl)
+function buildCallbackUrl(tenantSlug: string, type: 'signup' | 'recovery'): string {
+  const url = new URL(buildTenantAppUrl(tenantSlug, '/auth/callback'))
   url.searchParams.set('type', type)
   return url.toString()
 }
@@ -339,9 +316,8 @@ export async function requestPasswordReset(params: {
   tenantSlug: string
 }): Promise<AuthResult<{ success: true }>> {
   const supabase = await createServerClient()
-  const baseUrl = await getBaseUrl()
   const { error } = await supabase.auth.resetPasswordForEmail(params.email.trim().toLowerCase(), {
-    redirectTo: buildCallbackUrl(baseUrl, params.tenantSlug, 'recovery'),
+    redirectTo: buildCallbackUrl(params.tenantSlug, 'recovery'),
   })
 
   if (error) {
@@ -357,12 +333,11 @@ export async function resendVerificationEmail(params: {
   tenantSlug: string
 }): Promise<AuthResult<{ success: true }>> {
   const supabase = await createServerClient()
-  const baseUrl = await getBaseUrl()
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email: params.email.trim().toLowerCase(),
     options: {
-      emailRedirectTo: buildCallbackUrl(baseUrl, params.tenantSlug, 'signup'),
+      emailRedirectTo: buildCallbackUrl(params.tenantSlug, 'signup'),
     },
   })
 
@@ -488,8 +463,38 @@ export async function mergeClientProfile(params: {
     updated_at: now,
   }
 
-  const { error: insertError } = await db.from('clients').insert(insertPayload)
+  const { data: insertedClient, error: insertError } = await db
+    .from('clients')
+    .insert(insertPayload)
+    .select('id')
+    .single()
   if (insertError) {
+    throw new Error('Unable to create client profile')
+  }
+
+  if (!insertedClient?.id) {
+    throw new Error('Unable to create client profile')
+  }
+
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    await seedClientConsentState(db, {
+      tenantId: params.tenantId,
+      clientId: insertedClient.id,
+      marketingAllowed: Boolean(params.marketingConsent),
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.CLIENT_PROFILE,
+      actorProfileId: params.profileId,
+      source: CONSENT_SOURCE.EMAIL_PASSWORD_BOOTSTRAP,
+      occurredAt: now,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'email_password_bootstrap',
+      },
+    })
+  } catch {
+    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', params.tenantId)
     throw new Error('Unable to create client profile')
   }
 }

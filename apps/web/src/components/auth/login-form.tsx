@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,17 +9,24 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
-export function LoginForm() {
+interface LoginFormProps {
+  initialError?: string | null
+  redirectTo?: string | null
+}
+
+export function LoginForm({ initialError = null, redirectTo = null }: LoginFormProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const [isPending, startTransition] = useTransition()
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
 
-  const initialError = searchParams.get('error')
+  useEffect(() => {
+    setIsReady(true)
+  }, [])
 
   function handleSubmit() {
     const emailValue = emailRef.current?.value || email
@@ -42,8 +49,7 @@ export function LoginForm() {
         )
         return
       }
-      const redirectTo = searchParams.get('redirectTo') || '/dashboard'
-      router.push(redirectTo)
+      router.push(redirectTo || '/dashboard')
       router.refresh()
     })
   }
@@ -79,6 +85,7 @@ export function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@esempio.com"
+          disabled={!isReady || isPending}
           className="styll-input w-full px-4 py-3 text-sm"
           style={{ fontSize: 16 }}
         />
@@ -110,6 +117,7 @@ export function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            disabled={!isReady || isPending}
             className="styll-input w-full px-4 py-3 pr-11 text-sm"
             style={{ fontSize: 16 }}
           />
@@ -117,7 +125,8 @@ export function LoginForm() {
             type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPw((v) => !v) }}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 hover:bg-[color:var(--color-bg-secondary)]"
+            disabled={!isReady || isPending}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 styll-hover-color-bg-secondary"
             style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -127,7 +136,7 @@ export function LoginForm() {
 
       <button
         type="button"
-        disabled={isPending}
+        disabled={!isReady || isPending}
         onClick={handleSubmit}
         className={cn(
           'styll-btn-primary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm'

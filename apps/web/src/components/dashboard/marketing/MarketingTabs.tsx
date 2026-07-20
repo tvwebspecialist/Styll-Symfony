@@ -22,6 +22,9 @@ const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
 
 interface MarketingTabsProps {
   tenantId: string
+  allowedTabs?: readonly TabKey[]
+  defaultTab?: TabKey
+  inboxOnly?: boolean
 }
 
 function PulseInfoRow({ color, label, desc }: { color: string; label: string; desc: string }) {
@@ -36,11 +39,22 @@ function PulseInfoRow({ color, label, desc }: { color: string; label: string; de
   )
 }
 
-export function MarketingTabs({ tenantId }: MarketingTabsProps) {
+export function MarketingTabs({
+  tenantId,
+  allowedTabs,
+  defaultTab,
+  inboxOnly = false,
+}: MarketingTabsProps) {
   const router      = useRouter()
   const searchParams = useSearchParams()
   const tabParam    = (searchParams.get('tab') as TabKey | null) ?? 'social'
-  const active: TabKey = TABS.some((t) => t.key === tabParam) ? tabParam : 'social'
+  const visibleTabs = allowedTabs?.length
+    ? TABS.filter((tab) => allowedTabs.includes(tab.key))
+    : TABS
+  const fallbackTab = (defaultTab && visibleTabs.some((tab) => tab.key === defaultTab))
+    ? defaultTab
+    : (visibleTabs[0]?.key ?? 'messaggi')
+  const active: TabKey = visibleTabs.some((t) => t.key === tabParam) ? tabParam : fallbackTab
 
   const [infoOpen, setInfoOpen] = React.useState(false)
   const infoRef = React.useRef<HTMLDivElement>(null)
@@ -157,7 +171,7 @@ export function MarketingTabs({ tenantId }: MarketingTabsProps) {
 
       {/* Tab pills — identici a VenditeTabs */}
       <div className="vendite-tabs-row" style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = active === tab.key
           const Icon     = tab.icon
           return (
@@ -190,7 +204,7 @@ export function MarketingTabs({ tenantId }: MarketingTabsProps) {
       <div key={active} className="tab-content">
         {active === 'social'      && <Social      tenantId={tenantId} />}
         {active === 'retention'   && <Retention   tenantId={tenantId} />}
-        {active === 'messaggi'    && <Messaggi    tenantId={tenantId} />}
+        {active === 'messaggi'    && <Messaggi    tenantId={tenantId} inboxOnly={inboxOnly} />}
         {active === 'promozioni'  && <Promozioni  tenantId={tenantId} />}
         {active === 'reputazione' && <Reputazione tenantId={tenantId} />}
       </div>

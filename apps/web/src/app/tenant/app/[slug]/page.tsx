@@ -7,55 +7,196 @@ import { readPwaPreviewConfig } from '@/lib/pwa-preview'
 import { getTenantBySlug } from '@/lib/tenant'
 import { createTenantPaths } from '@/lib/pwa-redirect'
 import { getActiveOffersForClient, type ActivePromotionForClient } from '@/lib/actions/offers'
-import { formatExpiryLabel, daysUntil } from '@/lib/utils/offer-pricing'
+import { daysUntil } from '@/lib/utils/offer-pricing'
+import { formatTimeInTimezone } from '@/lib/utils/timezone'
+import { AppointmentPill } from '@/components/pwa/AppointmentPill'
+import { PwaProductCard } from '@/components/pwa/PwaProductCard'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface Props {
   params: Promise<{ slug: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-function getInitials(value: string | null | undefined): string {
-  return (
-    (value ?? '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || 'ST'
-  )
-}
-
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
-function formatAppointmentDate(value: string): string {
-  return capitalize(
-    new Intl.DateTimeFormat('it-IT', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    }).format(new Date(value)),
-  )
-}
+const PWA_TZ = 'Europe/Rome'
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+  return formatTimeInTimezone(value, PWA_TZ)
 }
 
 function daysAgo(value: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000))
 }
 
-function rewardIcon(type: string): string {
-  if (type === 'product') return '🎁'
-  if (type === 'service') return '✂️'
-  if (type === 'discount') return '💰'
-  return '⭐'
+function formatPrice(price: number): string {
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(price)
+}
+
+function getTierInfo(totalPoints: number): { label: string; emoji: string; color: string; bg: string } {
+  if (totalPoints >= 500) return { label: 'Oro', emoji: '🥇', color: '#7C5E19', bg: '#FEF3C7' }
+  if (totalPoints >= 200) return { label: 'Argento', emoji: '🥈', color: '#4B5563', bg: '#F3F4F6' }
+  return { label: 'Bronzo', emoji: '🥉', color: '#7C3016', bg: '#FEF0E6' }
+}
+
+// Scissors SVG fallback for when staff photo is unavailable
+function ScissorsIcon({ stroke = '#6B7280' }: { stroke?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
+      <line x1="20" y1="4" x2="8.12" y2="15.88" />
+      <line x1="14.47" y1="14.48" x2="20" y2="20" />
+      <line x1="8.12" y1="8.12" x2="12" y2="12" />
+    </svg>
+  )
+}
+
+// Returns relative luminance (0–1) for a CSS hex color.
+function hexLuminance(hex: string): number {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return 0.18
+  const r = parseInt(h.slice(0, 2), 16) / 255
+  const g = parseInt(h.slice(2, 4), 16) / 255
+  const b = parseInt(h.slice(4, 6), 16) / 255
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+}
+
+// Two-zone booking card:
+//  ┌──────────────────────────────┐
+//  │  [gradient — brand colors]   │  label + title + subtitle
+//  │      ╔══════════════════╗    │
+//  │      ║  [button pill]   ║    │  ← straddles the boundary
+//  │      ╚══════════════════╝    │
+//  │  [white zone]                │  staff avatar + details
+//  └──────────────────────────────┘
+function BookingCTACard({
+  hasLastBooking,
+  lastServiceNames,
+  lastStaffName,
+  lastStaffAvatarUrl,
+  lastDuration,
+  lastPrice,
+  lastVisitDate,
+  bookingHref,
+  primaryColor,
+  secondaryColor,
+  style,
+}: {
+  hasLastBooking: boolean
+  lastServiceNames: string[]
+  lastStaffName: string | null
+  lastStaffAvatarUrl: string | null
+  lastDuration: number | null
+  lastPrice: number | null
+  lastVisitDate: string | null
+  bookingHref: string
+  primaryColor: string
+  secondaryColor: string
+  style?: CSSProperties
+}) {
+  const lum = hexLuminance(primaryColor)
+  const onGradient = lum > 0.35 ? '#111111' : '#FFFFFF'
+  const onGradientSubtle = lum > 0.35 ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.65)'
+
+  // Diffused ambient glow: layered radials at different corners over a near-black base
+  const gradient = [
+    `radial-gradient(ellipse at 18% 82%, ${primaryColor}BF 0%, transparent 58%)`,
+    `radial-gradient(ellipse at 82% 12%, ${secondaryColor}8F 0%, transparent 52%)`,
+    `radial-gradient(ellipse at 50% 50%, ${primaryColor}38 0%, transparent 68%)`,
+    '#0d0d0f',
+  ].join(', ')
+
+  const detailLine = [
+    lastDuration ? `${lastDuration} min` : null,
+    lastPrice != null ? formatPrice(lastPrice) : null,
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <FloatingCard style={{ padding: 16, margin: 0, marginBottom: 16, borderRadius: 28, ...style }}>
+      {/* Inset gradient block — rounded, stacked inside the white card */}
+      <div style={{ background: gradient, borderRadius: 12, padding: '20px 18px 18px' }}>
+        {/* Service title */}
+        <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: onGradient, lineHeight: 1.15 }}>
+          {hasLastBooking
+            ? (lastServiceNames.join(' + ') || 'Il tuo ultimo taglio')
+            : 'È ora di un nuovo appuntamento'}
+        </p>
+
+        {/* Duration + price */}
+        {hasLastBooking && detailLine && (
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: onGradientSubtle }}>{detailLine}</p>
+        )}
+
+        {/* No-booking: last visit subtitle */}
+        {!hasLastBooking && lastVisitDate && (
+          <p style={{ margin: '6px 0 0', fontSize: 13, color: onGradientSubtle }}>
+            Ultima visita: {daysAgo(lastVisitDate)} giorni fa
+          </p>
+        )}
+
+        {/* Staff row — avatar + name + giorni fa */}
+        {hasLastBooking && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              overflow: 'hidden',
+              background: lum > 0.35 ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 0 2px rgba(255,255,255,0.22)',
+            }}>
+              {lastStaffAvatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={lastStaffAvatarUrl} alt={lastStaffName ?? 'Barbiere'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <ScissorsIcon stroke={onGradient} />
+              }
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {lastStaffName && (
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: onGradient, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {lastStaffName}
+                </p>
+              )}
+              {lastVisitDate && (
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: onGradientSubtle }}>{daysAgo(lastVisitDate)} giorni fa</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* No-booking: helper text */}
+        {!hasLastBooking && (
+          <p style={{ margin: '12px 0 0', fontSize: 13, color: onGradientSubtle, textAlign: 'center' }}>
+            Scopri i servizi e scegli il tuo appuntamento
+          </p>
+        )}
+      </div>
+
+      {/* CTA button — standalone at bottom of card */}
+      <Link
+        href={bookingHref}
+        className="pwa-pressable"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: 52, borderRadius: 999,
+          marginTop: 12,
+          background: '#111111', color: '#FFFFFF',
+          textDecoration: 'none', fontSize: 15, fontWeight: 700,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.30)',
+        }}
+      >
+        {hasLastBooking ? 'Prenota di nuovo' : 'Prenota ora'}
+      </Link>
+    </FloatingCard>
+  )
 }
 
 function animated(delay: number): CSSProperties {
@@ -69,6 +210,22 @@ function animated(delay: number): CSSProperties {
   }
 }
 
+function formatWeekday(value: string): string {
+  return capitalize(
+    new Intl.DateTimeFormat('it-IT', { weekday: 'short', timeZone: PWA_TZ }).format(new Date(value))
+  )
+}
+
+function formatDay(value: string): string {
+  return new Intl.DateTimeFormat('it-IT', { day: 'numeric', timeZone: PWA_TZ }).format(new Date(value))
+}
+
+function formatMonth(value: string): string {
+  return capitalize(
+    new Intl.DateTimeFormat('it-IT', { month: 'short', timeZone: PWA_TZ }).format(new Date(value))
+  )
+}
+
 export default async function AppHomePage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const tenant = await getTenantBySlug(slug)
@@ -80,23 +237,16 @@ export default async function AppHomePage({ params, searchParams }: Props) {
   const preview = readPwaPreviewConfig(resolvedSearchParams)
   const isPreview = preview.enabled
   const displayBusinessName = preview.businessName ?? tenant.business_name
-  const displayLogoUrl = preview.logoUrl ?? tenant.logo_url
 
   const tp = await createTenantPaths(slug)
 
-  // Auth is managed client-side (PwaSessionRestorer) to avoid server-side 302s
-  // that cause iOS to exit standalone mode. Page renders guest state initially;
-  // PwaSessionRestorer syncs localStorage → cookie and triggers router.refresh().
   let homeData: Awaited<ReturnType<typeof getHomePageData>>
   try {
     homeData = await getHomePageData(tenant.tenant_id)
   } catch {
-    // Graceful degradation: render guest/empty state rather than crashing
     homeData = { isLoggedIn: false, staffMembers: [], staffCount: 0 }
   }
-  const rewards = homeData.activeRewards ?? []
-  const availablePoints = homeData.loyalty?.availablePoints ?? 0
-  const nextReward = rewards.find((reward) => reward.pointsCost > availablePoints)
+
   const shouldRenderGuestState = isPreview || !homeData.isLoggedIn
 
   let activeOffers: ActivePromotionForClient[] = []
@@ -106,595 +256,746 @@ export default async function AppHomePage({ params, searchParams }: Props) {
     } catch { /* graceful degradation */ }
   }
 
-  return (
-    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
-      {shouldRenderGuestState ? (
-        <>
-          <section
+  // State determination
+  const isGuest = shouldRenderGuestState
+  const hasNextAppointment = !isGuest && !!homeData.nextAppointment
+  const isImminent = hasNextAppointment && (homeData.nextAppointmentIsImminent ?? false)
+
+  const availablePoints = homeData.loyalty?.availablePoints ?? 0
+  const rewards = homeData.activeRewards ?? []
+  const nextReward = rewards.find((r) => r.pointsCost > availablePoints)
+  const tier = homeData.loyalty ? getTierInfo(homeData.loyalty.totalPoints) : null
+
+  const mapsUrl = homeData.nextAppointment?.locationAddress
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        [homeData.nextAppointment.locationAddress, homeData.nextAppointment.locationCity]
+          .filter(Boolean)
+          .join(', ')
+      )}`
+    : null
+
+  // ── Prefill href for "Prenota di nuovo" ─────────────────────────────────────
+  const hasLastBooking = !!(homeData.lastAppointmentServiceNames?.length)
+  const _lastStaffId = homeData.lastAppointmentStaffId ?? null
+  const _lastLocationId = homeData.lastAppointmentLocationId ?? null
+  const _lastServiceIds = homeData.lastAppointmentServiceIds ?? []
+  const _staffOk = homeData.lastAppointmentStaffIsActive === true
+  const _servicesOk = homeData.lastAppointmentServicesAllActive === true
+
+  const rebookHref = (() => {
+    if (hasLastBooking && _lastLocationId && _lastStaffId && _staffOk && _servicesOk && _lastServiceIds.length > 0) {
+      return tp(`/prenota/data?location=${_lastLocationId}&staff=${_lastStaffId}&services=${_lastServiceIds.join(',')}&_skip=sede,barbiere,servizi`)
+    }
+    if (hasLastBooking && _lastLocationId && _lastStaffId && _staffOk) {
+      return tp(`/prenota/servizi?location=${_lastLocationId}&staff=${_lastStaffId}&_skip=sede,barbiere`)
+    }
+    if (hasLastBooking && _lastLocationId) {
+      return tp(`/prenota/barbiere?location=${_lastLocationId}&_skip=sede`)
+    }
+    return tp('/prenota')
+  })()
+
+  // ── Shared blocks ────────────────────────────────────────────────────────────
+
+  const offersCarousel =
+    activeOffers.length > 0 ? (
+      <section style={{ marginBottom: 16, marginLeft: -16, marginRight: -16 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px 12px',
+          }}
+        >
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
+          <Link
+            href={tp('/offerte')}
             style={{
-              ...animated(0),
-              background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 28,
-              marginBottom: 16,
-              textAlign: 'center',
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--brand-primary)',
+              textDecoration: 'none',
             }}
           >
-            {displayLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={displayLogoUrl}
-                alt={displayBusinessName}
-                fetchPriority="high"
-                loading="eager"
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 999,
-                  objectFit: 'cover',
-                  margin: '0 auto 16px',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 999,
-                  background: 'var(--brand-primary)',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 22,
-                  fontWeight: 800,
-                  margin: '0 auto 16px',
-                }}
+            Vedi tutte
+          </Link>
+        </div>
+
+        <div
+          style={
+            {
+              display: 'flex',
+              gap: 8,
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              scrollPaddingLeft: 16,
+              paddingLeft: 16,
+              paddingRight: 16,
+              paddingBottom: 8,
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+            } as CSSProperties
+          }
+        >
+          {activeOffers.map((offer) => {
+            const allItems = [...offer.service_items, ...offer.product_items]
+            const pctMax = allItems
+              .filter((i) => i.discount_type === 'percent')
+              .reduce((m, i) => Math.max(m, i.discount_value), 0)
+            const fixedMax = allItems
+              .filter((i) => i.discount_type === 'fixed')
+              .reduce((m, i) => Math.max(m, i.discount_value), 0)
+            let discountLabel = ''
+            if (allItems.length === 1) {
+              const item = allItems[0]
+              discountLabel =
+                item.discount_type === 'percent'
+                  ? `${item.discount_value}% Sconto`
+                  : `€${item.discount_value} Sconto`
+            } else if (pctMax > 0) {
+              discountLabel = `Fino al ${pctMax}% Sconto`
+            } else if (fixedMax > 0) {
+              discountLabel = `Fino a €${fixedMax} Sconto`
+            }
+
+            const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
+            const expiryText = offer.valid_until
+              ? `Scade tra ${daysUntil(offer.valid_until)} gg`
+              : ''
+
+            return (
+              <Link
+                key={offer.id}
+                href={tp(`/offerte/${offer.id}`)}
+                className="pwa-pressable"
+                style={
+                  {
+                    display: 'block',
+                    flexShrink: 0,
+                    width: 'calc(100vw - 40px)',
+                    height: 180,
+                    borderRadius: 28,
+                    overflow: 'hidden',
+                    position: 'relative',
+                    scrollSnapAlign: 'start',
+                    textDecoration: 'none',
+                    background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
+                  } as CSSProperties
+                }
               >
-                {getInitials(displayBusinessName)}
-              </div>
-            )}
-            <p style={{ fontSize: 13, color: '#B0B0B0', marginBottom: 8 }}>Ciao! 👋</p>
-            <p style={{ fontSize: 26, fontWeight: 800, color: '#222222', lineHeight: 1.15 }}>
-              Benvenuto da
+                {offer.cover_image_url && (
+                  <Image
+                    fill
+                    src={offer.cover_image_url}
+                    alt={offer.title}
+                    sizes="calc(100vw - 40px)"
+                    style={{ objectFit: 'cover' }}
+                    loading="lazy"
+                  />
+                )}
+                {showExpiry && (
+                  <div
+                    style={
+                      {
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        background: 'rgba(0,0,0,0.50)',
+                        backdropFilter: 'blur(6px)',
+                        WebkitBackdropFilter: 'blur(6px)',
+                        color: '#FFFFFF',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        borderRadius: 999,
+                        padding: '3px 10px',
+                      } as CSSProperties
+                    }
+                  >
+                    {expiryText}
+                  </div>
+                )}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
+                    background: '#FFFFFF',
+                    borderRadius: 20,
+                    padding: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: '#71717A',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {offer.title}
+                    </p>
+                    {discountLabel && (
+                      <p
+                        style={{
+                          margin: '2px 0 0',
+                          fontSize: 22,
+                          fontWeight: 800,
+                          color: '#18181B',
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {discountLabel}
+                      </p>
+                    )}
+                  </div>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#18181B"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+    ) : null
+
+  const productsScroll =
+    (homeData.products ?? []).length > 0 ? (
+      <section style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Prodotti</h2>
+          <Link
+            href={tp('/prodotti')}
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--brand-primary)',
+              textDecoration: 'none',
+            }}
+          >
+            Vedi tutti
+          </Link>
+        </div>
+        <div
+          style={
+            {
+              display: 'flex',
+              gap: 10,
+              overflowX: 'auto',
+              scrollSnapType: 'x mandatory',
+              // negative margin + matching padding gives shadow room on all sides
+              // without disturbing the section header alignment above
+              marginLeft: -4,
+              marginRight: -4,
+              paddingTop: 12,
+              paddingBottom: 20,
+              paddingLeft: 4,
+              paddingRight: 4,
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none',
+            } as CSSProperties
+          }
+        >
+          {(homeData.products ?? []).map((product) => (
+            <PwaProductCard
+              key={product.id}
+              name={product.name}
+              brand={product.brand}
+              photo_url={product.photo_url}
+              price_sell={product.price_sell}
+              detailHref={tp(`/prodotti/${product.id}`)}
+              imageSize="160px"
+              style={{ width: 160, flexShrink: 0, scrollSnapAlign: 'start' }}
+            />
+          ))}
+        </div>
+      </section>
+    ) : null
+
+  // ── Called as a regular function (not JSX element) to avoid static-component lint rule ──
+  const loyaltySection = (delay: number, extraText?: string) => {
+    if (!homeData.loyalty || !tier) return null
+    return (
+      <section
+        style={{
+          ...animated(delay),
+          background: '#FFFFFF',
+          borderRadius: 20,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          padding: 20,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <p
+              style={{
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                color: '#B0B0B0',
+                marginBottom: 6,
+              }}
+            >
+              I tuoi punti
             </p>
             <p
               style={{
-                fontSize: 26,
+                fontSize: 42,
                 fontWeight: 800,
                 color: 'var(--brand-primary)',
-                lineHeight: 1.15,
-                marginTop: 2,
+                lineHeight: 1,
               }}
             >
-              {displayBusinessName}
+              {availablePoints}
             </p>
-            <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 12 }}>
-              Il tuo salone di fiducia, sempre con te.
-            </p>
-          </section>
-
-          <Link
-            href={tp("/prenota")}
+            <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 2 }}>punti disponibili</p>
+          </div>
+          <span
             style={{
-              ...animated(60),
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%',
-              minHeight: 56,
-              borderRadius: 999,
-              background: 'var(--brand-primary)',
-              color: '#FFFFFF',
-              textDecoration: 'none',
-              fontSize: 16,
+              gap: 4,
+              background: tier.bg,
+              color: tier.color,
+              fontSize: 11,
               fontWeight: 700,
-              padding: '0 20px',
-              marginBottom: 16,
+              borderRadius: 999,
+              padding: '4px 10px',
+              marginTop: 2,
             }}
           >
-            📅 Prenota il tuo prossimo appuntamento →
-          </Link>
-
-          <section
-            style={{
-              ...animated(120),
-              background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 20,
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 24 }}>🎁</span>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#222222' }}>Programma fedeltà</h2>
-            </div>
-            <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 10 }}>
-              Prenota, accumula punti e sblocca premi esclusivi.
-            </p>
-            <Link
-              href={tp("/profilo")}
+            {tier.emoji} {tier.label}
+          </span>
+        </div>
+        {nextReward ? (
+          <>
+            <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 width: '100%',
-                minHeight: 46,
-                borderRadius: 999,
-                border: '1.5px solid var(--brand-primary)',
-                color: 'var(--brand-primary)',
-                fontSize: 14,
-                fontWeight: 700,
-                textDecoration: 'none',
+                height: 6,
+                borderRadius: 3,
+                background: '#F0F0F0',
                 marginTop: 16,
-                padding: '0 14px',
+                overflow: 'hidden',
               }}
             >
-              Accedi per vedere i tuoi punti
-            </Link>
-          </section>
+              <div
+                style={{
+                  width: `${Math.min(100, Math.round((availablePoints / nextReward.pointsCost) * 100))}%`,
+                  height: 6,
+                  borderRadius: 3,
+                  background: 'var(--brand-primary)',
+                }}
+              />
+            </div>
+            <p style={{ fontSize: 12, color: '#B0B0B0', marginTop: 4 }}>
+              Ancora {Math.max(0, nextReward.pointsCost - availablePoints)} pt per {nextReward.name}
+            </p>
+          </>
+        ) : null}
+        {extraText ? (
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#222222', marginTop: 12 }}>
+            {extraText}
+          </p>
+        ) : null}
+      </section>
+    )
+  }
 
-          {homeData.staffMembers.length > 0 ? (
-            <section
-              style={{
-                ...animated(180),
-                background: '#FFFFFF',
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222' }}>Il team</h2>
-              <div style={{ display: 'flex', alignItems: 'center', marginTop: 14 }}>
-                {homeData.staffMembers.slice(0, 3).map((member, index) => (
-                  <div
-                    key={member.id}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 999,
-                      overflow: 'hidden',
-                      marginLeft: index === 0 ? 0 : -8,
-                      border: '2px solid #FFFFFF',
-                      background: '#E9E9E9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#666666',
-                      fontSize: 16,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {member.avatarUrl ? (
-                      <img
-                        src={member.avatarUrl}
-                        alt={member.fullName ?? 'Staff'}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      getInitials(member.fullName)
-                    )}
-                  </div>
-                ))}
-                {homeData.staffCount > 3 ? (
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 999,
-                      marginLeft: -8,
-                      border: '2px solid #FFFFFF',
-                      background: '#F5F5F5',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#666666',
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
-                  >
-                    +{homeData.staffCount - 3}
-                  </div>
-                ) : null}
-              </div>
-              <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 8 }}>
-                Professionisti al tuo servizio
-              </p>
-            </section>
-          ) : null}
-        </>
-      ) : (
+  return (
+    <main style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          STATE A — GUEST
+          ════════════════════════════════════════════════════════════════════ */}
+      {isGuest && (
         <>
-          {activeOffers.length > 0 && (
-            <section style={{ ...animated(0), marginBottom: 16, marginLeft: -16, marginRight: -16 }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px 12px' }}>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Offerte</h2>
-                <Link
-                  href={tp('/offerte')}
-                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
-                >
-                  Vedi tutte
-                </Link>
-              </div>
+          {/* Offerte */}
+          {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
 
-              {/* Carousel — native horizontal scroll */}
+          {/* Servizi */}
+          {(homeData.services ?? []).length > 0 && (
+            <section style={{ ...animated(activeOffers.length > 0 ? 60 : 0), marginBottom: 16 }}>
               <div
                 style={{
                   display: 'flex',
-                  gap: 8,
-                  overflowX: 'auto',
-                  scrollSnapType: 'x mandatory',
-                  scrollPaddingLeft: 16,
-                  paddingLeft: 16,
-                  paddingRight: 16,
-                  paddingBottom: 8,
-                  msOverflowStyle: 'none',
-                  scrollbarWidth: 'none',
-                } as CSSProperties}
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                }}
               >
-                {activeOffers.map((offer) => {
-                  const allItems = [...offer.service_items, ...offer.product_items]
-                  const pctMax = allItems.filter(i => i.discount_type === 'percent').reduce((m, i) => Math.max(m, i.discount_value), 0)
-                  const fixedMax = allItems.filter(i => i.discount_type === 'fixed').reduce((m, i) => Math.max(m, i.discount_value), 0)
-                  let discountLabel = ''
-                  if (allItems.length === 1) {
-                    const item = allItems[0]
-                    discountLabel = item.discount_type === 'percent' ? `${item.discount_value}% Sconto` : `€${item.discount_value} Sconto`
-                  } else if (pctMax > 0) {
-                    discountLabel = `Fino al ${pctMax}% Sconto`
-                  } else if (fixedMax > 0) {
-                    discountLabel = `Fino a €${fixedMax} Sconto`
-                  }
-
-                  const showExpiry = offer.valid_until !== null && daysUntil(offer.valid_until) <= 7
-                  const expiryText = offer.valid_until ? `Scade tra ${daysUntil(offer.valid_until)} gg` : ''
-
-                  return (
-                    <Link
-                      key={offer.id}
-                      href={tp(`/offerte/${offer.id}`)}
+                <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Servizi</h2>
+                <Link
+                  href={tp('/prenota')}
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+                >
+                  Vedi tutti
+                </Link>
+              </div>
+              <div
+                style={
+                  {
+                    display: 'flex',
+                    gap: 10,
+                    overflowX: 'auto',
+                    scrollSnapType: 'x mandatory',
+                    paddingBottom: 8,
+                    msOverflowStyle: 'none',
+                    scrollbarWidth: 'none',
+                  } as CSSProperties
+                }
+              >
+                {(homeData.services ?? []).map((service) => (
+                  <Link
+                    key={service.id}
+                    href={tp('/prenota')}
+                    className="pwa-pressable"
+                    style={{
+                      display: 'block',
+                      flexShrink: 0,
+                      width: 160,
+                      background: '#FFFFFF',
+                      borderRadius: 16,
+                      padding: 16,
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                      textDecoration: 'none',
+                      scrollSnapAlign: 'start',
+                    }}
+                  >
+                    <p
                       style={{
-                        display: 'block',
-                        flexShrink: 0,
-                        width: 'calc(100vw - 40px)',
-                        height: 180,
-                        borderRadius: 28,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#222222',
+                        marginBottom: 8,
                         overflow: 'hidden',
-                        position: 'relative',
-                        scrollSnapAlign: 'start',
-                        textDecoration: 'none',
-                        background: 'linear-gradient(135deg, #27272A 0%, #3F3F46 100%)',
-                      } as CSSProperties}
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
-                      {offer.cover_image_url && (
-                        <Image
-                          fill
-                          src={offer.cover_image_url}
-                          alt={offer.title}
-                          sizes="calc(100vw - 40px)"
-                          style={{ objectFit: 'cover' }}
-                          loading="lazy"
-                        />
-                      )}
-                      {showExpiry && (
-                        <div style={{
-                          position: 'absolute',
-                          top: 12,
-                          right: 12,
-                          background: 'rgba(0,0,0,0.50)',
-                          backdropFilter: 'blur(6px)',
-                          WebkitBackdropFilter: 'blur(6px)',
-                          color: '#FFFFFF',
-                          fontSize: 11,
-                          fontWeight: 600,
-                          borderRadius: 999,
-                          padding: '3px 10px',
-                        } as CSSProperties}>
-                          {expiryText}
-                        </div>
-                      )}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
-                        background: '#FFFFFF',
-                        borderRadius: 20,
-                        padding: 16,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#71717A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {offer.title}
-                          </p>
-                          {discountLabel && (
-                            <p style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 800, color: '#18181B', lineHeight: 1.2 }}>
-                              {discountLabel}
-                            </p>
-                          )}
-                        </div>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </div>
-                    </Link>
-                  )
-                })}
+                      {service.name}
+                    </p>
+                    <p style={{ fontSize: 12, color: '#B0B0B0', marginBottom: 4 }}>
+                      {service.duration_minutes} min
+                    </p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand-primary)' }}>
+                      {formatPrice(service.price)}
+                    </p>
+                  </Link>
+                ))}
               </div>
             </section>
           )}
 
-          <div style={{ padding: '20px 16px 8px' }}>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#222222' }}>
-              Ciao, {homeData.clientName ?? 'Benvenuto'} 👋
-            </h1>
-            <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 4 }}>Bentornato da noi</p>
-          </div>
+          {/* Prodotti */}
+          {productsScroll && (
+            <div style={animated(activeOffers.length > 0 ? 120 : 60)}>{productsScroll}</div>
+          )}
 
-          <section
-            style={{
-              ...animated(0),
-              background: '#FFFFFF',
-              borderRadius: 20,
-              padding: 20,
-              marginBottom: 16,
-            }}
-          >
-            {homeData.nextAppointment ? (
-              <>
-                <p
-                  style={{
-                    fontSize: 11,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    color: '#B0B0B0',
-                  }}
-                >
-                  Prossimo appuntamento
-                </p>
-                <p style={{ fontSize: 18, fontWeight: 800, color: '#222222', marginTop: 8 }}>
-                  {formatAppointmentDate(homeData.nextAppointment.startTime)}
-                </p>
-                <p style={{ fontSize: 14, color: '#B0B0B0', marginTop: 4 }}>
-                  alle {formatTime(homeData.nextAppointment.startTime)}
-                </p>
-                {homeData.nextAppointment.serviceNames.length > 0 ? (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {homeData.nextAppointment.serviceNames.map((serviceName) => (
-                      <span
-                        key={serviceName}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          background: '#F5F5F5',
-                          borderRadius: 999,
-                          padding: '4px 10px',
-                          fontSize: 12,
-                          color: '#222222',
-                        }}
-                      >
-                        {serviceName}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <Link
-                  href={tp("/profilo")}
-                  style={{
-                    display: 'inline-flex',
-                    marginTop: 12,
-                    color: 'var(--brand-primary)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                  }}
-                >
-                  Vedi dettagli
-                </Link>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: 14, color: '#B0B0B0' }}>Nessun appuntamento in programma</p>
-                <Link
-                  href={tp("/prenota")}
-                  style={{
-                    display: 'inline-flex',
-                    marginTop: 12,
-                    color: 'var(--brand-primary)',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                  }}
-                >
-                  Prenota ora →
-                </Link>
-              </>
-            )}
-          </section>
-
-          {homeData.loyalty ? (
-            <section
+          {/* Card accedi */}
+          <div style={{ ...animated(activeOffers.length > 0 ? 180 : 120), marginBottom: 16 }}>
+            <div
               style={{
-                ...animated(60),
-                background: '#FFFFFF',
                 borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
+                background: '#111111',
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
-              <p
-                style={{
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  color: '#B0B0B0',
-                }}
-              >
-                I tuoi punti
-              </p>
-              <p
-                style={{
-                  fontSize: 42,
-                  fontWeight: 800,
-                  color: 'var(--brand-primary)',
-                  lineHeight: 1,
-                  marginTop: 10,
-                }}
-              >
-                {homeData.loyalty.availablePoints}
-              </p>
-              <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 4 }}>punti disponibili</p>
-              <hr style={{ border: 'none', borderTop: '1px solid #F0F0F0', margin: '12px 0' }} />
-              <p
-                style={{
-                  fontSize: 14,
-                  fontWeight: homeData.loyalty.currentStreak > 0 ? 700 : 400,
-                  color: homeData.loyalty.currentStreak > 0 ? '#222222' : '#B0B0B0',
-                }}
-              >
-                {homeData.loyalty.currentStreak > 0
-                  ? `🔥 ${homeData.loyalty.currentStreak} visite consecutive`
-                  : 'Inizia la tua serie!'}
-              </p>
-              {homeData.loyalty.lastVisitDate ? (
-                <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 6 }}>
-                  Ultima visita: {daysAgo(homeData.loyalty.lastVisitDate)} giorni fa
-                </p>
-              ) : null}
-              {nextReward ? (
-                <>
-                  <div
-                    style={{
-                      width: '100%',
-                      height: 6,
-                      borderRadius: 3,
-                      background: '#F0F0F0',
-                      marginTop: 14,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${Math.min(100, Math.round((homeData.loyalty.availablePoints / nextReward.pointsCost) * 100))}%`,
-                        height: 6,
-                        borderRadius: 3,
-                        background: 'var(--brand-primary)',
-                      }}
-                    />
-                  </div>
-                  <p style={{ fontSize: 12, color: '#B0B0B0', marginTop: 4 }}>
-                    {homeData.loyalty.availablePoints} / {nextReward.pointsCost} pt per {nextReward.name}
+              {/* Top row: text + logo */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2, margin: 0 }}>
+                    <span style={{ color: tenant.primary_color ?? 'var(--brand-primary)' }}>Accedi</span>
+                    {' '}per non perderti nulla.
                   </p>
-                </>
-              ) : null}
-            </section>
-          ) : null}
 
+                </div>
 
-          {rewards.length > 0 ? (
-            <section
-              style={{
-                ...animated(120),
-                background: '#FFFFFF',
-                borderRadius: 20,
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', marginBottom: 14 }}>
-                Premi disponibili
-              </h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-                {rewards.map((reward) => {
-                  const canAfford = availablePoints >= reward.pointsCost
-                  return (
-                    <div
-                      key={reward.id}
-                      style={{
-                        borderRadius: 14,
-                        border: `1px solid ${canAfford ? 'var(--brand-primary)' : '#F0F0F0'}`,
-                        padding: 14,
-                        textAlign: 'center',
-                      }}
-                    >
-                      <div style={{ fontSize: 28, lineHeight: 1 }}>{rewardIcon(reward.rewardType)}</div>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: '#222222', marginTop: 6 }}>
-                        {reward.pointsCost} pt
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: '#B0B0B0',
-                          marginTop: 4,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {reward.name}
-                      </p>
-                      {canAfford ? (
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginTop: 4,
-                            borderRadius: 999,
-                            padding: '2px 8px',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            color: 'var(--brand-primary)',
-                            background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
-                          }}
-                        >
-                          Riscatta!
-                        </span>
-                      ) : null}
-                    </div>
-                  )
-                })}
+                {/* Logo */}
+                {tenant.logo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tenant.logo_url}
+                    alt={displayBusinessName}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      flexShrink: 0,
+                      borderRadius: 22,
+                      objectFit: 'cover',
+                      boxShadow: `0 0 32px 8px ${tenant.primary_color ? tenant.primary_color + '40' : 'rgba(255,255,255,0.12)'}`,
+                    }}
+                  />
+                )}
               </div>
-            </section>
-          ) : null}
 
-          {homeData.lastAppointmentServiceNames && homeData.lastAppointmentServiceNames.length > 0 ? (
-            <Link
-              href={tp("/prenota")}
-              style={{
-                ...animated(180),
-                display: 'block',
-                background: 'rgba(0,0,0,0.03)',
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16,
-                textDecoration: 'none',
-                border: '1px solid color-mix(in srgb, var(--brand-primary) 18%, transparent)',
-              }}
-            >
-              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--brand-primary)' }}>↩ Riprenota</p>
-              <p style={{ fontSize: 13, color: '#B0B0B0', marginTop: 6 }}>
-                {homeData.lastAppointmentServiceNames.join(' + ')}
-              </p>
-            </Link>
-          ) : null}
+              {/* CTA */}
+              <Link
+                href={tp('/profilo')}
+                className="pwa-pressable"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  alignSelf: 'flex-start',
+                  marginTop: 20,
+                  padding: '10px 20px',
+                  borderRadius: 99,
+                  background: tenant.primary_color ?? 'var(--brand-primary)',
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Accedi
+              </Link>
+            </div>
+          </div>
         </>
       )}
 
-      <footer
-        style={{
-          ...animated(240),
-          fontSize: 11,
-          color: '#CCCCCC',
-          textAlign: 'center',
-          padding: '24px 0 8px',
-        }}
-      >
-        Powered by Styll · Termini · Privacy
-      </footer>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          STATE B — LOGGATO, NESSUN APPUNTAMENTO FUTURO
+          ════════════════════════════════════════════════════════════════════ */}
+      {!isGuest && !hasNextAppointment && (
+        <>
+          {/* Offerte */}
+          {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
+
+          {/* Appuntamenti section */}
+          <section style={{ ...animated(activeOffers.length > 0 ? 60 : 0) }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#222222', margin: 0 }}>Appuntamenti</h2>
+              <Link
+                href={tp('/appuntamenti')}
+                style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+              >
+                Vedi tutte
+              </Link>
+            </div>
+            <BookingCTACard
+              hasLastBooking={hasLastBooking}
+              lastServiceNames={homeData.lastAppointmentServiceNames ?? []}
+              lastStaffName={homeData.lastAppointmentStaffName ?? null}
+              lastStaffAvatarUrl={homeData.lastAppointmentStaffAvatarUrl ?? null}
+              lastDuration={homeData.lastAppointmentDuration ?? null}
+              lastPrice={homeData.lastAppointmentPrice ?? null}
+              lastVisitDate={homeData.loyalty?.lastVisitDate ?? null}
+              bookingHref={rebookHref}
+              primaryColor={tenant.primary_color ?? '#111111'}
+              secondaryColor={tenant.secondary_color ?? tenant.primary_color ?? '#111111'}
+            />
+          </section>
+
+          {/* Loyalty */}
+          {loyaltySection(activeOffers.length > 0 ? 120 : 60)}
+
+          {/* Prodotti */}
+          {productsScroll && (
+            <div style={animated(activeOffers.length > 0 ? 180 : 120)}>{productsScroll}</div>
+          )}
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          STATE C — LOGGATO, APPUNTAMENTO IMMINENTE (< 48h)
+          ════════════════════════════════════════════════════════════════════ */}
+      {!isGuest && isImminent && homeData.nextAppointment && (
+        <>
+          {/* Pill appuntamento imminente — PRIMA delle offerte */}
+          <div style={{ ...animated(0), marginBottom: 16 }}>
+            <AppointmentPill
+              startTime={homeData.nextAppointment.startTime}
+              detailHref={tp('/appuntamenti')}
+            />
+          </div>
+
+          {/* Offerte */}
+          {offersCarousel && <div style={animated(60)}>{offersCarousel}</div>}
+
+          {/* Loyalty + bonus punti */}
+          {loyaltySection(
+            activeOffers.length > 0 ? 120 : 60,
+            homeData.loyaltyConfig?.pointsPerVisit
+              ? `Dopo questo taglio: +${homeData.loyaltyConfig.pointsPerVisit} pt 🔥`
+              : 'Dopo questo taglio guadagnerai punti 🔥',
+          )}
+
+          {/* Prodotti */}
+          {productsScroll && (
+            <div style={animated(activeOffers.length > 0 ? 180 : 120)}>{productsScroll}</div>
+          )}
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          STATE D — LOGGATO, APPUNTAMENTO FUTURO (> 48h)
+          ════════════════════════════════════════════════════════════════════ */}
+      {!isGuest && hasNextAppointment && !isImminent && homeData.nextAppointment && (
+        <>
+          {/* Offerte */}
+          {offersCarousel && <div style={animated(0)}>{offersCarousel}</div>}
+
+          {/* Loyalty */}
+          {loyaltySection(
+            activeOffers.length > 0 ? 60 : 0,
+            homeData.loyalty?.currentStreak && homeData.loyalty.currentStreak > 0
+              ? `🔥 ${homeData.loyalty.currentStreak} visite consecutive`
+              : 'Continua a venire per scalare i livelli!',
+          )}
+
+          {/* Card appuntamento compatta — stile list item premium */}
+          <div style={{ ...animated(activeOffers.length > 0 ? 120 : 60), marginBottom: 16 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10,
+                paddingLeft: 2,
+                paddingRight: 2,
+              }}
+            >
+              <p style={{ fontSize: 16, fontWeight: 500, color: '#111111', margin: 0 }}>
+                Appuntamenti
+              </p>
+              <Link
+                href={tp('/appuntamenti')}
+                style={{ fontSize: 14, fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}
+              >
+                Vedi tutti
+              </Link>
+            </div>
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 16,
+                padding: '10px 10px',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                minHeight: 68,
+              }}
+            >
+              {/* Date box */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#f5f5f3',
+                  borderRadius: 10,
+                  padding: '6px 10px',
+                  flexShrink: 0,
+                  minWidth: 48,
+                }}
+              >
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#999', letterSpacing: '0.5px', lineHeight: 1 }}>
+                  {formatWeekday(homeData.nextAppointment.startTime)}
+                </span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: '#111', lineHeight: 1.1, margin: '1px 0' }}>
+                  {formatDay(homeData.nextAppointment.startTime)}
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#999', letterSpacing: '0.5px', lineHeight: 1 }}>
+                  {formatMonth(homeData.nextAppointment.startTime)}
+                </span>
+              </div>
+
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: '#111111',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    margin: 0,
+                    marginBottom: 2,
+                  }}
+                >
+                  {homeData.nextAppointment.serviceNames.join(' + ') || 'Appuntamento'}
+                </p>
+                <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 500, margin: 0 }}>
+                  {formatTime(homeData.nextAppointment.startTime)}
+                  {homeData.nextAppointment.staffName ? ` · con ${homeData.nextAppointment.staffName}` : ''}
+                </p>
+              </div>
+
+              {/* Arrow button */}
+              <Link
+                href={tp('/appuntamenti')}
+                className="pwa-pressable"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: 'var(--brand-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="7" y1="17" x2="17" y2="7" />
+                  <polyline points="7 7 17 7 17 17" />
+                </svg>
+              </Link>
+            </div>
+          </div>
+
+          {/* Prodotti */}
+          {productsScroll && (
+            <div style={animated(activeOffers.length > 0 ? 180 : 120)}>{productsScroll}</div>
+          )}
+        </>
+      )}
+
     </main>
   )
 }

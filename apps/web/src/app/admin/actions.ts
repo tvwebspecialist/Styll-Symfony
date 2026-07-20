@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { clearAdminShadowCookie } from '@/lib/admin-shadow-cookie'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -77,6 +79,7 @@ import {
 } from './actions-system'
 
 export type { AdminGlobalOverview, TenantInput, TenantSubscriptionInput, TopTenantRow } from './actions-tenants'
+export type { OnboardingToken } from './actions-onboarding'
 export type { DaySlot, LocationInput, ServiceInput, StaffInput } from './actions-content'
 export type { PlanOption, PlanWithStats, SubscriptionPlanInput, TenantOnPlan } from './actions-plans'
 export type { AppointmentFormOptions, ImportJobRow, TenantAppointmentDetailedRow, TenantAppointmentRow, TenantClientDetailedRow, TenantClientInput, TenantClientRow, TenantClientUpdateInput } from './actions-data'
@@ -108,6 +111,8 @@ export async function bumpAdmin() {
 }
 
 export async function signOutAction() {
+  const cookieStore = await cookies()
+  clearAdminShadowCookie(cookieStore)
   const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')

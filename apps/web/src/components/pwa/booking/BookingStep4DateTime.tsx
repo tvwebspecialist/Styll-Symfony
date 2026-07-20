@@ -3,7 +3,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BottomCTA } from '../ui/BottomCTA'
+
 import type { GetAvailableSlotsResult } from '@/lib/actions/booking-slots'
 import type { PublicStaffMember } from '@/lib/actions/public-booking'
 
@@ -554,14 +554,32 @@ export default function BookingStep4DateTime({
         .booking-date-strip::-webkit-scrollbar { display: none; }
       `}</style>
 
-      <BottomCTA
-        primary={{
-          label: ctaLabel,
-          onClick: handleConfirmSlot,
-          disabled: !selectedTime || isLoading,
+      <button
+        type="button"
+        onClick={handleConfirmSlot}
+        disabled={!selectedTime || isLoading}
+        style={{
+          position: 'fixed',
+          bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
+          left: 8,
+          right: 8,
+          zIndex: 50,
+          height: 56,
+          borderRadius: 44,
+          background: brandColor,
+          color: 'white',
+          fontWeight: 700,
+          fontSize: 16,
+          border: 'none',
+          cursor: !selectedTime || isLoading ? 'default' : 'pointer',
+          opacity: !selectedTime || isLoading ? 0.45 : 1,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          transition: 'opacity 200ms',
+          WebkitTapHighlightColor: 'transparent',
         }}
-        tenantPrimary={brandColor}
-      />
+      >
+        {ctaLabel}
+      </button>
     </div>
   )
 }

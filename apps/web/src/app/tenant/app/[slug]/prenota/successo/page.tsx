@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { Calendar, CalendarPlus, MapPin, Scissors, ShoppingBag, User } from 'lucide-react'
 import { getAppointmentSummary, getLoyaltyConfig } from '@/lib/actions/public-booking'
 import { createClient as createServerClient } from '@/lib/supabase/server'
@@ -50,32 +50,48 @@ function buildGCalLink(title: string, startISO: string, endISO: string, location
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
 
+function buildRegisterHref(
+  tenantPath: (relativePath: string) => string,
+  appointmentId: string,
+  token: string
+): string {
+  const successParams = new URLSearchParams({ appointment: appointmentId, token })
+
+  const accessParams = new URLSearchParams({
+    mode: 'register',
+    return_to: `/prenota/successo?${successParams.toString()}`,
+  })
+
+  return tenantPath(`/accesso?${accessParams.toString()}`)
+}
 export default async function SuccessoPage({ params, searchParams }: Props) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const appointmentId = readParam(resolvedSearchParams.appointment)
+  const token = readParam(resolvedSearchParams.token)
+  if (!appointmentId || !token) notFound()
+
+  const tenant = await getTenantBySlug(slug)
+  if (!tenant || tenant.status !== 'active') notFound()
+
   const tp = await createTenantPaths(slug)
+  const appointment = await getAppointmentSummary(appointmentId, tenant.tenant_id, token)
 
-  if (!appointmentId) redirect(tp(''))
+  if (!appointment) {
+    notFound()
+  }
 
-  const tenantPromise = getTenantBySlug(slug)
-  const appointmentPromise = tenantPromise.then((tenant) =>
-    tenant ? getAppointmentSummary(appointmentId, tenant.tenant_id) : Promise.resolve(null),
-  )
-  const loyaltyPromise = tenantPromise.then((tenant) =>
-    tenant ? getLoyaltyConfig(tenant.tenant_id) : Promise.resolve(null),
-  )
-
-  const [tenant, appointment, loyaltyConfig] = await Promise.all([
-    tenantPromise,
-    appointmentPromise,
-    loyaltyPromise,
-  ])
+  const brandColor = tenant.primary_color ?? '#1a1a1a'
+  const createAccountHref = buildRegisterHref(tp, appointmentId, token)
   const supabase = await createServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!tenant || tenant.status !== 'active' || !appointment) notFound()
+  const [
+    {
+      data: { user },
+    },
+    loyaltyConfig,
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    getLoyaltyConfig(tenant.tenant_id),
+  ])
 
   // Fetch post-booking product suggestions (products not yet in this appointment)
   let suggestedProducts: SuggestedProduct[] = []
@@ -124,7 +140,6 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
     }
   }
 
-  const brandColor = tenant.primary_color ?? '#1a1a1a'
   // Pulse ring colour: hex + 20 = ~12% opacity — same technique as BookingSuccessModal
   const pulseColor = `${brandColor}20`
 
@@ -366,7 +381,7 @@ export default async function SuccessoPage({ params, searchParams }: Props) {
               </div>
             </div>
             <Link
-              href={tp(`/accesso?mode=register&return_to=/prenota/successo?appointment=${appointmentId}`)}
+              href={createAccountHref}
               className="inline-flex min-h-[48px] items-center justify-center rounded-2xl px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80"
               style={{ backgroundColor: brandColor }}
             >

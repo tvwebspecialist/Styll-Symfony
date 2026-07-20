@@ -1,10 +1,41 @@
 'use server'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  applyClientConsentEvents,
+  buildMarketingConsentEvents,
+  extractConsentRequestContext,
+  seedClientConsentState,
+} from '@/lib/consent-events'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
 import { createClient } from '@/lib/supabase/server'
+import {
+  DEFAULT_CLIENTI_PAGE_SIZE,
+  MAX_CLIENTI_PAGE_SIZE,
+} from '@/lib/clienti-list'
+import type { ClientiCounts, ClientiFilter } from '@/lib/clienti-list'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import type { Json } from '@/types'
+import { MANAGER_ROLES } from '@/lib/constants'
+import type { Database, Json, TablesUpdate } from '@/types'
+import {
+  buildImportClientsResult,
+  CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE,
+  collectImportLookupKeys,
+  prepareClientImportPlan,
+} from '@/lib/utils/client-import-core'
+import type {
+  ClientImportLookupKeys,
+  ClientImportUpdate,
+  ExistingImportClient,
+  ImportClientsInput,
+  ImportClientsResult,
+  ImportError,
+  ImportColumn,
+  ImportRow,
+} from '@/lib/utils/client-import-core'
 
 export type ChurnStatus = 'active' | 'warning' | 'danger' | 'inactive'
 
@@ -23,6 +54,7 @@ function mapDbChurnToUi(s: DbChurnStatus | string | null | undefined): ChurnStat
 export interface ClienteRow {
   id: string
   fullName: string
+  avatarUrl: string | null
   email: string | null
   phone: string | null
   churn: ChurnStatus
@@ -38,15 +70,15 @@ export interface ClienteRow {
 interface ClientRow {
   id: string
   full_name: string
+  avatar_url: string | null
   email: string | null
   phone: string | null
   tags: unknown
 }
 
-interface AppointmentRow {
+interface ClientListAppointmentRow {
   id: string
-  client_id: string | null
-  status: string | null
+  client_id: string
   start_time: string
 }
 
@@ -67,6 +99,36 @@ interface ProductRow {
   quantity: number | null
 }
 
+interface ClientAnalyticsListRow {
+  client_id: string
+  churn_status: string | null
+  days_since_last_visit: number | null
+  avg_frequency_days: number | null
+  last_visit_date: string | null
+  total_visits: number
+}
+
+interface ClientListQueryRow extends ClientRow {
+  client_analytics?: ClientAnalyticsListRow | null
+}
+
+type StaffRole = 'owner' | 'manager' | 'staff' | 'receptionist'
+
+interface ClientiActorContext {
+  tenantId: string
+  db: ReturnType<typeof createAdminClient>
+  currentStaff: {
+    id: string
+    role: StaffRole
+  }
+}
+
+function throwForbidden(): never {
+  const error = new Error('Forbidden')
+  ;(error as Error & { digest?: string }).digest = 'NEXT_HTTP_ERROR_FALLBACK;403'
+  throw error
+}
+
 function parseTags(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === 'string')
   if (typeof raw === 'string') {
@@ -80,53 +142,469 @@ function parseTags(raw: unknown): string[] {
   return []
 }
 
-
-export async function getClienti(): Promise<{
-  clienti: ClienteRow[]
-  tenantId: string | null
-}> {
+async function getClientiActorContext(): Promise<ClientiActorContext | null> {
   const tenantId = await getActiveTenantId()
-  if (!tenantId) return { clienti: [], tenantId: null }
+  if (!tenantId) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
 
   const db = createAdminClient()
+  const { data: staffRow } = await db
+    .from('staff_members')
+    .select('id, role')
+    .eq('tenant_id', tenantId)
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .maybeSingle()
 
-  const [clientsRes, apptRes, loyaltyRes, analyticsRes] = await Promise.all([
-    db
-      .from('clients')
-      .select('id, full_name, email, phone, tags')
-      .eq('tenant_id', tenantId)
-      .order('full_name', { ascending: true }),
-    db
-      .from('appointments')
-      .select('id, client_id, status, start_time')
-      .eq('tenant_id', tenantId),
-    db
-      .from('client_loyalty')
-      .select('client_id, total_points, last_visit_date')
-      .eq('tenant_id', tenantId),
-    db
-      .from('client_analytics')
-      .select('client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits')
-      .eq('tenant_id', tenantId),
+  let effectiveStaff = staffRow as { id: string; role: string } | null
+
+  // Superadmin shadow-mode bypass: superadmins are not in staff_members for the
+  // tenant, so adopt the owner's staff record to allow full CRM access.
+  if (!effectiveStaff) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if ((profile as { is_superadmin?: boolean } | null)?.is_superadmin) {
+      const { data: ownerRow } = await db
+        .from('staff_members')
+        .select('id, role')
+        .eq('tenant_id', tenantId)
+        .in('role', ['owner', 'manager'])
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle()
+      effectiveStaff = ownerRow as typeof effectiveStaff
+    }
+  }
+
+  if (!effectiveStaff) return null
+
+  return {
+    tenantId,
+    db,
+    currentStaff: effectiveStaff as ClientiActorContext['currentStaff'],
+  }
+}
+
+function hasFullCrmAccess(role: StaffRole): boolean {
+  return MANAGER_ROLES.includes(role as typeof MANAGER_ROLES[number])
+}
+
+function canCreateClient(role: StaffRole): boolean {
+  return hasFullCrmAccess(role) || role === 'receptionist'
+}
+
+function canWritePrivateNotes(role: StaffRole): boolean {
+  return hasFullCrmAccess(role) || role === 'staff'
+}
+
+async function getStaffClientIds(
+  db: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  staffId: string,
+): Promise<Set<string>> {
+  const { data: appointments } = await db
+    .from('appointments')
+    .select('client_id')
+    .eq('tenant_id', tenantId)
+    .eq('staff_id', staffId)
+    .is('deleted_at', null)
+    .not('client_id', 'is', null)
+
+  return new Set(
+    ((appointments ?? []) as Array<{ client_id: string | null }>)
+      .map((row) => row.client_id)
+      .filter((id): id is string => !!id)
+  )
+}
+
+async function getClientTenantId(
+  db: ReturnType<typeof createAdminClient>,
+  clientId: string,
+): Promise<string | null> {
+  const { data: client } = await db
+    .from('clients')
+    .select('tenant_id')
+    .eq('id', clientId)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  return (client as { tenant_id?: string } | null)?.tenant_id ?? null
+}
+
+async function assertClientAccess(
+  ctx: ClientiActorContext,
+  clientId: string,
+): Promise<'full' | 'staff' | 'receptionist'> {
+  const tenantId = await getClientTenantId(ctx.db, clientId)
+  if (!tenantId) return throwForbidden()
+  if (tenantId !== ctx.tenantId) return throwForbidden()
+
+  if (hasFullCrmAccess(ctx.currentStaff.role)) return 'full'
+  if (ctx.currentStaff.role === 'receptionist') return 'receptionist'
+
+  const ownedClientIds = await getStaffClientIds(ctx.db, ctx.tenantId, ctx.currentStaff.id)
+  if (!ownedClientIds.has(clientId)) return throwForbidden()
+  return 'staff'
+}
+
+function redactClienteRowForReceptionist(row: ClienteRow): ClienteRow {
+  return {
+    ...row,
+    churn: 'inactive',
+    lastVisit: null,
+    daysSinceLastVisit: null,
+    visitFrequencyDays: null,
+    totalVisits: 0,
+    loyaltyPoints: 0,
+    totalSpent: 0,
+    tags: [],
+  }
+}
+
+function redactClienteDettaglioForReceptionist(
+  data: ClienteDettaglioData,
+): ClienteDettaglioData {
+  return {
+    cliente: {
+      ...data.cliente,
+      dateOfBirth: null,
+      preferredChannel: null,
+      marketingConsent: false,
+      tags: [],
+    },
+    analytics: {
+      totalVisits: 0,
+      completedVisits: 0,
+      cancelledVisits: 0,
+      noShowVisits: 0,
+      totalSpent: 0,
+      avgSpend: 0,
+      lastVisitDate: null,
+      daysSinceLastVisit: null,
+      avgDaysBetweenVisits: null,
+      churnStatus: 'unknown',
+      churnDelayDays: 0,
+      vipScore: 0,
+      lastApptTotal: 0,
+    },
+    preferenze: {
+      servizioPreferito: null,
+      servizioCount: null,
+      orarioPreferito: null,
+      prodottoPrincipale: null,
+      prodottoCount: null,
+    },
+    appuntamenti: data.appuntamenti.map((appointment) => ({
+      ...appointment,
+      total: 0,
+    })),
+    loyalty: {
+      totalPoints: 0,
+      availablePoints: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastVisitDate: null,
+      tier: 'bronze',
+      tierLabel: 'Bronzo',
+      progress: 0,
+      pointsToNextTier: 0,
+      nextTierLabel: null,
+      transactions: [],
+      rewards: [],
+      redemptions: [],
+    },
+    note: [],
+    vendite: [],
+  }
+}
+
+export interface GetClientiOptions {
+  page?: number | string | null
+  pageSize?: number | string | null
+  query?: string | null
+  filter?: string | ClientiFilter | null
+}
+
+export interface GetClientiResult {
+  clienti: ClienteRow[]
+  tenantId: string | null
+  page: number
+  pageSize: number
+  totalCount: number
+  totalPages: number
+  query: string
+  filter: ClientiFilter
+  counts: ClientiCounts
+}
+
+const EMPTY_CLIENTI_COUNTS: ClientiCounts = {
+  all: 0,
+  active: 0,
+  warning: 0,
+  danger: 0,
+  inactive: 0,
+}
+
+const CLIENT_ANALYTICS_LIST_SELECT =
+  'client_id, churn_status, days_since_last_visit, avg_frequency_days, last_visit_date, total_visits'
+
+const UI_TO_DB_CHURN: Record<Exclude<ClientiFilter, 'all' | 'inactive'>, Exclude<DbChurnStatus, 'unknown'>> = {
+  active: 'green',
+  warning: 'yellow',
+  danger: 'red',
+}
+
+function normalizePositiveInt(
+  value: number | string | null | undefined,
+  fallback: number,
+  max: number = Number.MAX_SAFE_INTEGER,
+): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback
+  return Math.min(Math.floor(parsed), max)
+}
+
+function normalizeClientiFilter(value: string | ClientiFilter | null | undefined): ClientiFilter {
+  switch (value) {
+    case 'active':
+    case 'warning':
+    case 'danger':
+    case 'inactive':
+    case 'all':
+      return value
+    default:
+      return 'all'
+  }
+}
+
+function normalizeClientiSearchQuery(value: string | null | undefined): string {
+  return value
+    ?.trim()
+    .replace(/[,%()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100) ?? ''
+}
+
+function buildClientSearchOrFilter(query: string): string | null {
+  if (!query) return null
+  return `full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`
+}
+
+async function countAccessibleClients(
+  ctx: ClientiActorContext,
+  churnStatus?: Exclude<DbChurnStatus, 'unknown'>,
+): Promise<number> {
+  const selectParts = ['id']
+  if (churnStatus) {
+    selectParts.push('client_analytics!inner(client_id)')
+  }
+  if (ctx.currentStaff.role === 'staff') {
+    selectParts.push('appointments!inner(id)')
+  }
+
+  let query = ctx.db
+    .from('clients')
+    .select(selectParts.join(', '), { count: 'exact', head: true })
+    .eq('tenant_id', ctx.tenantId)
+    .is('deleted_at', null)
+
+  if (ctx.currentStaff.role === 'staff') {
+    query = query
+      .eq('appointments.staff_id', ctx.currentStaff.id)
+      .eq('appointments.tenant_id', ctx.tenantId)
+      .is('appointments.deleted_at', null)
+  }
+
+  if (churnStatus) {
+    query = query.eq('client_analytics.churn_status', churnStatus)
+  }
+
+  const { count } = await query
+  return count ?? 0
+}
+
+
+export async function getClienti(options: GetClientiOptions = {}): Promise<GetClientiResult> {
+  const page = normalizePositiveInt(options.page, 1)
+  const pageSize = normalizePositiveInt(options.pageSize, DEFAULT_CLIENTI_PAGE_SIZE, MAX_CLIENTI_PAGE_SIZE)
+  const query = normalizeClientiSearchQuery(options.query)
+  const filter = normalizeClientiFilter(options.filter)
+
+  const ctx = await getClientiActorContext()
+  if (!ctx) {
+    return {
+      clienti: [],
+      tenantId: null,
+      page,
+      pageSize,
+      totalCount: 0,
+      totalPages: 1,
+      query,
+      filter,
+      counts: EMPTY_CLIENTI_COUNTS,
+    }
+  }
+
+  const { tenantId, db } = ctx
+  const counts: ClientiCounts = ctx.currentStaff.role === 'receptionist'
+    ? await countAccessibleClients(ctx).then((allCount) => ({
+        all: allCount,
+        active: 0,
+        warning: 0,
+        danger: 0,
+        inactive: allCount,
+      }))
+    : await Promise.all([
+        countAccessibleClients(ctx),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.active),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.warning),
+        countAccessibleClients(ctx, UI_TO_DB_CHURN.danger),
+      ]).then(([allCount, activeCount, warningCount, dangerCount]) => ({
+        all: allCount,
+        active: activeCount,
+        warning: warningCount,
+        danger: dangerCount,
+        inactive: Math.max(0, allCount - activeCount - warningCount - dangerCount),
+      }))
+
+  if (ctx.currentStaff.role === 'receptionist' && filter !== 'all' && filter !== 'inactive') {
+    return {
+      clienti: [],
+      tenantId,
+      page,
+      pageSize,
+      totalCount: 0,
+      totalPages: 1,
+      query,
+      filter,
+      counts,
+    }
+  }
+
+  const selectParts = ['id', 'full_name', 'avatar_url', 'email', 'phone', 'tags']
+  if (ctx.currentStaff.role !== 'receptionist') {
+    const analyticsRelation =
+      filter === 'active' || filter === 'warning' || filter === 'danger'
+        ? `client_analytics!inner(${CLIENT_ANALYTICS_LIST_SELECT})`
+        : `client_analytics(${CLIENT_ANALYTICS_LIST_SELECT})`
+    selectParts.push(analyticsRelation)
+  }
+  if (ctx.currentStaff.role === 'staff') {
+    selectParts.push('appointments!inner(id)')
+  }
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  const searchOr = buildClientSearchOrFilter(query)
+
+  let clientsQuery = db
+    .from('clients')
+    .select(selectParts.join(', '), { count: 'exact' })
+    .eq('tenant_id', tenantId)
+    .is('deleted_at', null)
+
+  if (ctx.currentStaff.role === 'staff') {
+    clientsQuery = clientsQuery
+      .eq('appointments.staff_id', ctx.currentStaff.id)
+      .eq('appointments.tenant_id', tenantId)
+      .is('appointments.deleted_at', null)
+      .limit(1, { referencedTable: 'appointments' })
+  }
+
+  if (searchOr) {
+    clientsQuery = clientsQuery.or(searchOr)
+  }
+
+  if (ctx.currentStaff.role !== 'receptionist') {
+    if (filter === 'active' || filter === 'warning' || filter === 'danger') {
+      clientsQuery = clientsQuery.eq('client_analytics.churn_status', UI_TO_DB_CHURN[filter])
+    } else if (filter === 'inactive') {
+      // Left join (no !inner) — match rows where churn_status is 'unknown'
+      // OR the analytics row doesn't exist at all (NULL from the left join).
+      clientsQuery = clientsQuery
+        .or('client_analytics.churn_status.eq.unknown,client_analytics.churn_status.is.null')
+    }
+  }
+
+  const { data: rawClients, count: totalCountFromQuery } = await clientsQuery
+    .order('full_name', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)
+
+  const totalCount = totalCountFromQuery ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+  const clients = (rawClients ?? []) as unknown as ClientListQueryRow[]
+
+  if (ctx.currentStaff.role === 'receptionist') {
+    return {
+      clienti: clients.map((client) =>
+        redactClienteRowForReceptionist({
+          id: client.id,
+          fullName: client.full_name,
+          avatarUrl: client.avatar_url ?? null,
+          email: client.email,
+          phone: client.phone,
+          churn: 'inactive',
+          lastVisit: null,
+          daysSinceLastVisit: null,
+          visitFrequencyDays: null,
+          totalVisits: 0,
+          loyaltyPoints: 0,
+          totalSpent: 0,
+          tags: parseTags(client.tags),
+        }),
+      ),
+      tenantId,
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+      query,
+      filter,
+      counts,
+    }
+  }
+
+  const analyticsMap = new Map<string, ClientAnalyticsListRow>()
+  for (const client of clients) {
+    if (client.client_analytics) {
+      analyticsMap.set(client.id, client.client_analytics)
+    }
+  }
+
+  const clientIds = clients.map((client) => client.id)
+  const [completedApptsRes, loyaltyRes] = await Promise.all([
+    clientIds.length > 0
+      ? db
+          .from('appointments')
+          .select('id, client_id, start_time')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'completed')
+          .is('deleted_at', null)
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] as ClientListAppointmentRow[] }),
+    clientIds.length > 0
+      ? db
+          .from('client_loyalty')
+          .select('client_id, total_points, last_visit_date')
+          .eq('tenant_id', tenantId)
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] as LoyaltyRow[] }),
   ])
 
-  const clients = (clientsRes.data ?? []) as ClientRow[]
-  const appts = (apptRes.data ?? []) as AppointmentRow[]
-  const loyalty = (loyaltyRes.data ?? []) as LoyaltyRow[]
-
-  type AnalyticsRow = {
-    client_id: string
-    churn_status: string | null
-    days_since_last_visit: number | null
-    avg_frequency_days: number | null
-    last_visit_date: string | null
-    total_visits: number
-  }
-  const analyticsMap = new Map<string, AnalyticsRow>(
-    ((analyticsRes.data ?? []) as AnalyticsRow[]).map((a) => [a.client_id, a]),
-  )
-
-  const completedIds = appts.filter((a) => a.status === 'completed').map((a) => a.id)
+  const completedAppts = (completedApptsRes.data ?? []) as ClientListAppointmentRow[]
+  const completedIds = completedAppts.map((appointment) => appointment.id)
 
   const [servicesRes, productsRes] = await Promise.all([
     completedIds.length > 0
@@ -149,80 +627,88 @@ export async function getClienti(): Promise<{
   const products = (productsRes.data ?? []) as ProductRow[]
 
   const apptToClient = new Map<string, string>()
-  appts.forEach((a) => {
-    if (a.client_id) apptToClient.set(a.id, a.client_id)
+  completedAppts.forEach((appointment) => {
+    apptToClient.set(appointment.id, appointment.client_id)
   })
 
   const spentByClient = new Map<string, number>()
-  for (const s of services) {
-    const cid = apptToClient.get(s.appointment_id)
-    if (!cid) continue
-    spentByClient.set(cid, (spentByClient.get(cid) ?? 0) + Number(s.price_at_booking ?? 0))
+  for (const service of services) {
+    const clientId = apptToClient.get(service.appointment_id)
+    if (!clientId) continue
+    spentByClient.set(clientId, (spentByClient.get(clientId) ?? 0) + Number(service.price_at_booking ?? 0))
   }
-  for (const p of products) {
-    const cid = apptToClient.get(p.appointment_id)
-    if (!cid) continue
-    const v = Number(p.price_at_sale ?? 0) * Number(p.quantity ?? 1)
-    spentByClient.set(cid, (spentByClient.get(cid) ?? 0) + v)
+  for (const product of products) {
+    const clientId = apptToClient.get(product.appointment_id)
+    if (!clientId) continue
+    const value = Number(product.price_at_sale ?? 0) * Number(product.quantity ?? 1)
+    spentByClient.set(clientId, (spentByClient.get(clientId) ?? 0) + value)
   }
 
   const visitsByClient = new Map<string, Date[]>()
-  for (const a of appts) {
-    if (a.status !== 'completed' || !a.client_id) continue
-    const arr = visitsByClient.get(a.client_id) ?? []
-    arr.push(new Date(a.start_time))
-    visitsByClient.set(a.client_id, arr)
+  for (const appointment of completedAppts) {
+    const visits = visitsByClient.get(appointment.client_id) ?? []
+    visits.push(new Date(appointment.start_time))
+    visitsByClient.set(appointment.client_id, visits)
   }
 
   const loyaltyByClient = new Map<string, LoyaltyRow>()
-  loyalty.forEach((l) => loyaltyByClient.set(l.client_id, l))
+  ;(loyaltyRes.data ?? []).forEach((loyaltyRow) => {
+    loyaltyByClient.set(loyaltyRow.client_id, loyaltyRow as LoyaltyRow)
+  })
 
   const now = Date.now()
   const DAY = 86_400_000
 
-  const clienti: ClienteRow[] = clients.map((c) => {
-    const analytics = analyticsMap.get(c.id)
-    const visits = (visitsByClient.get(c.id) ?? []).sort((a, b) => a.getTime() - b.getTime())
-    const loyaltyRow = loyaltyByClient.get(c.id)
+  return {
+    clienti: clients.map((client) => {
+      const analytics = analyticsMap.get(client.id)
+      const visits = (visitsByClient.get(client.id) ?? []).sort((a, b) => a.getTime() - b.getTime())
+      const loyaltyRow = loyaltyByClient.get(client.id)
 
-    // Prefer pre-computed analytics when available; fall back to local calc for
-    // brand-new clients not yet processed by the trigger/cron.
-    const lastVisitDate =
-      analytics?.last_visit_date ??
-      (visits.length > 0 ? visits[visits.length - 1].toISOString() : loyaltyRow?.last_visit_date ?? null)
+      const lastVisitDate =
+        analytics?.last_visit_date ??
+        (visits.length > 0
+          ? visits[visits.length - 1].toISOString()
+          : loyaltyRow?.last_visit_date ?? null)
 
-    const daysSince =
-      analytics?.days_since_last_visit ??
-      (lastVisitDate ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY) : null)
+      const daysSince =
+        analytics?.days_since_last_visit ??
+        (lastVisitDate ? Math.floor((now - new Date(lastVisitDate).getTime()) / DAY) : null)
 
-    const frequency =
-      analytics?.avg_frequency_days != null
-        ? Math.round(analytics.avg_frequency_days)
-        : visits.length >= 2
-          ? Math.round(
-              (visits[visits.length - 1].getTime() - visits[0].getTime()) / DAY / (visits.length - 1),
-            )
-          : null
+      const frequency =
+        analytics?.avg_frequency_days != null
+          ? Math.round(analytics.avg_frequency_days)
+          : visits.length >= 2
+            ? Math.round(
+                (visits[visits.length - 1].getTime() - visits[0].getTime()) / DAY / (visits.length - 1),
+              )
+            : null
 
-    const totalVisits = analytics?.total_visits ?? visits.length
-
-    return {
-      id: c.id,
-      fullName: c.full_name,
-      email: c.email,
-      phone: c.phone,
-      churn: mapDbChurnToUi(analytics?.churn_status),
-      lastVisit: lastVisitDate,
-      daysSinceLastVisit: daysSince,
-      visitFrequencyDays: frequency,
-      totalVisits,
-      loyaltyPoints: Number(loyaltyRow?.total_points ?? 0),
-      totalSpent: spentByClient.get(c.id) ?? 0,
-      tags: parseTags(c.tags),
-    }
-  })
-
-  return { clienti, tenantId }
+      return {
+        id: client.id,
+        fullName: client.full_name,
+        avatarUrl: client.avatar_url ?? null,
+        email: client.email,
+        phone: client.phone,
+        churn: mapDbChurnToUi(analytics?.churn_status),
+        lastVisit: lastVisitDate,
+        daysSinceLastVisit: daysSince,
+        visitFrequencyDays: frequency,
+        totalVisits: analytics?.total_visits ?? visits.length,
+        loyaltyPoints: Number(loyaltyRow?.total_points ?? 0),
+        totalSpent: spentByClient.get(client.id) ?? 0,
+        tags: parseTags(client.tags),
+      }
+    }),
+    tenantId,
+    page,
+    pageSize,
+    totalCount,
+    totalPages,
+    query,
+    filter,
+    counts,
+  }
 }
 
 // ─── Dettaglio cliente ────────────────────────────────────────────────────────
@@ -340,10 +826,11 @@ function computeTier(pts: number) {
 export async function getClienteDettaglio(
   clienteId: string,
 ): Promise<ClienteDettaglioData | null> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return null
+  const ctx = await getClientiActorContext()
+  if (!ctx) return null
 
-  const db = createAdminClient()
+  const accessLevel = await assertClientAccess(ctx, clienteId)
+  const { tenantId, db } = ctx
 
   // ── 1. Client base ──────────────────────────────────────────────────────────
   const { data: clientRow } = await db
@@ -649,7 +1136,7 @@ export async function getClienteDettaglio(
     .map(([productId, v]) => ({ productId, productName: v.productName, brand: v.brand, totalQuantity: v.qty, totalSpent: v.spent, lastDate: v.lastDate }))
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
 
-  return {
+  const fullData: ClienteDettaglioData = {
     cliente: {
       id: clientRow.id,
       fullName: clientRow.full_name,
@@ -682,6 +1169,10 @@ export async function getClienteDettaglio(
     note,
     vendite,
   }
+
+  return accessLevel === 'receptionist'
+    ? redactClienteDettaglioForReceptionist(fullData)
+    : fullData
 }
 
 // ─── addClienteNota ───────────────────────────────────────────────────────────
@@ -693,45 +1184,27 @@ export async function addClienteNota(
   const trimmed = noteText.trim()
   if (!trimmed) return { error: 'La nota non può essere vuota' }
 
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { error: 'Tenant non trovato' }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Non autenticato' }
-
-  const db = createAdminClient()
-
-  // Find staff_member for this user in this tenant (or fall back to tenant owner)
-  let { data: staffRow } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (!staffRow) {
-    const { data: ownerRow } = await db
-      .from('staff_members')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('role', 'owner')
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    staffRow = ownerRow
+  const ctx = await getClientiActorContext()
+  if (!ctx) return { error: 'Non autorizzato' }
+  if (!canWritePrivateNotes(ctx.currentStaff.role)) {
+    return { error: 'Non autorizzato' }
   }
 
-  if (!staffRow) return { error: 'Nessun membro dello staff trovato per questo tenant' }
+  const tenantId = await getClientTenantId(ctx.db, clienteId)
+  if (!tenantId) return { error: 'Cliente non trovato' }
+  if (tenantId !== ctx.tenantId) return { error: 'Non autorizzato' }
 
-  const { error } = await db.from('client_notes').insert({
-    tenant_id: tenantId,
+  if (ctx.currentStaff.role === 'staff') {
+    const ownedClientIds = await getStaffClientIds(ctx.db, ctx.tenantId, ctx.currentStaff.id)
+    if (!ownedClientIds.has(clienteId)) {
+      return { error: 'Non autorizzato' }
+    }
+  }
+
+  const { error } = await ctx.db.from('client_notes').insert({
+    tenant_id: ctx.tenantId,
     client_id: clienteId,
-    staff_id: staffRow.id,
+    staff_id: ctx.currentStaff.id,
     note_text: trimmed,
   })
 
@@ -751,64 +1224,67 @@ export async function createCliente(input: {
   const trimmed = input.fullName?.trim()
   if (!trimmed) return { success: false, error: 'Nome obbligatorio' }
 
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Tenant non trovato' }
+  const ctx = await getClientiActorContext()
+  if (!ctx) return { success: false, error: 'Non autorizzato' }
+  if (!canCreateClient(ctx.currentStaff.role)) {
+    return { success: false, error: 'Non autorizzato' }
+  }
 
-  const db = createAdminClient()
-  const { data, error } = await db.from('clients').insert({
-    tenant_id: tenantId,
-    full_name: trimmed,
-    email: input.email?.trim() || null,
-    phone: input.phone?.trim() || null,
-    preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
-    marketing_consent: input.marketingConsent ?? true,
-    tags: '["active"]',
-  }).select('id').single()
+  const supabase = await createClient()
+  const { data: authData } = await supabase.auth.getUser()
+  const actorProfileId = authData.user?.id
+  if (!actorProfileId) return { success: false, error: 'Non autenticato' }
+
+  const { data, error } = await ctx.db
+    .from('clients')
+    .insert({
+      tenant_id: ctx.tenantId,
+      full_name: trimmed,
+      email: input.email?.trim() || null,
+      phone: input.phone?.trim() || null,
+      preferred_contact_channel: input.preferredChannel ?? 'whatsapp',
+      marketing_consent: input.marketingConsent ?? false,
+      tags: '["active"]',
+    })
+    .select('id, created_at')
+    .single()
 
   if (error) return { success: false, error: error.message }
+
+  if (!data?.id || !data.created_at) {
+    return { success: false, error: 'Impossibile creare il cliente.' }
+  }
+
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    await seedClientConsentState(ctx.db, {
+      tenantId: ctx.tenantId,
+      clientId: data.id,
+      marketingAllowed: input.marketingConsent ?? false,
+      churnAllowed: true,
+      actor: CONSENT_ACTOR.STAFF_MEMBER,
+      actorProfileId,
+      source: CONSENT_SOURCE.STAFF_DASHBOARD,
+      occurredAt: data.created_at,
+      ipAddress: requestContext.ipAddress ?? null,
+      userAgent: requestContext.userAgent ?? null,
+      metadata: {
+        surface: 'staff_dashboard_create_client',
+      },
+    })
+  } catch (consentError) {
+    await ctx.db.from('clients').delete().eq('id', data.id).eq('tenant_id', ctx.tenantId)
+    return {
+      success: false,
+      error: consentError instanceof Error ? consentError.message : 'Impossibile creare il cliente.',
+    }
+  }
 
   revalidatePath('/dashboard/clienti')
   return { success: true, clienteId: data?.id }
 }
 
 // ─── Import clienti da CSV ─────────────────────────────────────
-
-export type ImportColumn =
-  | 'full_name'
-  | 'email'
-  | 'phone'
-  | 'date_of_birth'
-  | 'notes'
-  | 'tags'
-  | 'marketing_consent'
-  | 'ignore'
-
-export interface ImportRow {
-  [key: string]: string
-}
-
-export interface ImportClientsInput {
-  source: 'fresha' | 'treatwell' | 'booksy' | 'csv_generic'
-  filename?: string
-  mapping: Record<string, ImportColumn>
-  rows: ImportRow[]
-  duplicateStrategy: 'skip' | 'merge'
-}
-
-export interface ImportError {
-  rowIndex: number
-  field?: string
-  message: string
-}
-
-export interface ImportClientsResult {
-  success: boolean
-  error?: string
-  jobId?: string
-  imported: number
-  skipped: number
-  errors: ImportError[]
-}
 
 import {
   normalizePhone,
@@ -819,6 +1295,11 @@ import {
 } from '@/lib/utils/client-import-utils'
 
 export {
+  type ImportClientsInput,
+  type ImportClientsResult,
+  type ImportError,
+  type ImportColumn,
+  type ImportRow,
   normalizePhone,
   normalizeEmail,
   parseDateOfBirth,
@@ -826,166 +1307,396 @@ export {
   parseCsvTags,
 }
 
-export async function importClients(
-  input: ImportClientsInput,
-): Promise<ImportClientsResult> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) {
-    return { success: false, error: 'Tenant non trovato', imported: 0, skipped: 0, errors: [] }
+type ClientImportDb = SupabaseClient<Database>
+
+type ClientImportCandidateRow = {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  date_of_birth: string | null
+  marketing_consent: boolean | null
+  tags: Json | null
+}
+
+const CLIENT_IMPORT_SELECT =
+  'id, full_name, email, phone, date_of_birth, marketing_consent, tags'
+
+const CLIENT_IMPORT_INSERT_CHUNK_SIZE = 500
+const CLIENT_IMPORT_UPDATE_BATCH_SIZE = 100
+
+function chunkValues<T>(values: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = []
+
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize))
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { success: false, error: 'Non autenticato', imported: 0, skipped: 0, errors: [] }
-  }
+  return chunks
+}
 
-  if (!input.rows || input.rows.length === 0) {
-    return { success: false, error: 'Nessuna riga da importare', imported: 0, skipped: 0, errors: [] }
-  }
-  if (input.rows.length > 10_000) {
-    return { success: false, error: 'Massimo 10.000 righe per file', imported: 0, skipped: 0, errors: [] }
-  }
+function dedupeImportCandidateRows(
+  rows: ClientImportCandidateRow[],
+): ExistingImportClient[] {
+  const uniqueRows = new Map<string, ExistingImportClient>()
 
-  const hasName = Object.values(input.mapping).includes('full_name')
-  if (!hasName) {
-    return { success: false, error: 'Devi mappare almeno la colonna Nome', imported: 0, skipped: 0, errors: [] }
-  }
-
-  const db = createAdminClient()
-
-  const { data: existing } = await db
-    .from('clients')
-    .select('id, email, phone')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-
-  const existingByEmail = new Map<string, string>()
-  const existingByPhone = new Map<string, string>()
-  ;(existing ?? []).forEach((c) => {
-    if (c.email) existingByEmail.set(c.email.toLowerCase(), c.id)
-    if (c.phone) {
-      const norm = normalizePhone(c.phone)
-      if (norm) existingByPhone.set(norm, c.id)
-    }
-  })
-
-  const errors: ImportError[] = []
-  const toInsert: Array<{
-    tenant_id: string
-    full_name: string
-    email: string | null
-    phone: string | null
-    date_of_birth: string | null
-    marketing_consent: boolean
-    preferred_contact_channel: string
-    tags: string
-  }> = []
-  let skipped = 0
-
-  const inverseMapping: Partial<Record<ImportColumn, string>> = {}
-  for (const [orig, styll] of Object.entries(input.mapping)) {
-    if (styll !== 'ignore') inverseMapping[styll] = orig
-  }
-
-  for (let i = 0; i < input.rows.length; i++) {
-    const row = input.rows[i]
-    const rowNum = i + 1
-
-    const rawName = inverseMapping.full_name ? row[inverseMapping.full_name] ?? '' : ''
-    const fullName = rawName.trim()
-    if (!fullName) {
-      errors.push({ rowIndex: rowNum, field: 'full_name', message: 'Nome mancante' })
-      continue
-    }
-
-    const rawEmail = inverseMapping.email ? row[inverseMapping.email] ?? '' : ''
-    const email = rawEmail ? normalizeEmail(rawEmail) : null
-    if (rawEmail && !email) {
-      errors.push({ rowIndex: rowNum, field: 'email', message: `Email non valida: ${rawEmail}` })
-    }
-
-    const rawPhone = inverseMapping.phone ? row[inverseMapping.phone] ?? '' : ''
-    const phone = rawPhone ? normalizePhone(rawPhone) : null
-    if (rawPhone && !phone) {
-      errors.push({ rowIndex: rowNum, field: 'phone', message: `Telefono non valido: ${rawPhone}` })
-    }
-
-    const dupId =
-      (email && existingByEmail.get(email)) ||
-      (phone && existingByPhone.get(phone)) ||
-      null
-    if (dupId) {
-      skipped++
-      continue
-    }
-
-    const rawDob = inverseMapping.date_of_birth ? row[inverseMapping.date_of_birth] ?? '' : ''
-    const dob = rawDob ? parseDateOfBirth(rawDob) : null
-
-    const rawTagsVal = inverseMapping.tags ? row[inverseMapping.tags] ?? '' : ''
-    const tagsArr = parseCsvTags(rawTagsVal)
-    if (tagsArr.length === 0) tagsArr.push('imported')
-
-    const rawConsent = inverseMapping.marketing_consent
-      ? row[inverseMapping.marketing_consent] ?? ''
-      : ''
-    const marketingConsent = rawConsent ? parseBooleanField(rawConsent) : false
-
-    toInsert.push({
-      tenant_id: tenantId,
-      full_name: fullName,
-      email,
-      phone,
-      date_of_birth: dob,
-      marketing_consent: marketingConsent,
-      preferred_contact_channel: 'whatsapp',
-      tags: JSON.stringify(tagsArr),
+  for (const row of rows) {
+    uniqueRows.set(row.id, {
+      id: row.id,
+      full_name: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      date_of_birth: row.date_of_birth,
+      marketing_consent: Boolean(row.marketing_consent),
+      tags: row.tags,
     })
   }
 
-  let imported = 0
-  if (toInsert.length > 0) {
-    for (let i = 0; i < toInsert.length; i += 500) {
-      const chunk = toInsert.slice(i, i + 500)
-      const { error, count } = await db
-        .from('clients')
-        .insert(chunk, { count: 'exact' })
-      if (error) {
-        errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
-        break
-      }
-      imported += count ?? chunk.length
+  return [...uniqueRows.values()]
+}
+
+function isMissingClientImportCandidatesRpc(error: { message?: string } | null): boolean {
+  const message = error?.message?.toLowerCase() ?? ''
+
+  return (
+    message.includes('get_client_import_candidates')
+    && (
+      message.includes('could not find the function')
+      || message.includes('function public.get_client_import_candidates')
+      || message.includes('pgrst202')
+    )
+  )
+}
+
+async function fetchClientImportDuplicateCandidatesFallback(
+  db: ClientImportDb,
+  tenantId: string,
+  lookupKeys: ClientImportLookupKeys,
+): Promise<{ data: ExistingImportClient[]; error?: string }> {
+  const emailCandidates = [...new Set([...lookupKeys.emails, ...lookupKeys.rawEmails])]
+  const phoneCandidates = [...new Set([...lookupKeys.phones, ...lookupKeys.rawPhones])]
+  const rows: ClientImportCandidateRow[] = []
+
+  const [emailResults, phoneResults] = await Promise.all([
+    Promise.all(
+      chunkValues(emailCandidates, CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE).map((chunk) =>
+        db
+          .from('clients')
+          .select(CLIENT_IMPORT_SELECT)
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .in('email', chunk)
+      )
+    ),
+    Promise.all(
+      chunkValues(phoneCandidates, CLIENT_IMPORT_FALLBACK_LOOKUP_CHUNK_SIZE).map((chunk) =>
+        db
+          .from('clients')
+          .select(CLIENT_IMPORT_SELECT)
+          .eq('tenant_id', tenantId)
+          .is('deleted_at', null)
+          .in('phone', chunk)
+      )
+    ),
+  ])
+
+  for (const result of [...emailResults, ...phoneResults]) {
+    if (result.error) {
+      return { data: [], error: result.error.message }
+    }
+
+    rows.push(...((result.data ?? []) as ClientImportCandidateRow[]))
+  }
+
+  return {
+    data: dedupeImportCandidateRows(rows),
+  }
+}
+
+export async function fetchClientImportDuplicateCandidates(
+  db: ClientImportDb,
+  tenantId: string,
+  lookupKeys: ClientImportLookupKeys,
+): Promise<{ data: ExistingImportClient[]; error?: string }> {
+  if (lookupKeys.emails.length === 0 && lookupKeys.phones.length === 0) {
+    return { data: [] }
+  }
+
+  const { data, error } = await db.rpc('get_client_import_candidates', {
+    p_tenant_id: tenantId,
+    p_emails: lookupKeys.emails,
+    p_phones: lookupKeys.phones,
+  })
+
+  if (!error) {
+    return {
+      data: dedupeImportCandidateRows((data ?? []) as ClientImportCandidateRow[]),
     }
   }
 
-  const status: 'completed' | 'partial' | 'failed' =
-    imported === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed'
+  if (!isMissingClientImportCandidatesRpc(error)) {
+    return { data: [], error: error.message }
+  }
 
-  const { data: jobRow } = await db
+  return fetchClientImportDuplicateCandidatesFallback(db, tenantId, lookupKeys)
+}
+
+async function applyClientUpdatesInBatches(
+  db: ClientImportDb,
+  tenantId: string,
+  initiatedBy: string,
+  filename: string | null | undefined,
+  source: string,
+  updates: ClientImportUpdate[],
+  errors: ImportError[],
+): Promise<void> {
+  for (let index = 0; index < updates.length; index += CLIENT_IMPORT_UPDATE_BATCH_SIZE) {
+    const batch = updates.slice(index, index + CLIENT_IMPORT_UPDATE_BATCH_SIZE)
+    const results = await Promise.all(
+      batch.map(async (update) => {
+        const patch: TablesUpdate<'clients'> = { ...update.patch }
+        const marketingConsent = patch.marketing_consent
+        delete patch.marketing_consent
+        if (Object.keys(patch).length > 0) {
+          const { error } = await db
+            .from('clients')
+            .update(patch)
+            .eq('tenant_id', tenantId)
+            .eq('id', update.id)
+
+          if (error) {
+            return error.message
+          }
+        }
+
+        if (marketingConsent !== undefined) {
+          try {
+            await applyClientConsentEvents(db, {
+              tenantId,
+              clientId: update.id,
+              actor: CONSENT_ACTOR.STAFF_MEMBER,
+              actorProfileId: initiatedBy,
+              source: CONSENT_SOURCE.CLIENT_IMPORT,
+              events: buildMarketingConsentEvents({
+                allowed: Boolean(marketingConsent),
+                channel: CONSENT_CHANNEL.IMPORT,
+                source: CONSENT_SOURCE.CLIENT_IMPORT,
+                occurredAt: new Date().toISOString(),
+                metadata: {
+                  import_source: source,
+                  import_filename: filename ?? null,
+                },
+              }),
+            })
+          } catch (consentError) {
+            return consentError instanceof Error ? consentError.message : 'Errore audit consenso import'
+          }
+        }
+
+        return null
+      }),
+    )
+
+    for (const errorMessage of results) {
+      if (errorMessage) {
+        errors.push({ rowIndex: 0, message: `Errore DB (merge): ${errorMessage}` })
+      }
+    }
+  }
+}
+
+async function insertClientImportJob(params: {
+  db: ClientImportDb
+  tenantId: string
+  initiatedBy: string
+  input: ImportClientsInput
+  result: ImportClientsResult
+}): Promise<string | undefined> {
+  const { data, error } = await params.db
     .from('client_import_jobs')
     .insert({
-      tenant_id: tenantId,
-      initiated_by: user.id,
-      source: input.source,
-      filename: input.filename ?? null,
-      total_rows: input.rows.length,
-      imported_count: imported,
-      skipped_count: skipped,
-      error_count: errors.length,
-      errors: errors.slice(0, 100) as unknown as Json,
-      status,
+      tenant_id: params.tenantId,
+      initiated_by: params.initiatedBy,
+      source: params.input.source,
+      filename: params.input.filename ?? null,
+      total_rows: params.input.rows.length,
+      imported_count: params.result.imported,
+      merged_count: params.result.merged,
+      skipped_count: params.result.skipped,
+      error_count: params.result.errors.length,
+      errors: params.result.errors.slice(0, 100) as unknown as Json,
+      status: params.result.status,
     })
     .select('id')
     .single()
 
-  revalidatePath('/dashboard/clienti')
+  if (error) {
+    return undefined
+  }
 
-  return {
-    success: imported > 0 || errors.length === 0,
-    jobId: jobRow?.id,
+  return data?.id
+}
+
+export async function importClientsForTenant(params: {
+  db: ClientImportDb
+  tenantId: string
+  initiatedBy: string
+  input: ImportClientsInput
+}): Promise<ImportClientsResult> {
+  const { db, tenantId, initiatedBy, input } = params
+  const lookupKeys = collectImportLookupKeys(input.rows, input.mapping)
+  const existingLookup = await fetchClientImportDuplicateCandidates(db, tenantId, lookupKeys)
+
+  if (existingLookup.error) {
+    const result = buildImportClientsResult({
+      imported: 0,
+      merged: 0,
+      skipped: 0,
+      errors: [{ rowIndex: 0, message: `Errore DB (lookup): ${existingLookup.error}` }],
+    })
+    const jobId = await insertClientImportJob({
+      db,
+      tenantId,
+      initiatedBy,
+      input,
+      result,
+    })
+
+    return {
+      ...result,
+      jobId,
+    }
+  }
+
+  const plan = prepareClientImportPlan({
+    tenantId,
+    existingClients: existingLookup.data,
+    rows: input.rows,
+    mapping: input.mapping,
+    duplicateStrategy: input.duplicateStrategy,
+    fallbackTags: ['imported'],
+  })
+
+  const errors: ImportError[] = [...plan.errors]
+  const toInsert = plan.toInsert
+  const skipped = plan.skipped
+  const merged = plan.merged
+
+  await applyClientUpdatesInBatches(
+    db,
+    tenantId,
+    initiatedBy,
+    input.filename,
+    input.source,
+    plan.toUpdate,
+    errors,
+  )
+
+  let imported = 0
+  if (toInsert.length > 0) {
+    for (let index = 0; index < toInsert.length; index += CLIENT_IMPORT_INSERT_CHUNK_SIZE) {
+      const chunk = toInsert.slice(index, index + CLIENT_IMPORT_INSERT_CHUNK_SIZE)
+      const { data: insertedRows, error, count } = await db
+        .from('clients')
+        .insert(chunk, { count: 'exact' })
+        .select('id, created_at, marketing_consent')
+
+      if (error) {
+        errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` })
+        break
+      }
+
+      const insertedIds = (insertedRows ?? []).map((row) => row.id)
+
+      try {
+        for (const row of insertedRows ?? []) {
+          await seedClientConsentState(db, {
+            tenantId,
+            clientId: row.id,
+            marketingAllowed: Boolean(row.marketing_consent),
+            churnAllowed: true,
+            actor: CONSENT_ACTOR.STAFF_MEMBER,
+            actorProfileId: initiatedBy,
+            source: CONSENT_SOURCE.CLIENT_IMPORT,
+            occurredAt: row.created_at,
+            metadata: {
+              import_source: input.source,
+              import_filename: input.filename ?? null,
+            },
+          })
+        }
+      } catch (consentError) {
+        if (insertedIds.length > 0) {
+          await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
+        }
+        errors.push({
+          rowIndex: 0,
+          message: consentError instanceof Error ? `Errore audit consenso import: ${consentError.message}` : 'Errore audit consenso import',
+        })
+        break
+      }
+
+      imported += count ?? chunk.length
+    }
+  }
+
+  const result = buildImportClientsResult({
     imported,
+    merged,
     skipped,
     errors,
+  })
+  const jobId = await insertClientImportJob({
+    db,
+    tenantId,
+    initiatedBy,
+    input,
+    result,
+  })
+
+  return {
+    ...result,
+    jobId,
   }
+}
+
+export async function importClients(
+  input: ImportClientsInput,
+): Promise<ImportClientsResult> {
+  const ctx = await getClientiActorContext()
+  if (!ctx) {
+    return { success: false, status: 'failed', error: 'Non autorizzato', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+  if (!hasFullCrmAccess(ctx.currentStaff.role)) {
+    return { success: false, status: 'failed', error: 'Non autorizzato', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+
+  const { tenantId, db } = ctx
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, status: 'failed', error: 'Non autenticato', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+
+  if (!input.rows || input.rows.length === 0) {
+    return { success: false, status: 'failed', error: 'Nessuna riga da importare', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+  if (input.rows.length > 10_000) {
+    return { success: false, status: 'failed', error: 'Massimo 10.000 righe per file', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+
+  const hasName = Object.values(input.mapping).includes('full_name')
+  if (!hasName) {
+    return { success: false, status: 'failed', error: 'Devi mappare almeno la colonna Nome', imported: 0, merged: 0, skipped: 0, errors: [] }
+  }
+
+  const result = await importClientsForTenant({
+    db,
+    tenantId,
+    initiatedBy: user.id,
+    input,
+  })
+
+  revalidatePath('/dashboard/clienti')
+  return result
 }

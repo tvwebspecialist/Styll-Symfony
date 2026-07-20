@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 function startOfDay(d: Date): Date {
   const x = new Date(d)
@@ -43,13 +42,26 @@ export interface RiepilogoData {
   topServizio: { name: string; count: number } | null
 }
 
-export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
+const EMPTY_RIEPILOGO: RiepilogoData = {
+  revenueOggi: 0,
+  revenueSettimana: 0,
+  revenueMese: 0,
+  revenueMesePrecedente: 0,
+  deltaPercentuale: 0,
+  scontrinoMedio: 0,
+  revenueServizi: 0,
+  revenueProdotti: 0,
+  appuntamentiCompletatiOggi: 0,
+  topServizio: null,
+}
 
-  const db = createAdminClient()
+function toNumber(value: number | string | null | undefined): number {
+  return Number(value ?? 0)
+}
+
+export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   const now = new Date()
   const todayStart = startOfDay(now).toISOString()
   const todayEnd = endOfDay(now).toISOString()
@@ -59,102 +71,37 @@ export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
   const prevMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1)).toISOString()
   const prevMonthEnd = endOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1)).toISOString()
 
-  async function appointmentIdsInRange(from: string, to: string) {
-    const { data } = await db
-      .from('appointments')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('status', 'completed')
-      .is('deleted_at', null)
-      .gte('start_time', from)
-      .lte('start_time', to)
-    return (data ?? []).map((r) => r.id)
-  }
+  const { data, error } = await db
+    .rpc('get_sales_summary', {
+      p_tenant_id: tenantId,
+      p_today_start: todayStart,
+      p_today_end: todayEnd,
+      p_week_start: weekStart,
+      p_month_start: monthStart,
+      p_month_end: monthEnd,
+      p_prev_month_start: prevMonthStart,
+      p_prev_month_end: prevMonthEnd,
+    })
+    .maybeSingle()
 
-  async function sumServices(ids: string[]) {
-    if (ids.length === 0) return 0
-    const { data } = await db
-      .from('appointment_services')
-      .select('price_at_booking')
-      .eq('tenant_id', tenantId)
-      .in('appointment_id', ids)
-    return (data ?? []).reduce((s, r) => s + Number(r.price_at_booking ?? 0), 0)
-  }
+  if (error || !data) return EMPTY_RIEPILOGO
 
-  async function sumProducts(ids: string[]) {
-    if (ids.length === 0) return 0
-    const { data } = await db
-      .from('appointment_products')
-      .select('price_at_sale, quantity')
-      .eq('tenant_id', tenantId)
-      .in('appointment_id', ids)
-    return (data ?? []).reduce(
-      (s, r) => s + Number(r.price_at_sale ?? 0) * Number(r.quantity ?? 1),
-      0,
-    )
-  }
-
-  const [todayIds, weekIds, monthIds, prevMonthIds] = await Promise.all([
-    appointmentIdsInRange(todayStart, todayEnd),
-    appointmentIdsInRange(weekStart, todayEnd),
-    appointmentIdsInRange(monthStart, monthEnd),
-    appointmentIdsInRange(prevMonthStart, prevMonthEnd),
-  ])
-
-  const [
-    todayServ,
-    todayProd,
-    weekServ,
-    weekProd,
-    monthServ,
-    monthProd,
-    prevMonthServ,
-    prevMonthProd,
-  ] = await Promise.all([
-    sumServices(todayIds),
-    sumProducts(todayIds),
-    sumServices(weekIds),
-    sumProducts(weekIds),
-    sumServices(monthIds),
-    sumProducts(monthIds),
-    sumServices(prevMonthIds),
-    sumProducts(prevMonthIds),
-  ])
-
-  const revenueOggi = todayServ + todayProd
-  const revenueSettimana = weekServ + weekProd
-  const revenueMese = monthServ + monthProd
-  const revenueMesePrecedente = prevMonthServ + prevMonthProd
+  const revenueOggi = toNumber(data.revenue_today)
+  const revenueSettimana = toNumber(data.revenue_week)
+  const revenueMese = toNumber(data.revenue_month)
+  const revenueMesePrecedente = toNumber(data.revenue_previous_month)
   const deltaPercentuale =
     revenueMesePrecedente > 0
       ? ((revenueMese - revenueMesePrecedente) / revenueMesePrecedente) * 100
       : revenueMese > 0
         ? 100
         : 0
-  const scontrinoMedio = monthIds.length > 0 ? revenueMese / monthIds.length : 0
-
-  let topServizio: { name: string; count: number } | null = null
-  if (monthIds.length > 0) {
-    const { data: topData } = await db
-      .from('appointment_services')
-      .select('service_id, services(name)')
-      .eq('tenant_id', tenantId)
-      .in('appointment_id', monthIds)
-    const counts = new Map<string, { name: string; count: number }>()
-    for (const row of topData ?? []) {
-      const svc = Array.isArray(row.services) ? row.services[0] : row.services
-      const name = svc?.name ?? 'Servizio'
-      const key = row.service_id
-      const cur = counts.get(key)
-      if (cur) cur.count += 1
-      else counts.set(key, { name, count: 1 })
-    }
-    let best: { name: string; count: number } | null = null
-    for (const v of counts.values()) {
-      if (!best || v.count > best.count) best = v
-    }
-    topServizio = best
-  }
+  const appuntamentiCompletatiMese = toNumber(data.appointments_completed_month)
+  const scontrinoMedio = appuntamentiCompletatiMese > 0 ? revenueMese / appuntamentiCompletatiMese : 0
+  const topServizio =
+    data.top_service_name && data.top_service_count
+      ? { name: data.top_service_name, count: toNumber(data.top_service_count) }
+      : null
 
   return {
     revenueOggi,
@@ -163,9 +110,9 @@ export async function getRiepilogo(tenantId: string): Promise<RiepilogoData> {
     revenueMesePrecedente,
     deltaPercentuale,
     scontrinoMedio,
-    revenueServizi: monthServ,
-    revenueProdotti: monthProd,
-    appuntamentiCompletatiOggi: todayIds.length,
+    revenueServizi: toNumber(data.revenue_services_month),
+    revenueProdotti: toNumber(data.revenue_products_month),
+    appuntamentiCompletatiOggi: toNumber(data.appointments_completed_today),
     topServizio,
   }
 }
@@ -192,50 +139,23 @@ export async function getAppuntamentiVendite(
   tenantId: string,
   filters: AppuntamentiFilters = {},
 ): Promise<AppuntamentoVendita[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
-  let q = db
-    .from('appointments')
-    .select(
-      `id, start_time, status, client:clients(full_name), staff:staff_members(profile:profiles(full_name)), appointment_services(price_at_booking, services(name)), appointment_products(price_at_sale, quantity), payments(amount, status)`,
-    )
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .order('start_time', { ascending: false })
-    .limit(200)
-
-  if (filters.dateFrom) q = q.gte('start_time', startOfDay(new Date(filters.dateFrom)).toISOString())
-  if (filters.dateTo) q = q.lte('start_time', endOfDay(new Date(filters.dateTo)).toISOString())
-  if (filters.status && filters.status !== 'tutti') q = q.eq('status', filters.status)
-
-  const { data, error } = await q
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
+  const { data, error } = await db.rpc('get_sales_appointments', {
+    p_tenant_id: tenantId,
+    p_date_from: filters.dateFrom
+      ? startOfDay(new Date(filters.dateFrom)).toISOString()
+      : null,
+    p_date_to: filters.dateTo
+      ? endOfDay(new Date(filters.dateTo)).toISOString()
+      : null,
+    p_status: filters.status && filters.status !== 'tutti' ? filters.status : null,
+  })
   if (error) return []
 
   return (data ?? []).map((r) => {
-    const client = Array.isArray(r.client) ? r.client[0] : r.client
-    const staff = Array.isArray(r.staff) ? r.staff[0] : r.staff
-    const profile = staff && (Array.isArray(staff.profile) ? staff.profile[0] : staff.profile)
-    const services = (r.appointment_services ?? []).map((s) => {
-      const svc = Array.isArray(s.services) ? s.services[0] : s.services
-      return svc?.name ?? ''
-    })
-    const totalServ = (r.appointment_services ?? []).reduce(
-      (sum, s) => sum + Number(s.price_at_booking ?? 0),
-      0,
-    )
-    const totalProd = (r.appointment_products ?? []).reduce(
-      (sum, p) => sum + Number(p.price_at_sale ?? 0) * Number(p.quantity ?? 1),
-      0,
-    )
-    const totalAmount = totalServ + totalProd
-    const paid = (r.payments ?? []).reduce(
-      (sum, p) => sum + Number(p.amount ?? 0),
-      0,
-    )
+    const totalAmount = toNumber(r.total_amount)
+    const paid = toNumber(r.paid_amount)
     let paymentStatus: 'paid' | 'pending' | 'partial' = 'pending'
     if (paid >= totalAmount && totalAmount > 0) paymentStatus = 'paid'
     else if (paid > 0) paymentStatus = 'partial'
@@ -245,11 +165,11 @@ export async function getAppuntamentiVendite(
       id: r.id,
       date: start.toISOString().slice(0, 10),
       time: start.toTimeString().slice(0, 5),
-      clientName: client?.full_name ?? '—',
-      services,
+      clientName: r.client_name ?? '—',
+      services: r.service_names ?? [],
       totalAmount,
       paymentStatus,
-      staffName: profile?.full_name ?? '—',
+      staffName: r.staff_name ?? '—',
       status: r.status,
     }
   })
@@ -274,12 +194,8 @@ export async function getProdottiVenduti(
   tenantId: string,
   filters: ProdottiFilters = {},
 ): Promise<ProdottoVenduto[]> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   const now = new Date()
   const fromIso = filters.dateFrom
     ? startOfDay(new Date(filters.dateFrom)).toISOString()
@@ -288,69 +204,23 @@ export async function getProdottiVenduti(
     ? endOfDay(new Date(filters.dateTo)).toISOString()
     : endOfDay(now).toISOString()
 
-  const { data: appts } = await db
-    .from('appointments')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .gte('start_time', fromIso)
-    .lte('start_time', toIso)
-  const apptIds = (appts ?? []).map((a) => a.id)
+  const { data, error } = await db.rpc('get_sales_products', {
+    p_tenant_id: tenantId,
+    p_from: fromIso,
+    p_to: toIso,
+  })
 
-  if (apptIds.length === 0) return []
+  if (error) return []
 
-  const { data: sales } = await db
-    .from('appointment_products')
-    .select('product_id, price_at_sale, quantity, products(name, brand)')
-    .eq('tenant_id', tenantId)
-    .in('appointment_id', apptIds)
-
-  const map = new Map<string, ProdottoVenduto>()
-  for (const r of sales ?? []) {
-    const p = Array.isArray(r.products) ? r.products[0] : r.products
-    const qty = Number(r.quantity ?? 1)
-    const rev = Number(r.price_at_sale ?? 0) * qty
-    const cur = map.get(r.product_id)
-    if (cur) {
-      cur.totalQty += qty
-      cur.totalRevenue += rev
-    } else {
-      map.set(r.product_id, {
-        productId: r.product_id,
-        productName: p?.name ?? '—',
-        brand: p?.brand ?? null,
-        totalQty: qty,
-        totalRevenue: rev,
-        currentStock: 0,
-        lowStockAlert: false,
-      })
-    }
-  }
-
-  const productIds = Array.from(map.keys())
-  if (productIds.length > 0) {
-    const { data: stock } = await db
-      .from('product_inventory')
-      .select('product_id, quantity, low_stock_threshold')
-      .eq('tenant_id', tenantId)
-      .in('product_id', productIds)
-    const stockMap = new Map<string, { qty: number; threshold: number }>()
-    for (const s of stock ?? []) {
-      const cur = stockMap.get(s.product_id) ?? { qty: 0, threshold: s.low_stock_threshold ?? 0 }
-      cur.qty += Number(s.quantity ?? 0)
-      cur.threshold = Math.max(cur.threshold, Number(s.low_stock_threshold ?? 0))
-      stockMap.set(s.product_id, cur)
-    }
-    for (const [pid, prod] of map) {
-      const s = stockMap.get(pid)
-      if (s) {
-        prod.currentStock = s.qty
-        prod.lowStockAlert = s.qty <= s.threshold
-      }
-    }
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.totalRevenue - a.totalRevenue)
+  return (data ?? []).map((row) => ({
+    productId: row.product_id,
+    productName: row.product_name ?? '—',
+    brand: row.brand ?? null,
+    totalQty: toNumber(row.total_qty),
+    totalRevenue: toNumber(row.total_revenue),
+    currentStock: toNumber(row.current_stock),
+    lowStockAlert: Boolean(row.low_stock_alert),
+  }))
 }
 
 export interface Pagamento {
@@ -378,12 +248,8 @@ export async function getPagamenti(
   tenantId: string,
   filters: PagamentiFilters = {},
 ): Promise<PagamentiResult> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized: tenant mismatch')
-  }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
+  const db = ctx.db
   let q = db
     .from('payments')
     .select('id, paid_at, amount, payment_method, status, client:clients(full_name)')

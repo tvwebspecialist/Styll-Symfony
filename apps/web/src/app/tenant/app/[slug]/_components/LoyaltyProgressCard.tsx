@@ -68,7 +68,7 @@ export function LoyaltyProgressCard({
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
           <div
             ref={barRef}
-            className="h-full rounded-full bg-[var(--brand-primary)]"
+            className="h-full rounded-full styll-bg-brand-primary"
             style={{ width: `${progress}%`, transition: 'width 1s ease-out' }}
           />
         </div>

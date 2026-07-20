@@ -4,7 +4,16 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  buildDpaAcceptanceFields,
+  ensureTenantDpaAcceptance,
+} from '@/lib/legal/dpa'
+import {
+  hasAnyB2bTermsAcceptanceForUser,
+  linkB2bTermsAcceptanceToTenant,
+} from '@/lib/legal/b2b-register-acceptance'
 import { finalizeOnboardingSchema } from '@/lib/validations/auth'
+import { sendWelcomeEmail } from '@/lib/email'
 import type { Json, TablesUpdate } from '@/types'
 
 export interface FinalizeResult {
@@ -64,6 +73,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
 
   const db = createAdminClient()
   const { step1, step2, step3, step4, staff } = parsed.data
+  const dpaAcceptance = buildDpaAcceptanceFields({ acceptedBy: user.id })
 
   // Track any newly-created tenant so we can roll it back on failure.
   let createdTenantId: string | null = null
@@ -100,6 +110,19 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
       .maybeSingle()
 
     const existingTenantId = ownerStaff?.tenant_id ?? null
+    if (!existingTenantId) {
+      const hasAcceptedTerms = await hasAnyB2bTermsAcceptanceForUser({
+        db: db as any,
+        userId: user.id,
+      })
+      if (!hasAcceptedTerms) {
+        return {
+          success: false,
+          error: 'Per completare l’onboarding devi registrarti accettando prima i Termini di Servizio.',
+        }
+      }
+    }
+
     const baseSlug = slugify(step1.name)
     const slug = await ensureUniqueSlug(db, baseSlug, existingTenantId)
 
@@ -138,6 +161,7 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         .from('tenants')
         .insert({
           business_name: step1.name,
+          ...dpaAcceptance,
           slug,
           timezone: 'Europe/Rome',
           settings: tenantSettings as unknown as Json,
@@ -161,6 +185,9 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
         ;(ownerStaff as typeof ownerStaff) = { id: newOwner.id, tenant_id: tenantId }
       }
     }
+
+    await ensureTenantDpaAcceptance(db, tenantId, dpaAcceptance)
+    await linkB2bTermsAcceptanceToTenant({ db: db as any, tenantId, userId: user.id })
 
     // 3) Location (single main location, upsert)
     const locationPayload = {
@@ -315,6 +342,18 @@ export async function finalizeOnboarding(input: unknown): Promise<FinalizeResult
     if (profileErr) throw new Error(profileErr.message)
 
     revalidatePath('/', 'layout')
+
+    // 8) Welcome email — awaited but never throws; failure only logs
+    if (user.email) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
+      await sendWelcomeEmail({
+        email: user.email,
+        businessName: step1.name,
+        slug,
+        dashboardUrl: `${appUrl}/dashboard`,
+      })
+    }
+
     return { success: true }
   } catch (err) {
     // Roll back the newly-created tenant (cascade deletes staff, locations,

@@ -51,9 +51,26 @@ function getCookieDomain(): string | undefined {
   return undefined
 }
 
+function shouldUseSecureCookies(): boolean {
+  if (typeof window === 'undefined') return true
+
+  const host = window.location.hostname
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host === '127.0.0.1'
+  ) {
+    return false
+  }
+
+  return window.location.protocol === 'https:'
+}
+
 export function createClient() {
   // Evaluated inside the factory so it's always client-side, never during SSR.
   const cookieDomain = getCookieDomain()
+  const secure = shouldUseSecureCookies()
 
   return createBrowserClient<Database>(
     // trim() evita whitespace/newline accidentali dalla env
@@ -61,8 +78,8 @@ export function createClient() {
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '').trim(),
     {
       cookieOptions: cookieDomain
-        ? { domain: cookieDomain, sameSite: 'lax', secure: true }
-        : { sameSite: 'lax', secure: true },
+        ? { domain: cookieDomain, sameSite: 'lax', secure }
+        : { sameSite: 'lax', secure },
     }
   )
 }

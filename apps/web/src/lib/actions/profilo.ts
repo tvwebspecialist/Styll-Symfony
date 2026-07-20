@@ -1,6 +1,12 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  buildPortfolioStoragePath,
+  createPortfolioSignedUrl,
+  extractPortfolioStoragePath,
+  PORTFOLIO_BUCKET,
+} from '@/lib/portfolio-storage'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
 import type { Json, TablesUpdate } from '@/types'
@@ -253,14 +259,22 @@ export async function getPortfolio(): Promise<PortfolioPhoto[]> {
     .eq('tenant_id', tenantId)
     .order('display_order', { ascending: true })
     .order('created_at', { ascending: false })
-  return (data ?? []).map((p) => ({
-    id: p.id,
-    photoUrl: p.photo_url,
-    serviceTags: p.service_tags ?? [],
-    isVisible: p.is_visible,
-    displayOrder: p.display_order,
-    createdAt: p.created_at,
-  }))
+  const photos = await Promise.all(
+    (data ?? []).map(async (photo) => {
+      const signedUrl = await createPortfolioSignedUrl(db, photo.photo_url)
+      if (!signedUrl) return null
+      return {
+        id: photo.id,
+        photoUrl: signedUrl,
+        serviceTags: photo.service_tags ?? [],
+        isVisible: photo.is_visible,
+        displayOrder: photo.display_order,
+        createdAt: photo.created_at,
+      } satisfies PortfolioPhoto
+    })
+  )
+
+  return photos.filter((photo): photo is PortfolioPhoto => photo !== null)
 }
 
 export async function getServicesForTags(): Promise<ServiceOption[]> {
@@ -297,14 +311,14 @@ export async function addPortfolioPhoto(
     const db = createAdminClient()
     const extByType: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
     const ext = extByType[file.type] ?? 'jpg'
-    const path = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const path = buildPortfolioStoragePath(tenantId, ext)
     const buf = Buffer.from(await file.arrayBuffer())
     const { error: upErr } = await db.storage
-      .from('portfolio')
+      .from(PORTFOLIO_BUCKET)
       .upload(path, buf, { contentType: file.type, upsert: false })
     if (upErr) return { ok: false, error: upErr.message }
-    const { data: pub } = db.storage.from('portfolio').getPublicUrl(path)
-    const url = pub.publicUrl
+    const signedUrl = await createPortfolioSignedUrl(db, path)
+    if (!signedUrl) return { ok: false, error: "Impossibile generare l'anteprima della foto." }
 
     const tagsArr = tags.split(',').map((t) => t.trim()).filter(Boolean)
     const { data, error } = await db
@@ -312,7 +326,7 @@ export async function addPortfolioPhoto(
       .insert({
         tenant_id: tenantId,
         staff_id: staffId,
-        photo_url: url,
+        photo_url: path,
         service_tags: tagsArr,
         is_visible: visible,
       })
@@ -323,7 +337,7 @@ export async function addPortfolioPhoto(
       ok: true,
       photo: {
         id: data.id,
-        photoUrl: data.photo_url,
+        photoUrl: signedUrl,
         serviceTags: data.service_tags ?? [],
         isVisible: data.is_visible,
         displayOrder: data.display_order,
@@ -350,8 +364,10 @@ export async function deletePortfolioPhoto(
       .eq('id', photoId)
       .maybeSingle()
     if (!photo || photo.tenant_id !== tenantId) return { ok: false, error: 'Non trovato' }
-    const m = photo.photo_url.match(/\/portfolio\/(.+)$/)
-    if (m) await db.storage.from('portfolio').remove([m[1]])
+    const storagePath = extractPortfolioStoragePath(photo.photo_url)
+    if (storagePath) {
+      await db.storage.from(PORTFOLIO_BUCKET).remove([storagePath])
+    }
     await db.from('portfolio_photos').delete().eq('id', photoId)
     return { ok: true }
   } catch (e) {
@@ -539,6 +555,36 @@ export async function deleteAccount(
       return { ok: false, error: "Inserisci la tua email per confermare l'eliminazione" }
     }
     const db = createAdminClient()
+
+    // Collect all client IDs linked to this profile (across all tenants)
+    const { data: clientRows } = await db
+      .from('clients')
+      .select('id')
+      .eq('profile_id', user.id)
+
+    const clientIds = (clientRows ?? []).map((r) => r.id)
+
+    if (clientIds.length > 0) {
+      await Promise.all([
+        db.from('client_notes').delete().in('client_id', clientIds),
+        db.from('client_loyalty').delete().in('client_id', clientIds),
+        db.from('client_analytics').delete().in('client_id', clientIds),
+        db.from('client_badges').delete().in('client_id', clientIds),
+      ])
+    }
+
+    await db.from('push_subscriptions').delete().eq('profile_id', user.id)
+
+    const { data: avatarFiles } = await db.storage.from('avatars').list(user.id)
+    if (avatarFiles && avatarFiles.length > 0) {
+      const paths = avatarFiles.map((f) => `${user.id}/${f.name}`)
+      await db.storage.from('avatars').remove(paths)
+    }
+
+    // appointments e loyalty_transactions conservati per
+    // possibili obblighi fiscali (Art. 2220 c.c.).
+    // Il collegamento CRM viene rimosso tramite soft-delete
+    // del profilo cliente.
     const { error } = await db
       .from('profiles')
       .update({

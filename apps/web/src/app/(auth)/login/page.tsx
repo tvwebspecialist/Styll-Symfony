@@ -1,10 +1,10 @@
-import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { GoogleButton } from '@/components/auth/google-button'
 import { LoginForm } from '@/components/auth/login-form'
+import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 
 export const metadata: Metadata = {
   title: 'Accedi — Styll',
@@ -24,13 +24,33 @@ function Divider() {
   )
 }
 
-export default function LoginPage() {
+interface PageProps {
+  searchParams: Promise<{
+    intent?: string | string[] | undefined
+    error?: string | string[] | undefined
+    redirectTo?: string | string[] | undefined
+  }>
+}
+
+function firstString(value: string | string[] | undefined): string | null {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value[0] ?? null
+  return null
+}
+
+export default async function LoginPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const intent = readTrialIntent(params.intent)
+  const registerHref = buildPathWithTrialIntent('/register', intent)
+  const initialError = firstString(params.error)
+  const redirectTo = firstString(params.redirectTo)
+
   return (
     <AuthSplitLayout
       caption="Il tuo salone ti aspetta. Tutto pronto per la prossima prenotazione."
       mobileTopRight={
         <Link
-          href="/register"
+          href={registerHref}
           className="text-xs font-medium"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
@@ -100,13 +120,11 @@ export default function LoginPage() {
         </p>
       </header>
 
-      <GoogleButton label="Continua con Google" />
+      <GoogleButton intent={intent} label="Continua con Google" oauthFlow="login" />
 
       <Divider />
 
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
+      <LoginForm initialError={initialError} redirectTo={redirectTo} />
 
       <p
         className="mt-6 text-center text-sm"
@@ -114,7 +132,7 @@ export default function LoginPage() {
       >
         Non hai un account?{' '}
         <Link
-          href="/register"
+          href={registerHref}
           className="font-semibold underline-offset-2 hover:underline"
           style={{ color: 'var(--color-fg)' }}
         >

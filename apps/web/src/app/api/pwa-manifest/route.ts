@@ -46,15 +46,15 @@ export async function GET(req: NextRequest) {
 
   const headers = {
     'Content-Type': 'application/manifest+json',
-    'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+    'Cache-Control': 'public, max-age=3600, must-revalidate',
   }
 
   if (!tenant || tenant.status !== 'active') {
     const fallbackBase = `${baseUrl}/api/pwa-icon?slug=default&v=0`
     return new NextResponse(
       JSON.stringify({
-        name: 'Styll',
-        short_name: 'Styll',
+        name: 'App del salone',
+        short_name: 'App',
         theme_color: '#1a1a1a',
         background_color: '#1a1a1a',
         display: 'standalone',
@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
       name: tenant.business_name,
       short_name: shortName,
       description: `Prenota con ${tenant.business_name}`,
-      theme_color: tenant.primary_color ?? '#1a1a1a',
-      background_color: tenant.primary_color ?? '#1a1a1a',
+      theme_color: tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a',
+      background_color: tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a',
       display: 'standalone',
       orientation: 'portrait',
       lang: 'it',

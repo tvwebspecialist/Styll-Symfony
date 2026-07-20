@@ -10,7 +10,7 @@ export async function getUpsellProductsAction(params: {
   clientId?: string
   limit?: number
 }): Promise<UpsellProduct[]> {
-  const { tenantId, locationId, serviceCategories, clientId, limit = 6 } = params
+  const { tenantId, locationId, clientId } = params
   const db = createAdminClient()
 
   const [productRes, inventoryRes, wishlistRes] = await Promise.all([
@@ -21,7 +21,7 @@ export async function getUpsellProductsAction(params: {
       .eq('is_active', true)
       .eq('show_on_site', true)
       .order('display_order', { ascending: true })
-      .limit(30),
+      .limit(50),
     db
       .from('product_inventory')
       .select('product_id, quantity')
@@ -49,8 +49,6 @@ export async function getUpsellProductsAction(params: {
     ),
   )
 
-  const categorySet = new Set(serviceCategories)
-
   type RawProduct = {
     id: string
     name: string
@@ -63,28 +61,34 @@ export async function getUpsellProductsAction(params: {
     is_new: boolean
   }
 
-  const products = (productRes.data as unknown as RawProduct[]).map((p) => ({
-    id: p.id,
-    name: p.name,
-    brand: p.brand,
-    price_sell: Number(p.price_sell ?? 0),
-    photo_url: p.photo_url,
-    category: p.category,
-    description: p.description,
-    is_new: p.is_new,
-    is_favourite: wishlistSet.has(p.id),
-    available: (inventoryMap.get(p.id) ?? 0) > 0,
-    display_order: p.display_order,
-  }))
+  // Only products with stock > 0
+  const available = (productRes.data as unknown as RawProduct[])
+    .filter((p) => (inventoryMap.get(p.id) ?? 1) > 0)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      price_sell: Number(p.price_sell ?? 0),
+      photo_url: p.photo_url,
+      category: p.category,
+      description: p.description,
+      is_new: p.is_new,
+      is_favourite: wishlistSet.has(p.id),
+      available: true as const,
+      display_order: p.display_order,
+    }))
 
-  function priority(p: (typeof products)[0]): number {
-    if (p.is_favourite) return 1
-    if (p.category && categorySet.has(p.category)) return 2
-    return 3
+  const wishlistItems = available.filter((p) => p.is_favourite)
+  const rest = available.filter((p) => !p.is_favourite)
+
+  // Fisher-Yates shuffle for random fill
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[rest[i], rest[j]] = [rest[j]!, rest[i]!]
   }
 
-  return products
-    .sort((a, b) => priority(a) - priority(b) || a.display_order - b.display_order)
-    .slice(0, limit)
-    .map(({ display_order: _d, ...rest }) => rest)
+  // Wishlist first (up to 4), fill remainder with random non-wishlist
+  const result = [...wishlistItems.slice(0, 4), ...rest].slice(0, 4)
+
+  return result.map(({ display_order: _d, ...r }) => r)
 }

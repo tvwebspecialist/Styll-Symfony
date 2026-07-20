@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -9,6 +9,7 @@ import { NavFooter, OnboardingShell } from '@/components/onboarding/onboarding-s
 import { TeamIllustration } from '@/components/illustrations'
 import { onboardingStorage, totalSteps } from '@/lib/onboarding-storage'
 import { finalizeOnboarding } from '@/app/(auth)/onboarding/actions'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 import type { StaffRole } from '@/types/database'
 
 interface Member {
@@ -27,25 +28,27 @@ const EMPTY_MEMBER: Member = { name: '', email: '', role: 'staff' }
 
 export default function OnboardingStaffPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [hydrated, setHydrated] = useState(false)
   const [members, setMembers] = useState<Member[]>([EMPTY_MEMBER])
   const [isPending, startTransition] = useTransition()
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
 
   useEffect(() => {
     const s = onboardingStorage.read()
     if (s.step2.work_mode !== 'team') {
-      router.replace('/onboarding/step-2')
+      router.replace(buildPathWithTrialIntent('/onboarding/step-2', intent))
       return
     }
     if (!s.step1.name.trim() || s.step3.services.length === 0) {
-      router.replace('/onboarding/step-1')
+      router.replace(buildPathWithTrialIntent('/onboarding/step-1', intent))
       return
     }
     /* eslint-disable react-hooks/set-state-in-effect */
     setMembers(s.staff.members.length > 0 ? s.staff.members : [EMPTY_MEMBER])
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [router])
+  }, [intent, router])
 
   function update(idx: number, patch: Partial<Member>) {
     setMembers((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)))
@@ -80,7 +83,7 @@ export default function OnboardingStaffPage() {
         return
       }
       onboardingStorage.clear()
-      window.location.href = '/onboarding/complete'
+      window.location.href = buildPathWithTrialIntent('/onboarding/complete', intent)
     })
   }
 
@@ -107,7 +110,7 @@ export default function OnboardingStaffPage() {
       illustration={<TeamIllustration />}
       footer={
         <NavFooter
-          backHref="/onboarding/step-4"
+          backHref={buildPathWithTrialIntent('/onboarding/step-4', intent)}
           onNext={handleNext}
           nextLabel="Vai alla dashboard →"
           nextLoading={isPending}
@@ -155,7 +158,7 @@ export default function OnboardingStaffPage() {
               onClick={() => remove(idx)}
               disabled={members.length === 1}
               aria-label="Rimuovi membro"
-              className="rounded-md p-2 transition-colors hover:bg-[color:var(--color-bg-secondary)] disabled:opacity-30"
+              className="rounded-md p-2 transition-colors styll-hover-color-bg-secondary disabled:opacity-30"
               style={{ color: 'var(--color-fg-secondary)' }}
             >
               <Trash2 className="h-4 w-4" />
@@ -168,7 +171,7 @@ export default function OnboardingStaffPage() {
         type="button"
         onClick={add}
         disabled={members.length >= 10}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-[12px] border border-dashed py-3 text-sm font-medium transition-colors hover:bg-[color:var(--color-bg-secondary)] disabled:opacity-50"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-[12px] border border-dashed py-3 text-sm font-medium transition-colors styll-hover-color-bg-secondary disabled:opacity-50"
         style={{ borderColor: 'var(--color-border-strong)', color: 'var(--color-fg)' }}
       >
         <Plus className="h-4 w-4" /> Aggiungi membro

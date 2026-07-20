@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
 import { NavFooter, OnboardingShell } from '@/components/onboarding/onboarding-shell'
@@ -13,19 +13,27 @@ import {
   totalSteps,
 } from '@/lib/onboarding-storage'
 import { finalizeOnboarding } from '@/app/(auth)/onboarding/actions'
+import { buildPathWithTrialIntent, normalizeTrialIntent } from '@/lib/trial-intent'
 import type { OpeningHourRow, WorkMode } from '@/types/database'
 
 export default function OnboardingStep4Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [hydrated, setHydrated] = useState(false)
   const [workMode, setWorkMode] = useState<WorkMode>('solo')
   const [hours, setHours] = useState<OpeningHourRow[]>(DEFAULT_HOURS)
   const [isPending, startTransition] = useTransition()
+  const intent = normalizeTrialIntent(searchParams.get('intent'))
 
   useEffect(() => {
     const s = onboardingStorage.read()
     if (!s.step1.name.trim() || s.step3.services.length === 0) {
-      router.replace(s.step1.name.trim() ? '/onboarding/step-3' : '/onboarding/step-1')
+      router.replace(
+        buildPathWithTrialIntent(
+          s.step1.name.trim() ? '/onboarding/step-3' : '/onboarding/step-1',
+          intent
+        )
+      )
       return
     }
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -33,7 +41,7 @@ export default function OnboardingStep4Page() {
     setHours(s.step4.hours.length === 7 ? s.step4.hours : DEFAULT_HOURS)
     setHydrated(true)
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [router])
+  }, [intent, router])
 
   function updateRow(idx: number, patch: Partial<OpeningHourRow>) {
     setHours((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
@@ -42,7 +50,7 @@ export default function OnboardingStep4Page() {
   function handleNext() {
     onboardingStorage.set('step4', { hours })
     if (workMode === 'team') {
-      router.push('/onboarding/staff')
+      router.push(buildPathWithTrialIntent('/onboarding/staff', intent))
       return
     }
     startTransition(async () => {
@@ -59,7 +67,7 @@ export default function OnboardingStep4Page() {
         return
       }
       onboardingStorage.clear()
-      window.location.href = '/onboarding/complete'
+      window.location.href = buildPathWithTrialIntent('/onboarding/complete', intent)
     })
   }
 
@@ -75,7 +83,7 @@ export default function OnboardingStep4Page() {
       illustration={<CalendarIllustration />}
       footer={
         <NavFooter
-          backHref="/onboarding/step-3"
+          backHref={buildPathWithTrialIntent('/onboarding/step-3', intent)}
           onNext={handleNext}
           nextLabel={workMode === 'team' ? 'Avanti →' : 'Vai alla dashboard →'}
           nextLoading={isPending}

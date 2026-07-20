@@ -2,6 +2,16 @@
 
 import * as React from 'react'
 import { stopTenantImpersonation } from '@/app/admin/actions'
+import { buildRootAppUrl } from '@/lib/auth/urls'
+
+function resolveAdminExitUrl() {
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return '/admin'
+  }
+
+  return buildRootAppUrl('/admin')
+}
 
 export function StopImpersonationButton() {
   const [pending, startTransition] = React.useTransition()
@@ -9,14 +19,14 @@ export function StopImpersonationButton() {
   function handle() {
     startTransition(async () => {
       await stopTenantImpersonation()
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
-      window.location.href = `https://${rootDomain}/admin`
+      window.location.href = resolveAdminExitUrl()
     })
   }
 
   return (
     <button
       type="button"
+      aria-label="Esci da shadow mode"
       onClick={handle}
       disabled={pending}
       style={{

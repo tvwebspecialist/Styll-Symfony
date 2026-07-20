@@ -7,6 +7,7 @@ import { ArrowRight, Check, Plus, Scissors } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toggleWishlist } from '@/lib/actions/wishlist'
 import type { UpsellProduct } from '@/lib/actions/public-booking'
+import { floatingCardShellStyle } from '@/components/pwa/FloatingCard'
 
 interface BookingUpsellDrawerProps {
   products: UpsellProduct[]
@@ -77,8 +78,8 @@ export function BookingUpsellDrawer({
 
       <motion.div
         key="upsell-drawer"
-        className="fixed bottom-4 left-4 right-4 z-[201] flex flex-col overflow-hidden bg-white"
-        style={{ maxHeight: '85vh', borderRadius: '24px' }}
+        className="fixed bottom-2 left-2 right-2 z-[201] flex flex-col overflow-hidden"
+        style={{ ...floatingCardShellStyle, maxHeight: '88vh' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

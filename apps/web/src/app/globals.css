@@ -246,12 +246,77 @@
   border-color: var(--color-border-strong);
   background-color: var(--color-bg-secondary);
 }
+
+.styll-bg-admin-accent {
+  background-color: var(--admin-accent);
+}
+
+.styll-bg-brand-primary {
+  background-color: var(--brand-primary);
+}
+
+.styll-bg-brand-primary-soft {
+  background-color: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+}
+
+.styll-bg-color-bg {
+  background-color: var(--color-bg);
+}
+
+.styll-focus-brand-primary {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.styll-focus-brand-primary:focus,
+.styll-focus-brand-primary:focus-visible {
+  border-color: var(--brand-primary);
+}
+
+.styll-focus-brand-primary-ring {
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.styll-focus-brand-primary-ring:focus,
+.styll-focus-brand-primary-ring:focus-visible {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 30%, transparent);
+}
+
+.styll-progress-brand {
+  accent-color: var(--brand-primary);
+}
+
+.styll-progress-brand::-webkit-progress-bar {
+  border-radius: 9999px;
+  background-color: rgb(255 255 255 / 10%);
+}
+
+.styll-progress-brand::-webkit-progress-value {
+  border-radius: 9999px;
+  background-color: var(--brand-primary);
+}
+
+.styll-progress-brand::-moz-progress-bar {
+  border-radius: 9999px;
+  background-color: var(--brand-primary);
+}
+
+@media (hover: hover) {
+  .styll-hover-admin-hover-bg:hover {
+    background-color: var(--admin-hover-bg);
+  }
+
+  .styll-hover-color-bg-secondary:hover {
+    background-color: var(--color-bg-secondary);
+  }
+}
+
 :root {
   --sidebar-bg: #FBFBFB;
   --sidebar-width: 220px;
   --topbar-height: 88px;
   --layout-gap: 16px;
-  --bottom-nav-height: 80px;
+  --bottom-nav-height: 64px;
   --mobile-topbar-height: 88px;
   --mobile-simple-topbar-height: 82px;
   --mobile-home-topbar-height: 120px;
@@ -319,18 +384,49 @@
 
 /* ─── Admin (super-admin area) — light only ──────────────────── */
 :root {
-  --admin-bg: #F0F0F6;
+  --admin-bg: #FBFBFB;
   --admin-surface: #FFFFFF;
-  --admin-surface-2: #F7F7FC;
+  --admin-surface-2: #F5F5F5;
   --admin-border: rgba(0, 0, 0, 0.08);
   --admin-border-strong: rgba(0, 0, 0, 0.14);
-  --admin-text: #111118;
-  --admin-text-muted: #52525e;
-  --admin-text-subtle: #8888a0;
+  --admin-text: #222222;
+  --admin-text-muted: #6B7280;
+  --admin-text-subtle: #9CA3AF;
   --admin-accent: #E94560;
-  --admin-active-bg: #111118;
+  --admin-accent-subtle: rgba(233, 69, 96, 0.08);
+  --admin-active-bg: #222222;
   --admin-active-fg: #FFFFFF;
   --admin-hover-bg: rgba(0, 0, 0, 0.04);
+  --admin-sidebar-bg: #FFFFFF;
+  --admin-sidebar-width: 228px;
+  --admin-topbar-height: 64px;
+}
+
+/* Admin nav active indicator */
+.admin-nav-active {
+  background-color: var(--admin-accent-subtle) !important;
+  color: var(--admin-accent) !important;
+  border-left: 3px solid var(--admin-accent);
+  font-weight: 600;
+}
+.admin-nav-active svg {
+  color: var(--admin-accent) !important;
+}
+.admin-nav-inactive {
+  border-left: 3px solid transparent;
+  color: var(--admin-text-muted);
+}
+.admin-nav-inactive:hover {
+  background-color: var(--admin-hover-bg);
+  color: var(--admin-text);
+}
+
+/* Admin card baseline */
+.admin-card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 @keyframes tabFadeIn {
@@ -518,21 +614,27 @@
   animation: dashWidgetIn 0.25s ease-out both;
 }
 
-/* ─── Dashboard Home v2 — Greeting + Bento + Calendar ──────────
+/* ─── Dashboard Home v2 — Unified white shell ───────────────────
+ * Single white container wraps both columns.
  * Mobile: single column, calendar hidden.
- * Desktop (>1024px): main (greeting+bento) | calendar 430px.
+ * Desktop (>1024px): left scrolls | right (430px) sticky.
  * ------------------------------------------------------------ */
+
+/* Mobile: unified shell — matches sidebar/topbar style */
 .home-v2-root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
+  background: var(--sidebar-bg, #FBFBFB);
+  border-radius: 20px;
+  overflow: hidden;
 }
 
 .home-v2-main {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 16px;
+  padding: 16px 16px 24px;
 }
 
 /* Calendar hidden on mobile */
@@ -540,9 +642,25 @@
   display: none;
 }
 
-/* Greeting + divider block — hidden on mobile (topbar handles it) */
+/* Mobile overrides — max 1024px */
 @media (max-width: 1024px) {
+  /* Greeting block hidden on mobile (topbar handles it) */
   .home-v2-greeting-block { display: none; }
+
+  /* Remove the outer card shell on mobile — MainContent already provides
+   * 16px horizontal padding via safe-area-aware padding. Keeping the rounded
+   * card here would (a) clip children at the corners and (b) create double
+   * horizontal padding (32px total instead of the intended 16px). */
+  .home-v2-root {
+    background: transparent;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  /* Remove horizontal padding from the scroll column — MainContent owns it. */
+  .home-v2-main {
+    padding: 16px 0 24px;
+  }
 }
 
 /* Bento: 1-col mobile, 2-col tablet+ */
@@ -563,16 +681,20 @@
   .home-v2-root {
     display: grid;
     grid-template-columns: 1fr 430px;
-    gap: 16px;
+    gap: 0;
     height: 100%;
     overflow: hidden;
+    border-radius: 20px;
+    background: var(--sidebar-bg, #FBFBFB);
   }
 
   .home-v2-main {
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    padding-bottom: 32px;
+    padding: 24px 24px 32px;
+    gap: 20px;
+    border-right: 1px solid rgba(0,0,0,0.05);
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -584,8 +706,6 @@
     overflow: hidden;
   }
   .home-v2-calendar-sticky {
-    position: sticky;
-    top: 24px;
     height: 100%;
   }
 
@@ -607,65 +727,67 @@
   gap: 16px;
 }
 
-/* 3D icon KPI cards */
-.kpi-card-3d {
+/* ─── Shopify-style KPI grid ──────────────────────────────────────────────── */
+
+.kpi-shopify-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 380px) {
+  .kpi-shopify-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpi-shopify-card {
   position: relative;
   overflow: hidden;
-}
-.kpi-card-3d-icon {
-  position: absolute;
-  bottom: -8px;
-  right: -8px;
-  width: 90px;
-  height: 90px;
-  object-fit: contain;
-  opacity: 0.92;
-  pointer-events: none;
+  background: var(--card-bg, #FFFFFF);
+  border: 1px solid var(--card-border, #E9E9E9);
+  border-radius: var(--card-radius, 16px);
+  box-shadow: var(--card-shadow, 0 1px 3px rgba(10,13,18,0.08));
+  padding: 18px 18px 18px 18px;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  outline: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   user-select: none;
 }
 
-/* KPI row — responsive grid: 1-col mobile, 2-col mid, 3-col desktop */
-.home-kpi-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
+.kpi-shopify-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  transform: translateY(-2px);
 }
 
-@media (min-width: 480px) {
-  .home-kpi-row {
-    grid-template-columns: 1fr 1fr;
-  }
+.kpi-shopify-card:active {
+  transform: translateY(0px);
+  box-shadow: var(--card-shadow, 0 1px 3px rgba(10,13,18,0.08));
 }
 
-@media (min-width: 1025px) {
-  .home-kpi-row {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-}
-
-/* KPI cards — scale down icon and value on mobile */
 @media (max-width: 1024px) {
-  /* Remove outer card chrome — KPI cards have their own colored backgrounds */
-  .home-main-card {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-  }
-
-  .kpi-card-3d-icon {
-    width: 180px !important;
-    height: 180px !important;
-    bottom: -48px !important;
-    right: -36px !important;
-  }
-
-  .kpi-card-value {
-    font-size: 28px !important;
-    padding-right: 80px !important;
+  .kpi-shopify-card {
+    min-height: 108px;
+    padding: 16px 16px;
   }
 }
+
+/* Legacy — kept for old components that still reference these */
+.kpi-card-3d { position: relative; overflow: hidden; }
+.kpi-card-3d-icon {
+  position: absolute; bottom: -8px; right: -8px;
+  width: 90px; height: 90px;
+  object-fit: contain; opacity: 0.92;
+  pointer-events: none; user-select: none;
+}
+.home-kpi-row { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 480px) { .home-kpi-row { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1025px) { .home-kpi-row { grid-template-columns: 1fr 1fr 1fr; } }
 
 /* KPI strip: horizontal scroll on mobile */
 .home-kpi-scroll {
@@ -761,17 +883,17 @@
 /* Greeting responsive overrides */
 @media (max-width: 1280px) {
   .dashboard-greeting-title {
-    font-size: 40px !important;
-    letter-spacing: -1px !important;
+    font-size: 34px !important;
+    letter-spacing: -0.7px !important;
   }
 }
 @media (max-width: 900px) {
   .dashboard-greeting-title {
-    font-size: 32px !important;
-    letter-spacing: -0.8px !important;
+    font-size: 28px !important;
+    letter-spacing: -0.5px !important;
   }
   .dashboard-greeting-sub {
-    font-size: 18px !important;
+    font-size: 13px !important;
   }
 }
 
@@ -802,33 +924,14 @@
   width: 100%;
   height: auto;
   box-sizing: border-box;
-  -webkit-backdrop-filter: blur(28px) saturate(210%);
-  backdrop-filter: blur(28px) saturate(210%);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.68)),
-    rgba(250, 251, 253, 0.72);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.62);
-  border-bottom-left-radius: 24px;
-  border-bottom-right-radius: 24px;
-  box-shadow:
-    inset 0 -1px 0 rgba(255, 255, 255, 0.45),
-    0 1px 0 rgba(15, 23, 42, 0.04),
-    0 12px 40px rgba(15, 23, 42, 0.11);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  backdrop-filter: blur(28px) saturate(200%);
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom-left-radius: 40px;
+  border-bottom-right-radius: 40px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(0, 0, 0, 0.04);
   padding-top: env(safe-area-inset-top);
-  overflow: hidden;
   transform: translateZ(0);
-  isolation: isolate;
-}
-
-.topbar-glass::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.95), transparent 32%),
-    radial-gradient(circle at 88% 12%, rgba(226, 232, 240, 0.6), transparent 28%);
 }
 
 .topbar-glass > * {
@@ -1040,7 +1143,7 @@
     transform: none !important;
     width: calc(100vw - 32px) !important;
     max-width: none !important;
-    border-radius: 20px !important;
+    border-radius: 28px !important;
     max-height: 85vh !important;
   }
 
@@ -1060,7 +1163,7 @@
     transform: none !important;
     width: calc(100% - 32px) !important;
     max-width: none !important;
-    border-radius: 20px !important;
+    border-radius: 28px !important;
     max-height: 85vh !important;
     margin: 0 16px 16px !important;
   }
@@ -1111,4 +1214,31 @@
 @keyframes bookingModalIn {
   from { opacity: 0; transform: translateY(20px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ─── WhatsApp-style Inbox ───────────────────────────────────────────────────
+ * On mobile (<640px) the split panel collapses: list and thread alternate.
+ * inbox-panel-list--hidden / inbox-panel-thread--visible control visibility.
+ * Back button visible only on mobile.
+ * ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  .inbox-panel-list {
+    width: 100% !important;
+    border-right: none !important;
+  }
+  .inbox-panel-list--hidden {
+    display: none !important;
+  }
+  .inbox-panel-thread {
+    display: none;
+    position: absolute;
+    inset: 0;
+  }
+  .inbox-panel-thread--visible {
+    display: flex !important;
+    position: relative;
+  }
+  .inbox-back-btn {
+    display: flex !important;
+  }
 }

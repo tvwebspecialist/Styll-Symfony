@@ -1,50 +1,23 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendVerificationCodeEmail } from '@/lib/email'
+import {
+  sendEmailVerificationOtp,
+  getPepper,
+  hashOtp,
+  normalizeVerificationCode,
+  normalizeVerificationEmail,
+  otpHashesEqual,
+} from '@/lib/email-verification'
+import { checkRateLimit } from '@/lib/rate-limit'
 import type { TablesUpdate } from '@/types'
-
-function generateOtpCode(): string {
-  // Cryptographically secure 6-digit code
-  const array = new Uint32Array(1)
-  crypto.getRandomValues(array)
-  return String(100000 + (array[0] % 900000))
-}
 
 // ─── Send (or re-send) a verification code ───────────────────────────────────
 
 export async function sendEmailVerificationOTP(
   email: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createAdminClient()
-  const code = generateOtpCode()
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
-
-  // Invalidate any previous unused tokens for this address
-  await db
-    .from('email_verification_tokens')
-    .update({ used: true })
-    .eq('email', email)
-    .eq('used', false)
-
-  const { error: insertErr } = await db.from('email_verification_tokens').insert({
-    email,
-    code,
-    expires_at: expiresAt.toISOString(),
-    last_sent_at: new Date().toISOString(),
-  })
-
-  if (insertErr) {
-    console.error('[sendEmailVerificationOTP] insert error:', insertErr.message)
-    return { success: false, error: 'Errore interno. Riprova.' }
-  }
-
-  const emailResult = await sendVerificationCodeEmail({ email, code })
-  if (!emailResult.success) {
-    return { success: false, error: "Errore nell'invio dell'email. Riprova." }
-  }
-
-  return { success: true }
+  return sendEmailVerificationOtp(email)
 }
 
 // ─── Resend with 60-second server-side rate limit ────────────────────────────
@@ -52,28 +25,24 @@ export async function sendEmailVerificationOTP(
 export async function resendEmailOTP(
   email: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createAdminClient()
+  const key = normalizeVerificationEmail(email)
 
-  const { data: latest } = await db
-    .from('email_verification_tokens')
-    .select('last_sent_at, used')
-    .eq('email', email)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (latest && !latest.used) {
-    const secondsSince = (Date.now() - new Date(latest.last_sent_at).getTime()) / 1000
-    if (secondsSince < 60) {
-      const remaining = Math.ceil(60 - secondsSince)
-      return {
-        success: false,
-        error: `Puoi richiedere un nuovo codice tra ${remaining} secondi.`,
-      }
-    }
+  const cooldown = checkRateLimit(`resend-otp:cooldown:${key}`, 1, 60_000)
+  if (!cooldown.allowed) {
+    return { success: false, error: `Attendi ${cooldown.retryAfterSec}s prima di reinviare.` }
   }
 
-  return sendEmailVerificationOTP(email)
+  const quota = checkRateLimit(`resend-otp:quota:${key}`, 3, 60 * 60_000)
+  if (!quota.allowed) {
+    return { success: false, error: 'Limite raggiunto. Riprova tra un\'ora.' }
+  }
+
+  return sendEmailVerificationOtp(email)
+}
+
+interface VerifyEmailOtpDeps {
+  db?: ReturnType<typeof createAdminClient>
+  now?: () => Date
 }
 
 // ─── Validate the code the user entered ──────────────────────────────────────
@@ -81,18 +50,34 @@ export async function resendEmailOTP(
 export async function verifyEmailOTP(
   email: string,
   code: string,
+  deps: VerifyEmailOtpDeps = {},
 ): Promise<{ success: boolean; error?: string }> {
-  const db = createAdminClient()
-  const now = new Date()
+  const db = deps.db ?? createAdminClient()
+  const now = deps.now?.() ?? new Date()
+  const normalizedEmail = normalizeVerificationEmail(email)
+  const normalizedCode = normalizeVerificationCode(code)
 
-  const { data: token } = await db
+  let pepper: string
+  try {
+    pepper = getPepper()
+  } catch {
+    console.error('[verifyEmailOTP] missing OTP pepper')
+    return { success: false, error: 'Errore interno. Riprova.' }
+  }
+
+  const { data: token, error: tokenError } = await db
     .from('email_verification_tokens')
-    .select('*')
-    .eq('email', email)
+    .select('id, code_hash, expires_at, used, attempts, locked_until')
+    .eq('email', normalizedEmail)
     .eq('used', false)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (tokenError) {
+    console.error('[verifyEmailOTP] token lookup error:', tokenError.message)
+    return { success: false, error: 'Errore interno. Riprova.' }
+  }
 
   if (!token) {
     return { success: false, error: 'Codice non trovato. Richiedi un nuovo codice.' }
@@ -114,14 +99,23 @@ export async function verifyEmailOTP(
     return { success: false, error: 'Codice scaduto. Richiedi un nuovo codice.' }
   }
 
-  // Code check
-  if (token.code !== code.trim()) {
+  // Timing-safe hash comparison — plaintext input is never logged or stored
+  const inputHash = hashOtp(normalizedCode, pepper)
+  if (!otpHashesEqual(token.code_hash, inputHash)) {
     const newAttempts = (token.attempts as number) + 1
     const updates: TablesUpdate<'email_verification_tokens'> = { attempts: newAttempts }
     if (newAttempts >= 5) {
       updates.locked_until = new Date(now.getTime() + 5 * 60_000).toISOString()
     }
-    await db.from('email_verification_tokens').update(updates).eq('id', token.id)
+    const { error: attemptError } = await db
+      .from('email_verification_tokens')
+      .update(updates)
+      .eq('id', token.id)
+
+    if (attemptError) {
+      console.error('[verifyEmailOTP] attempts update error:', attemptError.message)
+      return { success: false, error: 'Errore interno. Riprova.' }
+    }
 
     if (newAttempts >= 5) {
       return { success: false, error: 'Troppi tentativi. Riprova tra 5 minuti.' }
@@ -133,18 +127,48 @@ export async function verifyEmailOTP(
     }
   }
 
-  // ✅ Valid — mark token as used
-  await db.from('email_verification_tokens').update({ used: true }).eq('id', token.id)
-
-  // Mark profile as verified (look up user by email in profiles table)
-  const { data: profile } = await db
-    .from('profiles')
+  // ✅ Valid — atomically mark token as used.
+  // Conditional update (WHERE used = false) prevents double-use even under
+  // concurrent requests: the second caller finds 0 rows and gets no data back.
+  const { data: consumed, error: consumeError } = await db
+    .from('email_verification_tokens')
+    .update({ used: true })
+    .eq('id', token.id)
+    .eq('used', false)
     .select('id')
-    .eq('email', email)
     .maybeSingle()
 
+  if (consumeError) {
+    console.error('[verifyEmailOTP] consume token error:', consumeError.message)
+    return { success: false, error: 'Errore interno. Riprova.' }
+  }
+
+  if (!consumed) {
+    return { success: false, error: 'Codice già utilizzato. Richiedi un nuovo codice.' }
+  }
+
+  // Mark profile as verified
+  const { data: profile, error: profileError } = await db
+    .from('profiles')
+    .select('id')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+
+  if (profileError) {
+    console.error('[verifyEmailOTP] profile lookup error:', profileError.message)
+    return { success: false, error: 'Errore interno. Riprova.' }
+  }
+
   if (profile?.id) {
-    await db.from('profiles').update({ email_verified: true }).eq('id', profile.id)
+    const { error: verifyProfileError } = await db
+      .from('profiles')
+      .update({ email_verified: true })
+      .eq('id', profile.id)
+
+    if (verifyProfileError) {
+      console.error('[verifyEmailOTP] profile verify update error:', verifyProfileError.message)
+      return { success: false, error: 'Errore interno. Riprova.' }
+    }
   }
 
   return { success: true }

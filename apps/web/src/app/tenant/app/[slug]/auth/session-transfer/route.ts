@@ -1,36 +1,28 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
 import { createClient } from '@/lib/supabase/server'
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await params
   const { searchParams } = new URL(request.url)
-  const accessToken = searchParams.get('access_token')
-  const refreshToken = searchParams.get('refresh_token')
-  const rawNext = searchParams.get('next') ?? '/profilo'
-
-  const next =
-    rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.includes('://')
-      ? rawNext
-      : '/profilo'
-
-  const host = request.headers.get('host') ?? new URL(request.url).host
-  const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const origin = `${protocol}://${host}`
-
-  if (!accessToken || !refreshToken) {
-    return NextResponse.redirect(new URL('/accesso', origin))
-  }
+  const rawNext = searchParams.get('next')
+  const next = sanitizeAppRelativePath(rawNext, '/profilo')
+  const accessoUrl = new URL(buildTenantAppUrl(slug, '/accesso'))
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  })
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (error) {
-    return NextResponse.redirect(new URL('/accesso?error=oauth_failed', origin))
+  if (!user) {
+    accessoUrl.searchParams.set('error', 'session_failed')
+    return NextResponse.redirect(accessoUrl)
   }
 
-  const freshUrl = new URL(next, origin)
+  const freshUrl = new URL(buildTenantAppUrl(slug, next))
   freshUrl.searchParams.set('_t', Date.now().toString())
   freshUrl.searchParams.set('google_login', '1')
   const response = NextResponse.redirect(freshUrl)

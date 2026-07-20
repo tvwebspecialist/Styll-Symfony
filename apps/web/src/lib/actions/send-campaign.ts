@@ -1,13 +1,17 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getActiveTenantId } from '@/lib/tenant-context'
 import { getNotificationChannel } from '@/lib/notifications-channel'
+import {
+  buildMarketingEmailLinks,
+  issueMarketingUnsubscribeToken,
+} from '@/lib/marketing-unsubscribe'
 import {
   getSubscriptionsForProfile,
   sendPushToSubscriptions,
 } from '@/lib/push/send-notification'
-import { sendTemplatedEmail } from '@/lib/email'
+import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 type Segment = 'all' | 'rischio' | 'vip' | 'winback'
 
@@ -84,17 +88,14 @@ export async function sendCampaign({
   segment:  Segment
   message:  string
 }): Promise<CampaignResult> {
-  const activeTenantId = await getActiveTenantId()
-  if (!activeTenantId || activeTenantId !== tenantId) {
-    throw new Error('Unauthorized')
-  }
+  const ctx = await requireOwnerManagerTenantContext(tenantId)
 
   const trimmed = message.trim()
   if (!trimmed || trimmed.length > 160) {
     throw new Error('Invalid message')
   }
 
-  const db = createAdminClient()
+  const db = ctx.db
 
   // Anti-double-submit: reject if a campaign was already logged in the last 5 s
   const { count: recentCount } = await db
@@ -111,15 +112,16 @@ export async function sendCampaign({
   // Fetch tenant for email branding
   const { data: tenant } = await db
     .from('tenants')
-    .select('business_name, primary_color')
+    .select('business_name, primary_color, slug')
     .eq('id', tenantId)
     .single()
 
   const tenantMeta = tenant
-    ? {
+    ? buildClientFacingEmailTenantBranding({
         business_name: tenant.business_name as string,
         primary_color: (tenant.primary_color as string | null) ?? '#111111',
-      }
+        slug: tenant.slug as string,
+      })
     : undefined
 
   const clients = await fetchClientsBySegment(db, tenantId, segment)
@@ -170,6 +172,12 @@ export async function sendCampaign({
           skipped++
           continue
         }
+        const tenantSlug = tenant?.slug as string
+        const unsubscribeToken = await issueMarketingUnsubscribeToken(db, {
+          tenantId,
+          clientId: client.id,
+        })
+        const marketingLinks = buildMarketingEmailLinks(tenantSlug, unsubscribeToken)
         const result = await sendTemplatedEmail({
           to:           client.email,
           templateSlug: 'messaggio_mirato',
@@ -179,6 +187,11 @@ export async function sendCampaign({
             message:       trimmed,
           },
           tenant:   tenantMeta,
+          marketing: {
+            unsubscribeUrl: marketingLinks.unsubscribeUrl,
+            oneClickUrl: marketingLinks.oneClickUrl,
+            managePreferencesUrl: marketingLinks.managePreferencesUrl,
+          },
           category: 'Messaggio dal tuo barbiere',
         })
         success    = result.success
@@ -194,6 +207,20 @@ export async function sendCampaign({
           type:           'campaign',
           sent_at:        new Date().toISOString(),
         })
+        // Persist to notifications history for authenticated clients (push channel only).
+        // Email-only clients (no profile_id) have no PWA, so no history to show.
+        if (client.profile_id && channel === 'push') {
+          const { error: notifErr } = await db.from('notifications').insert({
+            tenant_id:  tenantId,
+            profile_id: client.profile_id,
+            type:       'campaign',
+            title:      `Messaggio da ${tenantMeta?.business_name ?? 'il tuo barbiere'}`,
+            body:       trimmed,
+            is_read:    false,
+            meta:       {},
+          })
+          if (notifErr) console.error('[sendCampaign] notifications insert failed:', notifErr.message)
+        }
       } else {
         failed++
       }

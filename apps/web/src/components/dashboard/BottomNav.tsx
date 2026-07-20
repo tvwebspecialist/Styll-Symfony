@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   House,
   Calendar,
@@ -16,10 +16,9 @@ import {
   Smartphone,
   Settings,
   User,
-  LogOut,
   type LucideIcon,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { FloatingCard } from '@/components/pwa/FloatingCard'
 
 interface NavItem {
   label: string
@@ -29,20 +28,29 @@ interface NavItem {
 }
 
 const MAIN_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: House, exact: true },
+  { label: 'Home',       href: '/',          icon: House,      exact: true },
   { label: 'Calendario', href: '/calendario', icon: Calendar },
-  { label: 'Clienti', href: '/clienti', icon: Users },
-  { label: 'Vendite', href: '/vendite', icon: ShoppingBag },
+  { label: 'Vendite',    href: '/vendite',    icon: ShoppingBag },
 ]
 
-const DRAWER_GRID: NavItem[] = [
-  { label: 'Loyalty', href: '/loyalty', icon: Trophy },
-  { label: 'Marketing', href: '/marketing', icon: Megaphone },
-  { label: 'Team', href: '/team', icon: Users },
-  { label: 'Catalogo', href: '/catalogo', icon: Scissors },
-  { label: 'La mia App', href: '/app', icon: Smartphone },
-  { label: 'Impostazioni', href: '/impostazioni', icon: Settings },
+const CARD_GRID: NavItem[] = [
+  { label: 'Clienti',     href: '/clienti',      icon: Users },
+  { label: 'Loyalty',     href: '/loyalty',      icon: Trophy },
+  { label: 'Marketing',   href: '/marketing',    icon: Megaphone },
+  { label: 'Team',        href: '/team',         icon: Users },
+  { label: 'Catalogo',    href: '/catalogo',     icon: Scissors },
+  { label: 'La mia App',  href: '/app',          icon: Smartphone },
+  { label: 'Impostazioni',href: '/impostazioni', icon: Settings },
+  { label: 'Profilo',     href: '/profilo',      icon: User },
 ]
+
+const OWNER_MANAGER_HREFS = new Set([
+  '/vendite',
+  '/marketing',
+  '/catalogo',
+  '/app',
+  '/impostazioni',
+])
 
 function isActive(path: string, item: NavItem): boolean {
   return item.exact
@@ -50,39 +58,44 @@ function isActive(path: string, item: NavItem): boolean {
     : path === item.href || path.startsWith(item.href + '/')
 }
 
-export function BottomNav() {
+export function BottomNav({
+  canAccessManagementSurfaces = true,
+}: {
+  canAccessManagementSurfaces?: boolean
+}) {
   const pathname = usePathname() ?? ''
-  const router = useRouter()
   const [open, setOpen] = React.useState(false)
 
-  const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
+  const mainItems = MAIN_ITEMS.filter(
+    (item) => canAccessManagementSurfaces || !OWNER_MANAGER_HREFS.has(item.href),
+  )
+  const cardItems = CARD_GRID.filter(
+    (item) => canAccessManagementSurfaces || !OWNER_MANAGER_HREFS.has(item.href),
+  )
 
   return (
     <>
+      {/* ── Bottom Nav bar ───────────────────────────────────────── */}
       <nav
         className="mobile-only"
         style={{
           display: 'none',
           position: 'fixed',
-          bottom: 'max(16px, env(safe-area-inset-bottom, 16px))',
-          left: 16,
-          right: 16,
-          height: 72,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 64,
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          boxSizing: 'content-box',
           zIndex: 50,
-          background: '#222222',
-          borderRadius: 100,
-          alignItems: 'center',
-          padding: '5px 5px',
+          background: '#FFFFFF',
+          borderRadius: '20px 20px 0 0',
+          boxShadow: '0 -1px 0 rgba(0,0,0,0.06), 0 -4px 20px rgba(0,0,0,0.08)',
+          alignItems: 'stretch',
           justifyContent: 'space-between',
-          overflow: 'hidden',
-          boxShadow: '0 8px 28px rgba(0,0,0,0.25)',
         }}
       >
-        {MAIN_ITEMS.map((item) => {
+        {mainItems.map((item) => {
           const active = isActive(pathname, item)
           const Icon = item.icon
           return (
@@ -91,233 +104,188 @@ export function BottomNav() {
               href={item.href}
               aria-label={item.label}
               style={{
-                flex: active ? '0 0 auto' : 1,
+                flex: 1,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 4,
+                minHeight: 44,
                 textDecoration: 'none',
+                padding: '0 4px',
               }}
             >
-              <div
+              <Icon
+                size={20}
+                strokeWidth={active ? 2.3 : 1.6}
+                color={active ? '#111111' : 'rgba(0,0,0,0.35)'}
+                aria-hidden="true"
+              />
+              <span
                 style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: active ? 8 : 0,
-                  backgroundColor: active ? '#FFFFFF' : 'transparent',
-                  borderRadius: 100,
-                  padding: active ? '0px 18px' : '0',
-                  width: active ? 'auto' : 52,
-                  height: active ? 62 : 52,
-                  overflow: 'hidden',
-                  transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  color: active ? '#111111' : 'rgba(0,0,0,0.35)',
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 400,
+                  fontFamily: 'Outfit, sans-serif',
+                  whiteSpace: 'nowrap',
+                  lineHeight: 1,
                 }}
               >
-                <Icon
-                  size={active ? 22 : 24}
-                  strokeWidth={active ? 2.2 : 1.6}
-                  color={active ? '#222222' : 'rgba(255,255,255,0.6)'}
-                  aria-hidden="true"
-                  style={{ flexShrink: 0 }}
-                />
-                <span
-                  style={{
-                    color: '#222222',
-                    fontSize: 15,
-                    fontWeight: 700,
-                    fontFamily: 'Outfit, sans-serif',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    maxWidth: active ? 120 : 0,
-                    opacity: active ? 1 : 0,
-                    transition: 'all 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  }}
-                >
-                  {item.label}
-                </span>
-              </div>
+                {item.label}
+              </span>
             </Link>
           )
         })}
 
-        {/* Menu button — stessa dimensione degli item inattivi */}
+        {/* Menu button */}
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => setOpen((v) => !v)}
           aria-label="Menu"
+          aria-expanded={open}
           style={{
             flex: 1,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: 4,
+            minHeight: 44,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            padding: 0,
+            padding: '0 4px',
           }}
         >
+          <Menu
+            size={20}
+            strokeWidth={open ? 2.3 : 1.6}
+            color={open ? '#111111' : 'rgba(0,0,0,0.35)'}
+            aria-hidden="true"
+          />
+          <span
+            style={{
+              color: open ? '#111111' : 'rgba(0,0,0,0.35)',
+              fontSize: 11,
+              fontWeight: open ? 700 : 400,
+              fontFamily: 'Outfit, sans-serif',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+            }}
+          >
+            Menu
+          </span>
+        </button>
+      </nav>
+
+      {/* ── Backdrop ─────────────────────────────────────────────── */}
+      <div
+        onClick={() => setOpen(false)}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.42)',
+          zIndex: 60,
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transition: 'opacity 0.20s ease',
+        }}
+      />
+
+      {/* ── FloatingCard menu ────────────────────────────────────── */}
+      <div
+        style={{
+          position: 'fixed',
+          left: 12,
+          right: 12,
+          bottom: 'calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 8px)',
+          zIndex: 70,
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transform: open ? 'translateY(0) scale(1)' : 'translateY(10px) scale(0.97)',
+          transformOrigin: 'bottom center',
+          transition: open
+            ? 'opacity 0.20s ease, transform 0.20s ease'
+            : 'opacity 0.15s ease, transform 0.15s ease',
+        }}
+      >
+        <FloatingCard
+          style={{
+            margin: 0,
+            borderRadius: 20,
+            padding: '16px 16px 20px',
+            maxHeight: 'calc(100dvh - var(--bottom-nav-height, 64px) - env(safe-area-inset-bottom, 0px) - 72px)',
+            overflowY: 'auto',
+          }}
+        >
+          {/* Header */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: 52,
-              height: 52,
-              borderRadius: 100,
+              justifyContent: 'space-between',
+              marginBottom: 14,
             }}
           >
-            <Menu size={24} strokeWidth={1.6} color="rgba(255,255,255,0.6)" aria-hidden="true" />
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#222222' }}>Menu</span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Chiudi menu"
+              style={{
+                border: 'none',
+                background: '#F5F5F5',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <X size={14} color="#555555" />
+            </button>
           </div>
-        </button>
-      </nav>
 
-      {/* Backdrop */}
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.4)',
-            zIndex: 60,
-          }}
-        />
-      )}
-
-      {/* Drawer */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 70,
-          background: '#FFFFFF',
-          borderRadius: '20px 20px 0 0',
-          padding: `16px 16px max(32px, env(safe-area-inset-bottom, 32px))`,
-          transform: open ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: open ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 4,
-            background: '#E0E0E0',
-            borderRadius: 2,
-            margin: '0 auto 20px',
-          }}
-        />
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#222222' }}>Menu</div>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Chiudi"
+          {/* Grid — 8 items (4×2), Profilo included */}
+          <div
             style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              padding: 4,
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 8,
             }}
           >
-            <X size={18} color="#222222" />
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          {DRAWER_GRID.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '14px 16px',
-                  borderRadius: 12,
-                  background: '#F9F9F9',
-                  fontSize: 14,
-                  color: '#222222',
-                  textDecoration: 'none',
-                  fontWeight: 500,
-                }}
-              >
-                <Icon size={20} color="#222222" />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </div>
-
-        <div style={{ height: 1, background: '#F0F0F0', margin: '8px 0 12px' }} />
-
-        <Link
-          href="/profilo"
-          onClick={() => setOpen(false)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '14px 16px',
-            borderRadius: 12,
-            background: '#F9F9F9',
-            fontSize: 14,
-            color: '#222222',
-            textDecoration: 'none',
-            fontWeight: 500,
-            marginBottom: 8,
-          }}
-        >
-          <User size={20} color="#222222" />
-          <span>Profilo</span>
-        </Link>
-
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '14px 16px',
-            borderRadius: 12,
-            background: '#F9F9F9',
-            fontSize: 14,
-            color: '#DC2626',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 500,
-            width: '100%',
-            textAlign: 'left',
-          }}
-        >
-          <LogOut size={20} color="#DC2626" />
-          <span>Logout</span>
-        </button>
+            {cardItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '14px 14px',
+                    borderRadius: 12,
+                    background: '#F7F7F7',
+                    fontSize: 14,
+                    color: '#222222',
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                    minHeight: 44,
+                  }}
+                >
+                  <Icon size={19} color="#444444" aria-hidden="true" />
+                  <span style={{ lineHeight: 1.2 }}>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </FloatingCard>
       </div>
     </>
   )
 }
-

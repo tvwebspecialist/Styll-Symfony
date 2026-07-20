@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import { ImagePlus, Loader2, Globe, Smartphone } from 'lucide-react'
 import { updateAppSettings, uploadTenantLogo } from '@/lib/actions/app-settings'
 import type { AppSettings, WebsiteData } from '@/lib/actions/app-settings'
+import {
+  buildAppPublicUrls,
+  readRuntimeLocation,
+  type AppRuntimeLocation,
+} from '@/lib/app-public-urls'
 import { PWA_PREVIEW_PARAMS } from '@/lib/pwa-preview'
 import { WebsiteTabClient } from './WebsiteTabClient'
 
@@ -24,8 +29,6 @@ const GOOGLE_FONTS_MAP: Record<string, string> = {
   playfair: 'Playfair+Display:wght@400;600;700;800',
   montserrat: 'Montserrat:wght@400;500;600;700;800',
 }
-
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 
 function getFontFamily(value: string | null): string {
   if (!value) return 'system-ui, sans-serif'
@@ -80,47 +83,30 @@ function LogoUploader({ currentUrl, onUploaded }: { currentUrl: string; onUpload
   )
 }
 
-function readRuntimeLocation() {
-  if (typeof window === 'undefined') return null
-
-  return {
-    protocol: window.location.protocol,
-    hostname: window.location.hostname,
-    port: window.location.port,
-  }
+function isLightHex(hex: string): boolean {
+  const clean = hex.replace('#', '')
+  if (clean.length !== 6) return false
+  const r = parseInt(clean.slice(0, 2), 16)
+  const g = parseInt(clean.slice(2, 4), 16)
+  const b = parseInt(clean.slice(4, 6), 16)
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6
 }
 
-function buildAppPublicUrls(
-  slug: string,
-  runtimeLocation: ReturnType<typeof readRuntimeLocation>,
-  previewParams?: URLSearchParams,
-): { hostLabel: string; appUrl: string; previewUrl: string } {
-  if (runtimeLocation && (
-    runtimeLocation.hostname === 'localhost'
-    || runtimeLocation.hostname.endsWith('.localhost')
-  )) {
-    const portSuffix = runtimeLocation.port ? `:${runtimeLocation.port}` : ''
-    const baseUrl = `${runtimeLocation.protocol}//localhost${portSuffix}`
-    const appUrl = `${baseUrl}/?_tenant_slug=${encodeURIComponent(slug)}&_tenant_type=app`
-    const previewSearch = new URLSearchParams(previewParams)
-    previewSearch.set('_tenant_slug', slug)
-    previewSearch.set('_tenant_type', 'app')
-
-    return {
-      hostLabel: `localhost${portSuffix} · ${slug} app`,
-      appUrl,
-      previewUrl: `${baseUrl}/?${previewSearch.toString()}`,
-    }
-  }
-
-  const baseUrl = `https://${slug}-app.${ROOT_DOMAIN}`
-  return {
-    hostLabel: `${slug}-app.${ROOT_DOMAIN}`,
-    appUrl: baseUrl,
-    previewUrl: previewParams?.toString()
-      ? `${baseUrl}/?${previewParams.toString()}`
-      : `${baseUrl}/`,
-  }
+function SplashMiniPreview({ bgColor, logoUrl, businessName }: { bgColor: string; logoUrl: string; businessName: string }) {
+  const textColor = isLightHex(bgColor) ? '#111111' : '#FFFFFF'
+  const initial = businessName.charAt(0).toUpperCase() || 'S'
+  return (
+    <div style={{ width: 80, height: 140, borderRadius: 12, background: bgColor, border: '1.5px solid #E5E7EB', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logoUrl} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+      ) : (
+        <span style={{ fontSize: 32, fontWeight: 800, color: textColor, lineHeight: 1 }}>{initial}</span>
+      )}
+      <span style={{ fontSize: 7, fontWeight: 700, color: textColor, opacity: 0.85, textAlign: 'center', padding: '0 4px', lineHeight: 1.2 }}>{businessName || 'Nome'}</span>
+      <span style={{ fontSize: 6, color: textColor, opacity: 0.4, fontWeight: 500 }}>Powered by Styll</span>
+    </div>
+  )
 }
 
 function readPhonePreviewScale(): number {
@@ -144,15 +130,14 @@ function PhonePreview({
   appUrl: string | null
 }) {
   const [loadedPreviewUrl, setLoadedPreviewUrl] = React.useState<string | null>(null)
-  const [mockupScale, setMockupScale] = React.useState(
-    typeof window !== 'undefined' ? readPhonePreviewScale() : 1,
-  )
+  const [mockupScale, setMockupScale] = React.useState(1)
   const isPreviewLoading = Boolean(previewUrl && loadedPreviewUrl !== previewUrl)
   const scaledFrameWidth = 430 * mockupScale
   const scaledFrameHeight = 900 * mockupScale
 
   React.useEffect(() => {
     const handleResize = () => setMockupScale(readPhonePreviewScale())
+    handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -352,29 +337,49 @@ function PhonePreview({
 export function AppSettingsClient({
   initialSettings,
   initialWebsiteData,
+  initialRuntimeLocation,
 }: {
   initialSettings: AppSettings | null
   initialWebsiteData: WebsiteData
+  initialRuntimeLocation: AppRuntimeLocation | null
 }) {
   const [activeTab, setActiveTab] = React.useState<'app' | 'website'>('app')
   const [businessName, setBusinessName] = React.useState(initialSettings?.businessName ?? '')
   const [primaryColor, setPrimaryColor] = React.useState(initialSettings?.primaryColor ?? '#1A1A1A')
   const [secondaryColor, setSecondaryColor] = React.useState(initialSettings?.secondaryColor ?? '#4B5563')
+  const [splashColor, setSplashColor] = React.useState(initialSettings?.splashColor ?? '')
   const [fontFamily, setFontFamily] = React.useState(initialSettings?.fontFamily ?? 'outfit')
   const [logoUrl, setLogoUrl] = React.useState(initialSettings?.logoUrl ?? '')
   const [saving, setSaving] = React.useState(false)
-  const [isMobile, setIsMobile] = React.useState(
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
-  )
-  const [runtimeLocation] = React.useState<ReturnType<typeof readRuntimeLocation>>(
-    () => readRuntimeLocation(),
+  const [isMobile, setIsMobile] = React.useState(false)
+  const [runtimeLocation, setRuntimeLocation] = React.useState<AppRuntimeLocation | null>(
+    initialRuntimeLocation,
   )
 
   React.useEffect(() => {
     const mql = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mql.matches)
     const h = (e: MediaQueryListEvent) => setIsMobile(e.matches)
     mql.addEventListener('change', h)
     return () => mql.removeEventListener('change', h)
+  }, [])
+
+  React.useEffect(() => {
+    const nextRuntimeLocation = readRuntimeLocation()
+    if (!nextRuntimeLocation) return
+
+    setRuntimeLocation((currentRuntimeLocation) => {
+      if (
+        currentRuntimeLocation &&
+        currentRuntimeLocation.protocol === nextRuntimeLocation.protocol &&
+        currentRuntimeLocation.hostname === nextRuntimeLocation.hostname &&
+        currentRuntimeLocation.port === nextRuntimeLocation.port
+      ) {
+        return currentRuntimeLocation
+      }
+
+      return nextRuntimeLocation
+    })
   }, [])
 
   React.useEffect(() => {
@@ -392,10 +397,12 @@ export function AppSettingsClient({
 
   async function handleSave() {
     setSaving(true)
+    const hexRegex = /^#[0-9a-fA-F]{6}$/
     const result = await updateAppSettings({
       businessName: businessName.trim(),
       primaryColor: primaryColor || null,
       secondaryColor: secondaryColor || null,
+      splashColor: splashColor && hexRegex.test(splashColor) ? splashColor : null,
       fontFamily: fontFamily || null,
       logoUrl: logoUrl.trim() || null,
     })
@@ -451,8 +458,7 @@ export function AppSettingsClient({
     ? buildAppPublicUrls(tenantSlug, runtimeLocation, previewSearchParams)
     : null
 
-  const appHost = publicAppUrls?.hostLabel
-    ?? (tenantSlug ? `${tenantSlug}-app.${ROOT_DOMAIN}` : 'App non configurata')
+  const appHost = publicAppUrls?.hostLabel ?? (tenantSlug ? 'App in configurazione' : 'App non configurata')
   const appUrl = publicAppUrls?.appUrl ?? null
   const appPreviewUrl = publicAppUrls?.previewUrl ?? null
 
@@ -585,6 +591,53 @@ export function AppSettingsClient({
                     </div>
                   </div>
                 ))}
+
+                <div>
+                  <label style={labelStyle}>Colore schermata di caricamento</label>
+                  <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
+                    Il colore di sfondo che appare mentre l&apos;app si avvia. Se lasci vuoto, usi il colore principale.
+                  </p>
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                    <SplashMiniPreview
+                      bgColor={splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor}
+                      logoUrl={logoUrl}
+                      businessName={businessName}
+                    />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <label style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}>
+                          <div style={{ width: 52, height: 52, borderRadius: 12, background: splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor, border: '2px solid #E5E7EB', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', cursor: 'pointer' }} />
+                          <input
+                            type="color"
+                            value={splashColor && /^#[0-9a-fA-F]{6}$/.test(splashColor) ? splashColor : primaryColor}
+                            onChange={(e) => setSplashColor(e.target.value)}
+                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }}
+                          />
+                        </label>
+                        <div style={{ flex: 1 }}>
+                          <input
+                            className="styll-input"
+                            style={{ ...inputStyle, width: '100%', fontFamily: 'monospace', fontSize: 13 }}
+                            value={splashColor}
+                            onChange={(e) => setSplashColor(e.target.value)}
+                            placeholder={`${primaryColor} (colore principale)`}
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                      {splashColor && (
+                        <button
+                          type="button"
+                          onClick={() => setSplashColor('')}
+                          style={{ alignSelf: 'flex-start', fontSize: 12, color: '#6B7280', background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 500 }}
+                        >
+                          ↩ Usa colore principale
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 8px' }}>Palette</p>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

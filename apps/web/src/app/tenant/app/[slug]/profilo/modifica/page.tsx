@@ -32,7 +32,7 @@ export default async function ModificaProfiloPage({ params }: Props) {
   const client = clientRes.data
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-28">
+    <main className="min-h-screen bg-white">
       <div className="mx-auto max-w-xl">
         <ModificaProfiloClient
           tenantId={tenant.tenant_id}

@@ -6,6 +6,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
+import { requireOwnerManagerTenantContext } from '@/lib/tenant-role-guard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,9 +88,7 @@ export async function getLoyaltySettings(): Promise<LoyaltySettingsData | null> 
       .select('id, name, description, points_cost, reward_type, is_active, display_order')
       .eq('tenant_id', tenantId)
       .order('display_order', { ascending: true }),
-    // @ts-expect-error TODO: migration pending — 'badges' table not yet in DB schema
     db.from('badges').select('id, name, description, icon_url, condition_type, condition_value, is_active, display_order').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
-    // @ts-expect-error TODO: migration pending — 'tier_configs' table not yet in DB schema
     db.from('tier_configs').select('id, tier_name, tier_label, min_points, benefits, visual_style, display_order').eq('tenant_id', tenantId).order('display_order', { ascending: true }),
   ])
 
@@ -148,10 +147,9 @@ export async function saveLoyaltyConfig(input: {
   pointsPerEuro: number
   streakThresholdDays: number
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   const { data: existing } = await db
     .from('loyalty_configs')
@@ -176,7 +174,6 @@ export async function saveLoyaltyConfig(input: {
     const { error } = await db.from('loyalty_configs').insert({
       tenant_id: tenantId,
       template: input.template,
-      // @ts-expect-error TODO: migration pending — loyalty_configs.is_active not yet in schema
       is_active: input.isActive,
       points_per_visit: input.pointsPerVisit,
       points_per_euro: input.pointsPerEuro,
@@ -190,7 +187,6 @@ export async function saveLoyaltyConfig(input: {
     const { error } = await db
       .from('loyalty_configs')
       .update({
-        // @ts-expect-error TODO: migration pending — loyalty_configs.is_active not yet in schema
         is_active: input.isActive,
         points_per_visit: input.pointsPerVisit,
         points_per_euro: input.pointsPerEuro,
@@ -215,10 +211,9 @@ export async function upsertReward(input: {
   rewardType: 'product' | 'service' | 'discount' | 'custom'
   isActive: boolean
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const tenantId = ctx.tenantId
+  const db = ctx.db
 
   // Count existing rewards (max 6)
   if (!input.id) {
@@ -264,10 +259,8 @@ export async function upsertReward(input: {
 }
 
 export async function deleteReward(rewardId: string): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db
     .from('rewards')
     .delete()
@@ -285,11 +278,8 @@ export async function toggleBadge(
   badgeId: string,
   isActive: boolean,
 ): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
-  // @ts-expect-error TODO: migration pending — 'badges' table not yet in DB schema
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db.from('badges').update({ is_active: isActive }).eq('id', badgeId).eq('tenant_id', tenantId)
 
   if (error) return { success: false, error: error.message }
@@ -303,11 +293,8 @@ export async function updateTierConfig(input: {
   minPoints: number
   benefits: TierBenefits
 }): Promise<{ success: boolean; error?: string }> {
-  const tenantId = await getActiveTenantId()
-  if (!tenantId) return { success: false, error: 'Non autenticato' }
-
-  const db = createAdminClient()
-  // @ts-expect-error TODO: migration pending — 'tier_configs' table not yet in DB schema
+  const ctx = await requireOwnerManagerTenantContext()
+  const { tenantId, db } = ctx
   const { error } = await db.from('tier_configs').update({ min_points: input.minPoints, benefits: input.benefits as unknown as import('@/types').Json }).eq('id', input.id).eq('tenant_id', tenantId)
 
   if (error) return { success: false, error: error.message }

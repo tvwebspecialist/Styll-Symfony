@@ -1,6 +1,10 @@
 import { cookies, headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import {
+  ADMIN_SHADOW_COOKIE,
+  getValidatedAdminShadowContext,
+} from '@/lib/admin-shadow-cookie'
 import { MANAGER_ROLES } from '@/lib/constants'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
@@ -169,7 +173,7 @@ export async function getStaffImpersonationState(): Promise<StaffImpersonationSt
   }
 }
 
-export const IMPERSONATE_COOKIE = 'styll_impersonate_tenant'
+export const IMPERSONATE_COOKIE = ADMIN_SHADOW_COOKIE
 
 /**
  * Resolve the active tenant id for the current request.
@@ -196,12 +200,8 @@ export async function getActiveTenantId(): Promise<string | null> {
   const impersonatedTenant = cookieStore.get(IMPERSONATE_COOKIE)?.value
 
   if (impersonatedTenant) {
-    const { data: profile } = await db
-      .from('profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (profile?.is_superadmin) return impersonatedTenant
+    const shadowCtx = await getValidatedAdminShadowContext(db, user.id, impersonatedTenant)
+    if (shadowCtx.tenantId) return shadowCtx.tenantId
   }
 
   const { data } = await db
@@ -209,6 +209,7 @@ export async function getActiveTenantId(): Promise<string | null> {
     .select('tenant_id')
     .eq('profile_id', user.id)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
   return data?.tenant_id ?? null
@@ -234,22 +235,13 @@ export async function getImpersonationState(): Promise<{
   if (!user) return { active: false, tenantId: null, businessName: null }
 
   const db = createAdminClient()
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .maybeSingle()
-  if (!profile?.is_superadmin) return { active: false, tenantId: null, businessName: null }
+  const shadowCtx = await getValidatedAdminShadowContext(db, user.id, tenantId)
+  if (!shadowCtx.tenantId) return { active: false, tenantId: null, businessName: null }
 
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('business_name')
-    .eq('id', tenantId)
-    .maybeSingle()
   return {
     active: true,
-    tenantId,
-    businessName: tenant?.business_name ?? null,
+    tenantId: shadowCtx.tenantId,
+    businessName: shadowCtx.businessName,
   }
 }
 

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -17,8 +18,10 @@ const TABS = [
   { href: '/clients', label: 'Clienti' },
   { href: '/migration', label: 'Migrazione' },
   { href: '/appointments', label: 'Appuntamenti' },
+  { href: '/whatsapp', label: 'WhatsApp' },
   { href: '/subscription', label: 'Abbonamento' },
   { href: '/audit', label: 'Audit Log' },
+  { href: '/analytics', label: 'Analytics' },
 ]
 
 const STATUS_BADGE: Record<string, string> = {
@@ -74,7 +77,7 @@ export default async function TenantDetailLayout({
   const statusLabel = STATUS_LABEL[statusKey] ?? tenant.status ?? '—'
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5" style={{ fontFamily: 'var(--font-primary)' }}>
       <Breadcrumbs
         items={[
           { label: 'Admin', href: '/admin' },
@@ -83,38 +86,44 @@ export default async function TenantDetailLayout({
         ]}
       />
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      {/* Header card */}
+      <div
+        className="admin-card flex flex-wrap items-start justify-between gap-4 p-5"
+      >
         <div className="flex items-center gap-4">
           {tenant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={tenant.logo_url}
               alt=""
-              className="h-14 w-14 rounded-lg object-cover"
+              className="h-14 w-14 rounded-xl object-cover"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
             />
           ) : (
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-xl font-semibold text-white"
-              style={{ backgroundColor: tenant.primary_color || '#71717a' }}
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-xl font-bold text-white"
+              style={{ backgroundColor: tenant.primary_color || '#E94560' }}
             >
               {tenant.business_name.charAt(0).toUpperCase()}
             </div>
           )}
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--admin-text)' }}>
                 {tenant.business_name}
               </h1>
               <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${statusCls}`}
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusCls}`}
               >
                 {statusLabel}
               </span>
             </div>
-            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--admin-text-muted)' }}>
               <span className="font-mono">{tenant.slug}</span>
               <span>·</span>
               <span>creato il {new Date(tenant.created_at).toLocaleDateString('it-IT')}</span>
+              <span>·</span>
+              <span>{locationsCount ?? 0} {(locationsCount ?? 0) === 1 ? 'sede' : 'sedi'}</span>
             </div>
           </div>
         </div>
@@ -126,15 +135,12 @@ export default async function TenantDetailLayout({
         />
       </div>
 
+      {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Clienti" value={clientsCount ?? 0} />
-        <StatCard label="Appuntamenti" value={appointmentsCount ?? 0} />
-        <StatCard label="Servizi attivi" value={servicesCount ?? 0} />
-        <StatCard label="Staff" value={staffCount ?? 0} />
-      </div>
-
-      <div className="hidden text-xs text-muted-foreground md:flex md:items-center md:gap-3">
-        <span>Sedi: <strong className="text-foreground">{locationsCount ?? 0}</strong></span>
+        <StatCard label="Clienti" value={clientsCount ?? 0} href={`/admin/tenants/${tenantId}/clients`} />
+        <StatCard label="Appuntamenti" value={appointmentsCount ?? 0} href={`/admin/tenants/${tenantId}/appointments`} />
+        <StatCard label="Servizi" value={servicesCount ?? 0} href={`/admin/tenants/${tenantId}/services`} />
+        <StatCard label="Staff" value={staffCount ?? 0} href={`/admin/tenants/${tenantId}/staff`} />
       </div>
 
       <TenantTabs tenantId={tenantId} tabs={TABS} />
@@ -144,11 +150,18 @@ export default async function TenantDetailLayout({
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, href }: { label: string; value: number; href: string }) {
   return (
-    <div className="rounded-xl border bg-white p-5 ">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
+    <Link
+      href={href}
+      className="admin-card block p-4 transition-shadow hover:shadow-[var(--shadow-md)]"
+    >
+      <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--admin-text-subtle)' }}>
+        {label}
+      </div>
+      <div className="mt-1.5 text-2xl font-bold tabular-nums" style={{ color: 'var(--admin-text)', fontFamily: 'var(--font-primary)' }}>
+        {value}
+      </div>
+    </Link>
   )
 }

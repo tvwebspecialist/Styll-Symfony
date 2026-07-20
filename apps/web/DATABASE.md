@@ -39,6 +39,7 @@
 | `google_rating` | `numeric` |  Nullable |
 | `google_reviews_count` | `int4` |  Nullable |
 | `social_links` | `jsonb` |  Nullable |
+| `splash_color` | `text` |  Nullable |
 
 ## Table `locations`
 
@@ -221,6 +222,7 @@
 | `deleted_at` | `timestamptz` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `churn_profiling_objected_at` | `timestamptz` |  Nullable |
 
 ## Table `client_notes`
 
@@ -286,6 +288,8 @@
 | `deleted_at` | `timestamptz` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `booking_confirmation_token_hash` | `text` |  Nullable |
+| `booking_confirmation_token_expires_at` | `timestamptz` |  Nullable |
 
 ## Table `appointment_services`
 
@@ -351,6 +355,7 @@
 | `ended_at` | `timestamptz` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `is_active` | `bool` |  |
 
 ## Table `rewards`
 
@@ -385,6 +390,10 @@
 | `last_visit_date` | `date` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
+| `current_tier` | `text` |  |
+| `tier_points_this_year` | `int4` |  |
+| `tier_year` | `int4` |  |
+| `tier_grace_expires_at` | `timestamptz` |  Nullable |
 
 ## Table `loyalty_transactions`
 
@@ -401,6 +410,7 @@
 | `appointment_id` | `uuid` |  Nullable |
 | `staff_id` | `uuid` |  Nullable |
 | `created_at` | `timestamptz` |  |
+| `loyalty_config_version` | `int4` |  Nullable |
 
 ## Table `reward_redemptions`
 
@@ -525,6 +535,7 @@
 | `errors` | `jsonb` |  Nullable |
 | `status` | `text` |  |
 | `created_at` | `timestamptz` |  |
+| `merged_count` | `int4` |  |
 
 ## Table `promotions`
 
@@ -548,6 +559,7 @@
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
 | `status` | `text` |  |
+| `cover_image_url` | `text` |  Nullable |
 
 ## Table `website_photos`
 
@@ -601,6 +613,7 @@
 | `appointment_id` | `uuid` |  Nullable |
 | `type` | `text` |  |
 | `sent_at` | `timestamptz` |  |
+| `promotion_id` | `uuid` |  Nullable |
 
 ## Table `email_verification_tokens`
 
@@ -673,5 +686,182 @@
 | `product_id` | `uuid` |  |
 | `discount_type` | `text` |  |
 | `discount_value` | `numeric` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `badges`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `description` | `text` |  Nullable |
+| `icon_url` | `text` |  Nullable |
+| `condition_type` | `text` |  |
+| `condition_value` | `int4` |  |
+| `is_active` | `bool` |  |
+| `display_order` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `client_badges`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `client_id` | `uuid` |  |
+| `badge_id` | `uuid` |  |
+| `unlocked_at` | `timestamptz` |  |
+
+## Table `tier_configs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `tier_name` | `text` |  |
+| `tier_label` | `text` |  |
+| `min_points` | `int4` |  |
+| `benefits` | `jsonb` |  |
+| `visual_style` | `jsonb` |  |
+| `display_order` | `int4` |  |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `inventory_movements`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `product_id` | `uuid` |  |
+| `location_id` | `uuid` |  Nullable |
+| `appointment_id` | `uuid` |  Nullable |
+| `movement_type` | `text` |  |
+| `quantity` | `int4` |  |
+| `notes` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `platform_notifications`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `type` | `text` |  |
+| `title` | `text` |  |
+| `body` | `text` |  Nullable |
+| `tenant_id` | `uuid` |  Nullable |
+| `related_profile_id` | `uuid` |  Nullable |
+| `meta` | `jsonb` |  |
+| `is_read` | `bool` |  |
+| `created_at` | `timestamptz` |  |
+
+## Table `site_sessions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `anonymous_id` | `text` |  |
+| `client_id` | `uuid` |  Nullable |
+| `first_seen_at` | `timestamptz` |  |
+| `last_seen_at` | `timestamptz` |  |
+| `referrer` | `text` |  Nullable |
+| `utm_source` | `text` |  Nullable |
+| `utm_medium` | `text` |  Nullable |
+| `utm_campaign` | `text` |  Nullable |
+| `landing_page` | `text` |  Nullable |
+| `device_type` | `text` |  |
+| `created_at` | `timestamptz` |  |
+| `app_surface` | `text` |  |
+
+## Table `site_events`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `session_id` | `uuid` |  |
+| `event_type` | `text` |  |
+| `page_path` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  |
+
+## Table `site_analytics_daily`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `tenant_id` | `uuid` | Primary |
+| `date` | `date` | Primary |
+| `unique_visitors` | `int4` |  |
+| `sessions` | `int4` |  |
+| `page_views` | `int4` |  |
+| `booking_started_count` | `int4` |  |
+| `booking_completed_count` | `int4` |  |
+| `signup_count` | `int4` |  |
+| `conversion_rate` | `numeric` |  |
+| `top_referrers` | `jsonb` |  |
+| `device_breakdown` | `jsonb` |  |
+| `updated_at` | `timestamptz` |  |
+| `app_surface` | `text` | Primary |
+
+## Table `platform_leads`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `email` | `text` |  Unique |
+| `phone` | `text` |  Nullable |
+| `business_name` | `text` |  Nullable |
+| `source` | `text` |  |
+| `posthog_distinct_id` | `text` |  Nullable |
+| `consent_marketing` | `bool` |  |
+| `consent_at` | `timestamptz` |  Nullable |
+| `status` | `text` |  |
+| `converted_tenant_id` | `uuid` |  Nullable |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  |
+
+## Table `service_categories`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `name` | `text` |  |
+| `color` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `gallery_photos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `tenant_id` | `uuid` |  |
+| `photo_url` | `text` |  |
+| `caption` | `text` |  Nullable |
+| `display_order` | `int4` |  |
+| `is_active` | `bool` |  |
 | `created_at` | `timestamptz` |  |
 

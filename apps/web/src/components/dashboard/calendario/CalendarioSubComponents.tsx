@@ -257,7 +257,7 @@ export function CalendarioMainLayout({
   router,
 }: CalendarioMainLayoutProps) {
   return (
-    <div style={{ position: 'relative', display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - 66px - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', display: 'flex', gap: 16, height: isMobile ? 'calc(100vh - 76px - var(--bottom-nav-height, 64px) - env(safe-area-inset-bottom, 0px) - 8px)' : 'calc(100vh - 168px)', overflow: 'hidden' }}>
 
       {/* ── LEFT: calendar ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

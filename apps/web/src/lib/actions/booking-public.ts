@@ -19,6 +19,54 @@ type RawStaffRow = {
     | null
 }
 
+type RawLocationScopedStaffRow = {
+  id: string
+  bio: string | null
+  photo_url: string | null
+  role: string
+  profile:
+    | { full_name: string | null; avatar_url: string | null }
+    | Array<{ full_name: string | null; avatar_url: string | null }>
+    | null
+}
+
+type RawLocationScopedServiceRow = {
+  staff_id: string
+  services: {
+    id: string
+    name: string
+    price: number | string | null
+    duration_minutes: number | string | null
+    category: string | null
+    display_order: number | string | null
+    is_active: boolean | null
+  } | null
+}
+
+type RawLocationScopedWorkingHourRow = {
+  staff_id: string
+  start_time: string
+}
+
+export type LocationScopedBookingService = {
+  id: string
+  name: string
+  price: number
+  duration_minutes: number
+  category: string | null
+  display_order: number
+}
+
+export type LocationScopedBookingStaffSnapshot = {
+  id: string
+  full_name: string | null
+  avatar_url: string | null
+  role: string
+  bio: string | null
+  next_available: string | null
+  services: LocationScopedBookingService[]
+}
+
 function readProfile(
   profile: RawStaffRow['profile']
 ): { full_name: string | null; avatar_url: string | null } {
@@ -39,6 +87,110 @@ function firstAvailableEntry(): PublicBookingStaffMember {
     service_count: 0,
     next_available: null,
   }
+}
+
+export async function loadLocationScopedBookingStaffSnapshot(
+  tenantId: string,
+  locationId: string,
+): Promise<LocationScopedBookingStaffSnapshot[]> {
+  const db = createAdminClient()
+  const todayDate = new Date().toISOString().slice(0, 10)
+  const dayOfWeek = new Date(`${todayDate}T12:00:00Z`).getUTCDay()
+
+  const { data: staffRows } = await db
+    .from('staff_members')
+    .select(
+      'id, bio, photo_url, role, profile:profiles(full_name, avatar_url), staff_locations!inner(location_id)',
+    )
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .neq('role', 'receptionist')
+    .eq('staff_locations.location_id', locationId)
+
+  const members = (staffRows ?? []) as RawLocationScopedStaffRow[]
+  if (members.length === 0) {
+    return []
+  }
+
+  const memberIds = members.map((member) => member.id)
+  const [{ data: staffServiceRows }, { data: workingHoursRows }] = await Promise.all([
+    db
+      .from('staff_services')
+      .select(
+        'staff_id, services(id, name, price, duration_minutes, category, display_order, is_active)',
+      )
+      .eq('tenant_id', tenantId)
+      .in('staff_id', memberIds),
+    db
+      .from('working_hours')
+      .select('staff_id, start_time')
+      .eq('tenant_id', tenantId)
+      .eq('day_of_week', dayOfWeek)
+      .in('staff_id', memberIds)
+      .order('start_time', { ascending: true }),
+  ])
+
+  const servicesByStaff = new Map<string, LocationScopedBookingService[]>()
+  for (const row of (staffServiceRows ?? []) as RawLocationScopedServiceRow[]) {
+    if (!row.services || row.services.is_active !== true) {
+      continue
+    }
+
+    const current = servicesByStaff.get(row.staff_id) ?? []
+    current.push({
+      id: row.services.id,
+      name: row.services.name,
+      price: Number(row.services.price ?? 0),
+      duration_minutes: Number(row.services.duration_minutes ?? 0),
+      category: row.services.category,
+      display_order: Number(row.services.display_order ?? 0),
+    })
+    servicesByStaff.set(row.staff_id, current)
+  }
+
+  const nextAvailableByStaff = new Map<string, string>()
+  for (const row of (workingHoursRows ?? []) as RawLocationScopedWorkingHourRow[]) {
+    if (!nextAvailableByStaff.has(row.staff_id)) {
+      nextAvailableByStaff.set(row.staff_id, `${todayDate}T${row.start_time}`)
+    }
+  }
+
+  return members
+    .map((member) => {
+      const profile = readProfile(member.profile)
+      const services = (servicesByStaff.get(member.id) ?? [])
+        .sort((left, right) =>
+          left.display_order === right.display_order
+            ? left.name.localeCompare(right.name, 'it')
+            : left.display_order - right.display_order,
+        )
+
+      return {
+        id: member.id,
+        full_name: profile.full_name,
+        avatar_url: member.photo_url || profile.avatar_url || null,
+        role: member.role,
+        bio: member.bio,
+        next_available: nextAvailableByStaff.get(member.id) ?? null,
+        services,
+      }
+    })
+    .sort((left, right) => (left.full_name ?? '').localeCompare(right.full_name ?? '', 'it'))
+}
+
+export async function getLocationScopedBookingStaffSnapshot(
+  tenantId: string,
+  locationId: string,
+): Promise<LocationScopedBookingStaffSnapshot[]> {
+  return unstable_cache(
+    async () => loadLocationScopedBookingStaffSnapshot(tenantId, locationId),
+    [`location-booking-staff-${tenantId}-${locationId}`],
+    {
+      revalidate: 60,
+      tags: [`tenant-${tenantId}-staff`, `tenant-${tenantId}-locations`, 'public-staff', 'staff-locations'],
+    },
+  )()
 }
 
 export async function getPublicTenantBySlug(slug: string): Promise<PublicBookingTenant | null> {
@@ -113,109 +265,22 @@ async function getPublicStaffByLocationImpl(
   tenantId: string,
   locationId: string
 ): Promise<PublicBookingStaffMember[]> {
-  const db = createAdminClient()
+  const staffSnapshot = await getLocationScopedBookingStaffSnapshot(tenantId, locationId)
 
-  const { data: locationRows } = await db
-    .from('staff_locations')
-    .select('staff_id')
-    .eq('tenant_id', tenantId)
-    .eq('location_id', locationId)
-
-  const staffIds = ((locationRows ?? []) as Array<{ staff_id: string }>).map((row) => row.staff_id)
-
-  if (staffIds.length === 0) {
+  if (staffSnapshot.length === 0) {
     return [firstAvailableEntry()]
   }
 
-  const { data: staffRows } = await db
-    .from('staff_members')
-    .select('id, bio, photo_url, role, profile:profiles(full_name, avatar_url)')
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .in('id', staffIds)
-    .neq('role', 'receptionist')
-
-  const members = (staffRows ?? []) as unknown as RawStaffRow[]
-
-  if (members.length === 0) {
-    return [firstAvailableEntry()]
-  }
-
-  const memberIds = members.map((member) => member.id)
-
-  const { data: staffServiceRows } = await db
-    .from('staff_services')
-    .select('staff_id, service_id')
-    .eq('tenant_id', tenantId)
-    .in('staff_id', memberIds)
-
-  const serviceIds = Array.from(
-    new Set(
-      ((staffServiceRows ?? []) as Array<{ staff_id: string; service_id: string }>).map(
-        (row) => row.service_id
-      )
-    )
-  )
-
-  const { data: activeServiceRows } = serviceIds.length
-    ? await db
-        .from('services')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .in('id', serviceIds)
-    : { data: [] as Array<{ id: string }> }
-
-  const activeServiceIds = new Set(
-    ((activeServiceRows ?? []) as Array<{ id: string }>).map((service) => service.id)
-  )
-
-  const serviceCountMap = new Map<string, number>()
-  for (const row of (staffServiceRows ?? []) as Array<{ staff_id: string; service_id: string }>) {
-    if (!activeServiceIds.has(row.service_id)) {
-      continue
-    }
-
-    serviceCountMap.set(row.staff_id, (serviceCountMap.get(row.staff_id) ?? 0) + 1)
-  }
-
-  const todayDate = new Date().toISOString().slice(0, 10)
-  const dayOfWeek = new Date(`${todayDate}T12:00:00Z`).getUTCDay()
-
-  const { data: workingHoursRows } = await db
-    .from('working_hours')
-    .select('staff_id, start_time')
-    .eq('tenant_id', tenantId)
-    .in('staff_id', memberIds)
-    .eq('day_of_week', dayOfWeek)
-    .order('start_time', { ascending: true })
-
-  const nextAvailableMap = new Map<string, string>()
-  for (const row of (workingHoursRows ?? []) as Array<{ staff_id: string; start_time: string }>) {
-    if (!nextAvailableMap.has(row.staff_id)) {
-      nextAvailableMap.set(row.staff_id, `${todayDate}T${row.start_time}`)
-    }
-  }
-
-  const staff: PublicBookingStaffMember[] = members
-    .sort((left, right) => {
-      const leftName = readProfile(left.profile).full_name ?? ''
-      const rightName = readProfile(right.profile).full_name ?? ''
-      return leftName.localeCompare(rightName, 'it')
-    })
-    .map((member) => {
-      const profile = readProfile(member.profile)
-      return {
-        id: member.id,
-        full_name: profile.full_name,
-        avatar_url: member.photo_url || profile.avatar_url || null,
-        role: member.role,
-        bio: member.bio,
-        service_count: serviceCountMap.get(member.id) ?? 0,
-        next_available: nextAvailableMap.get(member.id) ?? null,
-      }
-    })
+  const staff: PublicBookingStaffMember[] = staffSnapshot
+    .map((member) => ({
+      id: member.id,
+      full_name: member.full_name,
+      avatar_url: member.avatar_url,
+      role: member.role,
+      bio: member.bio,
+      service_count: member.services.length,
+      next_available: member.next_available,
+    }))
 
   return [firstAvailableEntry(), ...staff]
 }

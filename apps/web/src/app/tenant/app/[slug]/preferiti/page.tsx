@@ -27,7 +27,7 @@ export default async function PreferitiPage({ params }: Props) {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8]">
+      <main className="bg-white">
         <ProfileLoginGate
           slug={slug}
           tenantId={tenant.tenant_id}
@@ -116,7 +116,7 @@ export default async function PreferitiPage({ params }: Props) {
 
   if (wishlistIds.length === 0) {
     return (
-      <main className="min-h-screen bg-[#F8F8F8] pb-24">
+      <main className="bg-white">
         <div
           className="mx-auto max-w-xl px-4 flex flex-col items-center"
           style={{ paddingTop: 80 }}
@@ -143,7 +143,7 @@ export default async function PreferitiPage({ params }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F8F8] pb-24">
+    <main className="bg-white">
       <div style={{ padding: '8px 16px 24px', maxWidth: 640, margin: '0 auto' }}>
         <ProdottiClient
           products={products}

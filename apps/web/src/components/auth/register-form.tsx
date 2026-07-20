@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -7,10 +8,32 @@ import { Camera, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
-import { sendEmailVerificationOTP } from '@/lib/actions/email-verification'
 import { cn } from '@/lib/utils'
+import { savePlatformLead } from '@/lib/actions/platform-leads'
+import { identifyLead } from '@/components/marketing/PostHogProvider'
+import { buildRootAppUrl } from '@/lib/auth/urls'
+import { EMAIL_PASSWORD_REGISTER_SOURCE } from '@/lib/legal/b2b-register-acceptance-shared'
+import { buildPathWithTrialIntent } from '@/lib/trial-intent'
+import { markOnboardingTokenUsed } from '@/app/admin/actions-onboarding'
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
+const EMAIL_VERIFICATION_SEND_ERROR =
+  "Account creato, ma non siamo riusciti a inviare il codice. Richiedine uno dalla schermata successiva."
+
+type SendEmailVerificationResponse = {
+  success: boolean
+  error?: string
+}
+
+type PrepareLegalAcceptanceResponse = {
+  success: boolean
+  error?: string
+}
+
+type ConsumeLegalAcceptanceResponse = {
+  success: boolean
+  error?: string
+}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -19,17 +42,36 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function validate(fullName: string, email: string, password: string, password2: string): string[] {
+function validate(
+  fullName: string,
+  email: string,
+  password: string,
+  password2: string,
+  acceptedTerms: boolean,
+): string[] {
   const errs: string[] = []
   if (fullName.trim().length < 2) errs.push('Inserisci il tuo nome completo')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push('Email non valida')
   if (password.length < 8) errs.push('La password deve avere almeno 8 caratteri')
   if (password !== password2) errs.push('Le password non corrispondono')
+  if (!acceptedTerms) errs.push('Devi accettare i Termini di Servizio per continuare')
   return errs
 }
 
-export function RegisterForm() {
+export function RegisterForm({
+  acceptedTerms: controlledAcceptedTerms,
+  intent = null,
+  onAcceptedTermsChange,
+  token = null,
+}: {
+  acceptedTerms?: boolean
+  intent?: string | null
+  onAcceptedTermsChange?: (nextValue: boolean) => void
+  token?: string | null
+}) {
   const router = useRouter()
+  const privacyHref = buildRootAppUrl('/privacy')
+  const termsHref = buildRootAppUrl('/termini')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const fullNameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
@@ -39,19 +81,15 @@ export function RegisterForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [uncontrolledAcceptedTerms, setUncontrolledAcceptedTerms] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const acceptedTerms = controlledAcceptedTerms ?? uncontrolledAcceptedTerms
+  const setAcceptedTerms = onAcceptedTermsChange ?? setUncontrolledAcceptedTerms
   const initials = useMemo(() => getInitials(fullName), [fullName])
-
-  const validation = useMemo(
-    () => validate(fullName, email, password, password2),
-    [fullName, email, password, password2]
-  )
-
-  const isValid = validation.length === 0
 
   function handleAvatarChange(file: File | undefined) {
     if (!file) return
@@ -83,7 +121,13 @@ export function RegisterForm() {
     const effectivePassword = password || passwordRef.current?.value || ''
     const effectivePassword2 = password2 || password2Ref.current?.value || ''
 
-    const errors = validate(effectiveFullName, effectiveEmail, effectivePassword, effectivePassword2)
+    const errors = validate(
+      effectiveFullName,
+      effectiveEmail,
+      effectivePassword,
+      effectivePassword2,
+      acceptedTerms,
+    )
     if (errors.length > 0) {
       toast.error(errors[0])
       return
@@ -94,11 +138,40 @@ export function RegisterForm() {
       const cleanName = effectiveFullName.trim()
       const cleanEmail = effectiveEmail.trim().toLowerCase()
 
+      // Keep the lead capture on /register before sign-up creates an auth session.
+      await savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
+
+      if (!token) {
+        toast.error('Token di registrazione non valido. Riapri il link di invito.')
+        return
+      }
+
+      const prepareResponse = await fetch('/api/auth/register/legal-acceptance', {
+        body: JSON.stringify({
+          email: cleanEmail,
+          onboardingToken: token,
+          source: EMAIL_PASSWORD_REGISTER_SOURCE,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+
+      const prepareResult = (await prepareResponse.json().catch(() => null)) as
+        | PrepareLegalAcceptanceResponse
+        | null
+
+      if (!prepareResponse.ok || !prepareResult?.success) {
+        toast.error(prepareResult?.error || 'Impossibile registrare l’accettazione dei Termini. Riprova.')
+        return
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: effectivePassword,
         options: {
-          data: { full_name: cleanName },
+          data: {
+            full_name: cleanName,
+          },
         },
       })
 
@@ -109,6 +182,28 @@ export function RegisterForm() {
 
       const userId = data.user?.id
       const hasSession = !!data.session
+
+      if (hasSession) {
+        const consumeResponse = await fetch('/api/auth/register/legal-acceptance/consume', {
+          body: JSON.stringify({
+            source: EMAIL_PASSWORD_REGISTER_SOURCE,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        }).catch(() => {})
+
+        const consumeResult = consumeResponse
+          ? (((await consumeResponse.json().catch(() => null)) as ConsumeLegalAcceptanceResponse | null) ?? null)
+          : null
+
+        if (!consumeResponse?.ok || !consumeResult?.success) {
+          await supabase.auth.signOut().catch(() => {})
+          toast.error(
+            consumeResult?.error || 'Impossibile confermare l’accettazione dei Termini. Riprova dalla registrazione.',
+          )
+          return
+        }
+      }
 
       // Upload avatar (richiede sessione attiva)
       if (avatarFile && userId && hasSession) {
@@ -133,13 +228,38 @@ export function RegisterForm() {
       if (!hasSession) {
         // Supabase email confirmation disabled — shouldn't happen, but handle it
         toast.success('Account creato! Controlla la tua email per confermare.')
-        router.push('/login')
+        router.push(buildPathWithTrialIntent('/login', intent))
         return
       }
 
-      // Send OTP and redirect to email verification
-      await sendEmailVerificationOTP(cleanEmail)
-      router.push(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`)
+      // Mark onboarding token as used
+      if (token) {
+        await markOnboardingTokenUsed(token, cleanEmail).catch(() => {})
+      }
+
+      // PostHog identify stays client-side; OTP send uses an API route.
+      identifyLead(cleanEmail, { full_name: cleanName, source: 'trial_signup' })
+
+      // Use an API route so the OTP POST does not go back through /register.
+      try {
+        const verificationResponse = await fetch('/api/email-verification/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail }),
+        })
+        const verificationResult =
+          (await verificationResponse.json()) as SendEmailVerificationResponse
+
+        if (!verificationResponse.ok || !verificationResult.success) {
+          toast.error(verificationResult.error || EMAIL_VERIFICATION_SEND_ERROR)
+        }
+      } catch {
+        toast.error(EMAIL_VERIFICATION_SEND_ERROR)
+      }
+
+      router.push(
+        buildPathWithTrialIntent(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`, intent)
+      )
       router.refresh()
     })
   }
@@ -293,7 +413,7 @@ export function RegisterForm() {
             type="button"
             onClick={() => setShowPw((v) => !v)}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 hover:bg-[color:var(--color-bg-secondary)]"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 styll-hover-color-bg-secondary"
             style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -328,6 +448,36 @@ export function RegisterForm() {
             Le password non corrispondono
           </span>
         )}
+      </label>
+
+      <label className="flex items-start gap-3 text-sm leading-6" style={{ color: 'var(--color-fg-muted)' }}>
+        <input
+          type="checkbox"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border"
+          style={{ accentColor: 'var(--color-fg)' }}
+        />
+        <span>
+          Accetto i{' '}
+          <Link
+            href={termsHref}
+            className="font-medium underline underline-offset-2"
+            style={{ color: 'var(--color-fg)' }}
+          >
+            Termini di Servizio
+          </Link>{' '}
+          e dichiaro di aver preso visione della{' '}
+          <Link
+            href={privacyHref}
+            className="font-medium underline underline-offset-2"
+            style={{ color: 'var(--color-fg)' }}
+          >
+            Privacy Policy
+          </Link>
+          . Se il tuo accesso prevede un piano a pagamento, le condizioni economiche applicabili ti vengono
+          mostrate prima dell&apos;attivazione.
+        </span>
       </label>
 
       <button

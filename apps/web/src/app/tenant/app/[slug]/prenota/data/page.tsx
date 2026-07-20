@@ -78,7 +78,7 @@ export default async function DataPage({ params, searchParams }: Props) {
 
   const [timezone, staffMember, selectedServices] = await Promise.all([
     getTenantTimezone(tenant.tenant_id),
-    getPublicStaffMemberById(tenant.tenant_id, staffId),
+    getPublicStaffMemberById(tenant.tenant_id, staffId, locationId),
     getPublicServicesByIds(tenant.tenant_id, serviceIds),
   ])
   const today = getTodayInTimeZone(timezone)

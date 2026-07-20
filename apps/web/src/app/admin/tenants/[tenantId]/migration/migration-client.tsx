@@ -177,6 +177,7 @@ export function TenantMigrationClient({
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-xs">
                         <span className="text-emerald-700">✅ {job.imported_count}</span>
+                        {job.merged_count > 0 && <span className="ml-2 text-blue-700">🔄 {job.merged_count}</span>}
                         {job.skipped_count > 0 && <span className="ml-2 text-zinc-500">⏭️ {job.skipped_count}</span>}
                         {job.error_count > 0 && <span className="ml-2 text-amber-700">⚠️ {job.error_count}</span>}
                       </td>

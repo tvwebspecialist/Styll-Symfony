@@ -38,6 +38,7 @@ type NotifType =
   | 'churn_alert'
   | 'low_stock'
   | 'loyalty_milestone'
+  | 'privacy_request'
 
 /** Mappa type → chiave in profiles.notification_preferences. */
 const TYPE_TO_PREF_KEY: Partial<Record<NotifType, string>> = {
@@ -58,19 +59,10 @@ interface InsertParams {
 
 // ─── Push helpers ────────────────────────────────────────────────────────────
 
-/** Costruisce l'URL di azione per la push a partire da meta e slug tenant. */
-async function buildPushUrl(tenantId: string, meta: Record<string, unknown>): Promise<string> {
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('slug')
-    .eq('id', tenantId)
-    .maybeSingle()
-  const slug = (tenant as { slug: string } | null)?.slug
-  if (!slug) return '/'
-  const base = `/tenant/dashboard/${slug}`
-  if (meta.client_id) return `${base}/clienti/${meta.client_id}`
-  return base
+/** Costruisce l'URL di azione per la push a partire da meta. */
+function buildPushUrl(_tenantId: string, meta: Record<string, unknown>): string {
+  if (meta.client_id) return `/clienti/${meta.client_id}`
+  return '/'
 }
 
 /**
@@ -121,7 +113,7 @@ async function sendPushToStaff(params: InsertParams): Promise<void> {
     return
   }
 
-  const actionUrl = await buildPushUrl(tenantId, meta)
+  const actionUrl = buildPushUrl(tenantId, meta)
   const tag = `${type}-${meta.appointment_id ?? meta.client_id ?? Date.now()}`
 
   for (const p of (profileRows ?? []) as Array<{

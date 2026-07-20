@@ -12,11 +12,11 @@ Read these before starting — they affect tooling:
 
 | Concern | Detail |
 |---------|--------|
-| **Next.js 16.2.4** | Bleeding-edge release. Uses `src/proxy.ts` + `export proxy()` instead of the standard `src/middleware.ts` + `export middleware()`. Do **not** rename it. |
-| **React 19.2.4** | Some older third-party libraries may emit warnings. Do not downgrade — the codebase targets React 19. |
+| **Next.js 16.2.7** | Bleeding-edge release. Uses `src/proxy.ts` + `export proxy()` instead of the standard `src/middleware.ts` + `export middleware()`. Do **not** rename it. |
+| **React 19.2.6** | Some older third-party libraries may emit warnings. Do not downgrade — the codebase targets React 19. |
 | **Tailwind CSS v4** | Breaking changes from v3. Config is handled via `@tailwindcss/postcss` in PostCSS — there is **no `tailwind.config.js`**. Do not create one. |
 | **No `.nvmrc`** | The repo has no Node version pin. Use **Node.js ≥ 20** (LTS). |
-| **`type-check` script missing in `apps/web`** | The root `package.json` defines `"type-check": "pnpm --filter web type-check"` but `apps/web/package.json` has no `type-check` script. Running `pnpm type-check` from the root will fail. Use `pnpm --filter web exec tsc --noEmit` directly instead. |
+| **Playwright E2E needs app + DB env** | The E2E suite seeds temporary tenants/appointments through Supabase service-role credentials. Keep `NEXT_PUBLIC_SUPABASE_URL` plus `SUPABASE_SECRET_KEY` (or the Playwright-specific overrides below) available when running `pnpm --filter web test:e2e`. |
 | **Subdomain routing in local dev** | The proxy maps `*.localhost:3000` to tenant routes. You access tenant dashboards via `marco-dashboard.localhost:3000`, not `/dashboard`. See Section 3. |
 
 ---
@@ -290,7 +290,10 @@ This fallback is built into `src/proxy.ts` for environments where `*.localhost` 
 | Run dev server | `pnpm dev` |
 | Build for production | `pnpm build` |
 | Lint | `pnpm lint` |
-| TypeScript check | `pnpm --filter web exec tsc --noEmit` |
+| TypeScript check | `pnpm type-check` |
+| Playwright E2E | `pnpm --filter web test:e2e` |
+| Playwright UI mode | `pnpm --filter web test:e2e:ui` |
+| Playwright CI mode | `pnpm --filter web test:e2e:ci` |
 | View local DB logs | `supabase logs db` |
 | View auth logs | `supabase logs auth` |
 | Get local Supabase keys | `supabase status` |
@@ -301,6 +304,32 @@ This fallback is built into `src/proxy.ts` for environments where `*.localhost` 
 ---
 
 ## Section 5 — External Services in Local Dev
+
+### Playwright E2E variables (dev and staging)
+
+The suite loads `apps/web/.env.local` automatically via `@next/env`, then allows
+Playwright-specific overrides through the shell environment.
+
+| Variable | Required | Used for |
+|----------|----------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Base Supabase URL used by the app and E2E seed helpers |
+| `SUPABASE_SECRET_KEY` | Yes | Service-role key used by E2E fixtures to create temporary tenants and appointments |
+| `PLAYWRIGHT_BASE_URL` | Optional | Reuse an already-running app or target staging instead of starting `pnpm dev` |
+| `PLAYWRIGHT_SUPABASE_URL` | Optional | Override Supabase URL for E2E fixture seeding |
+| `PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY` | Optional | Override service-role key for E2E fixture seeding |
+
+Examples:
+
+```bash
+# Local dev (defaults to http://localhost:3000 and uses apps/web/.env.local)
+pnpm --filter web test:e2e
+
+# Staging
+PLAYWRIGHT_BASE_URL=https://staging.styll.it \
+PLAYWRIGHT_SUPABASE_URL=https://your-project.supabase.co \
+PLAYWRIGHT_SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+pnpm --filter web test:e2e:ci
+```
 
 ### Resend (email)
 
@@ -382,16 +411,7 @@ supabase db push --db-url <production-db-url>
 
 ## Section 7 — Known Issues Affecting Local Dev
 
-### 1. `pnpm type-check` fails at root level
-
-**Symptom:** Running `pnpm type-check` from the repo root errors with "missing script: type-check" because `apps/web/package.json` has no `type-check` entry.
-
-**Workaround:**
-```bash
-pnpm --filter web exec tsc --noEmit
-```
-
-### 2. Shadow Mode shows admin profile instead of tenant owner
+### 1. Shadow Mode shows admin profile instead of tenant owner
 
 **From CLAUDE.md:** When an admin enters shadow mode (impersonating a tenant), pages that call `supabase.auth.getUser()` directly will return the admin's profile instead of the impersonated owner's profile.
 
@@ -399,13 +419,13 @@ pnpm --filter web exec tsc --noEmit
 
 **Workaround:** Use `resolveActiveProfile()` from `src/lib/tenant-context.ts` instead of calling `auth.getUser()` directly in dashboard pages.
 
-### 3. Team invitation emails require a real Resend key
+### 2. Team invitation emails require a real Resend key
 
 **Symptom:** "Errore nell'invio dell'email" toast when inviting staff.
 
 **Fix:** Add a real `RESEND_API_KEY` to `.env.local`. See Section 5.
 
-### 4. Seed fails if run from wrong directory
+### 3. Seed fails if run from wrong directory
 
 **Symptom:** `psql: error: supabase/seeds/01_base.sql: No such file or directory`
 

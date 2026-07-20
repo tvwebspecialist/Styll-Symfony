@@ -1,8 +1,54 @@
 import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildRootAppUrl, buildTenantAppUrl } from '@/lib/auth/urls'
 
 // Initialize Resend client (requires RESEND_API_KEY env var)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
+export interface EmailLegalLinks {
+  privacyUrl: string
+  termsUrl: string
+}
+
+export interface MarketingEmailOptions {
+  explanation?: string
+  managePreferencesUrl?: string
+  oneClickUrl: string
+  unsubscribeUrl: string
+}
+
+export interface EmailTenantBranding {
+  business_name: string
+  primary_color: string
+  logo_url?: string
+  legal_links?: EmailLegalLinks
+}
+
+export function buildClientFacingEmailLegalLinks(slug: string): EmailLegalLinks {
+  return {
+    privacyUrl: buildTenantAppUrl(slug, '/privacy'),
+    termsUrl: buildTenantAppUrl(slug, '/termini'),
+  }
+}
+
+export function buildClientFacingEmailTenantBranding({
+  business_name,
+  primary_color,
+  slug,
+  logo_url,
+}: {
+  business_name: string
+  primary_color: string
+  slug: string
+  logo_url?: string
+}): EmailTenantBranding {
+  return {
+    business_name,
+    primary_color,
+    logo_url,
+    legal_links: buildClientFacingEmailLegalLinks(slug),
+  }
+}
 
 function darkenHex(hex: string): string {
   const h = hex.replace('#', '')
@@ -13,9 +59,19 @@ function darkenHex(hex: string): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
+export function buildMarketingEmailHeaders(
+  marketing: MarketingEmailOptions,
+): Record<string, string> {
+  return {
+    'List-Unsubscribe': `<${marketing.oneClickUrl}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  }
+}
+
 export function buildEmailHtml({
   body,
   tenant,
+  marketing,
   category,
   title,
   details,
@@ -23,7 +79,8 @@ export function buildEmailHtml({
   ctaUrl,
 }: {
   body: string
-  tenant?: { business_name: string; primary_color: string; logo_url?: string }
+  tenant?: EmailTenantBranding
+  marketing?: MarketingEmailOptions
   category?: string
   title?: string
   details?: Record<string, string>
@@ -35,6 +92,10 @@ export function buildEmailHtml({
   const businessName = tenant?.business_name ?? 'Styll'
   const logoUrl = tenant?.logo_url
   const initial = businessName.charAt(0).toUpperCase()
+  const legalLinks = tenant?.legal_links ?? {
+    termsUrl: buildRootAppUrl('/termini'),
+    privacyUrl: buildRootAppUrl('/privacy'),
+  }
 
   const logoHtml = logoUrl
     ? `<img src="${logoUrl}" alt="${businessName}" width="56" height="56" style="width:56px;height:56px;border-radius:16px;display:block;margin:0 auto;">`
@@ -63,6 +124,16 @@ export function buildEmailHtml({
   const ctaHtml = ctaText && ctaUrl
     ? `<div style="margin:24px 0 8px;"><a href="${ctaUrl}" style="display:block;background:${primaryColor};color:#ffffff;text-align:center;padding:14px 24px;border-radius:12px;text-decoration:none;font-size:15px;font-weight:600;font-family:system-ui,-apple-system,sans-serif;">${ctaText}</a></div>`
     : ''
+  const marketingHtml = marketing
+    ? `<div style="margin-top:20px;padding-top:20px;border-top:1px solid #eeeeee;">
+        <p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:#777777;font-family:system-ui,-apple-system,sans-serif;">
+          ${marketing.explanation ?? `Ricevi questa email perché hai scelto di ricevere comunicazioni promozionali da ${businessName}.`}
+        </p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#777777;font-family:system-ui,-apple-system,sans-serif;">
+          <a href="${marketing.unsubscribeUrl}" style="color:#777777;text-decoration:underline;">Annulla iscrizione</a>${marketing.managePreferencesUrl ? ` &nbsp;&middot;&nbsp; <a href="${marketing.managePreferencesUrl}" style="color:#777777;text-decoration:underline;">Gestisci preferenze</a>` : ''}
+        </p>
+      </div>`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -85,12 +156,13 @@ export function buildEmailHtml({
               <div style="font-size:15px;line-height:1.6;color:#444444;font-family:system-ui,-apple-system,sans-serif;">${body.replace(/\n/g, '<br>')}</div>
               ${detailsHtml}
               ${ctaHtml}
+              ${marketingHtml}
             </td>
           </tr>
           <tr>
             <td style="padding:20px 32px;border-top:1px solid #eeeeee;text-align:center;">
               <p style="margin:0;font-size:12px;color:#aaaaaa;font-family:system-ui,-apple-system,sans-serif;">
-                Powered by Styll &nbsp;&middot;&nbsp; <a href="https://styll.it/termini" style="color:#aaaaaa;text-decoration:none;">Termini</a> &nbsp;&middot;&nbsp; <a href="https://styll.it/privacy" style="color:#aaaaaa;text-decoration:none;">Privacy</a>
+                Powered by Styll &nbsp;&middot;&nbsp; <a href="${legalLinks.termsUrl}" style="color:#aaaaaa;text-decoration:none;">Termini</a> &nbsp;&middot;&nbsp; <a href="${legalLinks.privacyUrl}" style="color:#aaaaaa;text-decoration:none;">Privacy</a>
               </p>
             </td>
           </tr>
@@ -107,6 +179,8 @@ export async function sendTemplatedEmail({
   templateSlug,
   variables,
   tenant,
+  marketing,
+  headers,
   category,
   title,
   details,
@@ -116,7 +190,9 @@ export async function sendTemplatedEmail({
   to: string
   templateSlug: string
   variables: Record<string, string>
-  tenant?: { business_name: string; primary_color: string; logo_url?: string }
+  tenant?: EmailTenantBranding
+  marketing?: MarketingEmailOptions
+  headers?: Record<string, string>
   category?: string
   title?: string
   details?: Record<string, string>
@@ -146,7 +222,19 @@ export async function sendTemplatedEmail({
 
   const subject = interpolate(template.subject as string)
   const bodyText = interpolate(template.body as string)
-  const html = buildEmailHtml({ body: bodyText, tenant, category, title, details, ctaText, ctaUrl })
+  const html = buildEmailHtml({
+    body: bodyText,
+    tenant,
+    marketing,
+    category,
+    title,
+    details,
+    ctaText,
+    ctaUrl,
+  })
+  const resolvedHeaders = marketing
+    ? { ...buildMarketingEmailHeaders(marketing), ...(headers ?? {}) }
+    : headers
 
   try {
     const result = await resend.emails.send({
@@ -155,6 +243,7 @@ export async function sendTemplatedEmail({
       subject,
       html,
       text: bodyText,
+      headers: resolvedHeaders,
     })
 
     if (result.error) {
@@ -229,6 +318,59 @@ export async function sendVerificationCodeEmail({
     return { success: true }
   } catch (err) {
     console.error('[sendVerificationCodeEmail] Exception:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+export async function sendWelcomeEmail({
+  email,
+  businessName,
+  slug,
+  dashboardUrl,
+}: {
+  email: string
+  businessName: string
+  slug: string
+  dashboardUrl: string
+}): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    console.error('[sendWelcomeEmail] Resend not configured')
+    return { success: false, error: 'Email service not configured' }
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://styll.it'
+  const publicUrl = `${appUrl}/${slug}`
+
+  const html = buildEmailHtml({
+    body: `La tua app è live e i clienti possono già prenotare.\n\nCondividi il link con i tuoi clienti per iniziare a ricevere prenotazioni.\n\nPrimo step: aggiungi i tuoi clienti o prova tu stesso una prenotazione dalla dashboard.`,
+    tenant: { business_name: businessName, primary_color: '#111111' },
+    category: 'Benvenuto',
+    title: `Sei dentro! ${businessName} è online 🎉`,
+    details: {
+      'App clienti': publicUrl,
+      'Dashboard': dashboardUrl,
+    },
+    ctaText: 'Vai alla dashboard',
+    ctaUrl: dashboardUrl,
+  })
+
+  const text = `Benvenuto in Styll!\n\n${businessName} è online.\n\nApp clienti: ${publicUrl}\nDashboard: ${dashboardUrl}\n\nPrimo step: aggiungi i tuoi clienti o prova una prenotazione.\n\nStyll`
+
+  try {
+    const result = await resend.emails.send({
+      from: 'Styll <noreply@mail.styll.it>',
+      to: email,
+      subject: `${businessName} è online su Styll 🎉`,
+      html,
+      text,
+    })
+    if (result.error) {
+      console.error('[sendWelcomeEmail] Resend error:', result.error)
+      return { success: false, error: result.error.message }
+    }
+    return { success: true }
+  } catch (err) {
+    console.error('[sendWelcomeEmail] Exception:', err)
     return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
   }
 }

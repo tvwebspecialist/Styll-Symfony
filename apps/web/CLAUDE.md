@@ -426,6 +426,25 @@ Nessun redirect circolare possibile: `dashboard/layout.tsx` gestisce 0 tenant �
 
 ---
 
+## PWA Branding — Fonte di Verità Manifest
+
+**⚠️ ATTENZIONE: ci sono DUE file manifest per la PWA cliente. Solo uno è realmente servito in produzione.**
+
+| File | Usato quando | Note |
+|------|-------------|-------|
+| `src/app/api/pwa-manifest/route.ts` | **Sempre su subdomain** (`barber-tomm-app.styll.it`) | **QUESTO è il manifest reale. Modifica qui.** |
+| `src/app/tenant/app/[slug]/manifest.ts` | Mai in produzione su subdomain (proxy esclude il path `/manifest.webmanifest`) | Ignorato su subdomain. Non editare per fix branding. |
+
+**Regole colori nel manifest PWA cliente:**
+- `background_color` e `theme_color` → usare sempre `tenant.splash_color ?? tenant.primary_color ?? '#1a1a1a'`
+- `primary_color` da solo è sbagliato: causa uno schermo pieno del colore brand PRIMA del primo HTML paint su iOS (tra lo startup image nativo e il JS splash)
+- `pwa-splash/route.tsx` già corretto (`splash_color ?? primary_color`)
+- `pwa-icon/route.tsx` usa `primary_color` per lo sfondo icona — **intenzionale**, non è un bug
+
+**Cache manifest:** `max-age=3600, must-revalidate`. Dopo un fix di colore, il device aggiorna il manifest entro 1h. Se persiste: Settings → Safari → Clear History and Website Data → reinstalla PWA.
+
+---
+
 ## Problemi Noti / TODO
 
 - [ ] **Shadow Mode bug:** quando in shadow mode, le pagine che chiamano `auth.getUser()` mostrano il profilo dell'admin invece del barbiere impersonato. Fix: usare context override basato sul cookie `shadow_tenant_id`

@@ -2,15 +2,27 @@
 
 import Link from 'next/link'
 import { ExternalLink, FileText, Shield } from 'lucide-react'
-import { updateNotificationPreferences, updateMarketingConsent } from '@/lib/actions/pwa-client-actions'
+import { updateNotificationPreferences, updateMarketingConsent, updateChurnProfilingConsent } from '@/lib/actions/pwa-client-actions'
+import { appendAnalyticsPreferencesHash } from '@/lib/analytics-consent-copy'
+import {
+  CHURN_PROFILING_DESCRIPTION,
+  CHURN_PROFILING_LABEL,
+  MARKETING_PREFERENCES_LABEL,
+  MARKETING_PREFERENCES_SUBLABEL,
+} from '@/lib/consent-copy'
 import { usePushSubscription } from '@/lib/hooks/use-push-subscription'
 import { useOptimistic, useTransition } from 'react'
 
 interface Props {
   tenantId: string
+  dataRightsPath: string
   initialNotifPrefs: Record<string, boolean>
   initialMarketingConsent: boolean
+  initialChurnObjected: boolean
   primaryColor: string
+  cookiePath: string
+  privacyPath: string
+  termsPath: string
 }
 
 function Toggle({
@@ -30,7 +42,7 @@ function Toggle({
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors disabled:opacity-50 ${
-        checked ? 'bg-[var(--brand-primary)]' : 'bg-neutral-200'
+        checked ? 'styll-bg-brand-primary' : 'bg-neutral-200'
       }`}
     >
       <span
@@ -85,15 +97,21 @@ function LinkRow({ label, sublabel, href }: { label: string; sublabel?: string; 
 
 export function PreferenzeClient({
   tenantId,
+  dataRightsPath,
   initialNotifPrefs,
   initialMarketingConsent,
+  initialChurnObjected,
   primaryColor: _primaryColor,
+  cookiePath,
+  privacyPath,
+  termsPath,
 }: Props) {
   const { status, subscribe, unsubscribe } = usePushSubscription(tenantId)
   const [, startTransition] = useTransition()
 
   const [prefs, setPrefs] = useOptimistic(initialNotifPrefs)
   const [marketing, setMarketing] = useOptimistic(initialMarketingConsent)
+  const [churnObjected, setChurnObjected] = useOptimistic(initialChurnObjected)
 
   function updatePref(key: string, value: boolean) {
     startTransition(async () => {
@@ -109,8 +127,16 @@ export function PreferenzeClient({
     })
   }
 
+  function updateChurn(objected: boolean) {
+    startTransition(async () => {
+      setChurnObjected(objected)
+      await updateChurnProfilingConsent(tenantId, objected)
+    })
+  }
+
   const isPushSubscribed = status === 'subscribed'
   const isPushLoading = status === 'loading'
+  const isPushUnavailable = status === 'unavailable'
 
   return (
     <div className="pt-4 pb-10">
@@ -123,8 +149,8 @@ export function PreferenzeClient({
           onChange={(v) => updatePref('reminders', v)}
         />
         <PrefRow
-          label="Offerte e promozioni"
-          sublabel="Promozioni del salone"
+          label={MARKETING_PREFERENCES_LABEL}
+          sublabel={MARKETING_PREFERENCES_SUBLABEL}
           checked={marketing}
           onChange={updateMarketing}
         />
@@ -142,11 +168,17 @@ export function PreferenzeClient({
           <div>
             <p className="text-sm font-medium text-neutral-800">Notifiche push</p>
             <p className="text-xs text-neutral-400 mt-0.5">
-              {status === 'denied' ? 'Bloccate — abilita nelle impostazioni' : 'Notifiche in tempo reale'}
+              {isPushUnavailable
+                ? 'Non disponibili in questo ambiente'
+                : status === 'denied'
+                ? 'Bloccate — abilita nelle impostazioni'
+                : 'Notifiche in tempo reale'}
             </p>
           </div>
           {status === 'unsupported' ? (
             <span className="text-xs text-neutral-400">Non supportate</span>
+          ) : isPushUnavailable ? (
+            <span className="text-xs text-neutral-400">Non disponibili</span>
           ) : (
             <Toggle
               checked={isPushSubscribed}
@@ -164,27 +196,48 @@ export function PreferenzeClient({
         </div>
       </SectionCard>
 
+      {/* Analisi delle visite */}
+      <SectionCard title="Analisi delle visite">
+        <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex-1 pr-4">
+            <p className="text-sm font-medium text-neutral-800">{CHURN_PROFILING_LABEL}</p>
+            <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">
+              {CHURN_PROFILING_DESCRIPTION}
+            </p>
+          </div>
+          <Toggle
+            checked={!churnObjected}
+            onChange={(v) => updateChurn(!v)}
+          />
+        </div>
+      </SectionCard>
+
       {/* Privacy */}
       <SectionCard title="Privacy">
         <LinkRow
           label="Gestisci i tuoi dati"
-          sublabel="Richiedi export o cancellazione"
-          href="mailto:privacy@styll.it?subject=Richiesta%20dati%20personali"
+          sublabel="Export JSON, richieste privacy e cancellazione tenant-scoped"
+          href={dataRightsPath}
         />
         <LinkRow
           label="Termini e condizioni"
-          href="https://styll.it/termini"
+          href={termsPath}
         />
         <LinkRow
           label="Privacy policy"
-          href="https://styll.it/privacy"
+          href={privacyPath}
+        />
+        <LinkRow
+          label="Preferenze analytics"
+          sublabel="Gestisci il consenso analytics e i cookie opzionali"
+          href={appendAnalyticsPreferencesHash(cookiePath)}
         />
       </SectionCard>
 
       <div className="mt-4 text-center">
         <p className="text-xs text-neutral-300 flex items-center justify-center gap-1">
           <Shield className="size-3" />
-          Styll v1.0
+          Versione app 1.0
         </p>
       </div>
     </div>
