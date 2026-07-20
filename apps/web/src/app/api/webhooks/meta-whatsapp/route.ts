@@ -8,6 +8,7 @@ import {
   getWebhookMessageStatus,
   type MessageLogStatus,
 } from '@/lib/messaging/message-delivery'
+import { syncConversationStateAfterHumanMessageEcho } from '@/lib/messaging/conversation-state-service'
 import { verifyMetaWebhookSignature } from '@/lib/messaging/meta-whatsapp-signature'
 import { resolveMetaWhatsAppIntegrationByPhoneNumberId } from '@/lib/messaging/tenant-resolution'
 
@@ -20,6 +21,7 @@ interface ProcessingSummary {
   received: number
   duplicates: number
   inboundMessages: number
+  humanMessageEchoes: number
   statusUpdates: number
   unresolvedTenant: number
   failed: number
@@ -66,6 +68,7 @@ async function ensureConversationForEvent(
       db
         .from('inbox_conversations')
         .select('id, client_id')
+        .eq('tenant_id', tenantId)
         .eq('conversation_key', conversationKey)
         .maybeSingle(),
       normalizedPhone
@@ -96,6 +99,7 @@ async function ensureConversationForEvent(
         contact_display_name: contactDisplayName,
         contact_phone: normalizedPhone,
       })
+      .eq('tenant_id', tenantId)
       .eq('id', existingConversation.id)
 
     if (updateError) {
@@ -193,6 +197,107 @@ async function persistInboundMessage(input: {
   }
 }
 
+function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
+  return error?.code === '23505'
+}
+
+async function persistHumanMessageEcho(input: {
+  tenantId: string
+  conversationId: string
+  clientId: string | null
+  occurredAt: string
+  externalId: string
+  providerEventId: string
+  recipient: string | null
+  bodyText: string | null
+  media: Array<{ kind: 'image' | 'video' | 'audio' | 'document' | 'unknown'; url?: string; mimeType?: string; sha256?: string }>
+  rawPayload: unknown
+  eventType: string
+}) {
+  const db = createMessagingAdminClient()
+
+  const { data: existingMessage, error: existingMessageError } = await db
+    .from('inbox_messages')
+    .select('id')
+    .eq('tenant_id', input.tenantId)
+    .eq('meta_message_id', input.externalId)
+    .maybeSingle()
+
+  if (existingMessageError) {
+    throw new Error(`inbox_messages echo lookup failed: ${existingMessageError.message}`)
+  }
+
+  if (existingMessage) {
+    return
+  }
+
+  const { data: insertedLog, error: insertedLogError } = await db
+    .from('messages_log')
+    .insert({
+      tenant_id: input.tenantId,
+      conversation_id: input.conversationId,
+      client_id: input.clientId,
+      channel: 'whatsapp',
+      provider: 'meta_whatsapp',
+      direction: 'outbound',
+      type: 'human_message_echo',
+      recipient: input.recipient,
+      body_sent: input.bodyText,
+      external_id: input.externalId,
+      status: 'sent',
+      sent_at: input.occurredAt,
+      metadata: {
+        event_type: input.eventType,
+        source: 'smb_message_echoes',
+        media_count: input.media.length,
+      },
+    })
+    .select('id')
+    .maybeSingle()
+
+  let messageLogId = insertedLog?.id ?? null
+
+  if (insertedLogError) {
+    if (!isUniqueViolation(insertedLogError)) {
+      throw new Error(`messages_log echo insert failed: ${insertedLogError.message}`)
+    }
+
+    const { data: existingLog, error: existingLogError } = await db
+      .from('messages_log')
+      .select('id')
+      .eq('tenant_id', input.tenantId)
+      .eq('provider', 'meta_whatsapp')
+      .eq('external_id', input.externalId)
+      .maybeSingle()
+
+    if (existingLogError) {
+      throw new Error(`messages_log echo lookup failed: ${existingLogError.message}`)
+    }
+
+    messageLogId = existingLog?.id ?? null
+  }
+
+  const { error: inboxError } = await db.from('inbox_messages').insert({
+    tenant_id: input.tenantId,
+    conversation_id: input.conversationId,
+    provider: 'meta_whatsapp',
+    direction: 'outbound',
+    author_kind: 'human',
+    meta_message_id: input.externalId,
+    provider_event_id: input.providerEventId,
+    used_template: false,
+    body_text: input.bodyText,
+    media: input.media,
+    raw_payload: input.rawPayload as Json,
+    messages_log_id: messageLogId,
+    created_at: input.occurredAt,
+  })
+
+  if (inboxError && !isUniqueViolation(inboxError)) {
+    throw new Error(`inbox_messages echo insert failed: ${inboxError.message}`)
+  }
+}
+
 async function persistStatusUpdate(input: {
   tenantId: string
   conversationId: string
@@ -211,6 +316,7 @@ async function persistStatusUpdate(input: {
   const { data: linkedMessage, error: linkedMessageError } = await db
     .from('inbox_messages')
     .select('messages_log_id')
+    .eq('tenant_id', input.tenantId)
     .eq('meta_message_id', input.externalId)
     .maybeSingle()
 
@@ -224,11 +330,13 @@ async function persistStatusUpdate(input: {
     ? db
         .from('messages_log')
         .select('id, status, sent_at')
+        .eq('tenant_id', input.tenantId)
         .eq('id', targetMessageLogId)
         .maybeSingle()
     : db
         .from('messages_log')
         .select('id, status, sent_at')
+        .eq('tenant_id', input.tenantId)
         .eq('provider', 'meta_whatsapp')
         .eq('external_id', input.externalId)
         .maybeSingle()
@@ -251,6 +359,7 @@ async function persistStatusUpdate(input: {
         sent_at: nextSentAt,
         metadata: providerMetadata,
       })
+      .eq('tenant_id', input.tenantId)
       .eq('id', existingLog.id)
 
     if (updateError) {
@@ -319,6 +428,7 @@ export async function POST(req: NextRequest) {
     received: events.length,
     duplicates: 0,
     inboundMessages: 0,
+    humanMessageEchoes: 0,
     statusUpdates: 0,
     unresolvedTenant: 0,
     failed: 0,
@@ -399,6 +509,27 @@ export async function POST(req: NextRequest) {
         // by the DB trigger handle_inbox_message_insert (migration 20260717093000)
 
         summary.inboundMessages++
+      } else if (event.direction === 'outbound' && event.authorKind === 'human' && event.messageId) {
+        await syncConversationStateAfterHumanMessageEcho({
+          conversationId: conversation.id,
+          reason: event.eventType,
+        })
+
+        await persistHumanMessageEcho({
+          tenantId: connection.tenantId,
+          conversationId: conversation.id,
+          clientId: conversation.clientId,
+          occurredAt: event.occurredAt,
+          externalId: event.messageId,
+          providerEventId: event.eventId,
+          recipient: event.contactPhone,
+          bodyText: event.text,
+          media: event.media,
+          rawPayload: event.rawPayload,
+          eventType: event.eventType,
+        })
+
+        summary.humanMessageEchoes++
       } else if (event.messageId) {
         await persistStatusUpdate({
           tenantId: connection.tenantId,

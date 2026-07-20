@@ -17,6 +17,7 @@ export interface ManualWhatsAppReplyMessage {
   bodyText: string
   direction: 'outbound'
   authorKind: 'human'
+  authorName: string | null
   createdAt: string
   usedTemplate: false
   deliveryStatus: ManualWhatsAppReplyDeliveryStatus
@@ -42,6 +43,7 @@ export interface ManualWhatsAppReplyActor {
   userId: string
   staffId: string
   role: ManualWhatsAppReplyRole
+  displayName: string | null
 }
 
 export interface ManualWhatsAppReplyDraft {
@@ -72,9 +74,11 @@ export interface ManualWhatsAppReplyCoreDeps {
     userId: string
   }): Promise<ManualWhatsAppReplyMessage | null>
   createDraft(input: {
+    actor: ManualWhatsAppReplyActor
     bodyText: string
     clientId: string | null
     conversationId: string
+    phoneNumberId: string
     recipient: string
     tenantId: string
   }): Promise<ManualWhatsAppReplyDraft>
@@ -102,6 +106,8 @@ export interface ManualWhatsAppReplyCoreDeps {
   markPersistenceFailure(input: {
     draft: ManualWhatsAppReplyDraft
     errorMessage: string
+    occurredAt: string
+    deliveryStatus: Extract<ManualWhatsAppReplyDeliveryStatus, 'pending' | 'sent'>
     messageId: string
     providerPayload: unknown
   }): Promise<void>
@@ -243,10 +249,12 @@ export async function sendManualWhatsAppReplyCore(
   }
 
   const draft = await deps.createDraft({
+    actor,
     tenantId: conversation.tenantId,
     conversationId,
     clientId: conversation.clientId,
     bodyText,
+    phoneNumberId: conversation.phoneNumberId,
     recipient: conversation.recipient,
   })
 
@@ -302,7 +310,9 @@ export async function sendManualWhatsAppReplyCore(
 
     await deps.markPersistenceFailure({
       draft,
+      deliveryStatus: dispatchResult.deliveryStatus,
       messageId: dispatchResult.messageId,
+      occurredAt: dispatchResult.occurredAt,
       providerPayload: dispatchResult.providerPayload,
       errorMessage: failureMessage,
     })
