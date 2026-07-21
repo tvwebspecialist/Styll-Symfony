@@ -10,8 +10,11 @@ use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Link;
 use App\Repository\ProductRepository;
 use App\State\PublicTenantResourceProvider;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Symfony\Component\Uid\Uuid;
 
 #[ApiResource(
@@ -55,6 +58,10 @@ class Product
     #[Groups(['public:read'])]
     private ?string $brand = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['public:read'])]
+    private ?string $description = null;
+
     #[ORM\Column(name: 'price_sell', type: 'decimal', precision: 10, scale: 2)]
     #[Groups(['public:read'])]
     private string $priceSell;
@@ -73,12 +80,22 @@ class Product
     #[Groups(['public:read'])]
     private ?string $category = null;
 
+    #[ORM\Column(name: 'display_order', type: 'integer', options: ['default' => 0])]
+    private int $displayOrder = 0;
+
+    #[ORM\Column(name: 'show_on_site', type: 'boolean', options: ['default' => true])]
+    private bool $showOnSite = true;
+
     #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
 
     #[ORM\Column(name: 'is_new', type: 'boolean')]
     #[Groups(['public:read'])]
     private bool $isNew = false;
+
+    /** @var Collection<int, ProductInventory> */
+    #[ORM\OneToMany(mappedBy: 'product', targetEntity: ProductInventory::class)]
+    private Collection $inventoryEntries;
 
     #[ORM\ManyToOne(targetEntity: Profile::class)]
     #[ORM\JoinColumn(name: 'created_by', referencedColumnName: 'id', nullable: true)]
@@ -93,6 +110,7 @@ class Product
     public function __construct()
     {
         $this->id = Uuid::v4();
+        $this->inventoryEntries = new ArrayCollection();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
@@ -110,6 +128,8 @@ class Product
     public function setName(string $name): static { $this->name = $name; return $this; }
     public function getBrand(): ?string { return $this->brand; }
     public function setBrand(?string $b): static { $this->brand = $b; return $this; }
+    public function getDescription(): ?string { return $this->description; }
+    public function setDescription(?string $description): static { $this->description = $description; return $this; }
     public function getPriceSell(): string { return $this->priceSell; }
     public function setPriceSell(string $price): static { $this->priceSell = $price; return $this; }
     public function getPriceCost(): ?string { return $this->priceCost; }
@@ -120,12 +140,31 @@ class Product
     public function setPhotoUrl(?string $url): static { $this->photoUrl = $url; return $this; }
     public function getCategory(): ?string { return $this->category; }
     public function setCategory(?string $c): static { $this->category = $c; return $this; }
+    public function getDisplayOrder(): int { return $this->displayOrder; }
+    public function setDisplayOrder(int $displayOrder): static { $this->displayOrder = $displayOrder; return $this; }
+    public function isShowOnSite(): bool { return $this->showOnSite; }
+    public function setShowOnSite(bool $showOnSite): static { $this->showOnSite = $showOnSite; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): static { $this->isActive = $v; return $this; }
     public function isNew(): bool { return $this->isNew; }
     public function setIsNew(bool $v): static { $this->isNew = $v; return $this; }
+    /** @return Collection<int, ProductInventory> */
+    public function getInventoryEntries(): Collection { return $this->inventoryEntries; }
     public function getCreatedBy(): ?Profile { return $this->createdBy; }
     public function setCreatedBy(?Profile $createdBy): static { $this->createdBy = $createdBy; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('available')]
+    public function getPublicAvailable(): bool
+    {
+        foreach ($this->inventoryEntries as $inventoryEntry) {
+            if ($inventoryEntry->getQuantity() > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

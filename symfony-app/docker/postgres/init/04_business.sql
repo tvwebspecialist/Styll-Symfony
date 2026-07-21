@@ -50,15 +50,21 @@ CREATE TABLE IF NOT EXISTS locations (
   zip_code    TEXT,
   phone       TEXT,
   email       TEXT,
+  photo_url   TEXT,
+  photos      JSONB NOT NULL DEFAULT '[]'::jsonb,
   latitude    NUMERIC(10,7),
   longitude   NUMERIC(10,7),
   timezone    TEXT,
+  show_on_website BOOLEAN NOT NULL DEFAULT true,
   is_active   BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_locations_tenant ON locations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_locations_public_tenant
+  ON locations(tenant_id, created_at)
+  WHERE is_active = true AND show_on_website = true;
 
 CREATE TRIGGER trg_locations_updated_at BEFORE UPDATE ON locations
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();

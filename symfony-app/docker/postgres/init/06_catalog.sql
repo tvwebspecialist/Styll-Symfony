@@ -23,13 +23,16 @@ CREATE TABLE IF NOT EXISTS services (
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
   category         TEXT,
   display_order    INTEGER NOT NULL DEFAULT 0,
+  show_on_website  BOOLEAN NOT NULL DEFAULT true,
   is_active        BOOLEAN NOT NULL DEFAULT true,
   created_by       UUID REFERENCES profiles(id),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_services_tenant ON services(tenant_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_services_public_tenant
+  ON services(tenant_id, display_order, name)
+  WHERE is_active = true AND show_on_website = true;
 
 CREATE TRIGGER trg_services_updated_at BEFORE UPDATE ON services
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -48,11 +51,14 @@ CREATE TABLE IF NOT EXISTS products (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   brand       TEXT,
+  description TEXT,
   price_sell  NUMERIC(10,2) NOT NULL,
   price_cost  NUMERIC(10,2),
   sku         TEXT,
   photo_url   TEXT,
   category    TEXT,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  show_on_site BOOLEAN NOT NULL DEFAULT true,
   is_active   BOOLEAN NOT NULL DEFAULT true,
   is_new      BOOLEAN NOT NULL DEFAULT false,
   created_by  UUID REFERENCES profiles(id),
@@ -60,7 +66,9 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_tenant ON products(tenant_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_products_public_tenant
+  ON products(tenant_id, display_order, name)
+  WHERE is_active = true AND show_on_site = true;
 
 CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();

@@ -40,7 +40,63 @@ final class PublicTenantResourcesEndpointTest extends WebTestCase
         $payload = $this->jsonResponse();
         self::assertSame('Tenant A API Barber', $payload['businessName'] ?? null);
         self::assertSame('tenant-a-api', $payload['slug'] ?? null);
+        self::assertSame('Tenant A Public Tagline', $payload['tagline'] ?? null);
+        self::assertSame('Tenant A Public Hero Description', $payload['description'] ?? null);
+        self::assertSame('https://cdn.example.test/tenant-a-public/hero.jpg', $payload['heroImageUrl'] ?? null);
+        self::assertSame('Tenant A Public About Title', $payload['aboutTitle'] ?? null);
+        self::assertSame('Tenant A Public About Text', $payload['aboutText'] ?? null);
+        self::assertSame('https://cdn.example.test/tenant-a-public/about.jpg', $payload['aboutImageUrl'] ?? null);
+        self::assertSame(4.8, $payload['googleRating'] ?? null);
+        self::assertSame(143, $payload['googleReviewsCount'] ?? null);
+        self::assertSame('Tenant A Public Team Description', $payload['teamDescription'] ?? null);
+        self::assertSame('Tenant A Public Locations Description', $payload['locationsDescription'] ?? null);
+        self::assertSame('+3902000000', $payload['contactPhone'] ?? null);
+        self::assertSame('tenant-a-public@example.test', $payload['contactEmail'] ?? null);
+        self::assertSame('https://instagram.com/tenant-a-public', $payload['socialLinks']['instagram'] ?? null);
         self::assertSensitiveKeysAreAbsent($payload, ['settings', 'featureFlagOverrides', 'status', 'dataRegion', 'createdAt', 'updatedAt']);
+    }
+
+    public function testPublicLandingCollectionsFilterOutHiddenRecords(): void
+    {
+        foreach ([
+            ['locations', 'Tenant A Public Location', 'Tenant A Public Hidden Location'],
+            ['services', 'Tenant A Public Service', 'Tenant A Public Hidden Service'],
+            ['staff-members', 'Tenant A Public Barber', 'Tenant A Public Hidden Barber'],
+            ['products', 'Tenant A Public Product', 'Tenant A Public Hidden Product'],
+        ] as [$path, $visibleMarker, $hiddenMarker]) {
+            $this->client->request('GET', '/api/public/tenants/tenant-a-api/'.$path, server: [
+                'HTTP_ACCEPT' => 'application/json',
+            ]);
+
+            self::assertResponseIsSuccessful();
+
+            $encoded = $this->client->getResponse()->getContent();
+            self::assertIsString($encoded);
+            self::assertStringContainsString($visibleMarker, $encoded);
+            self::assertStringNotContainsString($hiddenMarker, $encoded);
+        }
+    }
+
+    public function testLandingSpecificPublicFieldsAreExposedOnCollections(): void
+    {
+        $location = $this->firstCollectionItem('/api/public/tenants/tenant-a-api/locations');
+        self::assertSame('https://cdn.example.test/tenant-a-public/location-cover.jpg', $location['photoUrl'] ?? null);
+        self::assertSame([
+            'https://cdn.example.test/tenant-a-public/location-1.jpg',
+            'https://cdn.example.test/tenant-a-public/location-2.jpg',
+        ], $location['photos'] ?? null);
+
+        $staffMember = $this->firstCollectionItem('/api/public/tenants/tenant-a-api/staff-members');
+        self::assertSame('manager', $staffMember['role'] ?? null);
+        self::assertSame('Tenant A Public Barber', $staffMember['fullName'] ?? null);
+        self::assertSame('https://cdn.example.test/tenant-a-public/staff.jpg', $staffMember['photoUrl'] ?? null);
+
+        $product = $this->firstCollectionItem('/api/public/tenants/tenant-a-api/products');
+        self::assertSame('Tenant A Public Brand', $product['brand'] ?? null);
+        self::assertSame('Tenant A Public Product Description', $product['description'] ?? null);
+        self::assertSame('Care', $product['category'] ?? null);
+        self::assertSame('https://cdn.example.test/tenant-a-public/product.jpg', $product['photoUrl'] ?? null);
+        self::assertTrue($product['available'] ?? false);
     }
 
     /**
@@ -134,11 +190,11 @@ final class PublicTenantResourcesEndpointTest extends WebTestCase
      */
     public static function itemEndpointProvider(): iterable
     {
-        yield 'locations' => ['locations', ['tenant', 'createdAt', 'updatedAt']];
+        yield 'locations' => ['locations', ['tenant', 'showOnWebsite', 'isActive', 'createdAt', 'updatedAt']];
         yield 'service categories' => ['service-categories', ['tenant', 'createdAt']];
-        yield 'services' => ['services', ['tenant', 'createdBy', 'createdAt', 'updatedAt']];
-        yield 'staff members' => ['staff-members', ['tenant', 'profile', 'role', 'notificationPreferences', 'phone', 'email', 'createdBy', 'deletedBy', 'deletedAt', 'createdAt', 'updatedAt']];
-        yield 'products' => ['products', ['tenant', 'priceCost', 'sku', 'createdBy', 'createdAt', 'updatedAt']];
+        yield 'services' => ['services', ['tenant', 'showOnWebsite', 'isActive', 'createdBy', 'createdAt', 'updatedAt']];
+        yield 'staff members' => ['staff-members', ['tenant', 'profile', 'showOnWebsite', 'notificationPreferences', 'phone', 'email', 'createdBy', 'deletedBy', 'deletedAt', 'createdAt', 'updatedAt']];
+        yield 'products' => ['products', ['tenant', 'displayOrder', 'showOnSite', 'priceCost', 'sku', 'createdBy', 'createdAt', 'updatedAt']];
         yield 'gallery photos' => ['gallery-photos', ['tenant', 'createdAt', 'isActive']];
         yield 'portfolio photos' => ['portfolio-photos', ['tenant', 'staff', 'createdAt', 'isVisible']];
         yield 'website photos' => ['website-photos', ['tenant', 'createdAt']];

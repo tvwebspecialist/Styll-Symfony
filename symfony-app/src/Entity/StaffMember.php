@@ -63,6 +63,9 @@ class StaffMember
     #[Groups(['public:read'])]
     private ?string $photoUrl = null;
 
+    #[ORM\Column(name: 'show_on_website', type: 'boolean', options: ['default' => true])]
+    private bool $showOnWebsite = true;
+
     #[ORM\Column(name: 'notification_preferences', type: 'json')]
     private array $notificationPreferences = [];
 
@@ -104,12 +107,15 @@ class StaffMember
     public function setTenant(Tenant $tenant): static { $this->tenant = $tenant; return $this; }
     public function getProfile(): Profile { return $this->profile; }
     public function setProfile(Profile $profile): static { $this->profile = $profile; return $this; }
+    #[Groups(['public:read'])]
     public function getRole(): string { return $this->role; }
     public function setRole(string $role): static { $this->role = $role; return $this; }
     public function getBio(): ?string { return $this->bio; }
     public function setBio(?string $bio): static { $this->bio = $bio; return $this; }
     public function getPhotoUrl(): ?string { return $this->photoUrl; }
     public function setPhotoUrl(?string $url): static { $this->photoUrl = $url; return $this; }
+    public function isShowOnWebsite(): bool { return $this->showOnWebsite; }
+    public function setShowOnWebsite(bool $showOnWebsite): static { $this->showOnWebsite = $showOnWebsite; return $this; }
     public function getNotificationPreferences(): array { return $this->notificationPreferences; }
     public function setNotificationPreferences(array $prefs): static { $this->notificationPreferences = $prefs; return $this; }
     public function isActive(): bool { return $this->isActive; }

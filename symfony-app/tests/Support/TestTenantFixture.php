@@ -9,6 +9,7 @@ use App\Entity\GalleryPhoto;
 use App\Entity\Location;
 use App\Entity\PortfolioPhoto;
 use App\Entity\Product;
+use App\Entity\ProductInventory;
 use App\Entity\Profile;
 use App\Entity\Promotion;
 use App\Entity\PromotionProduct;
@@ -123,7 +124,8 @@ final class TestTenantFixture
         $staff = (new StaffMember())
             ->setTenant($tenant)
             ->setProfile($profile)
-            ->setRole('owner');
+            ->setRole('owner')
+            ->setShowOnWebsite(false);
 
         $clientOne = (new Client())
             ->setTenant($tenant)
@@ -147,6 +149,31 @@ final class TestTenantFixture
 
     private function seedPublicLandingData(Tenant $tenant, string $prefix, string $staffEmail): void
     {
+        $slug = strtolower(str_replace(' ', '-', $prefix));
+
+        $tenant->setSettings([
+            'tagline' => $prefix.' Tagline',
+            'bio' => $prefix.' Hero Description',
+            'hero_image_url' => 'https://cdn.example.test/'.$slug.'/hero.jpg',
+            'about' => [
+                'title' => $prefix.' About Title',
+                'text' => $prefix.' About Text',
+                'image_url' => 'https://cdn.example.test/'.$slug.'/about.jpg',
+            ],
+            'google_rating' => 4.8,
+            'google_reviews_count' => 143,
+            'team_description' => $prefix.' Team Description',
+            'locations_description' => $prefix.' Locations Description',
+            'contact_phone' => '+3902000000',
+            'contact_email' => $slug.'@example.test',
+            'social_links' => [
+                'instagram' => 'https://instagram.com/'.$slug,
+                'facebook' => 'https://facebook.com/'.$slug,
+                'tiktok' => 'https://tiktok.com/@'.$slug,
+                'whatsapp' => '+39 333 000 0000',
+            ],
+        ]);
+
         $location = (new Location())
             ->setTenant($tenant)
             ->setName($prefix.' Location')
@@ -154,10 +181,21 @@ final class TestTenantFixture
             ->setCity('Milano')
             ->setZipCode('20100')
             ->setPhone('+3902000000')
-            ->setEmail(strtolower(str_replace(' ', '-', $prefix)).'@example.test')
+            ->setEmail($slug.'@example.test')
+            ->setPhotoUrl('https://cdn.example.test/'.$slug.'/location-cover.jpg')
+            ->setPhotos([
+                'https://cdn.example.test/'.$slug.'/location-1.jpg',
+                'https://cdn.example.test/'.$slug.'/location-2.jpg',
+            ])
             ->setLatitude('45.4642000')
             ->setLongitude('9.1900000')
             ->setTimezone('Europe/Rome');
+
+        $hiddenLocation = (new Location())
+            ->setTenant($tenant)
+            ->setName($prefix.' Hidden Location')
+            ->setAddress('Hidden address')
+            ->setShowOnWebsite(false);
 
         $category = (new ServiceCategory())
             ->setTenant($tenant)
@@ -174,16 +212,33 @@ final class TestTenantFixture
             ->setCategory('Hair')
             ->setDisplayOrder(1);
 
+        $hiddenService = (new Service())
+            ->setTenant($tenant)
+            ->setName($prefix.' Hidden Service')
+            ->setPrice('40.00')
+            ->setDurationMinutes(45)
+            ->setDisplayOrder(99)
+            ->setShowOnWebsite(false);
+
         $product = (new Product())
             ->setTenant($tenant)
             ->setName($prefix.' Product')
             ->setBrand($prefix.' Brand')
+            ->setDescription($prefix.' Product Description')
             ->setPriceSell('19.90')
             ->setPriceCost('4.00')
             ->setSku($prefix.'-PRIVATE-SKU')
-            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/product.jpg')
+            ->setPhotoUrl('https://cdn.example.test/'.$slug.'/product.jpg')
             ->setCategory('Care')
+            ->setDisplayOrder(1)
             ->setIsNew(true);
+
+        $hiddenProduct = (new Product())
+            ->setTenant($tenant)
+            ->setName($prefix.' Hidden Product')
+            ->setPriceSell('29.90')
+            ->setDisplayOrder(99)
+            ->setShowOnSite(false);
 
         $staffUser = (new User())
             ->setEmail('public-'.$staffEmail)
@@ -200,25 +255,39 @@ final class TestTenantFixture
             ->setProfile($staffProfile)
             ->setRole('manager')
             ->setBio($prefix.' Public Bio')
-            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/staff.jpg')
+            ->setPhotoUrl('https://cdn.example.test/'.$slug.'/staff.jpg')
             ->setNotificationPreferences(['private' => true]);
+
+        $hiddenStaffUser = (new User())
+            ->setEmail('hidden-'.$staffEmail)
+            ->setRoles(['ROLE_STAFF']);
+        $hiddenStaffUser->setPassword($this->passwordHasher->hashPassword($hiddenStaffUser, self::PASSWORD));
+
+        $hiddenStaffProfile = (new Profile($hiddenStaffUser))
+            ->setFullName($prefix.' Hidden Barber');
+
+        $hiddenStaff = (new StaffMember())
+            ->setTenant($tenant)
+            ->setProfile($hiddenStaffProfile)
+            ->setRole('staff')
+            ->setShowOnWebsite(false);
 
         $galleryPhoto = (new GalleryPhoto())
             ->setTenant($tenant)
-            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/gallery.jpg')
+            ->setPhotoUrl('https://cdn.example.test/'.$slug.'/gallery.jpg')
             ->setCaption($prefix.' Gallery')
             ->setDisplayOrder(1);
 
         $portfolioPhoto = (new PortfolioPhoto())
             ->setTenant($tenant)
             ->setStaff($staff)
-            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/portfolio.jpg')
+            ->setPhotoUrl('https://cdn.example.test/'.$slug.'/portfolio.jpg')
             ->setServiceTags('{cut}')
             ->setDisplayOrder(1);
 
         $websitePhoto = (new WebsitePhoto())
             ->setTenant($tenant)
-            ->setUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/website.jpg')
+            ->setUrl('https://cdn.example.test/'.$slug.'/website.jpg')
             ->setSortOrder(1);
 
         $promotion = (new Promotion())
@@ -245,14 +314,28 @@ final class TestTenantFixture
             ->setDiscountType(PromotionProduct::DISCOUNT_FIXED)
             ->setDiscountValue('5.00');
 
+        $productInventory = (new ProductInventory())
+            ->setTenant($tenant)
+            ->setProduct($product)
+            ->setLocation($location)
+            ->setQuantity(6)
+            ->setLowStockThreshold(2);
+
         foreach ([
             $location,
+            $hiddenLocation,
             $category,
             $service,
+            $hiddenService,
             $product,
+            $hiddenProduct,
+            $productInventory,
             $staffUser,
             $staffProfile,
             $staff,
+            $hiddenStaffUser,
+            $hiddenStaffProfile,
+            $hiddenStaff,
             $galleryPhoto,
             $portfolioPhoto,
             $websitePhoto,

@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS staff_members (
                 CHECK (role IN ('owner','manager','staff','receptionist')),
   bio         TEXT,
   photo_url   TEXT,
+  show_on_website BOOLEAN NOT NULL DEFAULT true,
   notification_preferences JSONB NOT NULL DEFAULT '{}',
   is_active   BOOLEAN NOT NULL DEFAULT true,
   deleted_at  TIMESTAMPTZ,
@@ -26,8 +27,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_members_lookup
   ON staff_members(tenant_id, profile_id)
   WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_staff_tenant ON staff_members(tenant_id)
-  WHERE deleted_at IS NULL AND is_active = true;
+CREATE INDEX IF NOT EXISTS idx_staff_public_tenant ON staff_members(tenant_id, created_at)
+  WHERE deleted_at IS NULL AND is_active = true AND show_on_website = true;
 
 CREATE TRIGGER trg_staff_updated_at BEFORE UPDATE ON staff_members
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();

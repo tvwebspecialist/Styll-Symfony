@@ -10,6 +10,44 @@
 
 **Branch:** `feat/public-api-readonly`
 
+## Sessione landing Symfony full migration — 2026-07-21
+
+**Branch:** `feat/symfony-landing-full-migration`
+
+### Obiettivo
+
+Rendere la landing pubblica tenant completamente servita da Symfony, eliminando il fallback Supabase usato dal frontend per alcuni campi mancanti.
+
+### Decisioni
+
+- **DECISIONE PRESA — i campi landing del tenant restano in `tenants.settings` JSONB.**
+  Non e stata introdotta una nuova tabella o nuove colonne dedicate su `tenants`: i campi `tagline`, `bio/description`, `hero_image_url`, `about.*`, `google_rating`, `google_reviews_count`, `team_description`, `locations_description`, `contact_phone`, `contact_email`, `social_links` sono configurazione editoriale, non richiedono query/filtering relazionale, e hanno gia un contenitore persistente coerente nello schema Symfony.
+- **DECISIONE PRESA — aggiungere colonne solo dove mancava struttura reale.**
+  Sono state aggiunte solo le colonne assenti necessarie a esprimere media/visibilita o metadata catalogo pubblici: `locations.photo_url`, `locations.photos`, `locations.show_on_website`, `staff_members.show_on_website`, `services.show_on_website`, `products.description`, `products.display_order`, `products.show_on_site`.
+- **DECISIONE PRESA — `products.available` e derivato, non persistito.**
+  Il flag pubblico viene calcolato da `product_inventory.quantity > 0` tramite relazione Doctrine `Product -> ProductInventory`.
+
+### Implementato
+
+- Migration Doctrine `Version20260721133000`:
+  - `locations.photo_url`
+  - `locations.photos` (`JSONB`)
+  - `locations.show_on_website`
+  - `staff_members.show_on_website`
+  - `services.show_on_website`
+  - `products.description`
+  - `products.display_order`
+  - `products.show_on_site`
+  - indici pubblici tenant-scoped per locations, staff, services, products
+- `Tenant` espone nei serializer group `public:read` i campi landing derivati da `settings`, senza esporre il JSON completo.
+- `Location` espone `photoUrl` e `photos`; `StaffMember` espone `role`; `Product` espone `description` e `available`.
+- `PublicTenantResourceProvider` filtra ora anche `show_on_website` / `show_on_site` per resources pubbliche e promozioni collegate.
+- Bootstrap SQL `docker/postgres/init/*.sql` allineato al nuovo schema per fresh volumes locali.
+- Fixture/test funzionali aggiornati per verificare:
+  - esposizione dei nuovi campi pubblici;
+  - esclusione record hidden;
+  - disponibilita prodotto derivata da inventario.
+
 ### Implementato
 
 - API Platform pubbliche read-only, senza JWT, sotto path tenant-scoped:
@@ -56,9 +94,9 @@
 - **DECISIONE PRESA — tenant pubblico da slug nel path.** Le API pubbliche non accettano `tenant_id` dal client. Il tenant viene risolto da `{slug}` nel path e il provider applica il `TenantFilter` con l'id server-side del tenant attivo.
 - **DECISIONE PRESA — nessuna collection globale tenant.** `Tenant` espone `GET /api/public/tenants/{slug}` e una collection scoped a singolo tenant (`/tenant`) per rispettare il requisito `GetCollection` senza aprire una lista pubblica di tenant.
 
-### Decisioni da confermare
+### Nota storica
 
-- `Product` in Symfony non espone ancora una colonna equivalente a `show_on_site`; le API pubbliche filtrano quindi i prodotti su `isActive = true`. Se serve distinguere prodotti vendibili internamente da prodotti in vetrina, va aggiunta una migration Doctrine dedicata.
+- La necessità di `products.show_on_site` è stata chiusa nella sessione `feat/symfony-landing-full-migration` del 2026-07-21, con migration Doctrine dedicata e filtro pubblico applicato anche ai prodotti/promozioni collegate.
 
 ### Verifiche
 

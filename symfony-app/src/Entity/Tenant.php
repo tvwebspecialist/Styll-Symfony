@@ -12,6 +12,7 @@ use App\Repository\TenantRepository;
 use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Symfony\Component\Uid\Uuid;
 
 #[ApiResource(
@@ -124,4 +125,143 @@ class Tenant
     public function setDataRegion(string $r): static { $this->dataRegion = $r; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('tagline')]
+    public function getPublicTagline(): ?string
+    {
+        return $this->readSettingString(['tagline']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('description')]
+    public function getPublicDescription(): ?string
+    {
+        return $this->readSettingString(['bio']) ?? $this->readSettingString(['description']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('heroImageUrl')]
+    public function getPublicHeroImageUrl(): ?string
+    {
+        return $this->readSettingString(['hero_image_url']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('aboutTitle')]
+    public function getPublicAboutTitle(): ?string
+    {
+        return $this->readSettingString(['about', 'title']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('aboutText')]
+    public function getPublicAboutText(): ?string
+    {
+        return $this->readSettingString(['about', 'text']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('aboutImageUrl')]
+    public function getPublicAboutImageUrl(): ?string
+    {
+        return $this->readSettingString(['about', 'image_url']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('googleRating')]
+    public function getPublicGoogleRating(): ?float
+    {
+        $value = $this->readSettingNumber(['google_rating']);
+        return $value === null ? null : (float) $value;
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('googleReviewsCount')]
+    public function getPublicGoogleReviewsCount(): ?int
+    {
+        $value = $this->readSettingNumber(['google_reviews_count']);
+        return $value === null ? null : (int) $value;
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('teamDescription')]
+    public function getPublicTeamDescription(): ?string
+    {
+        return $this->readSettingString(['team_description']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('locationsDescription')]
+    public function getPublicLocationsDescription(): ?string
+    {
+        return $this->readSettingString(['locations_description']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('contactPhone')]
+    public function getPublicContactPhone(): ?string
+    {
+        return $this->readSettingString(['contact_phone']);
+    }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('contactEmail')]
+    public function getPublicContactEmail(): ?string
+    {
+        return $this->readSettingString(['contact_email']);
+    }
+
+    /**
+     * @return array{instagram?: string, facebook?: string, tiktok?: string, whatsapp?: string}
+     */
+    #[Groups(['public:read'])]
+    #[SerializedName('socialLinks')]
+    public function getPublicSocialLinks(): array
+    {
+        $value = $this->readSettingValue(['social_links']);
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $socialLinks = [];
+
+        foreach (['instagram', 'facebook', 'tiktok', 'whatsapp'] as $key) {
+            $candidate = $value[$key] ?? null;
+            if (is_string($candidate) && trim($candidate) !== '') {
+                $socialLinks[$key] = $candidate;
+            }
+        }
+
+        return $socialLinks;
+    }
+
+    private function readSettingString(array $path): ?string
+    {
+        $value = $this->readSettingValue($path);
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function readSettingNumber(array $path): int|float|null
+    {
+        $value = $this->readSettingValue($path);
+
+        return is_int($value) || is_float($value) ? $value : null;
+    }
+
+    private function readSettingValue(array $path): mixed
+    {
+        $cursor = $this->settings;
+
+        foreach ($path as $segment) {
+            if (!is_array($cursor) || !array_key_exists($segment, $cursor)) {
+                return null;
+            }
+
+            $cursor = $cursor[$segment];
+        }
+
+        return $cursor;
+    }
 }

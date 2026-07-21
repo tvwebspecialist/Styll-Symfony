@@ -71,6 +71,14 @@ class Location
     #[Groups(['public:read'])]
     private ?string $email = null;
 
+    #[ORM\Column(name: 'photo_url', type: 'text', nullable: true)]
+    #[Groups(['public:read'])]
+    private ?string $photoUrl = null;
+
+    #[ORM\Column(type: 'json', options: ['default' => '[]'])]
+    #[Groups(['public:read'])]
+    private array $photos = [];
+
     #[ORM\Column(type: 'decimal', precision: 10, scale: 7, nullable: true)]
     #[Groups(['public:read'])]
     private ?string $latitude = null;
@@ -82,6 +90,9 @@ class Location
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
     #[Groups(['public:read'])]
     private ?string $timezone = null;
+
+    #[ORM\Column(name: 'show_on_website', type: 'boolean', options: ['default' => true])]
+    private bool $showOnWebsite = true;
 
     #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
@@ -120,12 +131,35 @@ class Location
     public function setPhone(?string $p): static { $this->phone = $p; return $this; }
     public function getEmail(): ?string { return $this->email; }
     public function setEmail(?string $e): static { $this->email = $e; return $this; }
+    public function getPhotoUrl(): ?string { return $this->photoUrl; }
+    public function setPhotoUrl(?string $photoUrl): static { $this->photoUrl = $photoUrl; return $this; }
+    /** @return list<string> */
+    public function getPhotos(): array
+    {
+        return array_values(array_filter(
+            $this->photos,
+            static fn (mixed $photo): bool => is_string($photo) && trim($photo) !== '',
+        ));
+    }
+
+    /** @param list<string> $photos */
+    public function setPhotos(array $photos): static
+    {
+        $this->photos = array_values(array_filter(
+            $photos,
+            static fn (mixed $photo): bool => is_string($photo) && trim($photo) !== '',
+        ));
+
+        return $this;
+    }
     public function getLatitude(): ?string { return $this->latitude; }
     public function setLatitude(?string $lat): static { $this->latitude = $lat; return $this; }
     public function getLongitude(): ?string { return $this->longitude; }
     public function setLongitude(?string $lon): static { $this->longitude = $lon; return $this; }
     public function getTimezone(): ?string { return $this->timezone; }
     public function setTimezone(?string $tz): static { $this->timezone = $tz; return $this; }
+    public function isShowOnWebsite(): bool { return $this->showOnWebsite; }
+    public function setShowOnWebsite(bool $showOnWebsite): static { $this->showOnWebsite = $showOnWebsite; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): static { $this->isActive = $v; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }

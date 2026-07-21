@@ -76,6 +76,9 @@ class Service
     #[Groups(['public:read'])]
     private int $displayOrder = 0;
 
+    #[ORM\Column(name: 'show_on_website', type: 'boolean', options: ['default' => true])]
+    private bool $showOnWebsite = true;
+
     #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
 
@@ -119,6 +122,8 @@ class Service
     public function setCategory(?string $c): static { $this->category = $c; return $this; }
     public function getDisplayOrder(): int { return $this->displayOrder; }
     public function setDisplayOrder(int $o): static { $this->displayOrder = $o; return $this; }
+    public function isShowOnWebsite(): bool { return $this->showOnWebsite; }
+    public function setShowOnWebsite(bool $showOnWebsite): static { $this->showOnWebsite = $showOnWebsite; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): static { $this->isActive = $v; return $this; }
     public function getCreatedBy(): ?Profile { return $this->createdBy; }

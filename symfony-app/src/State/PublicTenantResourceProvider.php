@@ -33,11 +33,11 @@ final class PublicTenantResourceProvider implements ProviderInterface
      * @var array<class-string, array{collection: string, item: string}>
      */
     private const ORDER_BY = [
-        Location::class => ['collection' => 'entity.name', 'item' => 'entity.id'],
+        Location::class => ['collection' => 'entity.createdAt', 'item' => 'entity.id'],
         Service::class => ['collection' => 'entity.displayOrder, entity.name', 'item' => 'entity.id'],
         ServiceCategory::class => ['collection' => 'entity.displayOrder, entity.name', 'item' => 'entity.id'],
         StaffMember::class => ['collection' => 'entity.createdAt', 'item' => 'entity.id'],
-        Product::class => ['collection' => 'entity.name', 'item' => 'entity.id'],
+        Product::class => ['collection' => 'entity.displayOrder, entity.name', 'item' => 'entity.id'],
         GalleryPhoto::class => ['collection' => 'entity.displayOrder, entity.createdAt', 'item' => 'entity.id'],
         PortfolioPhoto::class => ['collection' => 'entity.displayOrder, entity.createdAt', 'item' => 'entity.id'],
         WebsitePhoto::class => ['collection' => 'entity.sortOrder, entity.createdAt', 'item' => 'entity.id'],
@@ -154,8 +154,21 @@ final class PublicTenantResourceProvider implements ProviderInterface
             $qb->andWhere('entity.isActive = true');
         }
 
+        if ($resourceClass === Location::class) {
+            $qb->andWhere('entity.showOnWebsite = true');
+        }
+
+        if ($resourceClass === Service::class) {
+            $qb->andWhere('entity.showOnWebsite = true');
+        }
+
         if ($resourceClass === StaffMember::class) {
             $qb->andWhere('entity.deletedAt IS NULL');
+            $qb->andWhere('entity.showOnWebsite = true');
+        }
+
+        if ($resourceClass === Product::class) {
+            $qb->andWhere('entity.showOnSite = true');
         }
 
         if ($resourceClass === PortfolioPhoto::class) {
@@ -178,6 +191,7 @@ final class PublicTenantResourceProvider implements ProviderInterface
                 ->andWhere('promotion.showOnLanding = true')
                 ->andWhere('promotion.validUntil IS NULL OR promotion.validUntil >= :now')
                 ->andWhere('product.isActive = true')
+                ->andWhere('product.showOnSite = true')
                 ->setParameter('now', new \DateTimeImmutable());
         }
 
@@ -189,6 +203,7 @@ final class PublicTenantResourceProvider implements ProviderInterface
                 ->andWhere('promotion.showOnLanding = true')
                 ->andWhere('promotion.validUntil IS NULL OR promotion.validUntil >= :now')
                 ->andWhere('service.isActive = true')
+                ->andWhere('service.showOnWebsite = true')
                 ->setParameter('now', new \DateTimeImmutable());
         }
     }
