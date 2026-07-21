@@ -86,6 +86,32 @@
 
 ---
 
+## FASE 2 — Growth extras: messaging — 2026-07-21
+
+**Commit:** `feat(messaging): add messaging tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721121146` per:
+  - `message_templates`
+  - `messages_log`
+  - `messaging_outbox`
+- Entità Doctrine + repository:
+  - `MessageTemplate` / `MessageTemplateRepository`
+  - `MessageLog` / `MessageLogRepository`
+  - `MessagingOutbox` / `MessagingOutboxRepository`
+- API Platform read-only `GetCollection` per `MessageTemplate` e `MessageLog`; `MessagingOutbox` resta interna/worker-side.
+- Test `MessagingTenantIsolationIntegrationTest` per verificare isolamento tenant su template, log e outbox.
+
+### Note di mapping
+
+- Lo schema segue la specifica v1 archiviata in `docs/_archivio-supabase/database-schema-supabase.md`, non il sottosistema inbox WhatsApp AI v2/v3.
+- `message_templates.updated_at` usa trigger PostgreSQL `set_updated_at()` e lifecycle callback Doctrine.
+- `messaging_outbox` mantiene `payload` JSONB e `idempotency_key` univoca come coda operativa server-side.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
