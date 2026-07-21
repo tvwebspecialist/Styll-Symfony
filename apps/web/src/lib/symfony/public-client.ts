@@ -31,6 +31,24 @@ export interface SymfonyTenantDto {
   primaryColor: string | null
   secondaryColor: string | null
   fontFamily: string | null
+  tagline: string | null
+  description: string | null
+  heroImageUrl: string | null
+  aboutTitle: string | null
+  aboutText: string | null
+  aboutImageUrl: string | null
+  googleRating: number | null
+  googleReviewsCount: number | null
+  teamDescription: string | null
+  locationsDescription: string | null
+  contactPhone: string | null
+  contactEmail: string | null
+  socialLinks: {
+    instagram?: string
+    facebook?: string
+    tiktok?: string
+    whatsapp?: string
+  }
 }
 
 export interface SymfonyLocationDto {
@@ -41,6 +59,8 @@ export interface SymfonyLocationDto {
   zipCode: string | null
   phone: string | null
   email: string | null
+  photoUrl: string | null
+  photos: string[]
   latitude: string | null
   longitude: string | null
   timezone: string | null
@@ -65,6 +85,7 @@ export interface SymfonyServiceDto {
 
 export interface SymfonyStaffMemberDto {
   id: string
+  role: string
   bio: string | null
   photoUrl: string | null
   fullName: string | null
@@ -74,9 +95,11 @@ export interface SymfonyProductDto {
   id: string
   name: string
   brand: string | null
+  description: string | null
   priceSell: string
   photoUrl: string | null
   category: string | null
+  available: boolean
   isNew: boolean
 }
 
