@@ -6,6 +6,32 @@
 
 ---
 
+## FASE 2 — Growth extras: promotions — 2026-07-21
+
+**Commit:** `feat(promotions): add promotion tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721120654` per:
+  - `promotions`
+  - `promotion_services`
+  - `promotion_products`
+- Entità Doctrine + repository:
+  - `Promotion` / `PromotionRepository`
+  - `PromotionService` / `PromotionServiceRepository`
+  - `PromotionProduct` / `PromotionProductRepository`
+- API Platform read-only `GetCollection` per consultazione dashboard, senza operazioni di scrittura finché non sono definiti Voter/permessi di ruolo.
+- Test `PromotionTenantIsolationIntegrationTest` per verificare che `TenantFilter` isoli promozioni e righe ponte per tenant.
+
+### Note di mapping
+
+- La migration è nata da `doctrine:migrations:diff` e poi ridotta al solo gruppo logico, perché il diff Doctrine continua a vedere drift storico tra DDL bootstrap e mapping baseline.
+- I vincoli `CHECK` Supabase su `discount_type` sono preservati nella migration.
+- `promotions.updated_at` usa trigger PostgreSQL `set_updated_at()` e lifecycle callback Doctrine.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
