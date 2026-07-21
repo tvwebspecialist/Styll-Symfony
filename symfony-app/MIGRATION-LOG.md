@@ -189,6 +189,32 @@
 
 ---
 
+## FASE 4 — Admin/Platform: platform notifications/leads/metering — 2026-07-21
+
+**Commit:** `feat(platform): add platform notification and metering tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125402` per:
+  - `platform_notifications`
+  - `platform_leads`
+  - `tenant_usage_counters`
+- Entità Doctrine + repository:
+  - `PlatformNotification` / `PlatformNotificationRepository`
+  - `PlatformLead` / `PlatformLeadRepository`
+  - `TenantUsageCounter` / `TenantUsageCounterRepository`
+- `TenantFilter::EXCLUDED_ENTITIES` aggiornato per `PlatformNotification` e `PlatformLead`; `TenantUsageCounter` resta tenant-scoped.
+- Test `PlatformMeteringTenantFilterIntegrationTest`: platform notifications/leads non sono filtrate per tenant, tenant usage counters sì.
+
+### Note di mapping
+
+- `platform_notifications.tenant_id` è nullable e rappresenta contesto, non ownership tenant-scoped: la tabella è visibile solo a superadmin lato autorizzazione futura.
+- I trigger Supabase automatici su `tenants`/`profiles` non sono stati portati: la versione Symfony corrente di `profiles` non ha una colonna `email`, mentre il trigger legacy `fn_platform_notif_user_registered()` la referenzia.
+- `tenant_usage_counters` usa primary key composta `(tenant_id, period_month, metric)` e metriche della migrazione Supabase messaging foundation (`sms_sent`, `whatsapp_sent`, `email_sent`, `push_sent`, `ai_requests`, `ai_input_tokens`, `ai_output_tokens`).
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
