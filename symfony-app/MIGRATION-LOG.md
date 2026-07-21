@@ -6,6 +6,233 @@
 
 ---
 
+## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
+
+Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
+
+### Vincoli operativi emersi nella sessione
+
+- `git pull --ff-only` non eseguibile in questa sessione: `error: cannot open '.git/FETCH_HEAD': Operation not permitted`
+- `git checkout -b symfony-entities-loyalty` non eseguibile in questa sessione: `.git` è montato in sola lettura e Git non può creare `refs/heads/...lock`
+- Di conseguenza i commit richiesti non sono materialmente eseguibili dall'ambiente corrente, anche se i file applicativi sono stati aggiornati
+
+### DECISIONE DA CONFERMARE — conteggio totale tabelle
+
+Nel contesto utente il totale dichiarato è **39 tabelle**, ma il DDL presente in `symfony-app/docker/postgres/init/*.sql` contiene attualmente **32** `CREATE TABLE IF NOT EXISTS`.
+
+Scelta operativa presa il **20 luglio 2026**: usare il DDL reale nel repository come fonte di verità, coerentemente con `AGENTS.md`.
+
+Tabelle rilevate dal DDL corrente:
+
+- Area 1: `subscription_plans`, `tenants`, `locations`, `tenant_subscriptions`
+- Area 2: `staff_members`, `staff_locations`
+- Area 3: `service_categories`, `services`, `staff_services`, `products`, `product_inventory`, `client_product_wishlist`
+- Area 5: `clients`, `client_notes`, `client_consents`, `client_analytics`
+- Area 4: `working_hours`, `working_hour_overrides`, `appointments`, `appointment_services`, `appointment_products`, `payments`
+- Area 6: `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions`, `tier_configs`, `badges`, `client_badges`
+- Area auth/shared: `users`, `profiles`
+
+### FASE 1 — Area 6: Loyalty & Gamification
+
+**Commit previsto:** `feat: entità Doctrine Area 6 - Loyalty & Gamification`  
+**Stato commit:** non eseguibile nell'ambiente corrente (`.git` read-only)
+
+#### Implementato
+
+Entità Doctrine aggiunte:
+
+- `src/Entity/LoyaltyConfig.php`
+- `src/Entity/Reward.php`
+- `src/Entity/ClientLoyalty.php`
+- `src/Entity/LoyaltyTransaction.php`
+- `src/Entity/RewardRedemption.php`
+- `src/Entity/TierConfig.php`
+- `src/Entity/Badge.php`
+- `src/Entity/ClientBadge.php`
+
+Repository aggiunti:
+
+- `src/Repository/LoyaltyConfigRepository.php`
+- `src/Repository/RewardRepository.php`
+- `src/Repository/ClientLoyaltyRepository.php`
+- `src/Repository/LoyaltyTransactionRepository.php`
+- `src/Repository/RewardRedemptionRepository.php`
+- `src/Repository/TierConfigRepository.php`
+- `src/Repository/BadgeRepository.php`
+- `src/Repository/ClientBadgeRepository.php`
+
+Test di integrazione aggiunto:
+
+- `tests/Integration/LoyaltyTenantIsolationIntegrationTest.php`
+
+#### Scelte di mapping
+
+- Tutte le tabelle tenant-scoped usano lo stesso pattern già presente nelle entità di Area 4/5:
+  relazione `ManyToOne` verso `Tenant` con join column esplicita `tenant_id`, così `TenantFilter` continua a intercettarle senza modifiche infrastrutturali.
+- Le tabelle con `updated_at` e trigger SQL (`loyalty_configs`, `rewards`, `client_loyalty`) usano anche `#[ORM\HasLifecycleCallbacks]` con `onPreUpdate()` coerente al pattern corrente.
+- `reward_redemptions.confirmed_by` è stato mappato verso `StaffMember`, coerentemente con il DDL.
+
+#### Verifica Area 6
+
+Comando eseguito il **20 luglio 2026**:
+
+```bash
+cd symfony-app && php bin/console doctrine:schema:validate --skip-sync
+```
+
+Risultato:
+
+```text
+Mapping
+-------
+
+ [OK] The mapping files are correct.
+
+Database
+--------
+
+ [SKIPPED] The database was not checked for synchronicity.
+```
+
+Test mirato eseguito:
+
+```bash
+cd symfony-app && ./bin/phpunit tests/Integration/LoyaltyTenantIsolationIntegrationTest.php
+```
+
+Risultato: **non eseguibile fino in fondo nell'ambiente corrente** perché la connessione PostgreSQL test verso `127.0.0.1:5432` viene bloccata dal sandbox:
+
+```text
+SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Operation not permitted
+```
+
+### FASE 2 — Completamento Area 3: Catalogo
+
+**Commit previsto:** `feat: completa entità Doctrine Area 3 - Catalogo`  
+**Stato commit:** non eseguibile nell'ambiente corrente (`.git` read-only)
+
+#### Implementato
+
+Entità Doctrine aggiunte:
+
+- `src/Entity/ServiceCategory.php`
+- `src/Entity/StaffService.php`
+- `src/Entity/ProductInventory.php`
+- `src/Entity/ClientProductWishlist.php`
+
+Repository aggiunti:
+
+- `src/Repository/ServiceCategoryRepository.php`
+- `src/Repository/StaffServiceRepository.php`
+- `src/Repository/ProductInventoryRepository.php`
+- `src/Repository/ClientProductWishlistRepository.php`
+
+Ritocchi di allineamento allo schema esistente:
+
+- `src/Entity/Service.php`
+  - aggiunta relazione opzionale `category_id` → `ServiceCategory`
+  - aggiunta relazione opzionale `created_by` → `Profile`
+- `src/Entity/Product.php`
+  - aggiunta relazione opzionale `created_by` → `Profile`
+
+#### DECISIONE PRESA — doppio concetto di categoria su `services`
+
+Il DDL di `services` contiene sia:
+
+- `category_id` verso `service_categories`
+- `category` testuale legacy
+
+Scelta presa il **20 luglio 2026**: mantenere **entrambi** nel mapping Doctrine.
+
+Motivo: il repository già esponeva la colonna testuale `category`; aggiungere anche la relazione `serviceCategory` preserva retrocompatibilità e riallinea l'entità al DDL reale senza rimuovere comportamento esistente.
+
+#### Verifica Area 3
+
+Comando eseguito il **20 luglio 2026**:
+
+```bash
+cd symfony-app && php bin/console doctrine:schema:validate --skip-sync
+```
+
+Risultato:
+
+```text
+Mapping
+-------
+
+ [OK] The mapping files are correct.
+
+Database
+--------
+
+ [SKIPPED] The database was not checked for synchronicity.
+```
+
+Controllo sintattico locale eseguito sui file nuovi/modificati:
+
+```bash
+cd symfony-app && php -l <file>
+```
+
+Risultato: nessun errore di sintassi nei file aggiunti o aggiornati per Area 6 e Area 3.
+
+### FASE 3 — Verifica finale
+
+#### PHPUnit completo richiesto
+
+Comando richiesto dall'istruzione:
+
+```bash
+cd symfony-app && docker compose exec php php bin/phpunit --testdox
+```
+
+Risultato il **20 luglio 2026**:
+
+```text
+permission denied while trying to connect to the docker API at unix:///Users/tommasovezzaro/.docker/run/docker.sock
+```
+
+Fallback locale eseguito:
+
+```bash
+cd symfony-app && ./bin/phpunit --testdox
+```
+
+Risultato:
+
+- **19 test totali rilevati**
+- **18 assertion eseguite**
+- **7 errori**
+- nessun fallimento logico del mapping Doctrine
+- tutti gli errori derivano dal medesimo blocco infrastrutturale: impossibilità di aprire la connessione PostgreSQL di test su `127.0.0.1:5432`
+
+Messaggio ricorrente:
+
+```text
+SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Operation not permitted
+```
+
+#### Conteggio aggiornato entità Doctrine ↔ tabelle DDL
+
+Conteggio basato sul DDL reale presente il **20 luglio 2026** in `symfony-app/docker/postgres/init/*.sql`:
+
+- **27 entità Doctrine mappate**
+- **32 tabelle SQL rilevate**
+
+Copertura attuale: **27 / 32**
+
+Tabelle ancora senza entità Doctrine dedicata:
+
+- `subscription_plans`
+- `tenant_subscriptions`
+- `staff_locations`
+- `client_consents`
+- `client_analytics`
+
+Se il totale atteso di prodotto resta davvero **39**, questo va riallineato con il DDL del repository prima di usare il conteggio come KPI.
+
+---
+
 ## Sessione end-to-end scheletro backend — 2026-07-20
 
 Obiettivo: passare da componenti Symfony testati singolarmente a scheletro end-to-end verificato su PostgreSQL reale.

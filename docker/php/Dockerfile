@@ -7,6 +7,8 @@ RUN apk add --no-cache \
     libpq-dev \
     libzip-dev \
     icu-dev \
+    postgresql-client \
+    rclone \
     && docker-php-ext-install \
         pdo \
         pdo_pgsql \
