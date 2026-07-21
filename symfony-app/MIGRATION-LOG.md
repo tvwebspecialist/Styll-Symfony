@@ -6,6 +6,82 @@
 
 ---
 
+## Sessione public API landing tenant — 2026-07-21
+
+**Branch:** `feat/public-api-readonly`
+
+### Implementato
+
+- API Platform pubbliche read-only, senza JWT, sotto path tenant-scoped:
+  - `GET /api/public/tenants/{slug}`
+  - `GET /api/public/tenants/{slug}/tenant`
+  - `GET /api/public/tenants/{slug}/locations`
+  - `GET /api/public/tenants/{slug}/locations/{id}`
+  - `GET /api/public/tenants/{slug}/service-categories`
+  - `GET /api/public/tenants/{slug}/service-categories/{id}`
+  - `GET /api/public/tenants/{slug}/services`
+  - `GET /api/public/tenants/{slug}/services/{id}`
+  - `GET /api/public/tenants/{slug}/staff-members`
+  - `GET /api/public/tenants/{slug}/staff-members/{id}`
+  - `GET /api/public/tenants/{slug}/products`
+  - `GET /api/public/tenants/{slug}/products/{id}`
+  - `GET /api/public/tenants/{slug}/gallery-photos`
+  - `GET /api/public/tenants/{slug}/gallery-photos/{id}`
+  - `GET /api/public/tenants/{slug}/portfolio-photos`
+  - `GET /api/public/tenants/{slug}/portfolio-photos/{id}`
+  - `GET /api/public/tenants/{slug}/website-photos`
+  - `GET /api/public/tenants/{slug}/website-photos/{id}`
+  - `GET /api/public/tenants/{slug}/promotions`
+  - `GET /api/public/tenants/{slug}/promotions/{id}`
+  - `GET /api/public/tenants/{slug}/promotion-services`
+  - `GET /api/public/tenants/{slug}/promotion-services/{id}`
+  - `GET /api/public/tenants/{slug}/promotion-products`
+  - `GET /api/public/tenants/{slug}/promotion-products/{id}`
+- Nuovo provider `App\State\PublicTenantResourceProvider`:
+  - risolve tenant attivo da `{slug}`;
+  - imposta esplicitamente `tenant_filter` anche senza JWT;
+  - applica filtri pubblici (`isActive`, `deletedAt IS NULL`, `isVisible`, promozioni attive e `showOnLanding`);
+  - restituisce 404 per item non appartenenti allo slug tenant richiesto.
+- Nuovo serializer group `public:read`, separato dai gruppi interni già presenti.
+- `config/packages/security.yaml`: `^/api/public` aperto con `PUBLIC_ACCESS`.
+- `config/packages/api_platform.yaml`: abilitato anche `application/json`, mantenendo `application/ld+json`.
+- Test funzionale `PublicTenantResourcesEndpointTest` per:
+  - accesso senza JWT;
+  - scoping per slug;
+  - blocco cross-tenant sugli item;
+  - assenza di campi sensibili nei JSON pubblici.
+
+### Decisioni
+
+- **DECISIONE PRESA — tenant pubblico da slug nel path.** Le API pubbliche non accettano `tenant_id` dal client. Il tenant viene risolto da `{slug}` nel path e il provider applica il `TenantFilter` con l'id server-side del tenant attivo.
+- **DECISIONE PRESA — nessuna collection globale tenant.** `Tenant` espone `GET /api/public/tenants/{slug}` e una collection scoped a singolo tenant (`/tenant`) per rispettare il requisito `GetCollection` senza aprire una lista pubblica di tenant.
+
+### Decisioni da confermare
+
+- `Product` in Symfony non espone ancora una colonna equivalente a `show_on_site`; le API pubbliche filtrano quindi i prodotti su `isActive = true`. Se serve distinguere prodotti vendibili internamente da prodotti in vetrina, va aggiunta una migration Doctrine dedicata.
+
+### Verifiche
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --colors=never tests/Functional/PublicTenantResourcesEndpointTest.php
+```
+
+Risultato: **OK** — 35 test, 372 assertion. PHPUnit segnala 3 deprecation preesistenti/di suite.
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:validate --skip-sync
+```
+
+Risultato: mapping Doctrine **OK**, sync DB saltato intenzionalmente.
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --colors=never
+```
+
+Risultato: **OK** — 72 test, 515 assertion. PHPUnit segnala 3 deprecation.
+
+---
+
 ## FASE 2 — Growth extras: promotions — 2026-07-21
 
 **Commit:** `feat(promotions): add promotion tables`  

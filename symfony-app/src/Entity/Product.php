@@ -4,10 +4,35 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\ProductRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/products',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/products/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: Product::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: ProductRepository::class)]
 #[ORM\Table(name: 'products')]
 #[ORM\HasLifecycleCallbacks]
@@ -15,6 +40,7 @@ class Product
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -22,12 +48,15 @@ class Product
     private Tenant $tenant;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[Groups(['public:read'])]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $brand = null;
 
     #[ORM\Column(name: 'price_sell', type: 'decimal', precision: 10, scale: 2)]
+    #[Groups(['public:read'])]
     private string $priceSell;
 
     #[ORM\Column(name: 'price_cost', type: 'decimal', precision: 10, scale: 2, nullable: true)]
@@ -37,15 +66,18 @@ class Product
     private ?string $sku = null;
 
     #[ORM\Column(name: 'photo_url', type: 'string', length: 500, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $photoUrl = null;
 
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $category = null;
 
     #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
 
     #[ORM\Column(name: 'is_new', type: 'boolean')]
+    #[Groups(['public:read'])]
     private bool $isNew = false;
 
     #[ORM\ManyToOne(targetEntity: Profile::class)]

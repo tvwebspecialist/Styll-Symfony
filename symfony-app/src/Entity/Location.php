@@ -4,10 +4,35 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\LocationRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/locations',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/locations/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: Location::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: LocationRepository::class)]
 #[ORM\Table(name: 'locations')]
 #[ORM\HasLifecycleCallbacks]
@@ -15,6 +40,7 @@ class Location
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -22,30 +48,39 @@ class Location
     private Tenant $tenant;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[Groups(['public:read'])]
     private string $name;
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $address = null;
 
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $city = null;
 
     #[ORM\Column(name: 'zip_code', type: 'string', length: 20, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $zipCode = null;
 
     #[ORM\Column(type: 'string', length: 30, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $phone = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $email = null;
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 7, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $latitude = null;
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 7, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $longitude = null;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $timezone = null;
 
     #[ORM\Column(name: 'is_active', type: 'boolean')]

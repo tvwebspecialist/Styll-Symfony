@@ -4,10 +4,32 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\TenantRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
+#[ApiResource(
+    operations: [
+        new Get(
+            uriTemplate: '/public/tenants/{slug}',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/tenant',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: TenantRepository::class)]
 #[ORM\Table(name: 'tenants')]
 #[ORM\HasLifecycleCallbacks]
@@ -15,27 +37,35 @@ class Tenant
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['public:read'])]
     private Uuid $id;
 
     #[ORM\Column(name: 'business_name', type: 'string', length: 255)]
+    #[Groups(['public:read'])]
     private string $businessName;
 
     #[ORM\Column(type: 'string', length: 100, unique: true)]
+    #[Groups(['public:read'])]
     private string $slug;
 
     #[ORM\Column(type: 'string', length: 50)]
+    #[Groups(['public:read'])]
     private string $timezone = 'Europe/Rome';
 
     #[ORM\Column(name: 'logo_url', type: 'string', length: 500, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $logoUrl = null;
 
     #[ORM\Column(name: 'primary_color', type: 'string', length: 20, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $primaryColor = '#1A1A2E';
 
     #[ORM\Column(name: 'secondary_color', type: 'string', length: 20, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $secondaryColor = '#E94560';
 
     #[ORM\Column(name: 'font_family', type: 'string', length: 50, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $fontFamily = 'Inter';
 
     #[ORM\Column(type: 'json')]

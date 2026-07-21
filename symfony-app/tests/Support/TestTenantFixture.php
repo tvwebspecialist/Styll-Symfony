@@ -5,10 +5,20 @@ declare(strict_types=1);
 namespace App\Tests\Support;
 
 use App\Entity\Client;
+use App\Entity\GalleryPhoto;
+use App\Entity\Location;
+use App\Entity\PortfolioPhoto;
+use App\Entity\Product;
 use App\Entity\Profile;
+use App\Entity\Promotion;
+use App\Entity\PromotionProduct;
+use App\Entity\PromotionService;
+use App\Entity\Service;
+use App\Entity\ServiceCategory;
 use App\Entity\StaffMember;
 use App\Entity\Tenant;
 use App\Entity\User;
+use App\Entity\WebsitePhoto;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -53,6 +63,24 @@ final class TestTenantFixture
             'tenantB' => $tenantB['tenant'],
             'userA' => $tenantA['user'],
             'userB' => $tenantB['user'],
+        ];
+    }
+
+    /**
+     * @return array{tenantA: Tenant, tenantB: Tenant}
+     */
+    public function seedTwoTenantsWithPublicLandingData(): array
+    {
+        $seeded = $this->seedTwoTenantsWithClients();
+
+        $this->seedPublicLandingData($seeded['tenantA'], 'Tenant A Public', self::TENANT_A_EMAIL);
+        $this->seedPublicLandingData($seeded['tenantB'], 'Tenant B Public', self::TENANT_B_EMAIL);
+
+        $this->em->flush();
+
+        return [
+            'tenantA' => $seeded['tenantA'],
+            'tenantB' => $seeded['tenantB'],
         ];
     }
 
@@ -115,5 +143,124 @@ final class TestTenantFixture
         $this->em->persist($clientTwo);
 
         return ['tenant' => $tenant, 'user' => $user];
+    }
+
+    private function seedPublicLandingData(Tenant $tenant, string $prefix, string $staffEmail): void
+    {
+        $location = (new Location())
+            ->setTenant($tenant)
+            ->setName($prefix.' Location')
+            ->setAddress($prefix.' Address')
+            ->setCity('Milano')
+            ->setZipCode('20100')
+            ->setPhone('+3902000000')
+            ->setEmail(strtolower(str_replace(' ', '-', $prefix)).'@example.test')
+            ->setLatitude('45.4642000')
+            ->setLongitude('9.1900000')
+            ->setTimezone('Europe/Rome');
+
+        $category = (new ServiceCategory())
+            ->setTenant($tenant)
+            ->setName($prefix.' Category')
+            ->setDisplayOrder(1);
+
+        $service = (new Service())
+            ->setTenant($tenant)
+            ->setServiceCategory($category)
+            ->setName($prefix.' Service')
+            ->setDescription($prefix.' Service Description')
+            ->setPrice('25.00')
+            ->setDurationMinutes(30)
+            ->setCategory('Hair')
+            ->setDisplayOrder(1);
+
+        $product = (new Product())
+            ->setTenant($tenant)
+            ->setName($prefix.' Product')
+            ->setBrand($prefix.' Brand')
+            ->setPriceSell('19.90')
+            ->setPriceCost('4.00')
+            ->setSku($prefix.'-PRIVATE-SKU')
+            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/product.jpg')
+            ->setCategory('Care')
+            ->setIsNew(true);
+
+        $staffUser = (new User())
+            ->setEmail('public-'.$staffEmail)
+            ->setRoles(['ROLE_STAFF']);
+        $staffUser->setPassword($this->passwordHasher->hashPassword($staffUser, self::PASSWORD));
+
+        $staffProfile = (new Profile($staffUser))
+            ->setFullName($prefix.' Barber')
+            ->setPhone('+3999999999')
+            ->setBio($prefix.' Private Profile Bio');
+
+        $staff = (new StaffMember())
+            ->setTenant($tenant)
+            ->setProfile($staffProfile)
+            ->setRole('manager')
+            ->setBio($prefix.' Public Bio')
+            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/staff.jpg')
+            ->setNotificationPreferences(['private' => true]);
+
+        $galleryPhoto = (new GalleryPhoto())
+            ->setTenant($tenant)
+            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/gallery.jpg')
+            ->setCaption($prefix.' Gallery')
+            ->setDisplayOrder(1);
+
+        $portfolioPhoto = (new PortfolioPhoto())
+            ->setTenant($tenant)
+            ->setStaff($staff)
+            ->setPhotoUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/portfolio.jpg')
+            ->setServiceTags('{cut}')
+            ->setDisplayOrder(1);
+
+        $websitePhoto = (new WebsitePhoto())
+            ->setTenant($tenant)
+            ->setUrl('https://cdn.example.test/'.strtolower(str_replace(' ', '-', $prefix)).'/website.jpg')
+            ->setSortOrder(1);
+
+        $promotion = (new Promotion())
+            ->setTenant($tenant)
+            ->setTitle($prefix.' Promotion')
+            ->setDescription($prefix.' Promotion Description')
+            ->setDiscountType(Promotion::DISCOUNT_PERCENT)
+            ->setDiscountValue('10.00')
+            ->setShowOnLanding(true)
+            ->setIsActive(true)
+            ->setDisplayOrder(1);
+
+        $promotionService = (new PromotionService())
+            ->setTenant($tenant)
+            ->setPromotion($promotion)
+            ->setService($service)
+            ->setDiscountType(PromotionService::DISCOUNT_PERCENT)
+            ->setDiscountValue('10.00');
+
+        $promotionProduct = (new PromotionProduct())
+            ->setTenant($tenant)
+            ->setPromotion($promotion)
+            ->setProduct($product)
+            ->setDiscountType(PromotionProduct::DISCOUNT_FIXED)
+            ->setDiscountValue('5.00');
+
+        foreach ([
+            $location,
+            $category,
+            $service,
+            $product,
+            $staffUser,
+            $staffProfile,
+            $staff,
+            $galleryPhoto,
+            $portfolioPhoto,
+            $websitePhoto,
+            $promotion,
+            $promotionService,
+            $promotionProduct,
+        ] as $entity) {
+            $this->em->persist($entity);
+        }
     }
 }
