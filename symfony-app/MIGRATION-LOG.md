@@ -215,6 +215,32 @@
 
 ---
 
+## FASE 4 — Admin/Platform: tenant media — 2026-07-21
+
+**Commit:** `feat(media): add tenant media tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125554` per:
+  - `gallery_photos`
+  - `website_photos`
+  - `portfolio_photos`
+- Entità Doctrine + repository:
+  - `GalleryPhoto` / `GalleryPhotoRepository`
+  - `WebsitePhoto` / `WebsitePhotoRepository`
+  - `PortfolioPhoto` / `PortfolioPhotoRepository`
+- API Platform read-only `GetCollection` per le tre entità media, con gruppo serializer `media:read`.
+- Test `MediaTenantIsolationIntegrationTest` per verificare isolamento tenant su tutte le tabelle media.
+
+### Note di mapping
+
+- `gallery_photos` e `portfolio_photos` seguono le migrazioni Supabase legacy.
+- `website_photos` non ha un DDL Supabase archiviato trovato; è stato ricostruito dai tipi/schema legacy (`id`, `tenant_id`, `url`, `sort_order`, `created_at`) e mantenuto tenant-scoped.
+- `portfolio_photos.service_tags` resta `TEXT[]` lato database; l'entità lo espone come stringa array-literal per evitare mapping custom DBAL.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
