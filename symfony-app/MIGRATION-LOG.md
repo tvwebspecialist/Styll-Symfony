@@ -6,6 +6,108 @@
 
 ---
 
+## Sessione fix precisione timestamp PostgreSQL/Doctrine — 2026-07-21
+
+**Branch:** `fix/doctrine-timestamp-precision`
+
+### Bug
+
+Letture Doctrine su righe scritte da PostgreSQL con `now()`/trigger `set_updated_at()` fallivano con:
+
+```text
+Doctrine\DBAL\Types\Exception\InvalidFormat:
+Could not convert database value "... .123456+00" to Doctrine Type Doctrine\DBAL\Types\DateTimeTzImmutableType.
+Expected format "Y-m-d H:i:sO"
+```
+
+### Causa
+
+PostgreSQL `TIMESTAMPTZ` preserva microsecondi per valori generati da `now()`.
+Doctrine DBAL 4/ORM 3, nel tipo standard `datetimetz_immutable`, prova a parsare solo il formato della piattaforma senza frazioni di secondo (`Y-m-d H:i:sO`). Il bug quindi non è legato a una singola tabella: qualunque entity con `datetimetz_immutable` può fallire quando il valore arriva dal database con microsecondi.
+
+### Portata quantificata
+
+Ricognizione su `symfony-app/docker/postgres/init/*.sql` e `symfony-app/migrations/*.php`:
+
+- **19 tabelle con trigger `*_updated_at`:**
+  - `appointments`
+  - `client_analytics`
+  - `client_loyalty`
+  - `clients`
+  - `email_templates`
+  - `locations`
+  - `loyalty_configs`
+  - `message_templates`
+  - `platform_leads`
+  - `product_inventory`
+  - `products`
+  - `profiles`
+  - `promotions`
+  - `rewards`
+  - `services`
+  - `staff_members`
+  - `tenant_subscriptions`
+  - `tenants`
+  - `users`
+- **56 tabelle con almeno un timestamp `DEFAULT now()` / `DEFAULT NOW()` / `DEFAULT CURRENT_TIMESTAMP` o equivalente nei DDL/migration esistenti.**
+
+Conclusione: il problema riguarda sia righe aggiornate da trigger sia righe create con default PostgreSQL, incluse tabelle senza trigger esplicito.
+
+### Confronto opzioni
+
+**Opzione A — normalizzare PostgreSQL a secondi (`date_trunc('second', now())`)**
+
+- Pro: dati sempre compatibili col parser standard Doctrine.
+- Contro: richiede modifiche diffuse a trigger, default storici e migration; perde precisione nativa e può degradare audit/event ordering futuro.
+
+**Opzione B — custom type Doctrine per `datetimetz_immutable`**
+
+- Pro: risolve tutte le entity in un punto solo, non richiede riscrittura dati, mantiene precisione PostgreSQL nativa e accetta dati già sporchi.
+- Contro: introduce un tipo DBAL applicativo da mantenere.
+
+### Decisione presa
+
+Scelta **Opzione B**: nuovo `App\Doctrine\PostgresDateTimeTzImmutableType`, registrato in `config/packages/doctrine.yaml` come override globale di `datetimetz_immutable`.
+
+Motivo: per un backend production-ready è più corretto accettare il formato valido prodotto da PostgreSQL invece di ridurre la precisione dello schema e normalizzare a mano ogni tabella presente/futura.
+
+### Implementato
+
+- `src/Doctrine/PostgresDateTimeTzImmutableType.php`
+  - scrive valori PHP preservando microsecondi (`Y-m-d H:i:s.uO`);
+  - legge prima col parser standard Doctrine;
+  - in fallback usa `DateTimeImmutable` nativo, che accetta timestamp PostgreSQL con microsecondi e timezone.
+- `config/packages/doctrine.yaml`
+  - override globale `datetimetz_immutable: App\Doctrine\PostgresDateTimeTzImmutableType`.
+- `tests/Integration/PostgresTimestampPrecisionIntegrationTest.php`
+  - crea `Tenant`, `StaffMember`, `Client`;
+  - aggiorna le righe via SQL per far scattare i trigger PostgreSQL;
+  - svuota l'EntityManager e rilegge da Doctrine verificando che non fallisca l'hydration.
+
+### Verifiche
+
+Test mirato:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --colors=never tests/Integration/PostgresTimestampPrecisionIntegrationTest.php
+```
+
+Risultato: **OK** — 1 test, 12 assertion.
+
+Verifica dati locali già esistenti (`barbiere-di-prova`) dopo cache clear Symfony:
+
+```bash
+curl http://localhost:8080/api/public/tenants/barbiere-di-prova
+curl http://localhost:8080/api/public/tenants/barbiere-di-prova/staff-members
+curl http://localhost:8080/api/public/tenants/barbiere-di-prova/locations
+curl http://localhost:8080/api/public/tenants/barbiere-di-prova/services
+curl http://localhost:8080/api/public/tenants/barbiere-di-prova/service-categories
+```
+
+Risultato: tutti **200**, senza normalizzare manualmente i dati esistenti.
+
+---
+
 ## Sessione public API landing tenant — 2026-07-21
 
 **Branch:** `feat/public-api-readonly`
