@@ -36,6 +36,9 @@ class TenantFilter extends SQLFilter
         'App\Entity\Profile',
         'App\Entity\Tenant',
         'App\Entity\SubscriptionPlan',
+        'App\Entity\AdminAuditLog',
+        'App\Entity\AdminSetting',
+        'App\Entity\EmailTemplate',
     ];
 
     public function addFilterConstraint(ClassMetadata $targetEntity, string $targetTableAlias): string

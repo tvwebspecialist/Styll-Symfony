@@ -162,6 +162,33 @@
 
 ---
 
+## FASE 4 — Admin/Platform: admin global — 2026-07-21
+
+**Commit:** `feat(admin): add global admin tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125231` per:
+  - `admin_audit_log`
+  - `admin_settings`
+  - `email_templates`
+- Entità Doctrine + repository:
+  - `AdminAuditLog` / `AdminAuditLogRepository`
+  - `AdminSetting` / `AdminSettingRepository`
+  - `EmailTemplate` / `EmailTemplateRepository`
+- Nessuna `ApiResource` per queste tabelle: audit/settings/template globali sono superfici admin sensibili.
+- `TenantFilter::EXCLUDED_ENTITIES` aggiornato per le tre entità globali/admin.
+- Test `AdminGlobalTenantFilterIntegrationTest` per verificare che queste tabelle non vengano filtrate dal tenant corrente.
+
+### Note di mapping
+
+- `admin_audit_log.tenant_id` resta nullable come da schema Supabase: è un log piattaforma con riferimento opzionale a tenant, non ownership tenant-scoped.
+- `admin_settings` usa primary key testuale `key`.
+- `email_templates` sono globali e includono seed idempotente dei template base nella migration.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
