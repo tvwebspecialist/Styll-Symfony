@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\GalleryPhotoRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
@@ -14,6 +17,21 @@ use Symfony\Component\Uid\Uuid;
 #[ApiResource(
     operations: [
         new GetCollection(),
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/gallery-photos',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/gallery-photos/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: GalleryPhoto::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
     ],
     normalizationContext: ['groups' => ['media:read']],
 )]
@@ -23,7 +41,7 @@ class GalleryPhoto
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
-    #[Groups(['media:read'])]
+    #[Groups(['media:read', 'public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -31,15 +49,15 @@ class GalleryPhoto
     private Tenant $tenant;
 
     #[ORM\Column(name: 'photo_url', type: 'text')]
-    #[Groups(['media:read'])]
+    #[Groups(['media:read', 'public:read'])]
     private string $photoUrl;
 
     #[ORM\Column(type: 'text', nullable: true)]
-    #[Groups(['media:read'])]
+    #[Groups(['media:read', 'public:read'])]
     private ?string $caption = null;
 
     #[ORM\Column(name: 'display_order', type: 'integer', options: ['default' => 0])]
-    #[Groups(['media:read'])]
+    #[Groups(['media:read', 'public:read'])]
     private int $displayOrder = 0;
 
     #[ORM\Column(name: 'is_active', type: 'boolean', options: ['default' => true])]

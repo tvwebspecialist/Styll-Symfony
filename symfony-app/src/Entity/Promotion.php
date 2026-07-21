@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\PromotionRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
@@ -14,6 +17,21 @@ use Symfony\Component\Uid\Uuid;
 #[ApiResource(
     operations: [
         new GetCollection(),
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/promotions',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/promotions/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: Promotion::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
     ],
     normalizationContext: ['groups' => ['promotion:read']],
 )]
@@ -31,7 +49,7 @@ class Promotion
 
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
-    #[Groups(['promotion:read', 'promotion_item:read'])]
+    #[Groups(['promotion:read', 'promotion_item:read', 'public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -39,19 +57,19 @@ class Promotion
     private Tenant $tenant;
 
     #[ORM\Column(type: 'string', length: 255)]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private string $title;
 
     #[ORM\Column(type: 'text', nullable: true)]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private ?string $description = null;
 
     #[ORM\Column(name: 'discount_type', type: 'string', length: 30, options: ['default' => self::DISCOUNT_NONE])]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private string $discountType = self::DISCOUNT_NONE;
 
     #[ORM\Column(name: 'discount_value', type: 'decimal', precision: 10, scale: 2, nullable: true)]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private ?string $discountValue = null;
 
     #[ORM\ManyToOne(targetEntity: Service::class)]
@@ -59,11 +77,11 @@ class Promotion
     private ?Service $service = null;
 
     #[ORM\Column(name: 'valid_from', type: 'datetimetz_immutable', options: ['default' => 'now()'])]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private \DateTimeImmutable $validFrom;
 
     #[ORM\Column(name: 'valid_until', type: 'datetimetz_immutable', nullable: true)]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private ?\DateTimeImmutable $validUntil = null;
 
     #[ORM\Column(name: 'show_on_landing', type: 'boolean', options: ['default' => true])]
@@ -79,7 +97,7 @@ class Promotion
     private bool $isActive = true;
 
     #[ORM\Column(name: 'display_order', type: 'integer', options: ['default' => 0])]
-    #[Groups(['promotion:read'])]
+    #[Groups(['promotion:read', 'public:read'])]
     private int $displayOrder = 0;
 
     #[ORM\Column(name: 'created_at', type: 'datetimetz_immutable', options: ['default' => 'now()'])]

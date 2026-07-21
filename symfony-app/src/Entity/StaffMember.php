@@ -4,10 +4,36 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\StaffMemberRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Symfony\Component\Uid\Uuid;
 
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/staff-members',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/staff-members/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: StaffMember::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: StaffMemberRepository::class)]
 #[ORM\Table(name: 'staff_members')]
 #[ORM\HasLifecycleCallbacks]
@@ -15,6 +41,7 @@ class StaffMember
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -29,9 +56,11 @@ class StaffMember
     private string $role = 'staff';
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $bio = null;
 
     #[ORM\Column(name: 'photo_url', type: 'string', length: 500, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $photoUrl = null;
 
     #[ORM\Column(name: 'notification_preferences', type: 'json')]
@@ -93,4 +122,8 @@ class StaffMember
     public function setCreatedBy(?Profile $p): static { $this->createdBy = $p; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+
+    #[Groups(['public:read'])]
+    #[SerializedName('fullName')]
+    public function getPublicFullName(): ?string { return $this->profile->getFullName(); }
 }

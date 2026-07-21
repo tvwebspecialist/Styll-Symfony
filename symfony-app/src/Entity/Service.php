@@ -4,10 +4,35 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\ServiceRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/services',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/services/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: Service::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: ServiceRepository::class)]
 #[ORM\Table(name: 'services')]
 #[ORM\HasLifecycleCallbacks]
@@ -15,6 +40,7 @@ class Service
 {
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -23,24 +49,31 @@ class Service
 
     #[ORM\ManyToOne(targetEntity: ServiceCategory::class)]
     #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    #[Groups(['public:read'])]
     private ?ServiceCategory $serviceCategory = null;
 
     #[ORM\Column(type: 'string', length: 255)]
+    #[Groups(['public:read'])]
     private string $name;
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $description = null;
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
+    #[Groups(['public:read'])]
     private string $price;
 
     #[ORM\Column(name: 'duration_minutes', type: 'integer')]
+    #[Groups(['public:read'])]
     private int $durationMinutes;
 
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    #[Groups(['public:read'])]
     private ?string $category = null;
 
     #[ORM\Column(name: 'display_order', type: 'integer')]
+    #[Groups(['public:read'])]
     private int $displayOrder = 0;
 
     #[ORM\Column(name: 'is_active', type: 'boolean')]

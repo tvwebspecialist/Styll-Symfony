@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Link;
 use App\Repository\PromotionProductRepository;
+use App\State\PublicTenantResourceProvider;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
@@ -14,6 +17,21 @@ use Symfony\Component\Uid\Uuid;
 #[ApiResource(
     operations: [
         new GetCollection(),
+        new GetCollection(
+            uriTemplate: '/public/tenants/{slug}/promotion-products',
+            uriVariables: ['slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug'])],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
+        new Get(
+            uriTemplate: '/public/tenants/{slug}/promotion-products/{id}',
+            uriVariables: [
+                'slug' => new Link(fromClass: Tenant::class, toProperty: 'tenant', identifiers: ['slug']),
+                'id' => new Link(fromClass: PromotionProduct::class),
+            ],
+            normalizationContext: ['groups' => ['public:read']],
+            provider: PublicTenantResourceProvider::class,
+        ),
     ],
     normalizationContext: ['groups' => ['promotion_item:read']],
 )]
@@ -29,7 +47,7 @@ class PromotionProduct
 
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
-    #[Groups(['promotion_item:read'])]
+    #[Groups(['promotion_item:read', 'public:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -38,19 +56,20 @@ class PromotionProduct
 
     #[ORM\ManyToOne(targetEntity: Promotion::class)]
     #[ORM\JoinColumn(name: 'promotion_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
-    #[Groups(['promotion_item:read'])]
+    #[Groups(['promotion_item:read', 'public:read'])]
     private Promotion $promotion;
 
     #[ORM\ManyToOne(targetEntity: Product::class)]
     #[ORM\JoinColumn(name: 'product_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
+    #[Groups(['public:read'])]
     private Product $product;
 
     #[ORM\Column(name: 'discount_type', type: 'string', length: 30)]
-    #[Groups(['promotion_item:read'])]
+    #[Groups(['promotion_item:read', 'public:read'])]
     private string $discountType;
 
     #[ORM\Column(name: 'discount_value', type: 'decimal', precision: 10, scale: 2)]
-    #[Groups(['promotion_item:read'])]
+    #[Groups(['promotion_item:read', 'public:read'])]
     private string $discountValue;
 
     #[ORM\Column(name: 'created_at', type: 'datetimetz_immutable', options: ['default' => 'now()'])]
