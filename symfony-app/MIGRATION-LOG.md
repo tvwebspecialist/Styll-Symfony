@@ -112,6 +112,32 @@
 
 ---
 
+## FASE 3 — Legal / Privacy / GDPR: privacy and consent proof — 2026-07-21
+
+**Commit:** `feat(privacy): add GDPR privacy consent tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721123103` per:
+  - `client_privacy_requests`
+  - `marketing_unsubscribe_tokens`
+  - `analytics_consent_events`
+- Entità Doctrine + repository:
+  - `ClientPrivacyRequest` / `ClientPrivacyRequestRepository`
+  - `MarketingUnsubscribeToken` / `MarketingUnsubscribeTokenRepository`
+  - `AnalyticsConsentEvent` / `AnalyticsConsentEventRepository`
+- Nessuna entità del gruppo espone `ApiResource`: letture/scritture API GDPR richiedono una sessione dedicata di autorizzazione.
+- Test `PrivacyConsentTenantIsolationIntegrationTest` per verificare isolamento tenant su `client_privacy_requests` e `marketing_unsubscribe_tokens`.
+
+### Note di mapping
+
+- I valori enum Supabase sono mappati come stringhe con `CHECK` constraint in migration, coerentemente con le convenzioni Symfony del progetto.
+- `analytics_consent_events` mantiene `ip_address INET` e il trigger append-only `trg_guard_analytics_consent_events_append_only` della specifica Supabase.
+- `client_privacy_requests` resta un audit trail append-only a livello di modello applicativo; la migrazione Supabase originale non definiva un trigger DB di immutabilità per questa tabella.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
