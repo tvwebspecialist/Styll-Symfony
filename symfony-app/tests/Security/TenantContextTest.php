@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Security;
 
-use App\Entity\StaffMember;
-use App\Entity\Tenant;
 use App\Entity\User;
+use App\Security\ResolvedStaffAccess;
+use App\Security\StaffTenantAccessResolver;
+use App\Security\StaffTenantMembership;
 use App\Security\TenantContext;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Query;
-use Doctrine\ORM\QueryBuilder;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
@@ -29,9 +27,9 @@ class TenantContextTest extends TestCase
         $storage = $this->createMock(TokenStorageInterface::class);
         $storage->method('getToken')->willReturn(null);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $resolver = $this->createMock(StaffTenantAccessResolver::class);
 
-        $context = new TenantContext($storage, $em);
+        $context = new TenantContext($storage, $resolver);
 
         $this->assertNull($context->getTenantId(),
             'No security token must yield null tenant_id — unauthenticated request gets nothing');
@@ -42,7 +40,7 @@ class TenantContextTest extends TestCase
     public function testReturnsNullWhenUserHasNoStaffMember(): void
     {
         $user = $this->createMock(User::class);
-        $user->method('getProfile')->willReturn(null);
+        $user->method('getId')->willReturn(Uuid::v4());
 
         $token = $this->createMock(TokenInterface::class);
         $token->method('getUser')->willReturn($user);
@@ -50,23 +48,10 @@ class TenantContextTest extends TestCase
         $storage = $this->createMock(TokenStorageInterface::class);
         $storage->method('getToken')->willReturn($token);
 
-        // Query returns no staff member
-        $query = $this->createMock(Query::class);
-        $query->method('getOneOrNullResult')->willReturn(null);
+        $resolver = $this->createMock(StaffTenantAccessResolver::class);
+        $resolver->method('resolveForUser')->willReturn(new ResolvedStaffAccess([], null, null));
 
-        $qb = $this->createMock(QueryBuilder::class);
-        $qb->method('select')->willReturnSelf();
-        $qb->method('from')->willReturnSelf();
-        $qb->method('where')->willReturnSelf();
-        $qb->method('andWhere')->willReturnSelf();
-        $qb->method('setParameter')->willReturnSelf();
-        $qb->method('setMaxResults')->willReturnSelf();
-        $qb->method('getQuery')->willReturn($query);
-
-        $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('createQueryBuilder')->willReturn($qb);
-
-        $context = new TenantContext($storage, $em);
+        $context = new TenantContext($storage, $resolver);
 
         $this->assertNull($context->getTenantId(),
             'User with no linked staff_member must yield null tenant — no access to any tenant');
@@ -78,14 +63,8 @@ class TenantContextTest extends TestCase
     {
         $expectedTenantId = Uuid::v4();
 
-        $tenant = $this->createMock(Tenant::class);
-        $tenant->method('getId')->willReturn($expectedTenantId);
-
-        $staffMember = $this->createMock(StaffMember::class);
-        $staffMember->method('getTenant')->willReturn($tenant);
-
         $user = $this->createMock(User::class);
-        $user->method('getProfile')->willReturn(null); // profile resolved internally
+        $user->method('getId')->willReturn(Uuid::v4());
 
         $token = $this->createMock(TokenInterface::class);
         $token->method('getUser')->willReturn($user);
@@ -93,22 +72,23 @@ class TenantContextTest extends TestCase
         $storage = $this->createMock(TokenStorageInterface::class);
         $storage->method('getToken')->willReturn($token);
 
-        $query = $this->createMock(Query::class);
-        $query->method('getOneOrNullResult')->willReturn($staffMember);
+        $resolver = $this->createMock(StaffTenantAccessResolver::class);
+        $resolver->method('resolveForUser')->willReturn(new ResolvedStaffAccess(
+            memberships: [],
+            currentMembership: new StaffTenantMembership(
+                staffMemberId: Uuid::v4()->toRfc4122(),
+                tenantId: $expectedTenantId->toRfc4122(),
+                tenantSlug: 'tenant-a',
+                businessName: 'Tenant A',
+                logoUrl: null,
+                status: 'active',
+                timezone: 'Europe/Rome',
+                role: 'owner',
+            ),
+            requestedTenantSlug: null,
+        ));
 
-        $qb = $this->createMock(QueryBuilder::class);
-        $qb->method('select')->willReturnSelf();
-        $qb->method('from')->willReturnSelf();
-        $qb->method('where')->willReturnSelf();
-        $qb->method('andWhere')->willReturnSelf();
-        $qb->method('setParameter')->willReturnSelf();
-        $qb->method('setMaxResults')->willReturnSelf();
-        $qb->method('getQuery')->willReturn($query);
-
-        $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('createQueryBuilder')->willReturn($qb);
-
-        $context = new TenantContext($storage, $em);
+        $context = new TenantContext($storage, $resolver);
 
         $result = $context->getTenantId();
 
@@ -123,14 +103,8 @@ class TenantContextTest extends TestCase
     {
         $tenantId = Uuid::v4();
 
-        $tenant = $this->createMock(Tenant::class);
-        $tenant->method('getId')->willReturn($tenantId);
-
-        $staffMember = $this->createMock(StaffMember::class);
-        $staffMember->method('getTenant')->willReturn($tenant);
-
         $user = $this->createMock(User::class);
-        $user->method('getProfile')->willReturn(null);
+        $user->method('getId')->willReturn(Uuid::v4());
 
         $token = $this->createMock(TokenInterface::class);
         $token->method('getUser')->willReturn($user);
@@ -138,23 +112,23 @@ class TenantContextTest extends TestCase
         $storage = $this->createMock(TokenStorageInterface::class);
         $storage->method('getToken')->willReturn($token);
 
-        $query = $this->createMock(Query::class);
-        // Expect exactly ONE database call
-        $query->expects($this->once())->method('getOneOrNullResult')->willReturn($staffMember);
+        $resolver = $this->createMock(StaffTenantAccessResolver::class);
+        $resolver->expects($this->once())->method('resolveForUser')->willReturn(new ResolvedStaffAccess(
+            memberships: [],
+            currentMembership: new StaffTenantMembership(
+                staffMemberId: Uuid::v4()->toRfc4122(),
+                tenantId: $tenantId->toRfc4122(),
+                tenantSlug: 'tenant-a',
+                businessName: 'Tenant A',
+                logoUrl: null,
+                status: 'active',
+                timezone: 'Europe/Rome',
+                role: 'owner',
+            ),
+            requestedTenantSlug: null,
+        ));
 
-        $qb = $this->createMock(QueryBuilder::class);
-        $qb->method('select')->willReturnSelf();
-        $qb->method('from')->willReturnSelf();
-        $qb->method('where')->willReturnSelf();
-        $qb->method('andWhere')->willReturnSelf();
-        $qb->method('setParameter')->willReturnSelf();
-        $qb->method('setMaxResults')->willReturnSelf();
-        $qb->method('getQuery')->willReturn($query);
-
-        $em = $this->createMock(EntityManagerInterface::class);
-        $em->expects($this->once())->method('createQueryBuilder')->willReturn($qb);
-
-        $context = new TenantContext($storage, $em);
+        $context = new TenantContext($storage, $resolver);
 
         // Call twice — should only hit DB once
         $context->getTenantId();
@@ -168,9 +142,9 @@ class TenantContextTest extends TestCase
         $storage = $this->createMock(TokenStorageInterface::class);
         $storage->method('getToken')->willReturn(null);
 
-        $em = $this->createMock(EntityManagerInterface::class);
+        $resolver = $this->createMock(StaffTenantAccessResolver::class);
 
-        $context = new TenantContext($storage, $em);
+        $context = new TenantContext($storage, $resolver);
 
         // Prime the cache with null
         $this->assertNull($context->getTenantId());

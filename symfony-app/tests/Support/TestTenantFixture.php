@@ -21,6 +21,7 @@ use App\Entity\Tenant;
 use App\Entity\User;
 use App\Entity\WebsitePhoto;
 use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class TestTenantFixture
@@ -85,6 +86,22 @@ final class TestTenantFixture
         ];
     }
 
+    /**
+     * @return array{tenantA: Tenant, tenantB: Tenant, user: User}
+     */
+    public function seedMultiTenantStaffUser(): array
+    {
+        $seeded = $this->seedTwoTenantsWithClients();
+        $this->addStaffMembership($seeded['userA'], $seeded['tenantB'], 'manager');
+        $this->em->flush();
+
+        return [
+            'tenantA' => $seeded['tenantA'],
+            'tenantB' => $seeded['tenantB'],
+            'user' => $seeded['userA'],
+        ];
+    }
+
     public function resetDatabase(): void
     {
         $filters = $this->em->getFilters();
@@ -145,6 +162,24 @@ final class TestTenantFixture
         $this->em->persist($clientTwo);
 
         return ['tenant' => $tenant, 'user' => $user];
+    }
+
+    public function addStaffMembership(User $user, Tenant $tenant, string $role = 'manager'): StaffMember
+    {
+        $profile = $this->em->getRepository(Profile::class)->find($user->getId());
+        if (!$profile instanceof Profile) {
+            throw new RuntimeException(sprintf('Profile for user "%s" was not found in test fixture.', $user->getEmail()));
+        }
+
+        $staff = (new StaffMember())
+            ->setTenant($tenant)
+            ->setProfile($profile)
+            ->setRole($role)
+            ->setShowOnWebsite(false);
+
+        $this->em->persist($staff);
+
+        return $staff;
     }
 
     private function seedPublicLandingData(Tenant $tenant, string $prefix, string $staffEmail): void

@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Security;
 
-use App\Entity\StaffMember;
 use App\Entity\User;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Uid\Uuid;
 
@@ -27,7 +25,7 @@ final class TenantContext
 
     public function __construct(
         private readonly TokenStorageInterface $tokenStorage,
-        private readonly EntityManagerInterface $em,
+        private readonly StaffTenantAccessResolver $staffTenantAccessResolver,
     ) {}
 
     /**
@@ -65,21 +63,11 @@ final class TenantContext
             return null;
         }
 
-        $staffMember = $this->em->createQueryBuilder()
-            ->select('sm')
-            ->from(StaffMember::class, 'sm')
-            ->where('sm.profile = :profile')
-            ->andWhere('sm.deletedAt IS NULL')
-            ->andWhere('sm.isActive = true')
-            ->setParameter('profile', $user->getProfile())
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$staffMember instanceof StaffMember) {
+        $currentMembership = $this->staffTenantAccessResolver->resolveForUser($user)->currentMembership;
+        if ($currentMembership === null) {
             return null;
         }
 
-        return $staffMember->getTenant()->getId();
+        return Uuid::fromString($currentMembership->tenantId);
     }
 }

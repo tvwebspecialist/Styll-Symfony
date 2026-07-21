@@ -220,6 +220,111 @@ docker compose exec -T php env APP_ENV=test php bin/phpunit --colors=never
 
 Risultato: **OK** — 72 test, 515 assertion. PHPUnit segnala 3 deprecation.
 
+### Aggiornamento verifica Docker reale + fix JWT test runtime — 2026-07-21
+
+Contesto: la prima soluzione provata per i test JWT usava keypair committata in `config/jwt/test/`, ma la verifica corretta nel container reale mostrava ancora il fallimento `An error occurred while trying to encode the JWT token`.
+
+#### Causa reale
+
+- Il `docker-compose.yml` della root monta `jwt_keys:/var/www/config/jwt`.
+- Questo volume Docker sovrascrive il contenuto versionato sotto `config/jwt/` dentro il container `php`.
+- Di conseguenza, una keypair test committata nel repository a quel path non viene realmente vista dal processo PHPUnit eseguito con `docker compose exec`.
+
+#### Correzione applicata
+
+- `config/packages/lexik_jwt_authentication.yaml`
+  - in `when@test` le chiavi JWT sono state spostate da `config/jwt/test/*` a `var/jwt/test/*`
+- `tests/bootstrap.php`
+  - genera a runtime la keypair test in `var/jwt/test/`
+  - usa lock file per evitare race tra processi
+  - valida eventuali chiavi già presenti prima di riusarle
+- `config/packages/api_platform.yaml` + `config/api_metadata/public_properties.yaml`
+  - metadati YAML espliciti per far esporre ad API Platform i campi landing derivati (`Tenant.publicTagline`, `Location.photoUrl`, `Product.description`, ecc.) che il property name collection chain non stava includendo in modo affidabile
+
+#### Verifica reale nel container
+
+Comando eseguito:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato in quella sessione: **75/75 verdi**, `Tests: 75, Assertions: 611, PHPUnit Deprecations: 3.`
+
+#### Stato Git/GitHub
+
+- branch pushata: `feat/symfony-landing-full-migration`
+- PR aperta verso `main`: `#6` — `https://github.com/tvwebspecialist/Styll-Symfony/pull/6`
+- non mergeata
+
+---
+
+## Sessione auth staff JWT + tenant context — 2026-07-21
+
+**Branch:** `feat/symfony-staff-auth-context`
+
+### Obiettivo
+
+Implementare il primo contratto backend Symfony per la dashboard staff:
+
+- endpoint autenticato `GET /api/me`
+- profilo utente/profilo staff
+- tenant corrente e ruolo corrente
+- altri tenant accessibili per utenti multi-tenant
+- prima forma di tenant selection server-side compatibile con il pattern frontend basato su slug
+
+### Decisioni
+
+- **DECISIONE PRESA — il tenant corrente puo essere richiesto solo via slug, mai via `tenant_id` client-side.**
+  Il backend accetta solo segnali opzionali di slug (`X-Tenant-Slug`, `tenantSlug`, `_tenant_slug`) e li interseca sempre con le membership staff attive del chiamante.
+- **DECISIONE PRESA — fallback conservativo alla prima membership attiva.**
+  In assenza di slug esplicito, il tenant corrente lato Symfony resta la prima `staff_members` attiva ordinata per `created_at`, coerente col fallback gia presente oggi nel frontend.
+- **DECISIONE DA CONFERMARE — parita completa con shadow mode/superadmin rinviata.**
+  Il frontend Next oggi supporta `profiles.is_superadmin` e cookie di shadow impersonation; lo schema/entity Symfony corrente non espone ancora questo campo e non persiste una selezione tenant “attiva” indipendente dal request slug. Questo slice implementa il percorso staff standard, ma la parita completa con admin shadow mode richiede un passaggio dedicato di modello dati e contratto auth.
+
+### Implementato
+
+- Nuovo resolver `App\Security\StaffTenantAccessResolver`
+  - legge le membership attive direttamente dal DB senza dipendere dal Doctrine `tenant_filter`
+  - risolve il tenant corrente da slug richiesto oppure fallback
+  - evita di fidarsi di `tenant_id` dal client
+- Nuovi value object:
+  - `App\Security\StaffTenantMembership`
+  - `App\Security\ResolvedStaffAccess`
+- `App\Security\TenantContext`
+  - ora usa lo stesso resolver condiviso invece di una query ORM locale scollegata
+  - il `tenant_filter` applicativo eredita quindi la stessa semantica di tenant selection usata da `/api/me`
+- Nuovo controller `App\Controller\MeController`
+  - `GET /api/me`
+  - ritorna `user`, `profile`, `currentTenant`, `currentRole`, `otherTenants`
+  - risponde `403` quando il client richiede esplicitamente uno slug fuori dalle membership attive
+- Fixture/test support
+  - `TestTenantFixture::seedMultiTenantStaffUser()`
+  - `TestTenantFixture::addStaffMembership()`
+- Test aggiunti/aggiornati
+  - `tests/Functional/MeEndpointTest.php`
+  - `tests/Functional/ClientsEndpointTest.php`
+    - prova che la tenant selection via slug influenza davvero anche un endpoint tenant-filtered (`/api/clients`)
+  - `tests/Security/TenantContextTest.php`
+    - riallineato al nuovo resolver condiviso
+
+### Verifica reale nel container
+
+Comando eseguito:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Output finale:
+
+```text
+OK, but there were issues!
+Tests: 81, Assertions: 666, PHPUnit Deprecations: 3.
+```
+
+Nota: i log `Method Not Allowed` sugli `OPTIONS /api/clients` e i `Not Found` trasformati in Error resource restano rumore di suite gia presente; la run Docker esce `0` ed e la verifica autoritativa del batch.
+
 ---
 
 ## FASE 2 — Growth extras: promotions — 2026-07-21

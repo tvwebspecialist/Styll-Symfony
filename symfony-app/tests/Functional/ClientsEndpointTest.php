@@ -6,6 +6,7 @@ namespace App\Tests\Functional;
 
 use App\Security\TenantContext;
 use App\Tests\Support\TestTenantFixture;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -13,6 +14,10 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 final class ClientsEndpointTest extends WebTestCase
 {
     private KernelBrowser $client;
+    /**
+     * @var array{tenantA: \App\Entity\Tenant, tenantB: \App\Entity\Tenant, userA: \App\Entity\User, userB: \App\Entity\User}
+     */
+    private array $tenantSeed;
 
     protected function setUp(): void
     {
@@ -23,7 +28,7 @@ final class ClientsEndpointTest extends WebTestCase
         self::assertInstanceOf(TestTenantFixture::class, $fixture);
 
         $fixture->resetDatabase();
-        $fixture->seedTwoTenantsWithClients();
+        $this->tenantSeed = $fixture->seedTwoTenantsWithClients();
 
         $container->get(TokenStorageInterface::class)->setToken(null);
         $container->get(TenantContext::class)->reset();
@@ -59,6 +64,32 @@ final class ClientsEndpointTest extends WebTestCase
         $this->client->request('GET', '/api/clients', server: [
             'HTTP_AUTHORIZATION' => 'Bearer '.$tenantBToken,
             'HTTP_ACCEPT' => 'application/ld+json',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(
+            ['Tenant B API - Client 1', 'Tenant B API - Client 2'],
+            $this->clientNamesFromResponse(),
+        );
+    }
+
+    public function testGetClientsUsesRequestedTenantSlugForMultiTenantStaff(): void
+    {
+        $container = self::getContainer();
+        $fixture = $container->get(TestTenantFixture::class);
+        self::assertInstanceOf(TestTenantFixture::class, $fixture);
+
+        $fixture->addStaffMembership($this->tenantSeed['userA'], $this->tenantSeed['tenantB'], 'manager');
+        $container->get(EntityManagerInterface::class)->flush();
+        $container->get(TokenStorageInterface::class)->setToken(null);
+        $container->get(TenantContext::class)->reset();
+
+        $tenantAToken = $this->login(TestTenantFixture::TENANT_A_EMAIL);
+
+        $this->client->request('GET', '/api/clients', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer '.$tenantAToken,
+            'HTTP_ACCEPT' => 'application/ld+json',
+            'HTTP_X_TENANT_SLUG' => 'tenant-b-api',
         ]);
 
         self::assertResponseIsSuccessful();
