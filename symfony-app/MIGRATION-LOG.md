@@ -138,6 +138,30 @@
 
 ---
 
+## FASE 3 — Legal / Privacy / GDPR: legal acceptance — 2026-07-21
+
+**Commit:** `feat(legal): add legal acceptance tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721123319` per:
+  - `legal_acceptance_events`
+  - `legal_acceptance_pending`
+- Entità Doctrine + repository:
+  - `LegalAcceptanceEvent` / `LegalAcceptanceEventRepository`
+  - `LegalAcceptancePending` / `LegalAcceptancePendingRepository`
+- Nessuna entità del gruppo espone `ApiResource`: letture/scritture API legal richiedono una sessione dedicata di autorizzazione.
+- Test `LegalAcceptanceTenantIsolationIntegrationTest` per verificare isolamento tenant su `legal_acceptance_events`.
+
+### Note di mapping
+
+- `legal_acceptance_events.tenant_id` resta nullable come nello schema Supabase: gli eventi possono nascere prima del backfill tenant e diventare tenant-scoped dopo.
+- Il trigger `legal_acceptance_events_guard_immutability` replica la regola Supabase: righe immutabili salvo un solo backfill `tenant_id` da `NULL` a valore.
+- `legal_acceptance_pending` è globale/interna e non ha `tenant_id`; contiene hash token one-shot e non viene esposta via API.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
