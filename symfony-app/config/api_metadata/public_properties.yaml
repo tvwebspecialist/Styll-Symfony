@@ -1,0 +1,25 @@
+resources: { }
+
+properties:
+    App\Entity\Tenant:
+        publicTagline: ~
+        publicDescription: ~
+        publicHeroImageUrl: ~
+        publicAboutTitle: ~
+        publicAboutText: ~
+        publicAboutImageUrl: ~
+        publicGoogleRating: ~
+        publicGoogleReviewsCount: ~
+        publicTeamDescription: ~
+        publicLocationsDescription: ~
+        publicContactPhone: ~
+        publicContactEmail: ~
+        publicSocialLinks: ~
+
+    App\Entity\Location:
+        photoUrl: ~
+        photos: ~
+
+    App\Entity\Product:
+        description: ~
+        publicAvailable: ~

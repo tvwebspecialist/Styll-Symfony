@@ -5,6 +5,6 @@ lexik_jwt_authentication:
 
 when@test:
     lexik_jwt_authentication:
-        secret_key: '%kernel.project_dir%/config/jwt/test/private.pem'
-        public_key: '%kernel.project_dir%/config/jwt/test/public.pem'
+        secret_key: '%kernel.project_dir%/var/jwt/test/private.pem'
+        public_key: '%kernel.project_dir%/var/jwt/test/public.pem'
         pass_phrase: ''

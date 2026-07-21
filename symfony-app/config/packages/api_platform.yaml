@@ -4,6 +4,9 @@ api_platform:
     formats:
         jsonld: ['application/ld+json']
         json: ['application/json']
+    mapping:
+        paths:
+            - '%kernel.project_dir%/config/api_metadata/public_properties.yaml'
     defaults:
         stateless: true
         cache_headers:
