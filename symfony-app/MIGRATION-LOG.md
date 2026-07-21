@@ -32,6 +32,34 @@
 
 ---
 
+## FASE 2 — Growth extras: import/onboarding/auth tokens — 2026-07-21
+
+**Commit:** `feat(import): add import and onboarding tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721120852` per:
+  - `client_import_jobs`
+  - `team_invitations`
+  - `onboarding_tokens`
+  - `email_verification_tokens`
+- Entità Doctrine + repository:
+  - `ClientImportJob` / `ClientImportJobRepository`
+  - `TeamInvitation` / `TeamInvitationRepository`
+  - `OnboardingToken` / `OnboardingTokenRepository`
+  - `EmailVerificationToken` / `EmailVerificationTokenRepository`
+- API Platform read-only `GetCollection` per `ClientImportJob` e `TeamInvitation`; token sensibili non sono inclusi nei gruppi serializer.
+- Test `ImportAuthTenantIsolationIntegrationTest` per verificare isolamento tenant su `client_import_jobs` e `team_invitations`.
+
+### Note di mapping
+
+- `initiated_by` e `created_by` sono mappati a `Profile`, coerentemente con le altre entità Symfony che sostituiscono `auth.users` con `profiles`/`users`.
+- `onboarding_tokens` ed `email_verification_tokens` non hanno `tenant_id` nella specifica e restano tabelle interne non esposte via API Platform.
+- `client_import_jobs.merged_count` include la patch Supabase successiva `20260706000002_client_import_jobs_merge_count.sql`.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
