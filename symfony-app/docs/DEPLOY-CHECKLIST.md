@@ -100,6 +100,7 @@ docker compose exec postgres psql -U styll -d styll_test -c '\dt'
 ```bash
 cd /var/www/styll/symfony-app
 APP_ENV=prod php bin/console cache:clear
+APP_ENV=prod php bin/console doctrine:migrations:migrate --no-interaction
 APP_ENV=prod php bin/console doctrine:schema:validate --skip-sync
 APP_ENV=prod php bin/console debug:router | grep -E 'api_login|api_clients'
 ```

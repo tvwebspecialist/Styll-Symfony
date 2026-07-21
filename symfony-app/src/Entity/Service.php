@@ -21,6 +21,10 @@ class Service
     #[ORM\JoinColumn(name: 'tenant_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private Tenant $tenant;
 
+    #[ORM\ManyToOne(targetEntity: ServiceCategory::class)]
+    #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ServiceCategory $serviceCategory = null;
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $name;
 
@@ -41,6 +45,10 @@ class Service
 
     #[ORM\Column(name: 'is_active', type: 'boolean')]
     private bool $isActive = true;
+
+    #[ORM\ManyToOne(targetEntity: Profile::class)]
+    #[ORM\JoinColumn(name: 'created_by', referencedColumnName: 'id', nullable: true)]
+    private ?Profile $createdBy = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetimetz_immutable')]
     private \DateTimeImmutable $createdAt;
@@ -64,6 +72,8 @@ class Service
     public function getId(): Uuid { return $this->id; }
     public function getTenant(): Tenant { return $this->tenant; }
     public function setTenant(Tenant $tenant): static { $this->tenant = $tenant; return $this; }
+    public function getServiceCategory(): ?ServiceCategory { return $this->serviceCategory; }
+    public function setServiceCategory(?ServiceCategory $serviceCategory): static { $this->serviceCategory = $serviceCategory; return $this; }
     public function getName(): string { return $this->name; }
     public function setName(string $name): static { $this->name = $name; return $this; }
     public function getDescription(): ?string { return $this->description; }
@@ -78,6 +88,8 @@ class Service
     public function setDisplayOrder(int $o): static { $this->displayOrder = $o; return $this; }
     public function isActive(): bool { return $this->isActive; }
     public function setIsActive(bool $v): static { $this->isActive = $v; return $this; }
+    public function getCreatedBy(): ?Profile { return $this->createdBy; }
+    public function setCreatedBy(?Profile $createdBy): static { $this->createdBy = $createdBy; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }

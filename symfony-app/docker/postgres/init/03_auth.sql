@@ -1,3 +1,7 @@
+-- Historical/bootstrap SQL only.
+-- Doctrine Migrations in symfony-app/migrations are the schema source of truth from the baseline onward.
+-- Keep this file manually synchronized only while local fresh-volume bootstrap still depends on docker-entrypoint-initdb.d.
+
 -- ─── Auth / Users ────────────────────────────────────────────────────────────
 -- Replaces Supabase auth.users.
 -- Symfony SecurityBundle reads from this table via UserProvider.

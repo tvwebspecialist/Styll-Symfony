@@ -32,6 +32,9 @@ security:
     access_control:
         - { path: ^/api/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
+        # Token-authenticated by controller, not JWT
+        - { path: ^/api/internal/backups, roles: PUBLIC_ACCESS }
+        - { path: ^/api/admin/backups, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

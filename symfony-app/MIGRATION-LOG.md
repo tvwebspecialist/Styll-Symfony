@@ -6,6 +6,468 @@
 
 ---
 
+## FASE 2 — Growth extras: promotions — 2026-07-21
+
+**Commit:** `feat(promotions): add promotion tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721120654` per:
+  - `promotions`
+  - `promotion_services`
+  - `promotion_products`
+- Entità Doctrine + repository:
+  - `Promotion` / `PromotionRepository`
+  - `PromotionService` / `PromotionServiceRepository`
+  - `PromotionProduct` / `PromotionProductRepository`
+- API Platform read-only `GetCollection` per consultazione dashboard, senza operazioni di scrittura finché non sono definiti Voter/permessi di ruolo.
+- Test `PromotionTenantIsolationIntegrationTest` per verificare che `TenantFilter` isoli promozioni e righe ponte per tenant.
+
+### Note di mapping
+
+- La migration è nata da `doctrine:migrations:diff` e poi ridotta al solo gruppo logico, perché il diff Doctrine continua a vedere drift storico tra DDL bootstrap e mapping baseline.
+- I vincoli `CHECK` Supabase su `discount_type` sono preservati nella migration.
+- `promotions.updated_at` usa trigger PostgreSQL `set_updated_at()` e lifecycle callback Doctrine.
+
+---
+
+## FASE 2 — Growth extras: import/onboarding/auth tokens — 2026-07-21
+
+**Commit:** `feat(import): add import and onboarding tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721120852` per:
+  - `client_import_jobs`
+  - `team_invitations`
+  - `onboarding_tokens`
+  - `email_verification_tokens`
+- Entità Doctrine + repository:
+  - `ClientImportJob` / `ClientImportJobRepository`
+  - `TeamInvitation` / `TeamInvitationRepository`
+  - `OnboardingToken` / `OnboardingTokenRepository`
+  - `EmailVerificationToken` / `EmailVerificationTokenRepository`
+- API Platform read-only `GetCollection` per `ClientImportJob` e `TeamInvitation`; token sensibili non sono inclusi nei gruppi serializer.
+- Test `ImportAuthTenantIsolationIntegrationTest` per verificare isolamento tenant su `client_import_jobs` e `team_invitations`.
+
+### Note di mapping
+
+- `initiated_by` e `created_by` sono mappati a `Profile`, coerentemente con le altre entità Symfony che sostituiscono `auth.users` con `profiles`/`users`.
+- `onboarding_tokens` ed `email_verification_tokens` non hanno `tenant_id` nella specifica e restano tabelle interne non esposte via API Platform.
+- `client_import_jobs.merged_count` include la patch Supabase successiva `20260706000002_client_import_jobs_merge_count.sql`.
+
+---
+
+## FASE 2 — Growth extras: notifications/push — 2026-07-21
+
+**Commit:** `feat(notifications): add notification tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721121015` per:
+  - `notifications`
+  - `notification_log`
+  - `push_subscriptions`
+- Entità Doctrine + repository:
+  - `Notification` / `NotificationRepository`
+  - `NotificationLog` / `NotificationLogRepository`
+  - `PushSubscription` / `PushSubscriptionRepository`
+- API Platform read-only `GetCollection` per `Notification`.
+- Test `NotificationTenantIsolationIntegrationTest` per verificare isolamento tenant su notifiche, log invii e push subscription.
+
+### Note di mapping
+
+- `notifications` usa `profile_id` nullable e `meta` JSONB, coerente con le migrazioni Supabase operative più recenti e con il codice legacy che legge notifiche staff/client.
+- `push_subscriptions` segue la specifica infrastrutturale archiviata con `tenant_id` nullable, `p256dh_key`, `auth_key`, `device_label`, `last_used_at`.
+- `notification_log` include `promotion_id`, aggiunto dalla patch Supabase `20260625000001_notification_log_promotion_id.sql`.
+
+---
+
+## FASE 2 — Growth extras: messaging — 2026-07-21
+
+**Commit:** `feat(messaging): add messaging tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721121146` per:
+  - `message_templates`
+  - `messages_log`
+  - `messaging_outbox`
+- Entità Doctrine + repository:
+  - `MessageTemplate` / `MessageTemplateRepository`
+  - `MessageLog` / `MessageLogRepository`
+  - `MessagingOutbox` / `MessagingOutboxRepository`
+- API Platform read-only `GetCollection` per `MessageTemplate` e `MessageLog`; `MessagingOutbox` resta interna/worker-side.
+- Test `MessagingTenantIsolationIntegrationTest` per verificare isolamento tenant su template, log e outbox.
+
+### Note di mapping
+
+- Lo schema segue la specifica v1 archiviata in `docs/_archivio-supabase/database-schema-supabase.md`, non il sottosistema inbox WhatsApp AI v2/v3.
+- `message_templates.updated_at` usa trigger PostgreSQL `set_updated_at()` e lifecycle callback Doctrine.
+- `messaging_outbox` mantiene `payload` JSONB e `idempotency_key` univoca come coda operativa server-side.
+
+---
+
+## FASE 3 — Legal / Privacy / GDPR: privacy and consent proof — 2026-07-21
+
+**Commit:** `feat(privacy): add GDPR privacy consent tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721123103` per:
+  - `client_privacy_requests`
+  - `marketing_unsubscribe_tokens`
+  - `analytics_consent_events`
+- Entità Doctrine + repository:
+  - `ClientPrivacyRequest` / `ClientPrivacyRequestRepository`
+  - `MarketingUnsubscribeToken` / `MarketingUnsubscribeTokenRepository`
+  - `AnalyticsConsentEvent` / `AnalyticsConsentEventRepository`
+- Nessuna entità del gruppo espone `ApiResource`: letture/scritture API GDPR richiedono una sessione dedicata di autorizzazione.
+- Test `PrivacyConsentTenantIsolationIntegrationTest` per verificare isolamento tenant su `client_privacy_requests` e `marketing_unsubscribe_tokens`.
+
+### Note di mapping
+
+- I valori enum Supabase sono mappati come stringhe con `CHECK` constraint in migration, coerentemente con le convenzioni Symfony del progetto.
+- `analytics_consent_events` mantiene `ip_address INET` e il trigger append-only `trg_guard_analytics_consent_events_append_only` della specifica Supabase.
+- `client_privacy_requests` resta un audit trail append-only a livello di modello applicativo; la migrazione Supabase originale non definiva un trigger DB di immutabilità per questa tabella.
+
+---
+
+## FASE 3 — Legal / Privacy / GDPR: legal acceptance — 2026-07-21
+
+**Commit:** `feat(legal): add legal acceptance tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721123319` per:
+  - `legal_acceptance_events`
+  - `legal_acceptance_pending`
+- Entità Doctrine + repository:
+  - `LegalAcceptanceEvent` / `LegalAcceptanceEventRepository`
+  - `LegalAcceptancePending` / `LegalAcceptancePendingRepository`
+- Nessuna entità del gruppo espone `ApiResource`: letture/scritture API legal richiedono una sessione dedicata di autorizzazione.
+- Test `LegalAcceptanceTenantIsolationIntegrationTest` per verificare isolamento tenant su `legal_acceptance_events`.
+
+### Note di mapping
+
+- `legal_acceptance_events.tenant_id` resta nullable come nello schema Supabase: gli eventi possono nascere prima del backfill tenant e diventare tenant-scoped dopo.
+- Il trigger `legal_acceptance_events_guard_immutability` replica la regola Supabase: righe immutabili salvo un solo backfill `tenant_id` da `NULL` a valore.
+- `legal_acceptance_pending` è globale/interna e non ha `tenant_id`; contiene hash token one-shot e non viene esposta via API.
+
+---
+
+## FASE 4 — Admin/Platform: admin global — 2026-07-21
+
+**Commit:** `feat(admin): add global admin tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125231` per:
+  - `admin_audit_log`
+  - `admin_settings`
+  - `email_templates`
+- Entità Doctrine + repository:
+  - `AdminAuditLog` / `AdminAuditLogRepository`
+  - `AdminSetting` / `AdminSettingRepository`
+  - `EmailTemplate` / `EmailTemplateRepository`
+- Nessuna `ApiResource` per queste tabelle: audit/settings/template globali sono superfici admin sensibili.
+- `TenantFilter::EXCLUDED_ENTITIES` aggiornato per le tre entità globali/admin.
+- Test `AdminGlobalTenantFilterIntegrationTest` per verificare che queste tabelle non vengano filtrate dal tenant corrente.
+
+### Note di mapping
+
+- `admin_audit_log.tenant_id` resta nullable come da schema Supabase: è un log piattaforma con riferimento opzionale a tenant, non ownership tenant-scoped.
+- `admin_settings` usa primary key testuale `key`.
+- `email_templates` sono globali e includono seed idempotente dei template base nella migration.
+
+---
+
+## FASE 4 — Admin/Platform: platform notifications/leads/metering — 2026-07-21
+
+**Commit:** `feat(platform): add platform notification and metering tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125402` per:
+  - `platform_notifications`
+  - `platform_leads`
+  - `tenant_usage_counters`
+- Entità Doctrine + repository:
+  - `PlatformNotification` / `PlatformNotificationRepository`
+  - `PlatformLead` / `PlatformLeadRepository`
+  - `TenantUsageCounter` / `TenantUsageCounterRepository`
+- `TenantFilter::EXCLUDED_ENTITIES` aggiornato per `PlatformNotification` e `PlatformLead`; `TenantUsageCounter` resta tenant-scoped.
+- Test `PlatformMeteringTenantFilterIntegrationTest`: platform notifications/leads non sono filtrate per tenant, tenant usage counters sì.
+
+### Note di mapping
+
+- `platform_notifications.tenant_id` è nullable e rappresenta contesto, non ownership tenant-scoped: la tabella è visibile solo a superadmin lato autorizzazione futura.
+- I trigger Supabase automatici su `tenants`/`profiles` non sono stati portati: la versione Symfony corrente di `profiles` non ha una colonna `email`, mentre il trigger legacy `fn_platform_notif_user_registered()` la referenzia.
+- `tenant_usage_counters` usa primary key composta `(tenant_id, period_month, metric)` e metriche della migrazione Supabase messaging foundation (`sms_sent`, `whatsapp_sent`, `email_sent`, `push_sent`, `ai_requests`, `ai_input_tokens`, `ai_output_tokens`).
+
+---
+
+## FASE 4 — Admin/Platform: tenant media — 2026-07-21
+
+**Commit:** `feat(media): add tenant media tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721125554` per:
+  - `gallery_photos`
+  - `website_photos`
+  - `portfolio_photos`
+- Entità Doctrine + repository:
+  - `GalleryPhoto` / `GalleryPhotoRepository`
+  - `WebsitePhoto` / `WebsitePhotoRepository`
+  - `PortfolioPhoto` / `PortfolioPhotoRepository`
+- API Platform read-only `GetCollection` per le tre entità media, con gruppo serializer `media:read`.
+- Test `MediaTenantIsolationIntegrationTest` per verificare isolamento tenant su tutte le tabelle media.
+
+### Note di mapping
+
+- `gallery_photos` e `portfolio_photos` seguono le migrazioni Supabase legacy.
+- `website_photos` non ha un DDL Supabase archiviato trovato; è stato ricostruito dai tipi/schema legacy (`id`, `tenant_id`, `url`, `sort_order`, `created_at`) e mantenuto tenant-scoped.
+- `portfolio_photos.service_tags` resta `TEXT[]` lato database; l'entità lo espone come stringa array-literal per evitare mapping custom DBAL.
+
+---
+
+## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
+
+Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
+
+### Vincoli operativi emersi nella sessione
+
+- `git pull --ff-only` non eseguibile in questa sessione: `error: cannot open '.git/FETCH_HEAD': Operation not permitted`
+- `git checkout -b symfony-entities-loyalty` non eseguibile in questa sessione: `.git` è montato in sola lettura e Git non può creare `refs/heads/...lock`
+- Di conseguenza i commit richiesti non sono materialmente eseguibili dall'ambiente corrente, anche se i file applicativi sono stati aggiornati
+
+### DECISIONE DA CONFERMARE — conteggio totale tabelle
+
+Nel contesto utente il totale dichiarato è **39 tabelle**, ma il DDL presente in `symfony-app/docker/postgres/init/*.sql` contiene attualmente **32** `CREATE TABLE IF NOT EXISTS`.
+
+Scelta operativa presa il **20 luglio 2026**: usare il DDL reale nel repository come fonte di verità, coerentemente con `AGENTS.md`.
+
+Tabelle rilevate dal DDL corrente:
+
+- Area 1: `subscription_plans`, `tenants`, `locations`, `tenant_subscriptions`
+- Area 2: `staff_members`, `staff_locations`
+- Area 3: `service_categories`, `services`, `staff_services`, `products`, `product_inventory`, `client_product_wishlist`
+- Area 5: `clients`, `client_notes`, `client_consents`, `client_analytics`
+- Area 4: `working_hours`, `working_hour_overrides`, `appointments`, `appointment_services`, `appointment_products`, `payments`
+- Area 6: `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions`, `tier_configs`, `badges`, `client_badges`
+- Area auth/shared: `users`, `profiles`
+
+### FASE 1 — Area 6: Loyalty & Gamification
+
+**Commit previsto:** `feat: entità Doctrine Area 6 - Loyalty & Gamification`  
+**Stato commit:** non eseguibile nell'ambiente corrente (`.git` read-only)
+
+#### Implementato
+
+Entità Doctrine aggiunte:
+
+- `src/Entity/LoyaltyConfig.php`
+- `src/Entity/Reward.php`
+- `src/Entity/ClientLoyalty.php`
+- `src/Entity/LoyaltyTransaction.php`
+- `src/Entity/RewardRedemption.php`
+- `src/Entity/TierConfig.php`
+- `src/Entity/Badge.php`
+- `src/Entity/ClientBadge.php`
+
+Repository aggiunti:
+
+- `src/Repository/LoyaltyConfigRepository.php`
+- `src/Repository/RewardRepository.php`
+- `src/Repository/ClientLoyaltyRepository.php`
+- `src/Repository/LoyaltyTransactionRepository.php`
+- `src/Repository/RewardRedemptionRepository.php`
+- `src/Repository/TierConfigRepository.php`
+- `src/Repository/BadgeRepository.php`
+- `src/Repository/ClientBadgeRepository.php`
+
+Test di integrazione aggiunto:
+
+- `tests/Integration/LoyaltyTenantIsolationIntegrationTest.php`
+
+#### Scelte di mapping
+
+- Tutte le tabelle tenant-scoped usano lo stesso pattern già presente nelle entità di Area 4/5:
+  relazione `ManyToOne` verso `Tenant` con join column esplicita `tenant_id`, così `TenantFilter` continua a intercettarle senza modifiche infrastrutturali.
+- Le tabelle con `updated_at` e trigger SQL (`loyalty_configs`, `rewards`, `client_loyalty`) usano anche `#[ORM\HasLifecycleCallbacks]` con `onPreUpdate()` coerente al pattern corrente.
+- `reward_redemptions.confirmed_by` è stato mappato verso `StaffMember`, coerentemente con il DDL.
+
+#### Verifica Area 6
+
+Comando eseguito il **20 luglio 2026**:
+
+```bash
+cd symfony-app && php bin/console doctrine:schema:validate --skip-sync
+```
+
+Risultato:
+
+```text
+Mapping
+-------
+
+ [OK] The mapping files are correct.
+
+Database
+--------
+
+ [SKIPPED] The database was not checked for synchronicity.
+```
+
+Test mirato eseguito:
+
+```bash
+cd symfony-app && ./bin/phpunit tests/Integration/LoyaltyTenantIsolationIntegrationTest.php
+```
+
+Risultato: **non eseguibile fino in fondo nell'ambiente corrente** perché la connessione PostgreSQL test verso `127.0.0.1:5432` viene bloccata dal sandbox:
+
+```text
+SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Operation not permitted
+```
+
+### FASE 2 — Completamento Area 3: Catalogo
+
+**Commit previsto:** `feat: completa entità Doctrine Area 3 - Catalogo`  
+**Stato commit:** non eseguibile nell'ambiente corrente (`.git` read-only)
+
+#### Implementato
+
+Entità Doctrine aggiunte:
+
+- `src/Entity/ServiceCategory.php`
+- `src/Entity/StaffService.php`
+- `src/Entity/ProductInventory.php`
+- `src/Entity/ClientProductWishlist.php`
+
+Repository aggiunti:
+
+- `src/Repository/ServiceCategoryRepository.php`
+- `src/Repository/StaffServiceRepository.php`
+- `src/Repository/ProductInventoryRepository.php`
+- `src/Repository/ClientProductWishlistRepository.php`
+
+Ritocchi di allineamento allo schema esistente:
+
+- `src/Entity/Service.php`
+  - aggiunta relazione opzionale `category_id` → `ServiceCategory`
+  - aggiunta relazione opzionale `created_by` → `Profile`
+- `src/Entity/Product.php`
+  - aggiunta relazione opzionale `created_by` → `Profile`
+
+#### DECISIONE PRESA — doppio concetto di categoria su `services`
+
+Il DDL di `services` contiene sia:
+
+- `category_id` verso `service_categories`
+- `category` testuale legacy
+
+Scelta presa il **20 luglio 2026**: mantenere **entrambi** nel mapping Doctrine.
+
+Motivo: il repository già esponeva la colonna testuale `category`; aggiungere anche la relazione `serviceCategory` preserva retrocompatibilità e riallinea l'entità al DDL reale senza rimuovere comportamento esistente.
+
+#### Verifica Area 3
+
+Comando eseguito il **20 luglio 2026**:
+
+```bash
+cd symfony-app && php bin/console doctrine:schema:validate --skip-sync
+```
+
+Risultato:
+
+```text
+Mapping
+-------
+
+ [OK] The mapping files are correct.
+
+Database
+--------
+
+ [SKIPPED] The database was not checked for synchronicity.
+```
+
+Controllo sintattico locale eseguito sui file nuovi/modificati:
+
+```bash
+cd symfony-app && php -l <file>
+```
+
+Risultato: nessun errore di sintassi nei file aggiunti o aggiornati per Area 6 e Area 3.
+
+### FASE 3 — Verifica finale
+
+#### PHPUnit completo richiesto
+
+Comando richiesto dall'istruzione:
+
+```bash
+cd symfony-app && docker compose exec php php bin/phpunit --testdox
+```
+
+Risultato il **20 luglio 2026**:
+
+```text
+permission denied while trying to connect to the docker API at unix:///Users/tommasovezzaro/.docker/run/docker.sock
+```
+
+Fallback locale eseguito:
+
+```bash
+cd symfony-app && ./bin/phpunit --testdox
+```
+
+Risultato:
+
+- **19 test totali rilevati**
+- **18 assertion eseguite**
+- **7 errori**
+- nessun fallimento logico del mapping Doctrine
+- tutti gli errori derivano dal medesimo blocco infrastrutturale: impossibilità di aprire la connessione PostgreSQL di test su `127.0.0.1:5432`
+
+Messaggio ricorrente:
+
+```text
+SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Operation not permitted
+```
+
+#### Conteggio aggiornato entità Doctrine ↔ tabelle DDL
+
+Conteggio basato sul DDL reale presente il **20 luglio 2026** in `symfony-app/docker/postgres/init/*.sql`:
+
+- **27 entità Doctrine mappate**
+- **32 tabelle SQL rilevate**
+
+Copertura attuale: **27 / 32**
+
+Tabelle ancora senza entità Doctrine dedicata:
+
+- `subscription_plans`
+- `tenant_subscriptions`
+- `staff_locations`
+- `client_consents`
+- `client_analytics`
+
+Se il totale atteso di prodotto resta davvero **39**, questo va riallineato con il DDL del repository prima di usare il conteggio come KPI.
+
+---
+
 ## Sessione end-to-end scheletro backend — 2026-07-20
 
 Obiettivo: passare da componenti Symfony testati singolarmente a scheletro end-to-end verificato su PostgreSQL reale.

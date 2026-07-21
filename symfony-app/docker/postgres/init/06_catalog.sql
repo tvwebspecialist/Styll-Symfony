@@ -1,3 +1,7 @@
+-- Historical/bootstrap SQL only.
+-- Doctrine Migrations in symfony-app/migrations are the schema source of truth from the baseline onward.
+-- Keep this file manually synchronized only while local fresh-volume bootstrap still depends on docker-entrypoint-initdb.d.
+
 -- ─── AREA 3: Services & Products Catalog ─────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS service_categories (

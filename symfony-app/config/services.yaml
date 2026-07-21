@@ -7,6 +7,13 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    env(CORS_ALLOW_ORIGIN): ''
+    env(BACKUP_REPORT_TOKEN): ''
+    env(ADMIN_API_TOKEN): ''
+    env(BACKUP_B2_KEY_ID): ''
+    env(BACKUP_B2_APPLICATION_KEY): ''
+    env(BACKUP_B2_BUCKET): ''
+    env(BACKUP_B2_REMOTE_PREFIX): 'postgres'
 
 services:
     # default configuration for services in *this* file
@@ -18,6 +25,23 @@ services:
     # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
+
+    App\EventListener\CorsSubscriber:
+        arguments:
+            $corsAllowOrigin: '%env(CORS_ALLOW_ORIGIN)%'
+
+    App\Controller\BackupController:
+        arguments:
+            $backupReportToken: '%env(BACKUP_REPORT_TOKEN)%'
+            $adminApiToken: '%env(ADMIN_API_TOKEN)%'
+
+    App\Service\BackupVerifyService:
+        arguments:
+            $databaseUrl: '%env(DATABASE_URL)%'
+            $b2KeyId: '%env(BACKUP_B2_KEY_ID)%'
+            $b2AppKey: '%env(BACKUP_B2_APPLICATION_KEY)%'
+            $b2Bucket: '%env(BACKUP_B2_BUCKET)%'
+            $b2Prefix: '%env(BACKUP_B2_REMOTE_PREFIX)%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

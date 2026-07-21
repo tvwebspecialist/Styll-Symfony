@@ -48,6 +48,10 @@ class Product
     #[ORM\Column(name: 'is_new', type: 'boolean')]
     private bool $isNew = false;
 
+    #[ORM\ManyToOne(targetEntity: Profile::class)]
+    #[ORM\JoinColumn(name: 'created_by', referencedColumnName: 'id', nullable: true)]
+    private ?Profile $createdBy = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetimetz_immutable')]
     private \DateTimeImmutable $createdAt;
 
@@ -88,6 +92,8 @@ class Product
     public function setIsActive(bool $v): static { $this->isActive = $v; return $this; }
     public function isNew(): bool { return $this->isNew; }
     public function setIsNew(bool $v): static { $this->isNew = $v; return $this; }
+    public function getCreatedBy(): ?Profile { return $this->createdBy; }
+    public function setCreatedBy(?Profile $createdBy): static { $this->createdBy = $createdBy; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
 }
