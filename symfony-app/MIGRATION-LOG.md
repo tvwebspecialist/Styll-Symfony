@@ -60,6 +60,32 @@
 
 ---
 
+## FASE 2 — Growth extras: notifications/push — 2026-07-21
+
+**Commit:** `feat(notifications): add notification tables`  
+**Branch:** `feat/backend-fase-0`
+
+### Implementato
+
+- Migration Doctrine `Version20260721121015` per:
+  - `notifications`
+  - `notification_log`
+  - `push_subscriptions`
+- Entità Doctrine + repository:
+  - `Notification` / `NotificationRepository`
+  - `NotificationLog` / `NotificationLogRepository`
+  - `PushSubscription` / `PushSubscriptionRepository`
+- API Platform read-only `GetCollection` per `Notification`.
+- Test `NotificationTenantIsolationIntegrationTest` per verificare isolamento tenant su notifiche, log invii e push subscription.
+
+### Note di mapping
+
+- `notifications` usa `profile_id` nullable e `meta` JSONB, coerente con le migrazioni Supabase operative più recenti e con il codice legacy che legge notifiche staff/client.
+- `push_subscriptions` segue la specifica infrastrutturale archiviata con `tenant_id` nullable, `p256dh_key`, `auth_key`, `device_label`, `last_used_at`.
+- `notification_log` include `promotion_id`, aggiunto dalla patch Supabase `20260625000001_notification_log_promotion_id.sql`.
+
+---
+
 ## Sessione Doctrine entities Area 6 + Area 3 — 2026-07-20
 
 Obiettivo: estendere le entità Doctrine mancanti per `symfony-app`, mantenendo il pattern esistente di mapping ORM e la compatibilità con `TenantFilter`.
