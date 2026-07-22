@@ -5,7 +5,9 @@ import { NextRequest, NextResponse } from 'next/server.js'
 
 import {
   applyProxyAuthGuards,
+  hasPlausibleStaffSessionCookie,
   hasPlausibleSupabaseSessionCookie,
+  hasPlausibleSymfonyStaffSessionCookie,
   isPublicAuthBootstrapPath,
   type ProxyAuthGuardDependencies,
   type ProxyAuthGuardInput,
@@ -90,6 +92,12 @@ test('Supabase auth cookie detection accepts session, chunked session and PKCE v
   assert.equal(hasPlausibleSupabaseSessionCookie(['sb-demo-auth-token.0']), true)
   assert.equal(hasPlausibleSupabaseSessionCookie(['sb-demo-auth-token-code-verifier']), true)
   assert.equal(hasPlausibleSupabaseSessionCookie(['styll_cookie_consent_v1']), false)
+})
+
+test('Symfony JWT cookie detection accepts the dedicated staff cookie', () => {
+  assert.equal(hasPlausibleSymfonyStaffSessionCookie(['styll_symfony_staff_jwt']), true)
+  assert.equal(hasPlausibleSymfonyStaffSessionCookie(['sb-demo-auth-token']), false)
+  assert.equal(hasPlausibleStaffSessionCookie(['styll_symfony_staff_jwt']), true)
 })
 
 test('GET anonymous /login returns without calling getUser', async () => {

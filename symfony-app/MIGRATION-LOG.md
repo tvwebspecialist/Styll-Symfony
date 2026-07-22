@@ -135,6 +135,267 @@ Risultato: `81/81` test verdi, `Assertions: 666`, `PHPUnit Deprecations: 3`.
 
 ---
 
+## Sessione auth staff full Symfony + cutover dashboard/admin — 2026-07-22
+
+**Branch:** `feat/symfony-staff-frontend-bridge`
+
+### Decisione applicata in questa sessione
+
+Direzione confermata: niente bridge `Supabase -> Symfony`.
+
+Da questo punto il login staff locale passa da:
+
+- `POST /api/login` Symfony
+- JWT Symfony salvato in cookie httpOnly `styll_symfony_staff_jwt`
+- `GET /api/me` come sorgente autorevole di identita, tenant e ruolo staff per Next.js
+
+Supabase Auth non viene piu usato nei flussi staff/dashboard/admin toccati in questa sessione.
+
+### Backend Symfony completato
+
+Nuovo provisioning staff reale:
+
+- `src/Command/CreateStaffUserCommand.php`
+  - comando `app:create-staff-user`
+  - argomenti: `email password tenant-slug [role]`
+  - crea `User + Profile + StaffMember`
+  - password hashata con `UserPasswordHasherInterface`
+- `tests/Functional/CreateStaffUserCommandTest.php`
+  - copre creazione utente, hash password, login `/api/login`, lettura `/api/me`
+
+Nuovo endpoint per aggiornare password staff autenticata:
+
+- `src/Controller/UpdateMyPasswordController.php`
+  - `POST /api/me/password`
+  - richiede JWT valido
+  - verifica password attuale
+  - re-hasha la nuova password
+- `tests/Functional/UpdateMyPasswordEndpointTest.php`
+  - copre cambio password riuscito
+  - copre rifiuto con password attuale errata
+
+### Utente staff locale creato e usato nei test reali HTTP
+
+Comando eseguito nel container locale:
+
+```bash
+docker compose exec -T php php bin/console app:create-staff-user owner@barbiere-di-prova.local 'Owner-Bridge-2026!' barbiere-di-prova owner --full-name 'Owner Barbiere di Prova'
+```
+
+Utente creato:
+
+- email: `owner@barbiere-di-prova.local`
+- tenant: `barbiere-di-prova`
+- ruolo: `owner`
+
+Problema runtime trovato e corretto:
+
+- `POST /api/login` inizialmente falliva con `500`
+- causa: permessi non corretti sulle chiavi JWT Lexik nel container PHP runtime
+- fix applicato localmente: owner/group `www-data`, permessi `640` su `private.pem`, `644` su `public.pem`
+
+Secondo problema runtime trovato e corretto:
+
+- il nuovo route `POST /api/me/password` passava nei test ma rispondeva `404` via HTTP locale
+- causa: cache `prod` del container non riallineata
+- fix applicato: `docker compose exec -T php php bin/console cache:clear`
+- dopo il clear, `debug:router` espone correttamente `POST /api/me/password`
+
+### Verifiche HTTP reali backend
+
+Con l'utente locale sopra:
+
+- `POST http://127.0.0.1:8080/api/login`
+  - risultato reale: `200`
+  - restituisce JWT valido
+- `GET http://127.0.0.1:8080/api/me` con Bearer JWT
+  - risultato reale: `200`
+  - restituisce `currentTenant.slug = barbiere-di-prova`
+  - restituisce `currentRole = owner`
+- `POST http://127.0.0.1:8080/api/me/password`
+  - risultato reale dopo `cache:clear`: `200 {"success":true}`
+  - login con password vecchia dopo update: `401`
+  - login con password nuova dopo update: `200`
+  - rollback alla password iniziale rieseguito via stesso endpoint: `200`
+  - login finale con password iniziale ripristinata: `200`
+
+### Frontend staff migrato a Symfony JWT
+
+Sessione/cookie:
+
+- `apps/web/src/lib/symfony/staff-session.ts`
+  - helper cookie `styll_symfony_staff_jwt`
+- `apps/web/src/lib/symfony/staff-client.ts`
+  - contesto Symfony staff abilitato di default
+- `apps/web/src/lib/symfony/staff-context.ts`
+  - lettura JWT da cookie
+  - `getOptionalSymfonyStaffMe()` e `getOptionalSymfonyStaffMeFromRequest()`
+  - membership list da `/api/me`
+
+Login/logout staff:
+
+- `apps/web/src/app/api/auth/staff/login/route.ts`
+  - chiama `POST /api/login`
+  - valida il JWT con `GET /api/me`
+  - salva `styll_symfony_staff_jwt`
+- `apps/web/src/app/api/auth/staff/logout/route.ts`
+  - cancella JWT staff e cookie shadow/impersonation
+- `apps/web/src/components/auth/login-form.tsx`
+  - non usa piu `supabase.auth.signInWithPassword`
+  - chiama il route handler staff Symfony
+  - link "Password dimenticata?" rimosso dal form finche non esiste un reset password Symfony equivalente
+- `apps/web/src/app/(auth)/login/page.tsx`
+  - login staff minimo lasciato solo email/password
+
+Middleware e risoluzione identita staff:
+
+- `apps/web/src/proxy.ts`
+- `apps/web/src/lib/proxy-auth-guard.ts`
+- `apps/web/src/lib/tenant-context.ts`
+- `apps/web/src/lib/tenant-role-guard.ts`
+
+Ora usano `GET /api/me` + JWT Symfony come sorgente di verita per:
+
+- autenticazione staff middleware
+- redirect dashboard
+- tenant attivo
+- ruolo staff
+- shadow mode / impersonation validation
+
+### Aree dashboard/admin portate su Symfony
+
+Layout e pagine:
+
+- `apps/web/src/app/dashboard/layout.tsx`
+- `apps/web/src/app/admin/layout.tsx`
+- `apps/web/src/app/(auth)/select-tenant/page.tsx`
+- tenant dashboard pages principali (`page`, `clienti`, `calendario`, `team`, `profilo`, `marketing`, `catalogo`, `vendite`, `analytics`, `notifiche`)
+
+Action/modules staff migrate da `supabase.auth.getUser()` a contesto Symfony:
+
+- `apps/web/src/lib/actions/dashboard-home.ts`
+- `apps/web/src/lib/actions/profilo.ts`
+- `apps/web/src/lib/actions/team.ts`
+- `apps/web/src/lib/actions/calendario.ts`
+- `apps/web/src/lib/actions/appointments.ts`
+- `apps/web/src/lib/actions/notifiche.ts`
+- `apps/web/src/lib/actions/clienti.ts`
+- `apps/web/src/app/dashboard/actions/staff-impersonation.ts`
+
+Superadmin/admin locali migrati a `requireSuperadmin()` basato su Symfony:
+
+- `apps/web/src/app/admin/actions.ts`
+- `apps/web/src/app/admin/actions-tenants.ts`
+- `apps/web/src/app/admin/tenants/[tenantId]/products/actions.ts`
+- `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/actions.ts`
+
+Fix funzionale aggiuntivo:
+
+- `apps/web/src/app/tenant/dashboard/[slug]/notifiche/page.tsx`
+  - non usa piu `getTenantBySlug(slug)` come dipendenza rigida
+  - usa il tenant gia risolto dal contesto Symfony
+  - elimina il `404` locale sulla pagina notifiche per utenti staff creati solo in Symfony
+
+### Verifiche HTTP reali frontend
+
+Login staff Next.js:
+
+```bash
+curl -i -sS -c /tmp/styll-symfony-auth-localhost.cookies -b /tmp/styll-symfony-auth-localhost.cookies \
+  -X POST http://localhost:3000/api/auth/staff/login \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  --data '{"email":"owner@barbiere-di-prova.local","password":"Owner-Bridge-2026!"}'
+```
+
+Risultato reale:
+
+- `HTTP/1.1 200 OK`
+- `Set-Cookie: styll_symfony_staff_jwt=...; HttpOnly`
+- body: `{"success":true,"currentTenantSlug":"barbiere-di-prova","tenantCount":1}`
+
+Routing/render staff locale con lo stesso cookie:
+
+- `/dashboard`
+  - redirect corretto al tenant staff
+- `/tenant/dashboard/barbiere-di-prova`
+  - `200`
+- `/tenant/dashboard/barbiere-di-prova/clienti`
+  - `200`
+- `/tenant/dashboard/barbiere-di-prova/notifiche`
+  - `200`
+- `/tenant/dashboard/barbiere-di-prova/team`
+  - `200`
+- `/tenant/dashboard/barbiere-di-prova/calendario`
+  - `200`
+- `/tenant/dashboard/barbiere-di-prova/profilo`
+  - `200`
+- `/admin`
+  - `307` pulito per l'utente owner locale non-superadmin
+
+Check contenuti/errori sui path sopra:
+
+- nessun `NEXT_HTTP_ERROR_FALLBACK`
+- nessun `ReferenceError`
+- nessun `Forbidden`
+
+### Ricognizione finale sui residui Supabase auth
+
+Grep finale eseguito su:
+
+- `apps/web/src/lib/actions`
+- `apps/web/src/app/dashboard`
+- `apps/web/src/app/tenant/dashboard`
+- `apps/web/src/app/admin`
+- `apps/web/src/components/dashboard`
+
+Risultato:
+
+- non restano piu riferimenti `supabase.auth.getUser()` nel perimetro staff/dashboard/admin migrato
+- i riferimenti residui sono fuori da questo batch staff e riguardano:
+  - PWA cliente (`pwa-home`, `pwa-auth`, `pwa-client-actions`)
+  - auth cliente (`client-auth`)
+  - notifiche cliente (`client-notifications`)
+  - preferiti/wishlist cliente
+  - creazione booking cliente
+  - `platform-notifiche`
+  - `invitations`
+
+### Limiti e debito residuo esplicito
+
+- non esiste ancora un flusso "forgot password via email" equivalente lato Symfony per lo staff
+- e stato rimosso il link dal form login per evitare un percorso staff che punterebbe ancora a Supabase
+- il cambio password autenticato dentro `Profilo > Privacy & Sicurezza` ora passa da Symfony
+- `pnpm type-check` resta rosso solo per il blocco inbox AI WhatsApp fuori scope, non per i file della migrazione staff Symfony
+
+### Verifiche eseguite in questa sessione
+
+Frontend mirato:
+
+```bash
+pnpm --filter web exec node --experimental-strip-types --test tests/unit/symfony-staff-client.test.mjs src/lib/proxy-auth-guard.test.ts
+```
+
+Risultato reale: `12/12` test verdi.
+
+Symfony mirato:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit tests/Functional/CreateStaffUserCommandTest.php tests/Functional/UpdateMyPasswordEndpointTest.php
+```
+
+Risultato reale: `3/3` test verdi, `38 assertions`.
+
+Suite Symfony completa richiesta dalla sessione:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato reale: `84/84` test verdi, `Assertions: 704`, `PHPUnit Deprecations: 3`.
+
+---
+
 ## Sessione fix precisione timestamp PostgreSQL/Doctrine — 2026-07-21
 
 **Branch:** `fix/doctrine-timestamp-precision`

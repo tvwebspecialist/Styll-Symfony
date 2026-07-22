@@ -1,7 +1,6 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { assignPointsOnCompletion } from '@/lib/actions/loyalty'
 import { buildClientFacingEmailTenantBranding, sendTemplatedEmail } from '@/lib/email'
@@ -14,6 +13,10 @@ import { isPushConfigError } from '@/lib/push/config'
 import { getAutomationEnabled } from '@/lib/actions/marketing-automations'
 import { getNotificationChannel } from '@/lib/notifications-channel'
 import { MANAGER_ROLES } from '@/lib/constants'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 
 type CalendarioRole = 'owner' | 'manager' | 'staff' | 'receptionist' | 'superadmin'
 
@@ -75,33 +78,26 @@ function resolveDashboardBookingSource(role: CalendarioRole): string {
  * è già noto (passato dal caller) ma serve comunque la verifica lato server.
  */
 async function getCalendarioActorContext(tenantId: string): Promise<CalendarioActorContext | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
 
   const db = createAdminClient()
-  const { data: staffRow } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
 
-  if (staffRow) {
+  if (membership) {
     return {
       tenantId,
       db,
-      currentStaffId: (staffRow as { id: string }).id,
-      role: (staffRow as { role: CalendarioRole }).role,
+      currentStaffId: membership.staffMemberId,
+      role: membership.role as CalendarioRole,
     }
   }
 
   const { data: profile } = await db
     .from('profiles')
     .select('is_superadmin')
-    .eq('id', user.id)
+    .eq('id', me.user.id)
     .maybeSingle()
 
   if (!profile?.is_superadmin) return null

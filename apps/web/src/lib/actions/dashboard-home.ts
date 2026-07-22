@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { getLocalMinutes } from '@/lib/utils/timezone'
 import { DASHBOARD_HOURS, DEFAULT_TIMEZONE } from '@/lib/constants'
@@ -210,8 +210,7 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return EMPTY_DASHBOARD_HOME_DATA
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const me = await getOptionalSymfonyStaffMe()
   const db = createAdminClient()
 
   // Date helpers (UTC-safe: use local day boundaries via date strings)
@@ -232,12 +231,11 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
 
   const [staffRes, appointmentWindowRes, atRiskRes, inventoryRes, rewardsRes] = await Promise.all([
     // Staff name
-    user
+    me?.currentTenant?.staffMemberId
       ? db
           .from('staff_members')
           .select('id, profiles(full_name)')
-          .eq('tenant_id', tenantId)
-          .eq('profile_id', user.id)
+          .eq('id', me.currentTenant.staffMemberId)
           .eq('is_active', true)
           .is('deleted_at', null)
           .maybeSingle()
@@ -292,8 +290,8 @@ export async function getDashboardHomeData(): Promise<DashboardHomeData> {
 
   // Staff name + id
   const staff = (staffRes.data ?? null) as StaffMembershipRow | null
-  const staffName = readSingleRelation(staff?.profiles)?.full_name ?? null
-  const staffMemberId = staff?.id ?? null
+  const staffName = readSingleRelation(staff?.profiles)?.full_name ?? me?.profile.fullName ?? null
+  const staffMemberId = staff?.id ?? me?.currentTenant?.staffMemberId ?? null
 
   // Working hours (all days of week for this staff member)
   let workingHours: WorkingHour[] = []

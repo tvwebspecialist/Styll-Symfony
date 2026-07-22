@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getCatalogoData } from '@/lib/actions/catalogo'
 import { CatalogoClient } from '@/components/dashboard/catalogo/CatalogoClient'
 import { requireTenantPermission, TENANT_PERMISSIONS } from '@/lib/tenant-role-guard'
@@ -7,11 +5,6 @@ import { requireTenantPermission, TENANT_PERMISSIONS } from '@/lib/tenant-role-g
 export const dynamic = 'force-dynamic'
 
 export default async function CatalogoPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
   await requireTenantPermission(TENANT_PERMISSIONS.MANAGE_CATALOG)
 
   const { servizi, prodotti, locations, dbCategories, inventoryByProduct } = await getCatalogoData()

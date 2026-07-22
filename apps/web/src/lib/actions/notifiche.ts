@@ -1,8 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 import { getActiveTenantId } from '@/lib/tenant-context'
 
 export interface NotifRow {
@@ -18,34 +21,25 @@ export interface NotifRow {
 async function getStaffNotificationContext(expectedTenantId?: string): Promise<{
   tenantId: string
   userId: string
-  supabase: Awaited<ReturnType<typeof createClient>>
+  db: ReturnType<typeof createAdminClient>
 } | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
 
   const tenantId = await getActiveTenantId()
   if (!tenantId) return null
   if (expectedTenantId && expectedTenantId !== tenantId) return null
 
   const db = createAdminClient()
-  const { data: membership } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
 
   if (!membership) return null
 
   return {
     tenantId,
-    userId: user.id,
-    supabase,
+    userId: me.user.id,
+    db,
   }
 }
 
@@ -58,7 +52,7 @@ export async function getNotifications(tenantId: string): Promise<NotifRow[]> {
   const ctx = await getStaffNotificationContext(tenantId)
   if (!ctx) return []
 
-  const { data } = await ctx.supabase
+  const { data } = await ctx.db
     .from('notifications')
     .select('id, type, title, body, is_read, meta, created_at')
     .eq('tenant_id', ctx.tenantId)
@@ -77,7 +71,7 @@ export async function getUnreadCount(tenantId: string): Promise<number> {
   const ctx = await getStaffNotificationContext(tenantId)
   if (!ctx) return 0
 
-  const { count } = await ctx.supabase
+  const { count } = await ctx.db
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', ctx.tenantId)
@@ -95,7 +89,7 @@ export async function markNotificationRead(
   const ctx = await getStaffNotificationContext(tenantId)
   if (!ctx) return { ok: false }
 
-  const { data: notification } = await ctx.supabase
+  const { data: notification } = await ctx.db
     .from('notifications')
     .select('id')
     .eq('id', notifId)
@@ -105,7 +99,7 @@ export async function markNotificationRead(
 
   if (!notification) return { ok: false }
 
-  const { error } = await ctx.supabase
+  const { error } = await ctx.db
     .from('notifications')
     .update({ is_read: true })
     .eq('id', notifId)
@@ -126,7 +120,7 @@ export async function markAllNotificationsRead(tenantId: string): Promise<{ ok: 
   const ctx = await getStaffNotificationContext(tenantId)
   if (!ctx) return { ok: false }
 
-  const { error } = await ctx.supabase
+  const { error } = await ctx.db
     .from('notifications')
     .update({ is_read: true })
     .eq('tenant_id', ctx.tenantId)

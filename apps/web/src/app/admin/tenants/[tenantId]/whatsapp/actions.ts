@@ -2,33 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createMessagingAdminClient } from '@/lib/messaging/db'
+import { requireSuperadmin } from '@/app/admin/actions'
 
 const upsertBindingSchema = z.object({
   phoneNumberId: z.string().trim().min(1, 'Phone number ID obbligatorio.'),
   businessAccountId: z.string().trim().optional().default(''),
   displayPhoneNumber: z.string().trim().optional().default(''),
 })
-
-async function requireSuperadmin(): Promise<{ id: string } | { error: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sessione non valida.' }
-
-  const db = createAdminClient()
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  if (!profile?.is_superadmin) return { error: 'Permessi insufficienti.' }
-  return { id: user.id }
-}
 
 export async function upsertTenantWhatsAppBinding(
   tenantId: string,

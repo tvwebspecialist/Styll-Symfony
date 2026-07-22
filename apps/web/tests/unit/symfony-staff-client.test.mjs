@@ -21,9 +21,9 @@ test.afterEach(() => {
   }
 })
 
-test('isSymfonyStaffContextEnabled is off by default and only enables on true', () => {
+test('isSymfonyStaffContextEnabled is on by default and can be explicitly disabled', () => {
   delete process.env.NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT
-  assert.equal(isSymfonyStaffContextEnabled(), false)
+  assert.equal(isSymfonyStaffContextEnabled(), true)
 
   process.env.NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT = 'false'
   assert.equal(isSymfonyStaffContextEnabled(), false)

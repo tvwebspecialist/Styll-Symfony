@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 
 export interface ActionResult {
   success: boolean
@@ -42,42 +45,37 @@ export interface AppointmentSummary {
 type AppointmentRow = AppointmentSummary
 
 async function ensureSuperadmin(): Promise<string | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
   const db = createAdminClient()
   const { data } = await db
     .from('profiles')
     .select('is_superadmin')
-    .eq('id', user.id)
+    .eq('id', me.user.id)
     .maybeSingle()
-  return data?.is_superadmin ? user.id : null
+  return data?.is_superadmin ? me.user.id : null
 }
 
 async function ensureTenantAccess(tenantId: string): Promise<{ userId: string } | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
+
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
+
+  if (membership) {
+    return { userId: me.user.id }
+  }
+
   const db = createAdminClient()
   const { data: profile } = await db
     .from('profiles')
     .select('is_superadmin')
-    .eq('id', user.id)
+    .eq('id', me.user.id)
     .maybeSingle()
-  if (profile?.is_superadmin) return { userId: user.id }
-  const { data: staff } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .maybeSingle()
-  if (!staff) return null
-  return { userId: user.id }
+  if (!profile?.is_superadmin) return null
+
+  return { userId: me.user.id }
 }
 
 /**

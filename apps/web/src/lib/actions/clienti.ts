@@ -11,12 +11,15 @@ import {
   seedClientConsentState,
 } from '@/lib/consent-events'
 import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
-import { createClient } from '@/lib/supabase/server'
 import {
   DEFAULT_CLIENTI_PAGE_SIZE,
   MAX_CLIENTI_PAGE_SIZE,
 } from '@/lib/clienti-list'
 import type { ClientiCounts, ClientiFilter } from '@/lib/clienti-list'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { MANAGER_ROLES } from '@/lib/constants'
 import type { Database, Json, TablesUpdate } from '@/types'
@@ -146,23 +149,16 @@ async function getClientiActorContext(): Promise<ClientiActorContext | null> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return null
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
 
   const db = createAdminClient()
-  const { data: staffRow } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
 
-  let effectiveStaff = staffRow as { id: string; role: string } | null
+  let effectiveStaff = membership
+    ? { id: membership.staffMemberId, role: membership.role }
+    : null
 
   // Superadmin shadow-mode bypass: superadmins are not in staff_members for the
   // tenant, so adopt the owner's staff record to allow full CRM access.
@@ -170,7 +166,7 @@ async function getClientiActorContext(): Promise<ClientiActorContext | null> {
     const { data: profile } = await db
       .from('profiles')
       .select('is_superadmin')
-      .eq('id', user.id)
+      .eq('id', me.user.id)
       .maybeSingle()
 
     if ((profile as { is_superadmin?: boolean } | null)?.is_superadmin) {
@@ -1230,9 +1226,8 @@ export async function createCliente(input: {
     return { success: false, error: 'Non autorizzato' }
   }
 
-  const supabase = await createClient()
-  const { data: authData } = await supabase.auth.getUser()
-  const actorProfileId = authData.user?.id
+  const me = await getOptionalSymfonyStaffMe()
+  const actorProfileId = me?.user.id
   if (!actorProfileId) return { success: false, error: 'Non autenticato' }
 
   const { data, error } = await ctx.db
@@ -1672,9 +1667,8 @@ export async function importClients(
   }
 
   const { tenantId, db } = ctx
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) {
     return { success: false, status: 'failed', error: 'Non autenticato', imported: 0, merged: 0, skipped: 0, errors: [] }
   }
 
@@ -1693,7 +1687,7 @@ export async function importClients(
   const result = await importClientsForTenant({
     db,
     tenantId,
-    initiatedBy: user.id,
+    initiatedBy: me.user.id,
     input,
   })
 

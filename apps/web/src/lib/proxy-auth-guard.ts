@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server.js'
 
 import type { CspOptions } from './security/csp'
+import { SYMFONY_STAFF_JWT_COOKIE } from './symfony/staff-client.ts'
 
 const PUBLIC_AUTH_BOOTSTRAP_PAGES = ['/login', '/register', '/forgot-password', '/verifica-email']
 const LOGIN_REDIRECT_AUTH_PAGES = ['/login', '/register']
@@ -20,6 +21,15 @@ export function isPublicAuthBootstrapPath(pathname: string): boolean {
 
 export function hasPlausibleSupabaseSessionCookie(cookieNames: readonly string[]): boolean {
   return cookieNames.some((name) => SUPABASE_AUTH_COOKIE_NAME.test(name))
+}
+
+export function hasPlausibleSymfonyStaffSessionCookie(cookieNames: readonly string[]): boolean {
+  return cookieNames.includes(SYMFONY_STAFF_JWT_COOKIE)
+}
+
+export function hasPlausibleStaffSessionCookie(cookieNames: readonly string[]): boolean {
+  return hasPlausibleSupabaseSessionCookie(cookieNames)
+    || hasPlausibleSymfonyStaffSessionCookie(cookieNames)
 }
 
 function copyResponseCookies(source: NextResponse, target: NextResponse) {
@@ -69,9 +79,9 @@ export async function applyProxyAuthGuards(
 
   const pathname = input.request.nextUrl.pathname
   const cookieNames = input.request.cookies.getAll().map((cookie) => cookie.name)
-  const hasSupabaseCookie = hasPlausibleSupabaseSessionCookie(cookieNames)
+  const hasSessionCookie = hasPlausibleStaffSessionCookie(cookieNames)
 
-  if (isPublicAuthBootstrapPath(pathname) && !input.isSubdomainRequest && !hasSupabaseCookie) {
+  if (isPublicAuthBootstrapPath(pathname) && !input.isSubdomainRequest && !hasSessionCookie) {
     if (input.shadowCookieValue) {
       deps.clearShadowCookie(input.response)
     }

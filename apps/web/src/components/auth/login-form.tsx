@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
@@ -36,19 +34,26 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
       return
     }
     startTransition(async () => {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email: emailValue.trim().toLowerCase(),
-        password: passwordValue,
+      const response = await fetch('/api/auth/staff/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          email: emailValue.trim().toLowerCase(),
+          password: passwordValue,
+        }),
       })
-      if (error) {
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
         toast.error(
-          error.message.toLowerCase().includes('invalid')
-            ? 'Email o password non corretti'
-            : error.message
+          payload?.error || 'Impossibile completare il login.'
         )
         return
       }
+
       router.push(redirectTo || '/dashboard')
       router.refresh()
     })
@@ -92,21 +97,12 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
       </label>
 
       <label htmlFor="password" className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span
-            className="text-xs font-semibold"
-            style={{ color: 'var(--color-fg)' }}
-          >
-            Password
-          </span>
-          <Link
-            href="/forgot-password"
-            className="text-xs font-medium underline-offset-2 hover:underline"
-            style={{ color: 'var(--color-fg-secondary)' }}
-          >
-            Password dimenticata?
-          </Link>
-        </div>
+        <span
+          className="text-xs font-semibold"
+          style={{ color: 'var(--color-fg)' }}
+        >
+          Password
+        </span>
         <div className="relative">
           <input
             id="password"

@@ -1,5 +1,3 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getClienti } from '@/lib/actions/clienti'
 import { ClientiClient } from '@/components/dashboard/clienti/ClientiClient'
 
@@ -11,12 +9,6 @@ export default async function ClientiPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
   const data = await getClienti({
     page: typeof params.page === 'string' ? params.page : null,
     pageSize: typeof params.pageSize === 'string' ? params.pageSize : null,

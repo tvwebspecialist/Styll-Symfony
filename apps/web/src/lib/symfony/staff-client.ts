@@ -84,7 +84,7 @@ export interface FetchSymfonyStaffMeInput {
 }
 
 export function isSymfonyStaffContextEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT === 'true'
+  return process.env.NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT !== 'false'
 }
 
 export function buildSymfonyStaffMeHeaders(

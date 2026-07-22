@@ -1,5 +1,8 @@
 'use server'
 
+import { cookies } from 'next/headers'
+
+import { clearAdminShadowCookie } from '@/lib/admin-shadow-cookie'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   buildPortfolioStoragePath,
@@ -7,8 +10,11 @@ import {
   extractPortfolioStoragePath,
   PORTFOLIO_BUCKET,
 } from '@/lib/portfolio-storage'
-import { createClient } from '@/lib/supabase/server'
-import { getActiveTenantId, resolveActiveProfile } from '@/lib/tenant-context'
+import { getSymfonyApiBaseUrl } from '@/lib/symfony/api-base-url'
+import { buildSymfonyStaffMeHeaders } from '@/lib/symfony/staff-client'
+import { getOptionalSymfonyStaffMe, readSymfonyStaffJwt } from '@/lib/symfony/staff-context'
+import { clearSymfonyStaffJwtCookieInStore } from '@/lib/symfony/staff-session'
+import { getActiveTenantId, IMPERSONATE_STAFF_COOKIE, resolveActiveProfile } from '@/lib/tenant-context'
 import type { Json, TablesUpdate } from '@/types'
 
 export interface ProfileData {
@@ -48,13 +54,19 @@ export interface ServiceOption {
 
 const SHADOW_BLOCKED_ERROR = 'Azione non disponibile in modalità shadow'
 
-async function requireUser() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Non autenticato')
-  return { supabase, user }
+async function requireSymfonyStaffSessionJwt(): Promise<string> {
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) {
+    throw new Error('Non autenticato')
+  }
+
+  const cookieStore = await cookies()
+  const jwt = readSymfonyStaffJwt(cookieStore)
+  if (!jwt) {
+    throw new Error('Sessione staff non disponibile')
+  }
+
+  return jwt
 }
 
 /**
@@ -195,15 +207,28 @@ export async function updatePassword(
       return { ok: false, error: SHADOW_BLOCKED_ERROR }
     }
 
-    const { supabase, user } = await requireUser()
-    if (!user.email) return { ok: false, error: 'Email mancante' }
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
+    const jwt = await requireSymfonyStaffSessionJwt()
+    const response = await fetch(`${getSymfonyApiBaseUrl()}/api/me/password`, {
+      method: 'POST',
+      headers: {
+        ...buildSymfonyStaffMeHeaders(jwt),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+      cache: 'no-store',
     })
-    if (signInErr) return { ok: false, error: 'Password attuale non corretta' }
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    if (error) return { ok: false, error: error.message }
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { error?: string } | null
+      return {
+        ok: false,
+        error: payload?.error ?? 'Impossibile aggiornare la password.',
+      }
+    }
+
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -526,8 +551,18 @@ export async function terminateSession(): Promise<{ ok: true } | { ok: false; er
       )
       return { ok: false, error: SHADOW_BLOCKED_ERROR }
     }
-    const { supabase } = await requireUser()
-    await supabase.auth.signOut()
+
+    const cookieStore = await cookies()
+    clearAdminShadowCookie(cookieStore)
+    clearSymfonyStaffJwtCookieInStore(cookieStore)
+    cookieStore.set(IMPERSONATE_STAFF_COOKIE, '', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 0,
+    })
+
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Errore' }
@@ -550,8 +585,9 @@ export async function deleteAccount(
       return { ok: false, error: SHADOW_BLOCKED_ERROR }
     }
 
-    const { user } = await requireUser()
-    if (confirmation !== user.email) {
+    const me = await getOptionalSymfonyStaffMe()
+    if (!me) return { ok: false, error: 'Non autenticato' }
+    if (confirmation !== me.user.email) {
       return { ok: false, error: "Inserisci la tua email per confermare l'eliminazione" }
     }
     const db = createAdminClient()
@@ -560,7 +596,7 @@ export async function deleteAccount(
     const { data: clientRows } = await db
       .from('clients')
       .select('id')
-      .eq('profile_id', user.id)
+      .eq('profile_id', me.user.id)
 
     const clientIds = (clientRows ?? []).map((r) => r.id)
 
@@ -573,11 +609,11 @@ export async function deleteAccount(
       ])
     }
 
-    await db.from('push_subscriptions').delete().eq('profile_id', user.id)
+    await db.from('push_subscriptions').delete().eq('profile_id', me.user.id)
 
-    const { data: avatarFiles } = await db.storage.from('avatars').list(user.id)
+    const { data: avatarFiles } = await db.storage.from('avatars').list(me.user.id)
     if (avatarFiles && avatarFiles.length > 0) {
-      const paths = avatarFiles.map((f) => `${user.id}/${f.name}`)
+      const paths = avatarFiles.map((f) => `${me.user.id}/${f.name}`)
       await db.storage.from('avatars').remove(paths)
     }
 
@@ -594,7 +630,7 @@ export async function deleteAccount(
         avatar_url: null,
         notification_preferences: {},
       })
-      .eq('id', user.id)
+      .eq('id', me.user.id)
     if (error) return { ok: false, error: error.message }
     return { ok: true }
   } catch (e) {

@@ -2,26 +2,11 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
-import { GoogleButton } from '@/components/auth/google-button'
 import { LoginForm } from '@/components/auth/login-form'
 import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 
 export const metadata: Metadata = {
   title: 'Accedi — Styll',
-}
-
-function Divider() {
-  return (
-    <div
-      className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.18em]"
-      style={{ color: 'var(--color-fg-muted)' }}
-      aria-hidden
-    >
-      <span className="h-px flex-1" style={{ backgroundColor: 'var(--color-border)' }} />
-      oppure
-      <span className="h-px flex-1" style={{ backgroundColor: 'var(--color-border)' }} />
-    </div>
-  )
 }
 
 interface PageProps {
@@ -119,10 +104,6 @@ export default async function LoginPage({ searchParams }: PageProps) {
           Accedi per gestire appuntamenti, clienti e loyalty.
         </p>
       </header>
-
-      <GoogleButton intent={intent} label="Continua con Google" oauthFlow="login" />
-
-      <Divider />
 
       <LoginForm initialError={initialError} redirectTo={redirectTo} />
 

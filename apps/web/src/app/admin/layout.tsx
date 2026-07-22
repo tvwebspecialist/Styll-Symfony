@@ -1,22 +1,19 @@
 import { redirect } from 'next/navigation'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { signOutAction } from '@/app/admin/actions'
+import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) redirect('/login')
 
   const db = createAdminClient()
   const [profileRes, tenantsCount, usersCount, unreadNotifRes] = await Promise.all([
-    db.from('profiles').select('is_superadmin').eq('id', user.id).maybeSingle(),
+    db.from('profiles').select('is_superadmin').eq('id', me.user.id).maybeSingle(),
     db.from('tenants').select('*', { count: 'exact', head: true }),
     db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
     db.from('platform_notifications').select('id', { count: 'exact', head: true }).eq('is_read', false),
@@ -26,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <AdminShell
-      email={user.email ?? null}
+      email={me.user.email ?? null}
       onSignOut={signOutAction}
       counts={{
         tenants: tenantsCount.count ?? 0,

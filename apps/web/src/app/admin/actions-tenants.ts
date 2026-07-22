@@ -9,7 +9,6 @@ import {
   setAdminShadowCookie,
 } from '@/lib/admin-shadow-cookie'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import { IMPERSONATE_COOKIE } from '@/lib/tenant-context'
 import type { Json, TablesUpdate } from '@/types'
 
@@ -250,11 +249,8 @@ export async function startTenantImpersonation(
 }
 
 export async function stopTenantImpersonation(): Promise<ActionResult> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Sessione non valida.' }
+  const auth = await requireSuperadmin()
+  if ('error' in auth) return { success: false, error: auth.error }
 
   const cookieStore = await cookies()
   const previous = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
@@ -263,7 +259,7 @@ export async function stopTenantImpersonation(): Promise<ActionResult> {
   const previousTenantId = parseAdminShadowCookieValue(previous)?.tenantId ?? null
   if (previousTenantId) {
     await logAdminAction(
-      user.id,
+      auth.id,
       'tenant.impersonation_stopped',
       'tenant',
       previousTenantId,

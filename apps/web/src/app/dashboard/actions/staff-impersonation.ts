@@ -1,10 +1,13 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { IMPERSONATE_STAFF_COOKIE } from '@/lib/tenant-context'
 import { MANAGER_ROLES } from '@/lib/constants'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 
 export interface ActionResult {
   success: boolean
@@ -12,9 +15,8 @@ export interface ActionResult {
 }
 
 export async function startStaffImpersonation(staffMemberId: string): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Sessione non valida.' }
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return { success: false, error: 'Sessione non valida.' }
 
   const db = createAdminClient()
 
@@ -27,19 +29,13 @@ export async function startStaffImpersonation(staffMemberId: string): Promise<Ac
     .maybeSingle()
 
   if (!targetStaff) return { success: false, error: 'Membro del team non trovato.' }
-  if (targetStaff.profile_id === user.id) return { success: false, error: 'Non puoi impersonare te stesso.' }
+  if (targetStaff.profile_id === me.user.id) return { success: false, error: 'Non puoi impersonare te stesso.' }
   if (targetStaff.role === 'owner') return { success: false, error: 'Non puoi impersonare un owner.' }
 
-  const { data: callerStaff } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', targetStaff.tenant_id)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const callerMembership = listSymfonyStaffMemberships(me)
+    .find((membership) => membership.tenant.id === targetStaff.tenant_id)
 
-  if (!callerStaff || !MANAGER_ROLES.includes(callerStaff.role as typeof MANAGER_ROLES[number])) {
+  if (!callerMembership || !MANAGER_ROLES.includes(callerMembership.role as typeof MANAGER_ROLES[number])) {
     return { success: false, error: 'Permessi insufficienti.' }
   }
 

@@ -2,26 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { ActionResult } from '@/app/admin/actions'
+import { requireSuperadmin, type ActionResult } from '@/app/admin/actions'
 import type { TablesUpdate } from '@/types'
-
-async function requireSuperadmin(): Promise<{ id: string } | { error: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sessione non valida.' }
-  const db = createAdminClient()
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .maybeSingle()
-  if (!profile?.is_superadmin) return { error: 'Permessi insufficienti.' }
-  return { id: user.id }
-}
 
 export interface InventoryEntry {
   location_id: string
