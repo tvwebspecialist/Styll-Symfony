@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -94,12 +95,21 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
       </label>
 
       <label htmlFor="password" className="flex flex-col gap-1.5">
-        <span
-          className="text-xs font-semibold"
-          style={{ color: 'var(--color-fg)' }}
-        >
-          Password
-        </span>
+        <div className="flex items-center justify-between">
+          <span
+            className="text-xs font-semibold"
+            style={{ color: 'var(--color-fg)' }}
+          >
+            Password
+          </span>
+          <Link
+            href="/forgot-password"
+            className="text-xs underline-offset-2 hover:underline"
+            style={{ color: 'var(--color-fg-secondary)' }}
+          >
+            Password dimenticata?
+          </Link>
+        </div>
         <div className="relative">
           <input
             id="password"

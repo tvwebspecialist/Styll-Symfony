@@ -12,10 +12,10 @@ parameters:
     env(ADMIN_API_TOKEN): ''
     env(BACKUP_B2_KEY_ID): ''
     env(BACKUP_B2_APPLICATION_KEY): ''
-    env(BACKUP_B2_BUCKET): ''
     env(BACKUP_B2_REMOTE_PREFIX): 'postgres'
     env(GOOGLE_CLIENT_ID): ''
     env(GOOGLE_CLIENT_SECRET): ''
+    env(FRONTEND_URL): 'http://localhost:3000'
 
 services:
     # default configuration for services in *this* file
@@ -46,6 +46,10 @@ services:
             $b2Prefix: '%env(BACKUP_B2_REMOTE_PREFIX)%'
 
     App\Service\GoogleOAuthProviderInterface: '@App\Service\LeagueGoogleOAuthProvider'
+
+    App\Service\PasswordResetService:
+        arguments:
+            $appBaseUrl: '%env(FRONTEND_URL)%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
