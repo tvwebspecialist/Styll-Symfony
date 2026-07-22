@@ -105,6 +105,34 @@ Risultato: **112/112 test verdi**, `Assertions: 904`, `PHPUnit Deprecations: 3`.
 
 ---
 
+## FASE 3 — OTP SMS/Twilio: gap documentato, non implementato — 2026-07-22
+
+**Branch:** `feat/symfony-password-reset-and-pwa-auth`
+
+### Stato
+
+Non implementato per assenza di credenziali Twilio.
+
+### Cosa servirebbe
+
+Backend Symfony:
+- `POST /api/pwa/otp/sms/send` — invia OTP via Twilio SMS
+- `POST /api/pwa/otp/sms/verify` — verifica OTP SMS, provisioning client, emette JWT `ROLE_PWA_CLIENT`
+
+Frontend:
+- `sendSmsOtp` / `verifySmsOtp` in `pwa-auth.ts` da aggiornare in modo analogo alla FASE 2 email OTP
+
+Variabili d'ambiente necessarie:
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+
+### Note
+
+Il flusso concettuale è identico alla FASE 2 email OTP. Il codice Symfony sarebbe strutturalmente analogo a `PwaClientEmailOtpService`, con l'invio SMS sostituito all'invio (log) del codice OTP.
+
+---
+
 ## Sessione admin full migration audit — 2026-07-22
 
 **Branch:** `feat/symfony-admin-migration`
