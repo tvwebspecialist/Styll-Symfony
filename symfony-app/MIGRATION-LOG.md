@@ -2699,3 +2699,102 @@ Risultato reale: **passa senza output**.
 - il residuo admin documentato lato Supabase, nel perimetro non escluso, resta concentrato soprattutto su:
   - analytics gia migrate in Fase A
   - WhatsApp admin, ancora esplicitamente fuori scope sessione
+
+---
+
+## FASE C — Sweep residui frontend fuori WhatsApp: rotte public asset migrate — 2026-07-22
+
+**Branch:** `feat/symfony-admin-migration`
+
+### Obiettivo
+
+Fare uno sweep reale di `apps/web/src` fuori dal blocco WhatsApp/inbox escluso, migrando solo i collegamenti Supabase semplici e gia coperti da endpoint Symfony esistenti.
+
+### Scansione reale eseguita
+
+Comando usato:
+
+```bash
+rg -n "supabase\.auth|createClient\(|createAdminClient\(|\.from\('" apps/web/src \
+  --glob '!apps/web/src/app/api/webhooks/meta-whatsapp/**' \
+  --glob '!apps/web/src/app/api/cron/inbox-ai-runtime/**' \
+  --glob '!apps/web/src/app/admin/tenants/*/whatsapp/**' \
+  --glob '!apps/web/src/lib/ai/**' \
+  --glob '!apps/web/src/lib/actions/inbox.ts' \
+  --glob '!apps/web/src/lib/messaging/**' \
+  --glob '!apps/web/src/components/dashboard/marketing/tabs/InboxConversazioni.tsx'
+```
+
+Esito reale:
+
+- emersi ancora molti residui Supabase fuori dal perimetro WhatsApp
+- la maggior parte ricade in aree non "banali" da migrare in sicurezza immediata:
+  - auth/onboarding staff
+  - PWA cliente
+  - privacy/data export
+  - tenant context/proxy
+  - dashboard/settings e analytics tracking
+
+### Tranche effettivamente migrata in Fase C
+
+Rotte public migrate da query Supabase dirette a client pubblico Symfony esistente:
+
+- `apps/web/src/app/api/favicon/route.ts`
+- `apps/web/src/app/api/og/route.tsx`
+- `apps/web/src/app/api/pwa-icon/route.tsx`
+
+Scelta implementativa:
+
+- rimosso `createAdminClient()`
+- riusato `fetchSymfonyPublicTenant(slug)` da `apps/web/src/lib/symfony/public-client.ts`
+- mantenuti i fallback locali in caso di tenant non trovato o errore rete
+- nessun endpoint Symfony nuovo richiesto
+
+### Residui documentati e non forzati in questa sessione
+
+Lasciati intenzionalmente per sessione dedicata perche richiedono nuove API o decisioni piu ampie:
+
+- `apps/web/src/app/sitemap.ts`
+  - richiede lista globale di tenant attivi con `slug` e `updated_at`; il public API Symfony corrente espone il tenant per slug ma non un indice pubblico equivalente
+- `apps/web/src/app/api/pwa-splash/route.tsx`
+  - usa `splash_color`, campo non presente nel DTO pubblico Symfony attuale
+- gruppi piu grandi ancora Supabase-based:
+  - `apps/web/src/proxy.ts`
+  - `apps/web/src/lib/tenant-context.ts`
+  - `apps/web/src/app/onboarding/**`
+  - `apps/web/src/lib/actions/pwa-auth.ts`
+  - `apps/web/src/lib/client-privacy-rights.ts`
+  - `apps/web/src/lib/actions/app-settings.ts`
+
+### Verifiche reali
+
+Lint mirato:
+
+```bash
+pnpm --filter web exec eslint src/app/api/favicon/route.ts src/app/api/og/route.tsx src/app/api/pwa-icon/route.tsx
+```
+
+Risultato reale: **passa senza output**.
+
+Runtime mirato su Next locale gia attivo `http://127.0.0.1:3000`:
+
+- `GET /api/favicon?slug=barbiere-di-prova`
+  - **200**, `content-type: image/svg+xml`
+- `GET /api/og?slug=barbiere-di-prova`
+  - **200**, `content-type: image/png`
+- `GET /api/pwa-icon?slug=barbiere-di-prova&size=128`
+  - **200**, `content-type: image/png`
+
+Suite completa obbligatoria:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato reale finale dopo Fase C:
+
+- **124/124 test verdi**
+- **Assertions: 1060**
+- **PHPUnit Deprecations: 3**
+
+Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.

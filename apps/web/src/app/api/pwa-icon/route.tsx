@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { safeImageUrl } from '@/lib/safe-image-url'
+import { fetchSymfonyPublicTenant } from '@/lib/symfony/public-client'
 import type { NextRequest } from 'next/server'
 
 export const runtime = 'edge'
@@ -44,18 +44,24 @@ export async function GET(request: NextRequest) {
 
   if (!slug) return new Response('Missing slug', { status: 400 })
 
-  const db = createAdminClient()
-  const { data } = await db
-    .from('tenants')
-    .select('business_name, primary_color, logo_url')
-    .eq('slug', slug)
-    .eq('status', 'active')
-    .maybeSingle()
+  let tenant:
+    | {
+        businessName: string
+        primaryColor: string | null
+        logoUrl: string | null
+      }
+    | null = null
 
-  const bgColor = safeColor(data?.primary_color)
-  const name = (data?.business_name ?? 'S').trim()
+  try {
+    tenant = await fetchSymfonyPublicTenant(slug)
+  } catch {
+    tenant = null
+  }
+
+  const bgColor = safeColor(tenant?.primaryColor)
+  const name = (tenant?.businessName ?? 'S').trim()
   const initial = name.charAt(0).toUpperCase()
-  const logoUrl = safeImageUrl(data?.logo_url)
+  const logoUrl = safeImageUrl(tenant?.logoUrl)
 
   const logo = logoUrl ? await fetchLogoBase64(logoUrl) : null
 
@@ -74,6 +80,7 @@ export async function GET(request: NextRequest) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={logo.src}
+          alt=""
           width={size}
           height={size}
           style={{ objectFit: 'contain' }}
