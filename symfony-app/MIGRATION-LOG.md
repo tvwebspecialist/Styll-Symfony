@@ -2400,3 +2400,178 @@ docker/
 
 docker-compose.yml             ← alla radice del repo (postgres + php + nginx + mercure)
 ```
+
+---
+
+## FASE A — Site analytics admin migrata a Symfony — 2026-07-22
+
+**Branch:** `feat/symfony-admin-migration`
+
+### Obiettivo
+
+Portare a Symfony le letture admin di site analytics, coprendo sia:
+
+- analytics cross-tenant (`/admin/analytics`)
+- analytics tenant-specific (`/admin/tenants/[tenantId]/analytics`)
+
+senza usare piu query Supabase dirette nel frontend per questo perimetro.
+
+### Audit e fonti usate
+
+- `apps/web/src/lib/admin/site-analytics-queries.ts`
+- `apps/web/src/app/admin/tenants/[tenantId]/analytics/page.tsx`
+- `docs/_archivio-supabase/database-schema-supabase.md` per `tenant_activity_log`
+- `supabase/migrations/20260704000001_site_analytics.sql`
+- `supabase/migrations/20260704010000_site_analytics_app_surface.sql`
+- `apps/web/DATABASE.md`
+
+Nota importante emersa nell'audit:
+
+- `docs/_archivio-supabase/database-schema-supabase.md` **non dettaglia** `site_analytics_daily`
+- per `site_analytics_daily` la fonte autorevole usata e stata quindi il codice corrente + le migration Supabase + `apps/web/DATABASE.md`
+- per `tenant_activity_log` la fonte autorevole e rimasta il documento archivio, coerente con il residuo gia annotato
+
+### Backend Symfony
+
+Nuovi file:
+
+- `src/Entity/SiteAnalyticsDaily.php`
+- `src/Entity/TenantActivityLog.php`
+- `src/Repository/SiteAnalyticsDailyRepository.php`
+- `src/Repository/TenantActivityLogRepository.php`
+- `src/Service/AdminAnalyticsService.php`
+- `src/Controller/Admin/AdminAnalyticsController.php`
+- `migrations/Version20260722233000.php`
+- `tests/Functional/AdminAnalyticsControllerTest.php`
+
+Scelte implementative:
+
+- `site_analytics_daily` e stata introdotta con chiave composta `(tenant_id, date, app_surface)` per restare aderente al modello frontend/documentale corrente
+- `tenant_activity_log` e stata introdotta come tabella append-friendly con `recorded_at`
+- le nuove Entity restano mappate con `tenant_id`, quindi compatibili con il `TenantFilter`
+- gli endpoint admin usano comunque query repository/DBAL esplicite + `SuperadminAccessChecker`, cosi la lettura cross-tenant resta confinata all'API admin
+
+Endpoint nuovi:
+
+- `GET /api/admin/analytics?days=7|30|90`
+- `GET /api/admin/tenants/{tenantId}/analytics?days=7|30|90`
+
+Copertura funzionale backend:
+
+- 403 per staff non superadmin
+- aggregazione cross-tenant di sessioni, page views, booking completati, conversione media, mobile/desktop, insight text
+- ultima attivita tenant da `tenant_activity_log`
+- serie per superficie `website` e `pwa` sulla pagina tenant
+
+### Frontend Next.js
+
+Modifiche:
+
+- `apps/web/src/lib/admin/site-analytics-queries.ts`
+  - rimosse le query Supabase dirette
+  - ora legge `GET /api/admin/analytics`
+- `apps/web/src/app/admin/tenants/[tenantId]/analytics/page.tsx`
+  - rimossa la lettura Supabase di `tenants`, `site_analytics_daily`, `tenant_activity_log`, `appointments`
+  - ora legge `GET /api/admin/tenants/{tenantId}/analytics`
+
+Nessun file del blocco inbox AI / WhatsApp escluso e stato toccato.
+
+### Verifiche reali
+
+Cache/migration obbligatorie eseguite realmente:
+
+```bash
+docker compose exec php php bin/console cache:clear
+docker compose exec -T php env APP_ENV=test php bin/console cache:clear
+docker compose exec php php bin/console doctrine:migrations:migrate --no-interaction
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:migrations:migrate --no-interaction
+```
+
+Test mirato nuovo controller:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox tests/Functional/AdminAnalyticsControllerTest.php
+```
+
+Risultato reale:
+
+- **3/3 test verdi**
+- **42 assertions**
+
+Suite completa obbligatoria:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato reale:
+
+- **121/121 test verdi**
+- **Assertions: 1030**
+- **PHPUnit Deprecations: 3**
+
+Curl mirati reali su ambiente locale `http://127.0.0.1:8080`:
+
+1. Tenant analytics:
+
+```json
+{
+  "tenant_name": "Barbiere di Prova",
+  "tenant_slug": "barbiere-di-prova",
+  "period": 30,
+  "website_daily": [
+    {
+      "date": "2026-07-21",
+      "app_surface": "website",
+      "sessions": 18,
+      "booking_completed": 3
+    }
+  ],
+  "pwa_daily": [
+    {
+      "date": "2026-07-21",
+      "app_surface": "pwa",
+      "sessions": 7,
+      "booking_completed": 1
+    }
+  ],
+  "last_login_at": "2026-07-22T20:30:00+00:00",
+  "appointments_in_period": 0
+}
+```
+
+2. Platform analytics:
+
+```json
+{
+  "summary": {
+    "total_sessions": 25,
+    "top_tenant": {
+      "slug": "barbiere-di-prova",
+      "sessions": 25
+    }
+  },
+  "daily": [
+    {
+      "date": "2026-07-21",
+      "sessions": 25,
+      "booking_completed": 4
+    }
+  ],
+  "period_days": 30
+}
+```
+
+Check frontend mirato sui file toccati:
+
+```bash
+pnpm --filter web exec eslint src/lib/admin/site-analytics-queries.ts 'src/app/admin/tenants/[tenantId]/analytics/page.tsx'
+```
+
+Risultato reale: **passa senza output**.
+
+### Note aperte fuori perimetro Fase A
+
+- `pnpm type-check` globale resta rosso per errori **pre-esistenti e fuori scope** nel blocco inbox AI / WhatsApp e in altri file legacy admin non toccati in questa fase
+- `pnpm lint` globale resta rosso per numerosi errori/warning **pre-esistenti** fuori dal delta Fase A
+- questi problemi non sono stati corretti qui per rispettare il vincolo di scope e perche il worktree era gia sporco in quelle aree prima dell'intervento analytics
