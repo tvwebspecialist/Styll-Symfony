@@ -827,9 +827,14 @@ export async function verifyEmailOtp(
   }
 }
 
-export async function setupPwaGoogleClient(
+export async function setupPwaGoogleClientForResolvedUser(
   tenantId: string,
-): Promise<{ success: boolean; isNewClient: boolean }> {
+  authUser: {
+    id: string
+    email: string | null
+    fullName?: string | null
+  },
+): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
   const db = createAdminClient()
 
   const { data: tenant } = await db
@@ -838,17 +843,11 @@ export async function setupPwaGoogleClient(
     .eq('id', tenantId)
     .eq('status', 'active')
     .maybeSingle()
-  if (!tenant) return { success: false, isNewClient: false }
+  if (!tenant) return { success: false, isNewClient: false, error: 'Salone non valido.' }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, isNewClient: false }
-
-  const userId = user.id
+  const userId = authUser.id
   const now = new Date().toISOString()
-  const normalizedEmail = user.email?.toLowerCase() ?? ''
+  const normalizedEmail = authUser.email?.toLowerCase() ?? ''
 
   await db
     .from('profiles')
@@ -899,7 +898,7 @@ export async function setupPwaGoogleClient(
       profile_id: userId,
       full_name:
         (profile?.full_name as string | null | undefined)?.trim() ||
-        (user.user_metadata?.full_name as string | undefined) ||
+        authUser.fullName?.trim() ||
         'Cliente',
       email: normalizedEmail,
       phone: null as string | null,
@@ -913,11 +912,11 @@ export async function setupPwaGoogleClient(
 
   if (insertError) {
     console.error('[setupPwaGoogleClient] insert failed:', insertError.message, insertError.details)
-    return { success: false, isNewClient: false }
+    return { success: false, isNewClient: false, error: 'Bootstrap cliente Google non riuscito.' }
   }
 
   if (!insertedClient?.id) {
-    return { success: false, isNewClient: false }
+    return { success: false, isNewClient: false, error: 'Bootstrap cliente Google non riuscito.' }
   }
 
   try {
@@ -939,8 +938,28 @@ export async function setupPwaGoogleClient(
     })
   } catch {
     await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
-    return { success: false, isNewClient: false }
+    return { success: false, isNewClient: false, error: 'Bootstrap cliente Google non riuscito.' }
   }
 
   return { success: true, isNewClient: true }
+}
+
+export async function setupPwaGoogleClient(
+  tenantId: string,
+): Promise<{ success: boolean; isNewClient: boolean; error?: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return { success: false, isNewClient: false, error: 'Sessione non valida.' }
+  }
+
+  return setupPwaGoogleClientForResolvedUser(tenantId, {
+    id: user.id,
+    email: user.email ?? null,
+    fullName: typeof user.user_metadata?.full_name === 'string'
+      ? user.user_metadata.full_name
+      : null,
+  })
 }

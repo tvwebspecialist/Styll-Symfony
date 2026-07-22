@@ -14,6 +14,8 @@ parameters:
     env(BACKUP_B2_APPLICATION_KEY): ''
     env(BACKUP_B2_BUCKET): ''
     env(BACKUP_B2_REMOTE_PREFIX): 'postgres'
+    env(GOOGLE_CLIENT_ID): ''
+    env(GOOGLE_CLIENT_SECRET): ''
 
 services:
     # default configuration for services in *this* file
@@ -42,6 +44,8 @@ services:
             $b2AppKey: '%env(BACKUP_B2_APPLICATION_KEY)%'
             $b2Bucket: '%env(BACKUP_B2_BUCKET)%'
             $b2Prefix: '%env(BACKUP_B2_REMOTE_PREFIX)%'
+
+    App\Service\GoogleOAuthProviderInterface: '@App\Service\LeagueGoogleOAuthProvider'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

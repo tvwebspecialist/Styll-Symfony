@@ -4,7 +4,6 @@ import type { ClipboardEvent, KeyboardEvent } from 'react'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Mail } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   completeEmailOtpProfile,
   sendEmailOtp,
@@ -20,7 +19,6 @@ import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { hasAnalyticsConsent } from '@/lib/analytics-consent'
 import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
 import { linkSessionByAuthUser } from '@/lib/site-analytics/link-session'
-import { buildRootAppUrl } from '@/lib/auth/urls'
 
 function GoogleIcon() {
   return (
@@ -88,7 +86,6 @@ export function EmailOtpForm({
   onSuccess,
   appSurface = 'pwa',
 }: Props) {
-  const router = useRouter()
   const tenantPath = useTenantPath(tenantSlug)
   const privacyHref = tenantPath('/privacy')
   const termsHref = tenantPath('/termini')
@@ -97,7 +94,6 @@ export function EmailOtpForm({
   const [fullName, setFullName] = useState(prefillFullName)
   const [phone, setPhone] = useState(prefillPhone)
   const [marketingConsent, setMarketingConsent] = useState(false)
-  const [isReady, setIsReady] = useState(false)
   const [otp, setOtp] = useState<string[]>(EMPTY_OTP)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -115,10 +111,7 @@ export function EmailOtpForm({
     const timer = window.setTimeout(() => setCountdown((c) => Math.max(0, c - 1)), 1000)
     return () => window.clearTimeout(timer)
   }, [countdown])
-
-  useEffect(() => {
-    setIsReady(true)
-  }, [])
+  const isReady = true
 
   useEffect(() => {
     if (step !== 'otp') return
@@ -270,29 +263,29 @@ export function EmailOtpForm({
     setError(null)
 
     try {
-      const callbackUrl = new URL(buildRootAppUrl('/auth/callback'))
-      callbackUrl.searchParams.set('next', 'pwa')
-      callbackUrl.searchParams.set('tenantSlug', tenantSlug)
-      callbackUrl.searchParams.set('tenantId', tenantId)
-      if (returnTo) callbackUrl.searchParams.set('return_to', returnTo)
-
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: callbackUrl.toString(),
-          queryParams: { access_type: 'offline', prompt: 'consent' },
-          // skipBrowserRedirect: navigate manually AFTER document.cookie is committed
-          // — same iOS Safari ITP fix as google-button.tsx
-          skipBrowserRedirect: true,
+      const response = await fetch('/api/auth/google/pwa/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
+        body: JSON.stringify({
+          tenantSlug,
+          returnTo: returnTo ?? undefined,
+        }),
       })
-      if (error || !data.url) {
-        setError('Accesso con Google non disponibile. Prova con email.')
+
+      const payload = (await response.json().catch(() => null)) as
+        | { authorizationUrl?: string; error?: string }
+        | null
+
+      if (!response.ok || !payload?.authorizationUrl) {
         setGoogleLoading(false)
+        setError(payload?.error || 'Accesso con Google non disponibile. Prova con email.')
         return
       }
-      window.location.href = data.url
+
+      window.location.href = payload.authorizationUrl
     } catch {
       setGoogleLoading(false)
       setError('Accesso con Google non disponibile. Prova con email.')
@@ -426,7 +419,6 @@ export function EmailOtpForm({
               if (e.key === 'Enter' && fullName.trim()) void handleProfileDataContinue()
             }}
             className="h-12 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-900 transition-colors"
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
           />
           <input
@@ -733,7 +725,6 @@ export function EmailOtpForm({
                 }}
                 className="h-[54px] w-full rounded-2xl border border-neutral-200 px-4 text-neutral-950 outline-none styll-focus-brand-primary-ring"
                 style={{ fontSize: 16 }}
-                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
               />
             </div>

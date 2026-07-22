@@ -6,6 +6,320 @@
 
 ---
 
+## Sessione Google OAuth Symfony per staff + PWA — 2026-07-22
+
+**Branch:** `feat/symfony-google-oauth`
+
+### Obiettivo della sessione
+
+Portare il login/registrazione Google da Supabase a Symfony per due contesti distinti:
+
+- **staff dashboard**: login/registrazione dal dominio root, poi redirect verso la dashboard tenant;
+- **PWA cliente**: login Google dal contesto tenant pubblico, con collegamento del cliente al tenant corretto.
+
+### Vecchio flusso Supabase trovato
+
+File di riferimento letti:
+
+- `apps/web/src/app/(auth)/register/actions.ts`
+- `apps/web/src/app/auth/callback/route.ts`
+- `apps/web/src/app/tenant/app/[slug]/auth/callback/route.ts`
+- `apps/web/src/components/pwa/auth/EmailOtpForm.tsx`
+
+Comportamento rilevato nel ramo Supabase:
+
+- staff root: `supabase.auth.signInWithOAuth({ provider: 'google' })`
+- query params usati: `access_type=offline`, `prompt=consent`
+- callback staff/root: `buildRootAppUrl('/auth/callback')`
+- il callback root distingueva `oauth_flow=login` vs `oauth_flow=register`
+- nel ramo register root esisteva anche la prova legale B2B in cookie prima del redirect a Google
+- PWA cliente: callback tenant-specifica su `/tenant/app/{slug}/auth/callback`
+- il callback PWA faceva `exchangeCodeForSession(code)` su Supabase e poi `setupPwaGoogleClient(...)`
+
+Questi dettagli restano utili come storico, ma il nuovo flusso locale implementato in questa sessione usa un **solo redirect URI Google** condiviso:
+
+- `http://localhost:3000/api/auth/google/callback`
+
+### Backend Symfony implementato
+
+Dipendenza aggiunta:
+
+- `league/oauth2-google`
+
+Nuovi componenti principali:
+
+- `src/Controller/GoogleOAuthStartController.php`
+- `src/Controller/GoogleOAuthCompleteController.php`
+- `src/Service/LeagueGoogleOAuthProvider.php`
+- `src/Service/GoogleOAuthFlowService.php`
+- `src/Service/GoogleOAuthStateSigner.php`
+- `src/Service/PwaGoogleClientProvisioningService.php`
+
+Flusso introdotto:
+
+- `POST /api/oauth/google/start`
+  - valida il contesto (`staff_login`, `staff_register`, `pwa`)
+  - emette `authorizationUrl` Google + `stateToken` firmato
+- `POST /api/oauth/google/complete`
+  - valida `code`, `state`, `state_cookie`, `redirect_uri`
+  - scambia il code con Google
+  - recupera email/nome/avatar/id_token/access_token
+  - **staff login**:
+    - se l'utente staff esiste, emette subito JWT Symfony
+  - **staff register**:
+    - crea o promuove `User + Profile + Tenant + StaffMember(owner)` tramite `StaffRegistrationService`
+    - emette subito JWT Symfony
+  - **PWA**:
+    - crea o collega il cliente Symfony al tenant indicato nello `state`
+    - restituisce `googleIdToken` + `googleAccessToken` per aprire la sessione Supabase lato Next
+
+Decisione tecnica importante:
+
+- gli endpoint Google OAuth sono pubblici, quindi arrivano **prima** che `TenantContext` possa risolvere un tenant;
+- per questo `GoogleOAuthFlowService` disabilita in modo mirato il `tenant_filter` Doctrine durante il provisioning/login Google, evitando il fail-closed sugli accessi server-side a `staff_members` e `clients`.
+
+Nota modello dati:
+
+- `clients.phone` e stato reso nullable anche in Doctrine/migration, per supportare il primo accesso Google cliente senza numero di telefono obbligatorio.
+
+### Frontend Next.js implementato
+
+Nuovi route handler:
+
+- `apps/web/src/app/api/auth/google/staff/start/route.ts`
+- `apps/web/src/app/api/auth/google/pwa/start/route.ts`
+- `apps/web/src/app/api/auth/google/callback/route.ts`
+
+Componenti aggiornati:
+
+- `apps/web/src/components/auth/login-form.tsx`
+- `apps/web/src/components/auth/register-form.tsx`
+- `apps/web/src/components/auth/google-button.tsx`
+- `apps/web/src/components/pwa/auth/EmailOtpForm.tsx`
+- `apps/web/src/lib/actions/pwa-auth.ts`
+
+Comportamento introdotto:
+
+- **staff**
+  - il bottone Google sul root login/register chiama il route handler Next
+  - Next chiama Symfony `/api/oauth/google/start`
+  - Next salva il cookie `styll_google_oauth_state`
+  - la callback Next chiama Symfony `/api/oauth/google/complete`
+  - in caso staff salva il cookie `styll_symfony_staff_jwt`
+  - redirect finale su `/dashboard`, mantenendo il comportamento già usato dal login email/password
+
+- **PWA**
+  - il bottone Google in `EmailOtpForm.tsx` non usa più `supabase.auth.signInWithOAuth(...)`
+  - chiama `/api/auth/google/pwa/start`
+  - la callback Next riceve da Symfony `googleIdToken` + `googleAccessToken`
+  - Next apre una sessione Supabase via `supabase.auth.signInWithIdToken({ provider: 'google', ... })`
+  - poi esegue il bootstrap cliente esistente `setupPwaGoogleClientForResolvedUser(...)`
+  - redirect finale sulla PWA tenant (`/tenant/app/{slug}/...` in locale)
+
+Questa è una soluzione ponte: **staff auth è già Symfony-native**, mentre la **PWA cliente resta compatibile con la sessione Supabase esistente** finché la migrazione auth cliente non sarà completata.
+
+### Config locale usata
+
+Aggiornati solo file locali non tracciati:
+
+- `symfony-app/.env.local`
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+- `apps/web/.env.local`
+  - `SYMFONY_API_URL=http://localhost:8080`
+  - `NEXT_PUBLIC_SYMFONY_API_URL=http://localhost:8080`
+
+Le credenziali Google dell'utente **non sono state aggiunte a file tracciati da Git**.
+
+### Verifiche reali eseguite senza browser Google
+
+HTTP reale su Symfony locale:
+
+- `POST http://localhost:8080/api/oauth/google/start` per `staff_login`
+  - `200`
+  - host authorization URL: `accounts.google.com`
+  - `redirect_uri`: `http://localhost:3000/api/auth/google/callback`
+- `POST http://localhost:8080/api/oauth/google/start` per `pwa`
+  - `200`
+  - stesso `redirect_uri`
+
+HTTP reale su Next locale:
+
+- `POST http://localhost:3000/api/auth/google/staff/start`
+  - `200`
+  - `Set-Cookie: styll_google_oauth_state=...`
+  - authorization URL Google valida
+- `POST http://localhost:3000/api/auth/google/pwa/start`
+  - `200`
+  - `Set-Cookie: styll_google_oauth_state=...`
+  - authorization URL Google valida
+
+Test automatici Symfony aggiunti:
+
+- `tests/Functional/GoogleOAuthEndpointTest.php`
+  - nuovo staff via Google
+  - staff esistente via Google
+  - nuovo cliente PWA collegato al tenant corretto
+
+### Limiti residui / verifica manuale ancora necessaria
+
+- il login Google reale nel browser **non è stato completato in questa sessione** perché richiede un account Google interattivo;
+- il test manuale ancora da fare dall'utente è:
+  - root staff: `http://localhost:3000/login` oppure `http://localhost:3000/register`
+  - PWA cliente: pagina accesso tenant che monta `EmailOtpForm`
+- redirect URI attualmente usato dal codice locale:
+  - `http://localhost:3000/api/auth/google/callback`
+- questo coincide con il redirect URI che l'utente ha già registrato in Google Cloud Console.
+
+### Note di contesto extra
+
+- `pnpm --filter web type-check` oggi fallisce ancora per errori **preesistenti** nell'area inbox AI/WhatsApp (`InboxConversazioni.tsx`, `anthropic-draft-provider.ts`, `inbox-draft-orchestrator-core.ts`, `inbox-draft-provider-selection.ts`, `inbox-memory-resolver.ts`); questi file non sono stati modificati per il flusso Google.
+
+---
+
+## Sessione self-service staff registration Symfony end-to-end — 2026-07-22
+
+**Branch:** `feat/symfony-staff-registration`
+
+### Obiettivo della sessione
+
+Portare il flusso di registrazione staff owner da Supabase/onboarding a Symfony, mantenendo il modello auth corretto:
+
+- login staff sul dominio root
+- JWT Symfony salvato da Next.js
+- tenant corrente risolto dopo login/registrazione tramite `GET /api/me`
+- redirect finale verso dashboard tenant
+
+### Correzione del modello auth/tenant verificata nel codice
+
+Verifica mirata su:
+
+- `apps/web/src/proxy.ts`
+- `apps/web/src/app/(auth)/select-tenant/page.tsx`
+- `apps/web/src/app/dashboard/layout.tsx`
+
+Comportamento rilevato:
+
+- lo staff effettua login/registrazione sul root app (`/login`, `/register`);
+- la scelta del tenant non avviene al momento del login ma dopo, tramite memberships lette da `GET /api/me`;
+- in produzione il redirect porta a `https://{slug}-dashboard.{ROOT_DOMAIN}`;
+- in sviluppo locale il comportamento equivalente usa `/?_tenant_slug={slug}&_tenant_type=dashboard`, poi `proxy.ts` fa il rewrite della surface tenant.
+
+### Backend Symfony implementato
+
+Nuovi file principali:
+
+- `src/Controller/RegisterController.php`
+- `src/Service/StaffRegistrationService.php`
+- `src/Service/StaffRegistrationInput.php`
+- `src/Service/StaffRegistrationResult.php`
+- `src/Exception/StaffRegistrationConflictException.php`
+- `tests/Functional/RegisterEndpointTest.php`
+
+Comportamento introdotto da `POST /api/register`:
+
+- valida `email`, `password`, `business_name`, opzionalmente `full_name` e `business_type`;
+- rifiuta email duplicate con `409`;
+- genera uno slug tenant sicuro e univoco a partire da `business_name`, con suffisso numerico in caso di collisione;
+- crea in una transazione:
+  - `users`
+  - `profiles`
+  - `tenants`
+  - `staff_members` con ruolo `owner`
+  - `legal_acceptance_events` per l'accettazione B2B email/password
+  - `locations` principale
+  - preset servizi iniziali coerenti col `business_type`
+  - bridge `staff_locations`
+  - bridge `staff_services`
+  - `working_hours` base Lun-Sab 09:00-19:00
+- marca subito `profiles.onboarding_completed = true` e `work_mode = 'solo'`;
+- restituisce un JWT Symfony immediatamente, senza richiedere login separato.
+
+### Frontend Next.js implementato
+
+Nuovi/aggiornati:
+
+- `apps/web/src/app/api/auth/staff/register/route.ts`
+- `apps/web/src/components/auth/register-form.tsx`
+- `apps/web/src/components/auth/register-signup-options.tsx`
+- `apps/web/src/app/(auth)/register/page.tsx`
+
+Comportamento introdotto:
+
+- `/register` torna self-service e non e piu gated dal token onboarding per il ramo email/password;
+- il form root raccoglie:
+  - nome completo
+  - nome attività
+  - tipo attività
+  - email
+  - password
+- il route handler Next chiama `POST /api/register` Symfony;
+- valida il JWT ricevuto con `GET /api/me`;
+- salva il cookie httpOnly `styll_symfony_staff_jwt`;
+- pulisce eventuali cookie di impersonation/shadow;
+- il client fa `router.push('/dashboard')`, lasciando al proxy/layout il redirect verso la dashboard tenant corretta.
+
+### Verifiche runtime reali eseguite
+
+Verifiche backend HTTP reali su Symfony locale:
+
+- `POST http://127.0.0.1:8080/api/register`
+  - `201 Created`
+  - JWT valido restituito
+  - `tenantSlug = owner-http-test-barber`
+- `POST http://127.0.0.1:8080/api/login`
+  - `200 OK` con le credenziali appena registrate
+- `GET http://127.0.0.1:8080/api/me`
+  - `200 OK`
+  - `currentTenant.slug = owner-http-test-barber`
+  - `currentRole = owner`
+
+Verifiche frontend reali su Next locale:
+
+- `POST http://127.0.0.1:3000/api/auth/staff/register`
+  - `200 OK`
+  - `Set-Cookie: styll_symfony_staff_jwt=...`
+  - `currentTenantSlug = owner-frontend-test-barber`
+- `GET http://127.0.0.1:3000/dashboard` con quel cookie
+  - `307 Temporary Redirect`
+  - `Location: /?_tenant_slug=owner-frontend-test-barber&_tenant_type=dashboard`
+- `GET http://127.0.0.1:3000/?_tenant_slug=owner-frontend-test-barber&_tenant_type=dashboard`
+  - `200 OK`
+
+### Audit del vecchio Google OAuth Supabase trovato ma NON migrato in questa sessione
+
+File principali trovati:
+
+- `apps/web/src/components/auth/google-button.tsx`
+- `apps/web/src/app/auth/callback/route.ts`
+- `apps/web/src/lib/legal/b2b-register-acceptance-shared.ts`
+- `apps/web/src/app/(auth)/register/actions.ts`
+- `apps/web/src/components/pwa/auth/EmailOtpForm.tsx`
+- `apps/web/src/app/tenant/app/[slug]/auth/callback/route.ts`
+
+Configurazione rilevata:
+
+- provider: `google` via `supabase.auth.signInWithOAuth(...)`
+- query params usati: `access_type=offline`, `prompt=consent`
+- nel root auth viene usato `skipBrowserRedirect: true` e redirect manuale lato browser
+- callback root costruita con `buildRootOAuthCallbackPath(...)`, quindi:
+  - login root: `http://localhost:3000/auth/callback?oauth_flow=login`
+  - register root: `http://localhost:3000/auth/callback?oauth_flow=register`
+- in produzione le stesse callback usano `NEXT_PUBLIC_APP_URL`, quindi il dominio root di Styll
+- per la PWA client esiste un callback distinto tenant-scoped:
+  - `http://localhost:3000/tenant/app/{slug}/auth/callback`
+  - in produzione: `https://{slug}-app.{domain}/auth/callback`
+
+Aspetti legali/di contesto trovati:
+
+- il vecchio ramo `register + Google` richiede prima la preparazione della prova legale B2B tramite:
+  - `styll_b2b_register_legal_proof`
+  - `styll_b2b_register_context`
+- il callback root consuma poi quella prova in `finalizeGoogleRegisterTermsAcceptance(...)`
+- questo ramo non e stato portato su Symfony in questa sessione per assenza di credenziali Google reali e per evitare una migrazione auth parziale e non verificabile.
+
+---
+
 ## Sessione staff frontend bridge audit + preparazione `/api/me` — 2026-07-22
 
 **Branch:** `feat/symfony-staff-frontend-bridge`

@@ -1,352 +1,139 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Camera, Eye, EyeOff, Loader2, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { identifyLead } from '@/components/marketing/PostHogProvider'
+import { GoogleButton } from '@/components/auth/google-button'
+import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { buildRootAppUrl } from '@/lib/auth/urls'
-import { EMAIL_PASSWORD_REGISTER_SOURCE } from '@/lib/legal/b2b-register-acceptance-shared'
-import { buildPathWithTrialIntent } from '@/lib/trial-intent'
-import { markOnboardingTokenUsed } from '@/app/admin/actions-onboarding'
+import { cn } from '@/lib/utils'
+import type { BusinessType } from '@/types/database'
 
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
-const EMAIL_VERIFICATION_SEND_ERROR =
-  "Account creato, ma non siamo riusciti a inviare il codice. Richiedine uno dalla schermata successiva."
-
-type SendEmailVerificationResponse = {
-  success: boolean
-  error?: string
-}
-
-type PrepareLegalAcceptanceResponse = {
-  success: boolean
-  error?: string
-}
-
-type ConsumeLegalAcceptanceResponse = {
-  success: boolean
-  error?: string
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
+const BUSINESS_TYPES: Array<{ value: BusinessType; label: string }> = [
+  { value: 'barbiere', label: 'Barbiere' },
+  { value: 'parrucchiere', label: 'Parrucchiere' },
+  { value: 'salone_misto', label: 'Salone misto' },
+  { value: 'beauty_center', label: 'Beauty center' },
+  { value: 'altro', label: 'Altro' },
+]
 
 function validate(
   fullName: string,
+  businessName: string,
   email: string,
   password: string,
   password2: string,
   acceptedTerms: boolean,
 ): string[] {
-  const errs: string[] = []
-  if (fullName.trim().length < 2) errs.push('Inserisci il tuo nome completo')
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push('Email non valida')
-  if (password.length < 8) errs.push('La password deve avere almeno 8 caratteri')
-  if (password !== password2) errs.push('Le password non corrispondono')
-  if (!acceptedTerms) errs.push('Devi accettare i Termini di Servizio per continuare')
-  return errs
+  const errors: string[] = []
+
+  if (fullName.trim().length < 2) errors.push('Inserisci il tuo nome completo')
+  if (businessName.trim().length < 2) errors.push('Inserisci il nome della tua attività')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Email non valida')
+  if (password.length < 8) errors.push('La password deve avere almeno 8 caratteri')
+  if (password !== password2) errors.push('Le password non corrispondono')
+  if (!acceptedTerms) errors.push('Devi accettare i Termini di Servizio per continuare')
+
+  return errors
 }
 
 export function RegisterForm({
   acceptedTerms: controlledAcceptedTerms,
-  intent = null,
   onAcceptedTermsChange,
-  token = null,
 }: {
   acceptedTerms?: boolean
-  intent?: string | null
   onAcceptedTermsChange?: (nextValue: boolean) => void
-  token?: string | null
 }) {
   const router = useRouter()
   const privacyHref = buildRootAppUrl('/privacy')
   const termsHref = buildRootAppUrl('/termini')
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const fullNameRef = useRef<HTMLInputElement>(null)
+  const businessNameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
   const password2Ref = useRef<HTMLInputElement>(null)
   const [fullName, setFullName] = useState('')
+  const [businessName, setBusinessName] = useState('')
+  const [businessType, setBusinessType] = useState<BusinessType>('barbiere')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [uncontrolledAcceptedTerms, setUncontrolledAcceptedTerms] = useState(false)
   const [showPw, setShowPw] = useState(false)
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const acceptedTerms = controlledAcceptedTerms ?? uncontrolledAcceptedTerms
   const setAcceptedTerms = onAcceptedTermsChange ?? setUncontrolledAcceptedTerms
-  const initials = useMemo(() => getInitials(fullName), [fullName])
-
-  function handleAvatarChange(file: File | undefined) {
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast.error('Carica un file immagine')
-      return
-    }
-    if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('Immagine troppo grande (max 2MB)')
-      return
-    }
-    setAvatarFile(file)
-    const reader = new FileReader()
-    reader.onload = () =>
-      setAvatarPreview(typeof reader.result === 'string' ? reader.result : null)
-    reader.readAsDataURL(file)
-  }
-
-  function clearAvatar() {
-    setAvatarFile(null)
-    setAvatarPreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const effectiveFullName = fullName || fullNameRef.current?.value || ''
-    const effectiveEmail = email || emailRef.current?.value || ''
-    const effectivePassword = password || passwordRef.current?.value || ''
-    const effectivePassword2 = password2 || password2Ref.current?.value || ''
+
+    const effectiveFullName = fullNameRef.current?.value || fullName
+    const effectiveBusinessName = businessNameRef.current?.value || businessName
+    const effectiveEmail = emailRef.current?.value || email
+    const effectivePassword = passwordRef.current?.value || password
+    const effectivePassword2 = password2Ref.current?.value || password2
 
     const errors = validate(
       effectiveFullName,
+      effectiveBusinessName,
       effectiveEmail,
       effectivePassword,
       effectivePassword2,
       acceptedTerms,
     )
+
     if (errors.length > 0) {
       toast.error(errors[0])
       return
     }
 
     startTransition(async () => {
-      const supabase = createClient()
-      const cleanName = effectiveFullName.trim()
+      const cleanFullName = effectiveFullName.trim()
+      const cleanBusinessName = effectiveBusinessName.trim()
       const cleanEmail = effectiveEmail.trim().toLowerCase()
 
-      // Keep the lead capture on /register before sign-up creates an auth session.
       await savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
 
-      if (!token) {
-        toast.error('Token di registrazione non valido. Riapri il link di invito.')
-        return
-      }
-
-      const prepareResponse = await fetch('/api/auth/register/legal-acceptance', {
-        body: JSON.stringify({
-          email: cleanEmail,
-          onboardingToken: token,
-          source: EMAIL_PASSWORD_REGISTER_SOURCE,
-        }),
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch('/api/auth/staff/register', {
         method: 'POST',
-      })
-
-      const prepareResult = (await prepareResponse.json().catch(() => null)) as
-        | PrepareLegalAcceptanceResponse
-        | null
-
-      if (!prepareResponse.ok || !prepareResult?.success) {
-        toast.error(prepareResult?.error || 'Impossibile registrare l’accettazione dei Termini. Riprova.')
-        return
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: effectivePassword,
-        options: {
-          data: {
-            full_name: cleanName,
-          },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
+        body: JSON.stringify({
+          fullName: cleanFullName,
+          businessName: cleanBusinessName,
+          businessType,
+          email: cleanEmail,
+          password: effectivePassword,
+        }),
       })
 
-      if (error) {
-        toast.error(error.message)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
+        toast.error(payload?.error || 'Impossibile completare la registrazione.')
         return
       }
 
-      const userId = data.user?.id
-      const hasSession = !!data.session
+      identifyLead(cleanEmail, {
+        full_name: cleanFullName,
+        business_name: cleanBusinessName,
+        business_type: businessType,
+        source: 'trial_signup',
+      })
 
-      if (hasSession) {
-        const consumeResponse = await fetch('/api/auth/register/legal-acceptance/consume', {
-          body: JSON.stringify({
-            source: EMAIL_PASSWORD_REGISTER_SOURCE,
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        }).catch(() => {})
-
-        const consumeResult = consumeResponse
-          ? (((await consumeResponse.json().catch(() => null)) as ConsumeLegalAcceptanceResponse | null) ?? null)
-          : null
-
-        if (!consumeResponse?.ok || !consumeResult?.success) {
-          await supabase.auth.signOut().catch(() => {})
-          toast.error(
-            consumeResult?.error || 'Impossibile confermare l’accettazione dei Termini. Riprova dalla registrazione.',
-          )
-          return
-        }
-      }
-
-      // Upload avatar (richiede sessione attiva)
-      if (avatarFile && userId && hasSession) {
-        const ext = avatarFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const path = `${userId}/avatar.${ext}`
-        const { error: upErr } = await supabase.storage
-          .from('avatars')
-          .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type })
-        if (!upErr) {
-          const { data: pub } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(path)
-          if (pub?.publicUrl) {
-            await supabase
-              .from('profiles')
-              .update({ avatar_url: pub.publicUrl })
-              .eq('id', userId)
-          }
-        }
-      }
-
-      if (!hasSession) {
-        // Supabase email confirmation disabled — shouldn't happen, but handle it
-        toast.success('Account creato! Controlla la tua email per confermare.')
-        router.push(buildPathWithTrialIntent('/login', intent))
-        return
-      }
-
-      // Mark onboarding token as used
-      if (token) {
-        await markOnboardingTokenUsed(token, cleanEmail).catch(() => {})
-      }
-
-      // PostHog identify stays client-side; OTP send uses an API route.
-      identifyLead(cleanEmail, { full_name: cleanName, source: 'trial_signup' })
-
-      // Use an API route so the OTP POST does not go back through /register.
-      try {
-        const verificationResponse = await fetch('/api/email-verification/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail }),
-        })
-        const verificationResult =
-          (await verificationResponse.json()) as SendEmailVerificationResponse
-
-        if (!verificationResponse.ok || !verificationResult.success) {
-          toast.error(verificationResult.error || EMAIL_VERIFICATION_SEND_ERROR)
-        }
-      } catch {
-        toast.error(EMAIL_VERIFICATION_SEND_ERROR)
-      }
-
-      router.push(
-        buildPathWithTrialIntent(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`, intent)
-      )
+      router.push('/dashboard')
       router.refresh()
     })
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Avatar */}
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Carica foto profilo"
-          className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full transition-colors"
-          style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          {avatarPreview ? (
-            <Image
-              src={avatarPreview}
-              alt="Avatar"
-              width={64}
-              height={64}
-              unoptimized
-              className="h-full w-full object-cover"
-            />
-          ) : fullName.trim() ? (
-            <span
-              className="text-lg font-bold"
-              style={{ color: 'var(--color-fg)' }}
-            >
-              {initials}
-            </span>
-          ) : (
-            <Camera
-              className="h-5 w-5"
-              style={{ color: 'var(--color-fg-secondary)' }}
-            />
-          )}
-        </button>
-        <div className="flex flex-col gap-1">
-          <span
-            className="text-xs font-semibold"
-            style={{ color: 'var(--color-fg)' }}
-          >
-            Foto profilo
-          </span>
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="font-medium underline-offset-2 hover:underline"
-              style={{ color: 'var(--color-fg)' }}
-            >
-              {avatarPreview ? 'Cambia' : 'Carica'}
-            </button>
-            {avatarPreview && (
-              <>
-                <span style={{ color: 'var(--color-fg-muted)' }}>·</span>
-                <button
-                  type="button"
-                  onClick={clearAvatar}
-                  className="flex items-center gap-1 font-medium underline-offset-2 hover:underline"
-                  style={{ color: 'var(--color-fg-secondary)' }}
-                >
-                  <X className="h-3 w-3" /> Rimuovi
-                </button>
-              </>
-            )}
-          </div>
-          <span
-            className="text-[11px]"
-            style={{ color: 'var(--color-fg-muted)' }}
-          >
-            Opzionale · max 2MB
-          </span>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(e) => handleAvatarChange(e.target.files?.[0])}
-        />
-      </div>
-
       <label htmlFor="fullName" className="flex flex-col gap-1.5">
         <span
           className="text-xs font-semibold"
@@ -362,9 +149,54 @@ export function RegisterForm({
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           placeholder="Marco Rossi"
+          disabled={isPending}
           className="styll-input w-full px-4 py-3 text-sm"
           style={{ fontSize: 16 }}
         />
+      </label>
+
+      <label htmlFor="businessName" className="flex flex-col gap-1.5">
+        <span
+          className="text-xs font-semibold"
+          style={{ color: 'var(--color-fg)' }}
+        >
+          Nome attività
+        </span>
+        <input
+          id="businessName"
+          autoComplete="organization"
+          required
+          ref={businessNameRef}
+          value={businessName}
+          onChange={(e) => setBusinessName(e.target.value)}
+          placeholder="Marco's Barbershop"
+          disabled={isPending}
+          className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
+        />
+      </label>
+
+      <label htmlFor="businessType" className="flex flex-col gap-1.5">
+        <span
+          className="text-xs font-semibold"
+          style={{ color: 'var(--color-fg)' }}
+        >
+          Tipo di attività
+        </span>
+        <select
+          id="businessType"
+          value={businessType}
+          onChange={(e) => setBusinessType(e.target.value as BusinessType)}
+          disabled={isPending}
+          className="styll-input w-full px-4 py-3 text-sm"
+          style={{ fontSize: 16 }}
+        >
+          {BUSINESS_TYPES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label htmlFor="email" className="flex flex-col gap-1.5">
@@ -383,6 +215,7 @@ export function RegisterForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@esempio.com"
+          disabled={isPending}
           className="styll-input w-full px-4 py-3 text-sm"
           style={{ fontSize: 16 }}
         />
@@ -406,13 +239,15 @@ export function RegisterForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Almeno 8 caratteri"
+            disabled={isPending}
             className="styll-input w-full px-4 py-3 pr-11 text-sm"
             style={{ fontSize: 16 }}
           />
           <button
             type="button"
-            onClick={() => setShowPw((v) => !v)}
+            onClick={() => setShowPw((value) => !value)}
             aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
+            disabled={isPending}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 styll-hover-color-bg-secondary"
             style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
           >
@@ -437,6 +272,7 @@ export function RegisterForm({
           value={password2}
           onChange={(e) => setPassword2(e.target.value)}
           placeholder="Ripeti la password"
+          disabled={isPending}
           className="styll-input w-full px-4 py-3 text-sm"
           style={{ fontSize: 16 }}
         />
@@ -455,6 +291,7 @@ export function RegisterForm({
           type="checkbox"
           checked={acceptedTerms}
           onChange={(e) => setAcceptedTerms(e.target.checked)}
+          disabled={isPending}
           className="mt-1 h-4 w-4 rounded border"
           style={{ accentColor: 'var(--color-fg)' }}
         />
@@ -475,8 +312,7 @@ export function RegisterForm({
           >
             Privacy Policy
           </Link>
-          . Se il tuo accesso prevede un piano a pagamento, le condizioni economiche applicabili ti vengono
-          mostrate prima dell&apos;attivazione.
+          .
         </span>
       </label>
 
@@ -491,12 +327,30 @@ export function RegisterForm({
         {isPending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Creazione account...
+            Creazione negozio...
           </>
         ) : (
-          'Crea account'
+          'Crea account e accedi'
         )}
       </button>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-border, #e5e7eb)' }} />
+        <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-secondary)' }}>
+          oppure
+        </span>
+        <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-border, #e5e7eb)' }} />
+      </div>
+
+      <GoogleButton
+        mode="staff_register"
+        acceptedTerms={acceptedTerms}
+        fullName={fullName}
+        businessName={businessName}
+        businessType={businessType}
+        variant="secondary"
+        loadingLabel="Reindirizzamento a Google..."
+      />
     </form>
   )
 }
