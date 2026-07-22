@@ -66,17 +66,25 @@ export async function fetchSymfonyAdminJson<T>(
 ): Promise<T> {
   const url = `${getSymfonyApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
   const headers = await getAdminAuthHeaders(init.headers)
+  const isFormDataBody = init.body instanceof FormData
 
-  if (init.body !== undefined) {
+  if (init.body !== undefined && !isFormDataBody) {
     headers['Content-Type'] = 'application/json'
   }
+
+  const body =
+    init.body === undefined
+      ? undefined
+      : isFormDataBody
+        ? init.body as FormData
+        : JSON.stringify(init.body)
 
   let response: Response
   try {
     response = await fetch(url, {
       ...init,
       headers,
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      body,
       cache: 'no-store',
     })
   } catch (cause) {

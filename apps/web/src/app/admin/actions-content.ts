@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 
 import { requireSuperadmin, type ActionResult } from './actions'
@@ -273,29 +272,19 @@ export async function uploadAdminImage(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
 
-  const file = formData.get('file')
   const bucket = String(formData.get('bucket') ?? '')
-  const pathPrefix = String(formData.get('pathPrefix') ?? 'misc')
-
-  if (!(file instanceof File)) return { success: false, error: 'File mancante.' }
   if (!ALLOWED_BUCKETS.includes(bucket as AllowedBucket)) {
     return { success: false, error: 'Bucket non valido.' }
   }
-  if (file.size > 1024 * 1024) {
-    return { success: false, error: 'File troppo grande (max 1 MB dopo compressione).' }
+
+  try {
+    const data = await fetchSymfonyAdminJson<{ url: string }>('/api/admin/uploads/image', {
+      method: 'POST',
+      body: formData,
+    })
+
+    return { success: true, url: data.url }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-
-  const db = createAdminClient()
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const safePrefix = pathPrefix.replace(/[^a-zA-Z0-9_-]/g, '') || 'misc'
-  const path = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-  const buf = Buffer.from(await file.arrayBuffer())
-
-  const { error: upErr } = await db.storage
-    .from(bucket)
-    .upload(path, buf, { contentType: file.type || 'image/jpeg', upsert: false })
-  if (upErr) return { success: false, error: upErr.message }
-
-  const { data: pub } = db.storage.from(bucket).getPublicUrl(path)
-  return { success: true, url: pub.publicUrl }
 }

@@ -3,6 +3,25 @@ import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 
 const repoRoot = path.resolve(__dirname, '..', '..')
+const symfonyApiBaseUrl =
+  process.env.SYMFONY_API_URL ??
+  process.env.NEXT_PUBLIC_SYMFONY_API_URL ??
+  'https://api.styll.it'
+
+function buildRemotePattern(url: string) {
+  try {
+    const parsed = new URL(url)
+    return {
+      protocol: parsed.protocol.replace(':', ''),
+      hostname: parsed.hostname,
+      ...(parsed.port ? { port: parsed.port } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+const symfonyRemotePattern = buildRemotePattern(symfonyApiBaseUrl)
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
@@ -31,6 +50,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.googleusercontent.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      ...(symfonyRemotePattern ? [symfonyRemotePattern] : []),
     ],
   },
   async headers() {

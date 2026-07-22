@@ -2575,3 +2575,127 @@ Risultato reale: **passa senza output**.
 - `pnpm type-check` globale resta rosso per errori **pre-esistenti e fuori scope** nel blocco inbox AI / WhatsApp e in altri file legacy admin non toccati in questa fase
 - `pnpm lint` globale resta rosso per numerosi errori/warning **pre-esistenti** fuori dal delta Fase A
 - questi problemi non sono stati corretti qui per rispettare il vincolo di scope e perche il worktree era gia sporco in quelle aree prima dell'intervento analytics
+
+---
+
+## FASE B — uploadAdminImage migrato a Symfony storage locale — 2026-07-22
+
+**Branch:** `feat/symfony-admin-migration`
+
+### Obiettivo
+
+Rimuovere l'ultimo uso admin di Supabase Storage nel perimetro consentito, sostituendo `uploadAdminImage()` con un endpoint Symfony multipart protetto da superadmin gating.
+
+### Audit e fonti usate
+
+- `apps/web/src/app/admin/actions-content.ts`
+- `apps/web/src/components/admin/image-upload.tsx`
+- ricerca pattern upload/storage in `symfony-app/src`
+- `docker-compose.yml`
+- `symfony-app/.env.symfony.example`
+
+Esito dell'audit:
+
+- `uploadAdminImage()` usava ancora `createAdminClient().storage.from(bucket).upload(...)`
+- i bucket realmente usati restano `tenants`, `locations`, `avatars`
+- non esisteva ancora un servizio upload Symfony riusabile
+- non e emerso un backend S3/MinIO attivo nel compose locale
+- il mount `symfony-app/public` gia servito da nginx rende sicuro e semplice usare storage filesystem locale in dev
+
+### Backend Symfony
+
+Nuovi file:
+
+- `src/Service/AdminImageStorageService.php`
+- `src/Controller/Admin/AdminImageUploadController.php`
+- `tests/Functional/AdminImageUploadControllerTest.php`
+
+Modifiche:
+
+- `.gitignore`
+  - aggiunto `/public/uploads/`
+
+Scelte implementative:
+
+- endpoint nuovo: `POST /api/admin/uploads/image`
+- accesso consentito solo a superadmin tramite `SuperadminAccessChecker`
+- validazione server-side:
+  - bucket ammessi: `tenants`, `locations`, `avatars`
+  - dimensione max: `1 MB`
+  - MIME ammessi: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
+- storage locale sotto `public/uploads/admin/{bucket}/{pathPrefix}/...`
+- URL pubblico costruito dall'host della request corrente, con fallback a `SYMFONY_API_URL` / `NEXT_PUBLIC_SYMFONY_API_URL`
+- correzione applicata durante la verifica:
+  - rimosso l'uso di `UploadedFile::getMimeType()` che richiedeva `symfony/mime`
+  - sostituito con rilevazione MIME via `finfo`, compatibile con lo stack PHP gia presente
+
+### Frontend Next.js
+
+Modifiche:
+
+- `apps/web/src/app/admin/actions-content.ts`
+  - `uploadAdminImage()` ora usa `fetchSymfonyAdminJson('/api/admin/uploads/image', { body: FormData })`
+  - rimosso l'upload verso Supabase Storage
+- `apps/web/src/lib/symfony/admin-client.ts`
+  - supporto esplicito a `FormData` senza serializzazione JSON del body
+- `apps/web/next.config.ts`
+  - aggiunta whitelist dinamica dell'host Symfony in `images.remotePatterns`
+
+Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
+
+### Verifiche reali
+
+Cache obbligatorie eseguite realmente dopo le modifiche Symfony:
+
+```bash
+docker compose exec php php bin/console cache:clear
+docker compose exec -T php env APP_ENV=test php bin/console cache:clear
+```
+
+Test mirato nuovo controller:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox tests/Functional/AdminImageUploadControllerTest.php
+```
+
+Risultato reale finale:
+
+- **3/3 test verdi**
+- **30 assertions**
+
+Suite completa obbligatoria:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato reale finale:
+
+- **124/124 test verdi**
+- **Assertions: 1060**
+- **PHPUnit Deprecations: 3**
+
+Curl mirato reale su ambiente locale `http://127.0.0.1:8080`:
+
+- login superadmin:
+  - `POST /api/login` restituisce JWT valido per `analytics.curl.20260722@example.test`
+- upload:
+  - `POST /api/admin/uploads/image` con multipart (`bucket=tenants`, `pathPrefix=phase-b-curl`, file PNG) restituisce **201**
+- asset pubblicato:
+  - URL restituito: `http://127.0.0.1:8080/uploads/admin/tenants/phase-b-curl/20260722212754-7d884d07.png`
+  - `GET` dell'asset restituisce **200**
+
+Check frontend mirato sui file toccati:
+
+```bash
+pnpm --filter web exec eslint next.config.ts src/app/admin/actions-content.ts src/lib/symfony/admin-client.ts
+```
+
+Risultato reale: **passa senza output**.
+
+### Stato admin aggiornato dopo Fase B
+
+- `apps/web/src/app/admin/actions-content.ts` non usa piu Supabase Storage per `uploadAdminImage()`
+- il residuo admin documentato lato Supabase, nel perimetro non escluso, resta concentrato soprattutto su:
+  - analytics gia migrate in Fase A
+  - WhatsApp admin, ancora esplicitamente fuori scope sessione
