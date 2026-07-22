@@ -3,8 +3,22 @@
 import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 
-import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
+import { requireSuperadmin, type ActionResult } from './actions'
+
+function actionError(error: unknown): string {
+  if (error instanceof SymfonyAdminApiError) {
+    if (error.details.body) {
+      try {
+        const parsed = JSON.parse(error.details.body) as { error?: string }
+        if (parsed.error) return parsed.error
+      } catch {}
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Errore sconosciuto.'
+}
 
 // =====================================================
 // SERVICES
@@ -24,22 +38,16 @@ export async function createService(
   tenantId: string,
   input: ServiceInput
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('services').insert({
-    tenant_id: tenantId,
-    name: input.name,
-    description: input.description ?? null,
-    price: input.price,
-    duration_minutes: input.duration_minutes,
-    category: input.category ?? null,
-    display_order: input.display_order ?? 0,
-    is_active: input.is_active ?? true,
-  })
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/services`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}/services`, {
+      method: 'POST',
+      body: input,
+    })
+    revalidatePath(`/admin/tenants/${tenantId}/services`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function updateService(
@@ -47,42 +55,53 @@ export async function updateService(
   id: string,
   input: Partial<ServiceInput>
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('services').update(input).eq('id', id).eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/services`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/services/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: input,
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/services`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function reorderServices(
   tenantId: string,
   orderedIds: string[]
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  for (let i = 0; i < orderedIds.length; i++) {
-    const { error } = await db
-      .from('services')
-      .update({ display_order: i })
-      .eq('id', orderedIds[i])
-      .eq('tenant_id', tenantId)
-    if (error) return { success: false, error: error.message }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/services/reorder`,
+      {
+        method: 'POST',
+        body: { orderedIds },
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/services`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  revalidatePath(`/admin/tenants/${tenantId}/services`)
-  return { success: true }
 }
 
 export async function deleteService(tenantId: string, id: string): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('services').delete().eq('id', id).eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/services`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/services/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/services`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 // =====================================================
@@ -103,22 +122,16 @@ export async function createLocation(
   tenantId: string,
   input: LocationInput
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('locations').insert({
-    tenant_id: tenantId,
-    name: input.name,
-    address: input.address ?? null,
-    city: input.city ?? null,
-    zip_code: input.zip_code ?? null,
-    phone: input.phone ?? null,
-    email: input.email ?? null,
-    is_active: input.is_active ?? true,
-  })
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/locations`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}/locations`, {
+      method: 'POST',
+      body: input,
+    })
+    revalidatePath(`/admin/tenants/${tenantId}/locations`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function updateLocation(
@@ -126,23 +139,34 @@ export async function updateLocation(
   id: string,
   input: Partial<LocationInput>
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('locations').update(input).eq('id', id).eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/locations`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/locations/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: input,
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/locations`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function deleteLocation(tenantId: string, id: string): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('locations').delete().eq('id', id).eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/locations`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/locations/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/locations`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 // =====================================================
@@ -158,20 +182,16 @@ export interface StaffInput {
 }
 
 export async function createStaff(tenantId: string, input: StaffInput): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db.from('staff_members').insert({
-    tenant_id: tenantId,
-    profile_id: input.profile_id,
-    role: input.role,
-    bio: input.bio ?? null,
-    photo_url: input.photo_url ?? null,
-    is_active: input.is_active ?? true,
-  })
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/staff`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}/staff`, {
+      method: 'POST',
+      body: input,
+    })
+    revalidatePath(`/admin/tenants/${tenantId}/staff`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function updateStaff(
@@ -179,31 +199,34 @@ export async function updateStaff(
   id: string,
   input: Partial<StaffInput>
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db
-    .from('staff_members')
-    .update(input)
-    .eq('id', id)
-    .eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/staff`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/staff/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: input,
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/staff`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function deleteStaff(tenantId: string, id: string): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error } = await db
-    .from('staff_members')
-    .delete()
-    .eq('id', id)
-    .eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  revalidatePath(`/admin/tenants/${tenantId}/staff`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/staff/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/staff`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 // =====================================================
@@ -222,31 +245,19 @@ export async function setWorkingHours(
   staffId: string,
   days: DaySlot[]
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { error: delErr } = await db
-    .from('working_hours')
-    .delete()
-    .eq('tenant_id', tenantId)
-    .eq('staff_id', staffId)
-  if (delErr) return { success: false, error: delErr.message }
-
-  const rows = days
-    .filter((d) => d.is_open)
-    .map((d) => ({
-      tenant_id: tenantId,
-      staff_id: staffId,
-      day_of_week: d.day_of_week,
-      start_time: d.start_time,
-      end_time: d.end_time,
-    }))
-  if (rows.length > 0) {
-    const { error } = await db.from('working_hours').insert(rows)
-    if (error) return { success: false, error: error.message }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/staff/${encodeURIComponent(staffId)}/working-hours`,
+      {
+        method: 'PUT',
+        body: { days },
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/working-hours`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  revalidatePath(`/admin/tenants/${tenantId}/working-hours`)
-  return { success: true }
 }
 
 // =============================================================

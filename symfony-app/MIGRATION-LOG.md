@@ -256,6 +256,51 @@ Evidenze reali trovate:
 
 Questo significa che la migrazione completa della dashboard superadmin richiede prima la costruzione della superficie API/admin Symfony, non solo il refactor del frontend Next.
 
+### Verifica strutturale DB Symfony root eseguita dopo il primo wiring API
+
+Comandi reali eseguiti:
+
+- `docker compose ps`
+- `docker compose exec -T php php bin/console doctrine:query:sql "...information_schema..."`
+
+Nota operativa verificata: i comandi `docker compose exec -T php ...` vanno lanciati dalla root repository, non da `symfony-app/`, altrimenti il compose locale non espone il service `php`.
+
+#### Tabelle presenti nel DB usato oggi dal backend Symfony root
+
+Verificato con `information_schema.columns` / `information_schema.tables`:
+
+- presenti:
+  - `services`
+  - `locations`
+  - `working_hours`
+  - `products`
+  - `product_inventory`
+  - `clients`
+  - `appointments`
+  - `appointment_services`
+  - `client_import_jobs`
+  - `analytics_consent_events`
+- assenti:
+  - `site_analytics_daily`
+  - `tenant_integrations`
+  - `inbox_conversations`
+  - `inbox_messages`
+  - `webhook_events_inbox`
+  - `consent_events`
+- assente anche la routine SQL:
+  - `apply_client_consent_events(...)`
+
+#### Impatto reale sul piano di migrazione admin
+
+- `services`, `locations`, `working_hours`, `products`, `clients`, `appointments`, `client_import_jobs` sono migrabili a endpoint Symfony sul DB root attuale.
+- `analytics` admin e `whatsapp` admin **non sono migrabili al 100% sul backend Symfony root attuale** senza prima portare nel suo database/schema almeno:
+  - `site_analytics_daily`
+  - `tenant_integrations`
+  - `inbox_conversations`
+  - `inbox_messages`
+  - `webhook_events_inbox`
+- Anche `clients/import` richiede attenzione: il comportamento attuale usa `consent_events` + `apply_client_consent_events(...)`, che oggi **non esistono** nel DB Symfony root e quindi vanno prima migrati o reimplementati per non perdere audit consenso.
+
 ---
 
 ## Sessione Google OAuth Symfony per staff + PWA — 2026-07-22

@@ -38,25 +38,25 @@ final class PasswordResetService
             return;
         }
 
-        $this->tokenRepository->invalidatePendingForEmail($email);
-
-        $rawToken = bin2hex(random_bytes(32));
-        $tokenHash = hash('sha256', $rawToken);
-
-        $token = new PasswordResetToken();
-        $token->setEmail($email);
-        $token->setTokenHash($tokenHash);
-
-        $this->em->persist($token);
-        $this->em->flush();
-
-        $resetUrl = sprintf(self::RESET_URL_BASE, rtrim($this->appBaseUrl, '/'), $rawToken);
+        $resetUrl = $this->issueResetLinkForUser($user);
 
         $this->logger->info('[PasswordReset] Reset link generated', [
             'email' => $email,
             'reset_url' => $resetUrl,
+        ]);
+    }
+
+    public function issueResetLinkForUser(User $user): string
+    {
+        [$token, $resetUrl] = $this->createResetTokenAndUrl($user->getEmail());
+
+        $this->logger->info('[PasswordReset] Setup/reset link issued programmatically', [
+            'email' => $user->getEmail(),
+            'reset_url' => $resetUrl,
             'expires_at' => $token->getExpiresAt()->format(\DateTimeInterface::ATOM),
         ]);
+
+        return $resetUrl;
     }
 
     public function confirmReset(string $rawToken, string $newPassword): PasswordResetConfirmResult
@@ -83,5 +83,27 @@ final class PasswordResetService
         $this->em->flush();
 
         return PasswordResetConfirmResult::ok();
+    }
+
+    /**
+     * @return array{0: PasswordResetToken, 1: string}
+     */
+    private function createResetTokenAndUrl(string $email): array
+    {
+        $this->tokenRepository->invalidatePendingForEmail($email);
+
+        $rawToken = bin2hex(random_bytes(32));
+        $tokenHash = hash('sha256', $rawToken);
+
+        $token = new PasswordResetToken();
+        $token->setEmail($email);
+        $token->setTokenHash($tokenHash);
+
+        $this->em->persist($token);
+        $this->em->flush();
+
+        $resetUrl = sprintf(self::RESET_URL_BASE, rtrim($this->appBaseUrl, '/'), $rawToken);
+
+        return [$token, $resetUrl];
     }
 }

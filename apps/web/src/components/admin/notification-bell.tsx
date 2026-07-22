@@ -10,8 +10,8 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import {
+  getPlatformUnreadCount,
   getPlatformNotifications,
   markPlatformNotificationRead,
   markAllPlatformNotificationsRead,
@@ -61,42 +61,27 @@ export function NotificationBell({ initialUnreadCount = 0 }: Props) {
   const [pending, startTransition] = React.useTransition()
   const ref = React.useRef<HTMLDivElement>(null)
 
-  // ── Realtime subscription ─────────────────────────────────
+  // ── Poll unread badge conservatively while mounted ───────
   React.useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase
-      .channel('platform-notif-badge')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'platform_notifications' },
-        (payload) => {
-          const row = payload.new as PlatformNotifRow
-          if (!row.is_read) {
-            setUnreadCount((c) => c + 1)
-            setNotifications((prev) =>
-              prev ? [row, ...prev].slice(0, 20) : null
-            )
-          }
+    let cancelled = false
+
+    async function refreshUnreadCount() {
+      try {
+        const count = await getPlatformUnreadCount()
+        if (!cancelled) {
+          setUnreadCount(count)
         }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'platform_notifications' },
-        (payload) => {
-          const oldRow = payload.old as Partial<PlatformNotifRow>
-          const newRow = payload.new as PlatformNotifRow
-          if (oldRow.is_read === false && newRow.is_read === true) {
-            setUnreadCount((c) => Math.max(0, c - 1))
-          }
-          setNotifications((prev) =>
-            prev ? prev.map((n) => (n.id === newRow.id ? newRow : n)) : null
-          )
-        }
-      )
-      .subscribe()
+      } catch {}
+    }
+
+    void refreshUnreadCount()
+    const intervalId = window.setInterval(() => {
+      void refreshUnreadCount()
+    }, 30_000)
 
     return () => {
-      void supabase.removeChannel(channel)
+      cancelled = true
+      window.clearInterval(intervalId)
     }
   }, [])
 

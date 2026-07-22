@@ -5,7 +5,6 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { clearAdminShadowCookie } from '@/lib/admin-shadow-cookie'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 import { clearSymfonyStaffJwtCookieInStore } from '@/lib/symfony/staff-session'
 
@@ -94,13 +93,7 @@ export interface ActionResult {
 export async function requireSuperadmin(): Promise<{ id: string } | { error: string }> {
   const me = await getOptionalSymfonyStaffMe()
   if (!me) return { error: 'Sessione non valida.' }
-  const db = createAdminClient()
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', me.user.id)
-    .maybeSingle()
-  if (!profile?.is_superadmin) return { error: 'Permessi insufficienti.' }
+  if (!me.user.roles.includes('ROLE_SUPERADMIN')) return { error: 'Permessi insufficienti.' }
   return { id: me.user.id }
 }
 

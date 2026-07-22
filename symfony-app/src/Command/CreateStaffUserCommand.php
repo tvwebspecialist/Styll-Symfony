@@ -94,6 +94,7 @@ final class CreateStaffUserCommand extends Command
 
         $profile = (new Profile($user))
             ->setUserType('staff')
+            ->setEmail($email)
             ->setFullName($fullName !== '' ? $fullName : $this->inferFullNameFromEmail($email))
             ->setTimezone($tenant->getTimezone())
             ->setOnboardingCompleted(true);

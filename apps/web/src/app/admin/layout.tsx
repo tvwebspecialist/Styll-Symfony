@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { signOutAction } from '@/app/admin/actions'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 
 export const dynamic = 'force-dynamic'
@@ -11,25 +11,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await getOptionalSymfonyStaffMe()
   if (!me) redirect('/login')
 
-  const db = createAdminClient()
-  const [profileRes, tenantsCount, usersCount, unreadNotifRes] = await Promise.all([
-    db.from('profiles').select('is_superadmin').eq('id', me.user.id).maybeSingle(),
-    db.from('tenants').select('*', { count: 'exact', head: true }),
-    db.from('profiles').select('*', { count: 'exact', head: true }).or('user_type.eq.staff,is_superadmin.eq.true'),
-    db.from('platform_notifications').select('id', { count: 'exact', head: true }).eq('is_read', false),
-  ])
-
-  if (!profileRes.data?.is_superadmin) redirect('/dashboard')
+  let bootstrap: {
+    email: string | null
+    counts: { tenants?: number; users?: number }
+    unreadNotifications: number
+  }
+  try {
+    bootstrap = await fetchSymfonyAdminJson('/api/admin/bootstrap')
+  } catch (error) {
+    if (error instanceof SymfonyAdminApiError && error.code === 'forbidden') {
+      redirect('/dashboard')
+    }
+    throw error
+  }
 
   return (
     <AdminShell
-      email={me.user.email ?? null}
+      email={bootstrap.email ?? me.user.email ?? null}
       onSignOut={signOutAction}
-      counts={{
-        tenants: tenantsCount.count ?? 0,
-        users: usersCount.count ?? 0,
-      }}
-      initialUnreadCount={unreadNotifRes.count ?? 0}
+      counts={bootstrap.counts}
+      initialUnreadCount={bootstrap.unreadNotifications ?? 0}
     >
       {children}
     </AdminShell>

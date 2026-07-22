@@ -258,6 +258,8 @@ final class StaffRegistrationService
             $profile->setFullName($fullName);
         }
 
+        $profile->setEmail($profile->getUser()->getEmail());
+
         $currentAvatarUrl = trim((string) $profile->getAvatarUrl());
         if ($avatarUrl !== null && trim($avatarUrl) !== '' && $currentAvatarUrl === '') {
             $profile->setAvatarUrl(trim($avatarUrl));

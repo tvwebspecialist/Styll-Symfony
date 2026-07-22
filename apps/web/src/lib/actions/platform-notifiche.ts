@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 
 export interface PlatformNotifRow {
   id: string
@@ -14,58 +14,52 @@ export interface PlatformNotifRow {
   created_at: string
 }
 
-async function requireSuperadmin(): Promise<string> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthenticated')
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .maybeSingle()
-  if (!profile?.is_superadmin) throw new Error('Forbidden')
-  return user.id
+function actionError(error: unknown): never {
+  if (error instanceof SymfonyAdminApiError && error.details.body) {
+    try {
+      const parsed = JSON.parse(error.details.body) as { error?: string }
+      throw new Error(parsed.error ?? error.message)
+    } catch {}
+  }
+
+  throw error instanceof Error ? error : new Error('Errore sconosciuto.')
 }
 
 export async function getPlatformNotifications(): Promise<PlatformNotifRow[]> {
-  await requireSuperadmin()
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('platform_notifications')
-    .select('id, type, title, body, tenant_id, related_profile_id, meta, is_read, created_at')
-    .order('created_at', { ascending: false })
-    .limit(20)
-  return (data ?? []) as PlatformNotifRow[]
+  try {
+    return await fetchSymfonyAdminJson<PlatformNotifRow[]>('/api/admin/notifications')
+  } catch (error) {
+    actionError(error)
+  }
 }
 
 export async function getPlatformUnreadCount(): Promise<number> {
-  await requireSuperadmin()
-  const supabase = await createClient()
-  const { count } = await supabase
-    .from('platform_notifications')
-    .select('id', { count: 'exact', head: true })
-    .eq('is_read', false)
-  return count ?? 0
+  try {
+    const data = await fetchSymfonyAdminJson<{ count: number }>('/api/admin/notifications/unread-count')
+    return data.count ?? 0
+  } catch (error) {
+    actionError(error)
+  }
 }
 
 export async function markPlatformNotificationRead(id: string): Promise<{ ok: boolean }> {
-  await requireSuperadmin()
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('platform_notifications')
-    .update({ is_read: true })
-    .eq('id', id)
-  return { ok: !error }
+  try {
+    await fetchSymfonyAdminJson(`/api/admin/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'POST',
+    })
+    return { ok: true }
+  } catch (error) {
+    actionError(error)
+  }
 }
 
 export async function markAllPlatformNotificationsRead(): Promise<{ ok: boolean }> {
-  await requireSuperadmin()
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('platform_notifications')
-    .update({ is_read: true })
-    .eq('is_read', false)
-  return { ok: !error }
+  try {
+    await fetchSymfonyAdminJson('/api/admin/notifications/read-all', {
+      method: 'POST',
+    })
+    return { ok: true }
+  } catch (error) {
+    actionError(error)
+  }
 }

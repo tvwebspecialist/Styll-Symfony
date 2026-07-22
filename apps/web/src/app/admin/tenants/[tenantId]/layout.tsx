@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { Breadcrumbs } from '@/components/admin/breadcrumbs'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 import { TenantTabs } from './tenant-tabs'
 import { TenantHeaderActions } from './tenant-header-actions'
 
@@ -46,31 +46,29 @@ export default async function TenantDetailLayout({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('id, business_name, slug, status, created_at, primary_color, logo_url')
-    .eq('id', tenantId)
-    .maybeSingle()
-  if (!tenant) notFound()
+  let tenant: {
+    id: string
+    business_name: string
+    slug: string
+    status: string
+    created_at: string
+    primary_color: string | null
+    logo_url: string | null
+    services_count: number
+    staff_count: number
+    locations_count: number
+    clients_count: number
+    appointments_count: number
+  }
 
-  const [
-    { count: servicesCount },
-    { count: staffCount },
-    { count: locationsCount },
-    { count: clientsCount },
-    { count: appointmentsCount },
-  ] = await Promise.all([
-    db.from('services').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-    db.from('staff_members').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-    db.from('locations').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-    db.from('clients').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).is('deleted_at', null),
-    db
-      .from('appointments')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .is('deleted_at', null),
-  ])
+  try {
+    tenant = await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}`)
+  } catch (error) {
+    if (error instanceof SymfonyAdminApiError && error.details.status === 404) {
+      notFound()
+    }
+    throw error
+  }
 
   const statusKey = String(tenant.status ?? '').toLowerCase()
   const statusCls = STATUS_BADGE[statusKey] ?? STATUS_BADGE.inactive
@@ -123,7 +121,7 @@ export default async function TenantDetailLayout({
               <span>·</span>
               <span>creato il {new Date(tenant.created_at).toLocaleDateString('it-IT')}</span>
               <span>·</span>
-              <span>{locationsCount ?? 0} {(locationsCount ?? 0) === 1 ? 'sede' : 'sedi'}</span>
+              <span>{tenant.locations_count ?? 0} {(tenant.locations_count ?? 0) === 1 ? 'sede' : 'sedi'}</span>
             </div>
           </div>
         </div>
@@ -137,10 +135,10 @@ export default async function TenantDetailLayout({
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Clienti" value={clientsCount ?? 0} href={`/admin/tenants/${tenantId}/clients`} />
-        <StatCard label="Appuntamenti" value={appointmentsCount ?? 0} href={`/admin/tenants/${tenantId}/appointments`} />
-        <StatCard label="Servizi" value={servicesCount ?? 0} href={`/admin/tenants/${tenantId}/services`} />
-        <StatCard label="Staff" value={staffCount ?? 0} href={`/admin/tenants/${tenantId}/staff`} />
+        <StatCard label="Clienti" value={tenant.clients_count ?? 0} href={`/admin/tenants/${tenantId}/clients`} />
+        <StatCard label="Appuntamenti" value={tenant.appointments_count ?? 0} href={`/admin/tenants/${tenantId}/appointments`} />
+        <StatCard label="Servizi" value={tenant.services_count ?? 0} href={`/admin/tenants/${tenantId}/services`} />
+        <StatCard label="Staff" value={tenant.staff_count ?? 0} href={`/admin/tenants/${tenantId}/staff`} />
       </div>
 
       <TenantTabs tenantId={tenantId} tabs={TABS} />

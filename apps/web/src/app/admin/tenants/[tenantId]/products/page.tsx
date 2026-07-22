@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchSymfonyAdminJson } from '@/lib/symfony/admin-client'
 import { ProductsClient } from './products-client'
 
 export const dynamic = 'force-dynamic'
@@ -9,30 +9,30 @@ export default async function ProductsPage({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const db = createAdminClient()
+  const data = await fetchSymfonyAdminJson<{
+    products: Array<{
+      id: string
+      name: string
+      brand: string | null
+      category: string | null
+      price_sell: number
+      price_cost: number | null
+      sku: string | null
+      is_active: boolean
+    }>
+    locations: Array<{ id: string; name: string }>
+    inventory: Array<{
+      product_id: string
+      location_id: string
+      quantity: number
+      low_stock_threshold: number
+    }>
+  }>(`/api/admin/tenants/${encodeURIComponent(tenantId)}/products`)
 
-  const [{ data: products }, { data: locations }, { data: inventory }] = await Promise.all([
-    db
-      .from('products')
-      .select('id, name, brand, category, price_sell, price_cost, sku, is_active')
-      .eq('tenant_id', tenantId)
-      .order('name', { ascending: true }),
-    db
-      .from('locations')
-      .select('id, name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .order('name', { ascending: true }),
-    db
-      .from('product_inventory')
-      .select('product_id, location_id, quantity, low_stock_threshold')
-      .eq('tenant_id', tenantId),
-  ])
+  const locationList = data.locations ?? []
 
-  const locationList = locations ?? []
-
-  const productsWithInventory = (products ?? []).map((p) => {
-    const inv = (inventory ?? [])
+  const productsWithInventory = (data.products ?? []).map((p) => {
+    const inv = (data.inventory ?? [])
       .filter((r) => r.product_id === p.id)
       .map((r) => {
         const loc = locationList.find((l) => l.id === r.location_id)

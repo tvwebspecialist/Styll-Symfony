@@ -27,6 +27,9 @@ class Profile
     #[ORM\Column(name: 'full_name', type: 'string', length: 255, nullable: true)]
     private ?string $fullName = null;
 
+    #[ORM\Column(type: 'string', length: 255, nullable: true)]
+    private ?string $email = null;
+
     #[ORM\Column(type: 'string', length: 30, nullable: true)]
     private ?string $phone = null;
 
@@ -47,6 +50,9 @@ class Profile
 
     #[ORM\Column(name: 'onboarding_completed', type: 'boolean')]
     private bool $onboardingCompleted = false;
+
+    #[ORM\Column(name: 'is_superadmin', type: 'boolean')]
+    private bool $isSuperadmin = false;
 
     #[ORM\Column(name: 'work_mode', type: 'string', length: 10, nullable: true)]
     private ?string $workMode = null;
@@ -77,6 +83,8 @@ class Profile
     public function setUserType(string $userType): static { $this->userType = $userType; return $this; }
     public function getFullName(): ?string { return $this->fullName; }
     public function setFullName(?string $fullName): static { $this->fullName = $fullName; return $this; }
+    public function getEmail(): ?string { return $this->email; }
+    public function setEmail(?string $email): static { $this->email = $email; return $this; }
     public function getPhone(): ?string { return $this->phone; }
     public function setPhone(?string $phone): static { $this->phone = $phone; return $this; }
     public function getAvatarUrl(): ?string { return $this->avatarUrl; }
@@ -91,6 +99,8 @@ class Profile
     public function setNotificationPreferences(array $prefs): static { $this->notificationPreferences = $prefs; return $this; }
     public function isOnboardingCompleted(): bool { return $this->onboardingCompleted; }
     public function setOnboardingCompleted(bool $v): static { $this->onboardingCompleted = $v; return $this; }
+    public function isSuperadmin(): bool { return $this->isSuperadmin; }
+    public function setIsSuperadmin(bool $v): static { $this->isSuperadmin = $v; return $this; }
     public function getWorkMode(): ?string { return $this->workMode; }
     public function setWorkMode(?string $workMode): static { $this->workMode = $workMode; return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }

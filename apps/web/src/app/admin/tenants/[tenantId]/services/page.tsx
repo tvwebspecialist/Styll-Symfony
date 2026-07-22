@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchSymfonyAdminJson } from '@/lib/symfony/admin-client'
 import { ServicesClient } from './services-client'
 
 export const dynamic = 'force-dynamic'
@@ -9,12 +9,16 @@ export default async function ServicesPage({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const db = createAdminClient()
-  const { data } = await db
-    .from('services')
-    .select('id, name, description, price, duration_minutes, category, display_order, is_active')
-    .eq('tenant_id', tenantId)
-    .order('display_order', { ascending: true })
+  const data = await fetchSymfonyAdminJson<Array<{
+    id: string
+    name: string
+    description: string | null
+    price: number
+    duration_minutes: number
+    category: string | null
+    display_order: number
+    is_active: boolean
+  }>>(`/api/admin/tenants/${encodeURIComponent(tenantId)}/services`)
 
   return <ServicesClient tenantId={tenantId} initial={data ?? []} />
 }

@@ -72,6 +72,7 @@ interface EditForm {
 interface ResetResult {
   email: string
   tempPassword?: string
+  setupLink?: string
   error?: string
 }
 
@@ -173,7 +174,11 @@ export function UsersClient({
         toast.error(res.error ?? 'Errore')
         return
       }
-      toast.success('Invito inviato')
+      toast.success('Utente creato')
+      setResetResults([{
+        email,
+        setupLink: res.setupLink,
+      }])
       setInviteOpen(false)
       router.refresh()
     })
@@ -698,8 +703,8 @@ export function UsersClient({
       <AdminModal
         open={!!resetResults}
         onOpenChange={(o) => !o && setResetResults(null)}
-        title="Password temporanea"
-        description="Comunica all'utente. Questa password sarà mostrata SOLO ora."
+        title="Accesso iniziale"
+        description="Condividi il link di setup o la password temporanea. Questo contenuto sarà mostrato SOLO ora."
         footer={
           <Button onClick={() => setResetResults(null)}>Chiudi</Button>
         }
@@ -719,6 +724,27 @@ export function UsersClient({
                   <button
                     type="button"
                     onClick={() => copyToClipboard(r.tempPassword!, idx)}
+                    className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 text-xs hover:bg-muted"
+                  >
+                    {copiedIdx === idx ? (
+                      <>
+                        <Check className="h-3 w-3" /> Copiato
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" /> Copia
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : r.setupLink ? (
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 break-all rounded bg-background px-2 py-1 font-mono text-xs">
+                    {r.setupLink}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(r.setupLink!, idx)}
                     className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 text-xs hover:bg-muted"
                   >
                     {copiedIdx === idx ? (
