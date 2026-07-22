@@ -131,9 +131,8 @@ export async function applyProxyAuthGuards(
     const tenantSlug = await deps.getTenantSlug(tenantIds[0])
     if (tenantSlug) {
       const redirectUrl = input.request.nextUrl.clone()
-      redirectUrl.hostname = `${tenantSlug}-dashboard.${input.rootDomain}`
+      redirectUrl.host = `${tenantSlug}-dashboard.${input.rootDomain}`
       redirectUrl.pathname = '/'
-      redirectUrl.port = ''
       return redirectTo(redirectUrl)
     }
 

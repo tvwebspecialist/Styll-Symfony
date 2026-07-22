@@ -162,6 +162,32 @@ test('authenticated user on /login still follows the existing tenant redirect', 
   assert.equal(result.headers.get('location'), 'https://acme-dashboard.styll.it/')
 })
 
+test('authenticated user on /register preserves localhost port when redirecting to a tenant dashboard', async () => {
+  const request = makeRequest('http://localhost:3000/register', makeAuthCookie())
+  const response = NextResponse.next({ request })
+
+  const result = await applyProxyAuthGuards(
+    createBaseInput(request, response, {
+      isAuthPage: true,
+      rootDomain: 'localhost:3000',
+      securityOptions: {
+        ...SECURITY_OPTIONS,
+        rootDomain: 'localhost:3000',
+      },
+    }),
+    createDeps({
+      getUser: async () => ({ id: 'user-1' }),
+      getOnboardingCompleted: async () => true,
+      getActiveStaffTenantIds: async () => ['tenant-1'],
+      getTenantSlug: async () => 'demo',
+    })
+  )
+
+  assert.ok(result)
+  assert.equal(result.status, 307)
+  assert.equal(result.headers.get('location'), 'http://demo-dashboard.localhost:3000/')
+})
+
 test('anonymous dashboard requests stay protected', async () => {
   const request = makeRequest('https://styll.it/dashboard')
   const response = NextResponse.next({ request })
