@@ -1,4 +1,4 @@
-const DEFAULT_SYMFONY_API_URL = 'https://api.styll.it'
+import { getSymfonyApiBaseUrl } from './api-base-url.ts'
 
 export type SymfonyPublicApiErrorCode =
   | 'tenant_not_found'
@@ -168,8 +168,7 @@ export interface SymfonyPublicLandingData {
 type CollectionPayload<T> = T[] | { member?: T[]; 'hydra:member'?: T[] }
 
 export function getSymfonyPublicApiBaseUrl(): string {
-  const raw = process.env.SYMFONY_API_URL ?? process.env.NEXT_PUBLIC_SYMFONY_API_URL ?? DEFAULT_SYMFONY_API_URL
-  return raw.replace(/\/+$/, '')
+  return getSymfonyApiBaseUrl()
 }
 
 export async function fetchSymfonyPublicTenant(slug: string): Promise<SymfonyTenantDto> {

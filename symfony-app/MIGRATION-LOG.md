@@ -6,6 +6,135 @@
 
 ---
 
+## Sessione staff frontend bridge audit + preparazione `/api/me` — 2026-07-22
+
+**Branch:** `feat/symfony-staff-frontend-bridge`
+
+### Obiettivo della sessione
+
+Verificare se `apps/web` puo sostituire la risoluzione staff di sessione/tenant/ruolo oggi basata su Supabase con il nuovo endpoint Symfony `GET /api/me`, mantenendo il comportamento produzione invariato tramite feature flag.
+
+### Audit statico del frontend staff corrente
+
+Ricognizione mirata sui file richiesti:
+
+- `apps/web/src/proxy.ts`
+- `apps/web/src/lib/proxy-auth-guard.ts`
+- `apps/web/src/lib/tenant-context.ts`
+- `apps/web/src/lib/tenant-role-guard.ts`
+
+Stato rilevato:
+
+- `proxy.ts` costruisce un client `@supabase/ssr` e usa `supabase.auth.getUser()` nel middleware per protezione `dashboard/admin`, redirect login/onboarding, shadow cookie validation e risoluzione tenant dashboard.
+- `proxy-auth-guard.ts` riconosce come sessione plausibile solo i cookie Supabase (`/^sb-.*-auth-token...$/`) e delega il controllo utente a `getUser()` fornito da `proxy.ts`.
+- `tenant-context.ts` usa ripetutamente `supabase.auth.getUser()` come fonte identita per:
+  - `getStaffImpersonationState()`
+  - `getActiveTenantId()`
+  - `getImpersonationState()`
+  - `resolveActiveProfile()`
+  - `resolveActiveProfileForTenant()`
+- `tenant-role-guard.ts` usa `supabase.auth.getUser()` e poi verifica ruolo/tenant con query su `staff_members` + `profiles`.
+
+Conclusione: nel frontend staff corrente la sorgente autorevole dell'identita applicativa resta la sessione Supabase. Non esiste ancora una sessione Symfony leggibile da Next.js che possa sostituirla in modo sicuro.
+
+### Stato reale del backend auth Symfony
+
+Evidenze dal codice Symfony:
+
+- `config/packages/security.yaml` espone solo `POST /api/login` via `json_login`, provider `App\Entity\User`, campo credenziale `users.email/password`.
+- `src/Controller/MeController.php` richiede JWT Bearer Lexik gia valido e risolve tenant membership server-side con `StaffTenantAccessResolver`.
+- `StaffTenantAccessResolver` supporta la selezione tenant sicura via header `X-Tenant-Slug`, ma solo dopo autenticazione JWT Symfony riuscita.
+
+Ricerca nel repository:
+
+- non e stato trovato alcun endpoint o helper di scambio `Supabase session -> Symfony JWT`;
+- non e stato trovato alcun punto del frontend che ottenga o persista un JWT Symfony staff;
+- non e stato trovato alcun cookie/session primitive Symfony gia compatibile con `proxy.ts`.
+
+### DECISIONE DA CONFERMARE — serve un endpoint di scambio/bridge tra sessione Supabase e JWT Symfony, oppure una migrazione diretta dell'auth staff, prima di poter completare questo collegamento
+
+Motivo:
+
+- senza un JWT Symfony reale non e possibile chiamare `GET /api/me`;
+- inventare un bridge lato frontend o accettare token Supabase come se fossero JWT Symfony sarebbe una decisione di sicurezza errata;
+- anche con `/api/me` disponibile, il middleware Next (`proxy.ts`) resta oggi agganciato a cookie/sessione Supabase e richiede un nuovo primitive di sessione prima di poter migrare davvero i redirect auth staff.
+
+### Stato reale utenti staff Symfony locali
+
+Verifiche eseguite sul database Docker locale (`docker compose exec -T postgres psql -U styll -d styll`):
+
+- `users_count = 1`
+- `profiles_count = 1`
+- `staff_members_count = 1`
+
+Utente staff locale trovato:
+
+- `email = mario.rossi.test@barbiere-di-prova.local`
+- `full_name = Mario Rossi`
+- `tenant_slug = barbiere-di-prova`
+- `role = owner`
+- `password = unused` (letterale, non hash Symfony valido)
+
+Verifica login reale:
+
+- `POST http://127.0.0.1:8080/api/login` con `email = mario.rossi.test@barbiere-di-prova.local` e `password = unused` risponde `401`.
+
+Conclusione:
+
+- gli utenti staff Symfony esistono localmente;
+- almeno nello stato locale attuale non hanno ancora password valide/utilizzabili per il login Symfony;
+- l'unico login Symfony sicuramente funzionante oggi e quello delle fixture test (`tests/Support/TestTenantFixture.php`, password nota solo in ambiente test: `styll-test-password-only`).
+
+### Implementato in `apps/web` per preparare il rollout futuro
+
+Per non rompere la produzione e non introdurre bridge improvvisati, e stato preparato solo il layer futuro, off-by-default:
+
+- `apps/web/src/lib/symfony/api-base-url.ts`
+  - helper condiviso per risolvere la base URL Symfony.
+- `apps/web/src/lib/symfony/staff-client.ts`
+  - client tipizzato per `GET /api/me`;
+  - supporto header `Authorization: Bearer ...`;
+  - supporto `X-Tenant-Slug`;
+  - error taxonomy esplicita (`unauthorized`, `forbidden`, `http_error`, `network_error`, `invalid_response`);
+  - feature flag `NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT`.
+- `apps/web/src/lib/symfony/staff-context.ts`
+  - helper server-side che consuma un eventuale cookie `styll_symfony_staff_jwt` solo se il flag e attivo;
+  - non genera, non scambia e non emette JWT: evita di simulare un bridge non confermato.
+- `apps/web/.env.example`
+  - documentato il nuovo flag `NEXT_PUBLIC_USE_SYMFONY_STAFF_CONTEXT=false`.
+- `apps/web/tests/unit/symfony-staff-client.test.mjs`
+  - test unitari per flag, header e mapping base del client `/api/me`.
+
+### Limite intenzionale del batch
+
+Il nuovo client frontend non e ancora collegato a `proxy.ts`, `tenant-context.ts` o `tenant-role-guard.ts`.
+
+Questo e intenzionale:
+
+- senza bridge o login staff Symfony reale, collegarlo davvero produrrebbe solo rami morti o regressioni;
+- il rollout sicuro richiede prima una decisione esplicita su come Next.js ottiene un JWT Symfony staff;
+- solo dopo quella decisione ha senso sostituire davvero i punti di risoluzione auth/tenant/ruolo nel frontend.
+
+### Verifiche eseguite in questa sessione
+
+Frontend mirato:
+
+```bash
+pnpm --filter web exec node --experimental-strip-types --test tests/unit/symfony-staff-client.test.mjs
+```
+
+Risultato: `4/4` test verdi sul nuovo client `/api/me`.
+
+Suite Symfony completa richiesta dalla sessione:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato: `81/81` test verdi, `Assertions: 666`, `PHPUnit Deprecations: 3`.
+
+---
+
 ## Sessione fix precisione timestamp PostgreSQL/Doctrine — 2026-07-21
 
 **Branch:** `fix/doctrine-timestamp-precision`
