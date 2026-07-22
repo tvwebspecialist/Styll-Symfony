@@ -301,6 +301,96 @@ Verificato con `information_schema.columns` / `information_schema.tables`:
   - `webhook_events_inbox`
 - Anche `clients/import` richiede attenzione: il comportamento attuale usa `consent_events` + `apply_client_consent_events(...)`, che oggi **non esistono** nel DB Symfony root e quindi vanno prima migrati o reimplementati per non perdere audit consenso.
 
+### Residuo reale dopo il baseline `feat(admin): add symfony admin api baseline`
+
+Verifica ripetuta con:
+
+- `rg -n "createAdminClient\\(|createClient\\(|\\.from\\('" apps/web/src/app/admin apps/web/src/components/admin apps/web/src/lib/admin`
+
+Residuo ancora su Supabase al momento di questa nota:
+
+- `apps/web/src/app/admin/actions-data.ts`
+  - clienti tenant
+  - appuntamenti tenant
+  - import concierge clienti
+  - storico `client_import_jobs`
+- `apps/web/src/lib/actions/appointments.ts`
+  - create/update/delete/seed appuntamenti usati da `appointments-client.tsx`
+- `apps/web/src/app/admin/tenants/[tenantId]/analytics/page.tsx`
+  - tenant analytics usa ancora `site_analytics_daily` + `appointments`
+- `apps/web/src/lib/admin/site-analytics-queries.ts`
+  - analytics cross-tenant usa ancora `site_analytics_daily` + `tenant_activity_log`
+- `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/page.tsx`
+  - dipende da `tenant_integrations`, `inbox_conversations`, `inbox_messages`, `webhook_events_inbox`
+- `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/actions.ts`
+  - binding WhatsApp ancora via Supabase
+- `apps/web/src/app/admin/actions-content.ts`
+  - resta un solo uso `createAdminClient()` per `uploadAdminImage()` su storage Supabase
+
+Conclusione operativa aggiornata:
+
+- `clients`, `appointments` e `client_import_jobs` restano **migrabili subito** se si copre anche il gap consenso (`consent_events` e relativa logica append-only).
+- `analytics` non e solo un problema di endpoint: oggi il DB Symfony root **non contiene** `site_analytics_daily`, quindi la migrazione richiede prima portare schema e pipeline dati.
+- `whatsapp` resta **fuori perimetro di modifica in questa sessione** anche per il vincolo esplicito "NON toccare MAI il blocco inbox AI WhatsApp"; di conseguenza questa parte non puo essere dichiarata migrata al 100% senza una sessione dedicata e autorizzata.
+
+### Tranche successiva effettivamente migrata a Symfony — 2026-07-22
+
+Backend Symfony aggiunto:
+
+- `src/Service/AdminConsentWriter.php`
+  - persistenza append-only di `consent_events`
+  - aggiornamento snapshot `clients.marketing_consent` / `clients.churn_opted_out`
+- `src/Controller/Admin/AdminTenantDataController.php`
+  - `GET/POST/PATCH/DELETE /api/admin/tenants/{tenantId}/clients`
+  - `POST /api/admin/tenants/{tenantId}/clients/bulk-create`
+  - `GET/POST /api/admin/tenants/{tenantId}/appointments`
+  - `GET /api/admin/tenants/{tenantId}/appointments/options`
+  - `PATCH /api/admin/tenants/{tenantId}/appointments/{appointmentId}/status`
+  - `DELETE /api/admin/tenants/{tenantId}/appointments/{appointmentId}`
+  - `POST /api/admin/tenants/{tenantId}/appointments/seed`
+  - `POST /api/admin/tenants/{tenantId}/client-imports/commit`
+  - `GET /api/admin/tenants/{tenantId}/client-import-jobs`
+  - `GET /api/admin/tenants/{tenantId}/client-import-jobs/{jobId}/errors`
+- `migrations/Version20260722223000.php`
+  - nuova tabella `consent_events`
+  - trigger append-only `trg_guard_consent_events_append_only`
+
+Frontend Next.js migrato in questa tranche:
+
+- `apps/web/src/app/admin/actions-data.ts`
+  - rimosso completamente `createAdminClient()` / `.from(...)`
+  - clienti tenant, appuntamenti tenant e import concierge ora chiamano solo API Symfony
+- `apps/web/src/lib/actions/appointments.ts`
+  - create/update/delete/seed appuntamenti admin ora chiamano solo API Symfony
+
+Verifica reale dell'audit dopo questo refactor:
+
+- comando eseguito:
+  - `rg -n "createAdminClient\\(|createClient\\(|\\.from\\('" apps/web/src/app/admin apps/web/src/components/admin apps/web/src/lib/admin`
+- residuo rimasto:
+  - `apps/web/src/lib/admin/site-analytics-queries.ts`
+  - `apps/web/src/app/admin/tenants/[tenantId]/analytics/page.tsx`
+  - `apps/web/src/app/admin/actions-content.ts` solo `uploadAdminImage()`
+  - `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/page.tsx`
+  - `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/actions.ts`
+
+Interpretazione aggiornata:
+
+- **migrato davvero in questa sessione**:
+  - CRUD clienti tenant
+  - audit consenso admin per clienti
+  - CRUD/seed appuntamenti tenant
+  - lookup opzioni appuntamenti
+  - commit import concierge + storico job/errori
+- **ancora non migrabile al 100% nel perimetro corrente**:
+  - `analytics`
+    - mancano ancora nel DB Symfony root `site_analytics_daily` e `tenant_activity_log`
+  - `whatsapp`
+    - richiede `tenant_integrations`, `inbox_conversations`, `inbox_messages`, `webhook_events_inbox`
+    - inoltre e esplicitamente escluso dal vincolo sessione "NON toccare MAI il blocco inbox AI WhatsApp"
+  - `uploadAdminImage()`
+    - dipende ancora da storage Supabase (`tenants/locations/avatars`) e non da tabelle business
+
 ---
 
 ## Sessione Google OAuth Symfony per staff + PWA — 2026-07-22

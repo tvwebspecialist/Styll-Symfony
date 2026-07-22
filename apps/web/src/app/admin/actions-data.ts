@@ -3,38 +3,130 @@
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import {
-  applyClientConsentEvents,
+  buildChurnProfilingEvent,
   buildMarketingConsentEvents,
   extractConsentRequestContext,
-  seedClientConsentState,
+  type ConsentEventPayload,
 } from '@/lib/consent-events'
-import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE } from '@/lib/consent-copy'
-import type { Json, TablesUpdate, TablesInsert } from '@/types'
+import { CONSENT_ACTOR, CONSENT_CHANNEL, CONSENT_SOURCE, type ConsentSource } from '@/lib/consent-copy'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
+import type { Json } from '@/types'
+import type {
+  ImportClientsInput,
+  ImportClientsResult,
+  ImportError,
+} from '@/lib/actions/clienti'
+import {
+  buildImportClientsResult,
+  prepareClientImportPlan,
+} from '@/lib/utils/client-import-core'
 
-import { bumpAdmin, requireSuperadmin, type ActionResult } from './actions'
+import { requireSuperadmin, type ActionResult } from './actions'
 
-async function logAdminAction(
-  actorId: string,
-  action: string,
-  entityType: string,
-  entityId: string | null,
-  tenantId: string | null = null,
-  details: Record<string, unknown> = {}
-) {
-  try {
-    const db = createAdminClient()
-    await db.from('admin_audit_log').insert({
-      actor_id: actorId,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      tenant_id: tenantId,
-      details: details as unknown as Json,
-    })
-  } catch {
-    // best-effort
+function actionError(error: unknown): string {
+  if (error instanceof SymfonyAdminApiError) {
+    if (error.details.body) {
+      try {
+        const parsed = JSON.parse(error.details.body) as { error?: string }
+        if (parsed.error) return parsed.error
+      } catch {}
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Errore sconosciuto.'
+}
+
+type ConsentPayload = {
+  actor: typeof CONSENT_ACTOR.SUPERADMIN
+  actorProfileId: string
+  source: ConsentSource
+  events: ConsentEventPayload[]
+}
+
+function resolveConsentChannel(source: ConsentSource): typeof CONSENT_CHANNEL[keyof typeof CONSENT_CHANNEL] {
+  if (source === CONSENT_SOURCE.CLIENT_IMPORT) return CONSENT_CHANNEL.IMPORT
+  if (
+    source === CONSENT_SOURCE.STAFF_DASHBOARD ||
+    source === CONSENT_SOURCE.SUPERADMIN_PANEL ||
+    source === CONSENT_SOURCE.SUPERADMIN_SEED
+  ) {
+    return CONSENT_CHANNEL.BACKOFFICE
+  }
+  if (source === CONSENT_SOURCE.LEGACY_MIGRATION) return CONSENT_CHANNEL.SYSTEM
+  return CONSENT_CHANNEL.PWA
+}
+
+function buildSeedConsentPayload(params: {
+  actorProfileId: string
+  source: ConsentSource
+  marketingAllowed: boolean
+  churnAllowed: boolean
+  occurredAt?: string
+  ipAddress?: string | null
+  userAgent?: string | null
+  metadata?: Record<string, Json>
+  businessName?: string
+}): ConsentPayload {
+  const channel = resolveConsentChannel(params.source)
+  const baseMetadata = {
+    ...(params.metadata ?? {}),
+    ip_address_present: Boolean(params.ipAddress),
+    user_agent_present: Boolean(params.userAgent),
+  } satisfies Record<string, Json>
+
+  return {
+    actor: CONSENT_ACTOR.SUPERADMIN,
+    actorProfileId: params.actorProfileId,
+    source: params.source,
+    events: [
+      ...buildMarketingConsentEvents({
+        allowed: params.marketingAllowed,
+        businessName: params.businessName,
+        channel,
+        occurredAt: params.occurredAt,
+        source: params.source,
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+        metadata: baseMetadata,
+      }),
+      buildChurnProfilingEvent({
+        allowed: params.churnAllowed,
+        channel,
+        occurredAt: params.occurredAt,
+        source: params.source,
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+        metadata: baseMetadata,
+      }),
+    ],
+  }
+}
+
+function buildMarketingConsentPayload(params: {
+  actorProfileId: string
+  source: ConsentSource
+  allowed: boolean
+  occurredAt?: string
+  ipAddress?: string | null
+  userAgent?: string | null
+  metadata?: Record<string, Json>
+}): ConsentPayload {
+  const channel = resolveConsentChannel(params.source)
+
+  return {
+    actor: CONSENT_ACTOR.SUPERADMIN,
+    actorProfileId: params.actorProfileId,
+    source: params.source,
+    events: buildMarketingConsentEvents({
+      allowed: params.allowed,
+      channel,
+      occurredAt: params.occurredAt,
+      source: params.source,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+      metadata: params.metadata,
+    }),
   }
 }
 
@@ -50,36 +142,30 @@ export interface TenantClientRow {
   created_at: string
 }
 
+export interface TenantClientDetailedRow extends TenantClientRow {
+  tags: string[]
+  marketing_consent: boolean
+  profile_id: string | null
+  avatar_url: string | null
+  date_of_birth?: string | null
+}
+
 export async function listTenantClients(
   tenantId: string
 ): Promise<{ success: boolean; data?: TenantClientRow[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient() as unknown as {
-    from: (t: string) => {
-      select: (s: string) => {
-        eq: (c: string, v: string) => {
-          is: (c: string, v: null) => {
-            order: (
-              c: string,
-              opts: { ascending: boolean }
-            ) => {
-              limit: (n: number) => Promise<{ data: TenantClientRow[] | null; error: { message: string } | null }>
-            }
-          }
-        }
-      }
-    }
+  const res = await listTenantClientsDetailed(tenantId)
+  if (!res.success) return res
+
+  return {
+    success: true,
+    data: (res.data ?? []).map((row) => ({
+      id: row.id,
+      full_name: row.full_name,
+      phone: row.phone,
+      email: row.email,
+      created_at: row.created_at,
+    })),
   }
-  const { data, error } = await db
-    .from('clients')
-    .select('id, full_name, phone, email, created_at')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(200)
-  if (error) return { success: false, error: error.message }
-  return { success: true, data: data ?? [] }
 }
 
 export interface TenantAppointmentRow {
@@ -89,52 +175,35 @@ export interface TenantAppointmentRow {
   client_name: string | null
 }
 
+export interface TenantAppointmentDetailedRow {
+  id: string
+  start_time: string
+  end_time: string
+  status: string
+  client_id: string
+  client_name: string | null
+  staff_id: string
+  staff_name: string | null
+  location_id: string
+  service_names: string[]
+  total_price: number
+}
+
 export async function listTenantAppointments(
   tenantId: string
 ): Promise<{ success: boolean; data?: TenantAppointmentRow[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient() as unknown as {
-    from: (t: string) => {
-      select: (s: string) => {
-        eq: (c: string, v: string) => {
-          order: (
-            c: string,
-            opts: { ascending: boolean }
-          ) => {
-            limit: (n: number) => Promise<{
-              data:
-                | Array<{
-                    id: string
-                    start_time: string
-                    status: string
-                    client: { full_name: string | null } | { full_name: string | null }[] | null
-                  }>
-                | null
-              error: { message: string } | null
-            }>
-          }
-        }
-      }
-    }
+  const res = await listTenantAppointmentsDetailed(tenantId)
+  if (!res.success) return res
+
+  return {
+    success: true,
+    data: (res.data ?? []).map((row) => ({
+      id: row.id,
+      start_time: row.start_time,
+      status: row.status,
+      client_name: row.client_name,
+    })),
   }
-  const { data, error } = await db
-    .from('appointments')
-    .select('id, start_time, status, client:clients(full_name)')
-    .eq('tenant_id', tenantId)
-    .order('start_time', { ascending: false })
-    .limit(200)
-  if (error) return { success: false, error: error.message }
-  const rows: TenantAppointmentRow[] = (data ?? []).map((r) => {
-    const c = Array.isArray(r.client) ? r.client[0] : r.client
-    return {
-      id: r.id,
-      start_time: r.start_time,
-      status: r.status,
-      client_name: c?.full_name ?? null,
-    }
-  })
-  return { success: true, data: rows }
 }
 
 // =====================================================
@@ -154,71 +223,49 @@ export async function createTenantClient(
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
   if (!input.full_name?.trim()) return { success: false, error: 'Nome obbligatorio.' }
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('clients')
-    .insert({
-      tenant_id: tenantId,
-      full_name: input.full_name.trim(),
-      email: input.email?.trim() || null,
-      phone: input.phone?.trim() || null,
-      marketing_consent: false,
-      preferred_contact_channel: 'whatsapp',
-      tags: '["active"]',
-    })
-    .select('id, created_at')
-    .single()
-  if (error) return { success: false, error: error.message }
-  if (!data?.id || !data.created_at) return { success: false, error: 'Cliente non creato.' }
 
   try {
     const requestContext = extractConsentRequestContext(await headers())
-    await seedClientConsentState(db, {
-      tenantId,
-      clientId: data.id,
-      marketingAllowed: false,
-      churnAllowed: true,
-      actor: CONSENT_ACTOR.SUPERADMIN,
-      actorProfileId: auth.id,
-      source: CONSENT_SOURCE.SUPERADMIN_PANEL,
-      occurredAt: data.created_at,
-      ipAddress: requestContext.ipAddress ?? null,
-      userAgent: requestContext.userAgent ?? null,
-      metadata: {
-        surface: 'admin_create_tenant_client',
+    await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}/clients`, {
+      method: 'POST',
+      body: {
+        full_name: input.full_name.trim(),
+        email: input.email?.trim() || null,
+        phone: input.phone?.trim() || null,
+        consent: buildSeedConsentPayload({
+          actorProfileId: auth.id,
+          source: CONSENT_SOURCE.SUPERADMIN_PANEL,
+          marketingAllowed: false,
+          churnAllowed: true,
+          ipAddress: requestContext.ipAddress ?? null,
+          userAgent: requestContext.userAgent ?? null,
+          metadata: {
+            surface: 'admin_create_tenant_client',
+          },
+        }),
       },
     })
-  } catch (consentError) {
-    await db.from('clients').delete().eq('id', data.id).eq('tenant_id', tenantId)
-    return {
-      success: false,
-      error: consentError instanceof Error ? consentError.message : 'Cliente non creato.',
-    }
+    revalidatePath(`/admin/tenants/${tenantId}/clients`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  await logAdminAction(auth.id, 'client.created', 'client', null, tenantId, {
-    name: input.full_name,
-  })
-  revalidatePath(`/admin/tenants/${tenantId}/clients`)
-  return { success: true }
 }
 
 export async function deleteTenantClient(
   tenantId: string,
   clientId: string
 ): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  // Soft delete — clients use deleted_at (never hard delete, see CLAUDE.md)
-  const { error } = await db
-    .from('clients')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', clientId)
-    .eq('tenant_id', tenantId)
-  if (error) return { success: false, error: error.message }
-  await logAdminAction(auth.id, 'client.deleted', 'client', clientId, tenantId)
-  revalidatePath(`/admin/tenants/${tenantId}/clients`)
-  return { success: true }
+  try {
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/clients/${encodeURIComponent(clientId)}`,
+      { method: 'DELETE' }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/clients`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 const DEMO_FIRST_NAMES = [
@@ -248,59 +295,49 @@ export async function seedDemoClients(
 ): Promise<ActionResult & { inserted?: number }> {
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const rows = Array.from({ length: Math.min(Math.max(count, 1), 50) }, () => {
-    const first = pick(DEMO_FIRST_NAMES)
-    const last = pick(DEMO_LAST_NAMES)
-    const slug = `${first.toLowerCase()}.${last.toLowerCase().replace(/\s+/g, '')}`
-    const suffix = Math.floor(Math.random() * 1000)
-    return {
-      tenant_id: tenantId,
-      full_name: `${first} ${last}`,
-      email: `${slug}${suffix}@${pick(DEMO_DOMAINS)}`,
-      phone: randomPhone(),
-      marketing_consent: false,
-      preferred_contact_channel: 'whatsapp',
-      tags: '["active"]',
-    }
-  })
-  const { error, data } = await db
-    .from('clients')
-    .insert(rows)
-    .select('id, created_at, marketing_consent')
-  if (error) return { success: false, error: error.message }
 
   try {
-    for (const row of data ?? []) {
-      await seedClientConsentState(db, {
-        tenantId,
-        clientId: row.id,
-        marketingAllowed: Boolean(row.marketing_consent),
-        churnAllowed: true,
-        actor: CONSENT_ACTOR.SUPERADMIN,
-        actorProfileId: auth.id,
-        source: CONSENT_SOURCE.SUPERADMIN_SEED,
-        occurredAt: row.created_at,
-        metadata: {
-          surface: 'admin_seed_demo_clients',
-        },
-      })
-    }
-  } catch (consentError) {
-    const insertedIds = (data ?? []).map((row) => row.id)
-    if (insertedIds.length > 0) {
-      await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
-    }
-    return {
-      success: false,
-      error: consentError instanceof Error ? consentError.message : 'Errore audit consenso seed.',
-    }
+    const requestContext = extractConsentRequestContext(await headers())
+    const rows = Array.from({ length: Math.min(Math.max(count, 1), 50) }, () => {
+      const first = pick(DEMO_FIRST_NAMES)
+      const last = pick(DEMO_LAST_NAMES)
+      const slug = `${first.toLowerCase()}.${last.toLowerCase().replace(/\s+/g, '')}`
+      const suffix = Math.floor(Math.random() * 1000)
+
+      return {
+        full_name: `${first} ${last}`,
+        email: `${slug}${suffix}@${pick(DEMO_DOMAINS)}`,
+        phone: randomPhone(),
+        marketing_consent: false,
+        preferred_contact_channel: 'whatsapp',
+        tags: ['active'],
+        consent: buildSeedConsentPayload({
+          actorProfileId: auth.id,
+          source: CONSENT_SOURCE.SUPERADMIN_SEED,
+          marketingAllowed: false,
+          churnAllowed: true,
+          ipAddress: requestContext.ipAddress ?? null,
+          userAgent: requestContext.userAgent ?? null,
+          metadata: {
+            surface: 'admin_seed_demo_clients',
+          },
+        }),
+      }
+    })
+
+    const data = await fetchSymfonyAdminJson<{ success: boolean; inserted: number }>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/clients/bulk-create`,
+      {
+        method: 'POST',
+        body: { clients: rows },
+      }
+    )
+
+    revalidatePath(`/admin/tenants/${tenantId}/clients`)
+    return { success: true, inserted: data.inserted }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  await logAdminAction(auth.id, 'client.seeded', 'client', null, tenantId, {
-    count: data?.length ?? rows.length,
-  })
-  revalidatePath(`/admin/tenants/${tenantId}/clients`)
-  return { success: true, inserted: data?.length ?? rows.length }
 }
 
 // =====================================================
@@ -322,214 +359,77 @@ export async function updateTenantClient(
 ): Promise<ActionResult> {
   const auth = await requireSuperadmin()
   if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const patch: TablesUpdate<'clients'> = {}
-  let marketingConsent: boolean | undefined
-  if (input.full_name !== undefined) patch.full_name = input.full_name?.trim() || undefined
-  if (input.email !== undefined) patch.email = input.email?.trim() || null
-  if (input.phone !== undefined) patch.phone = input.phone?.trim() || null
-  if (input.tags !== undefined) {
-    patch.tags = input.tags ? JSON.stringify(input.tags) : null
-  }
-  if (input.marketing_consent !== undefined) marketingConsent = !!input.marketing_consent
-  if (Object.keys(patch).length > 0) {
-    const { error } = await db
-      .from('clients')
-      .update(patch)
-      .eq('id', clientId)
-      .eq('tenant_id', tenantId)
-    if (error) return { success: false, error: error.message }
-  }
 
-  if (marketingConsent !== undefined) {
-    try {
-      const requestContext = extractConsentRequestContext(await headers())
-      await applyClientConsentEvents(db, {
-        tenantId,
-        clientId,
-        actor: CONSENT_ACTOR.SUPERADMIN,
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    const body: Record<string, unknown> = {}
+
+    if (input.full_name !== undefined) body.full_name = input.full_name?.trim() || null
+    if (input.email !== undefined) body.email = input.email?.trim() || null
+    if (input.phone !== undefined) body.phone = input.phone?.trim() || null
+    if (input.tags !== undefined) body.tags = input.tags ?? []
+    if (input.marketing_consent !== undefined) {
+      body.consent = buildMarketingConsentPayload({
         actorProfileId: auth.id,
         source: CONSENT_SOURCE.SUPERADMIN_PANEL,
-        events: buildMarketingConsentEvents({
-          allowed: marketingConsent,
-          channel: CONSENT_CHANNEL.BACKOFFICE,
-          source: CONSENT_SOURCE.SUPERADMIN_PANEL,
-          occurredAt: new Date().toISOString(),
-          ipAddress: requestContext.ipAddress ?? null,
-          metadata: {
-            surface: 'admin_update_tenant_client',
-            ip_address: requestContext.ipAddress ?? null,
-            user_agent: requestContext.userAgent ?? null,
-          },
-          userAgent: requestContext.userAgent ?? null,
-        }),
+        allowed: Boolean(input.marketing_consent),
+        occurredAt: new Date().toISOString(),
+        ipAddress: requestContext.ipAddress ?? null,
+        userAgent: requestContext.userAgent ?? null,
+        metadata: {
+          surface: 'admin_update_tenant_client',
+          ip_address: requestContext.ipAddress ?? null,
+          user_agent: requestContext.userAgent ?? null,
+        },
       })
-    } catch (consentError) {
-      return {
-        success: false,
-        error: consentError instanceof Error ? consentError.message : 'Errore audit consenso.',
-      }
     }
+
+    await fetchSymfonyAdminJson(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/clients/${encodeURIComponent(clientId)}`,
+      {
+        method: 'PATCH',
+        body,
+      }
+    )
+    revalidatePath(`/admin/tenants/${tenantId}/clients`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  await logAdminAction(auth.id, 'client.updated', 'client', clientId, tenantId, {
-    fields: marketingConsent === undefined ? Object.keys(patch) : [...Object.keys(patch), 'marketing_consent'],
-  })
-  revalidatePath(`/admin/tenants/${tenantId}/clients`)
-  return { success: true }
 }
 
 // =====================================================
 // TENANT CLIENT — DETAILED READ (with tags + consent)
 // =====================================================
 
-export interface TenantClientDetailedRow {
-  id: string
-  full_name: string | null
-  phone: string | null
-  email: string | null
-  tags: string[]
-  marketing_consent: boolean
-  profile_id: string | null
-  avatar_url: string | null
-  created_at: string
-}
-
-function parseTags(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map((t) => String(t))
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? parsed.map((t) => String(t)) : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
 export async function listTenantClientsDetailed(
   tenantId: string
 ): Promise<{ success: boolean; data?: TenantClientDetailedRow[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('clients')
-    .select('id, full_name, phone, email, tags, marketing_consent, profile_id, created_at, profile:profiles(avatar_url)')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(200)
-  if (error) return { success: false, error: error.message }
-  const rows = (data ?? []).map((r) => {
-    const x = r as unknown as {
-      id: string
-      full_name: string | null
-      phone: string | null
-      email: string | null
-      tags: unknown
-      marketing_consent: boolean | null
-      profile_id: string | null
-      created_at: string
-      profile?: { avatar_url: string | null } | { avatar_url: string | null }[] | null
-    }
-    const prof = Array.isArray(x.profile) ? x.profile[0] : x.profile
-    return {
-      id: x.id,
-      full_name: x.full_name,
-      phone: x.phone,
-      email: x.email,
-      tags: parseTags(x.tags),
-      marketing_consent: !!x.marketing_consent,
-      profile_id: x.profile_id,
-      avatar_url: prof?.avatar_url ?? null,
-      created_at: x.created_at,
-    }
-  })
-  return { success: true, data: rows }
+  try {
+    const data = await fetchSymfonyAdminJson<TenantClientDetailedRow[]>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/clients`
+    )
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 // =====================================================
 // TENANT APPOINTMENTS — DETAILED READ (admin)
 // =====================================================
 
-export interface TenantAppointmentDetailedRow {
-  id: string
-  start_time: string
-  end_time: string
-  status: string
-  client_id: string
-  client_name: string | null
-  staff_id: string
-  staff_name: string | null
-  location_id: string
-  service_names: string[]
-  total_price: number
-}
-
 export async function listTenantAppointmentsDetailed(
   tenantId: string
 ): Promise<{ success: boolean; data?: TenantAppointmentDetailedRow[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('appointments')
-    .select(
-      'id, start_time, end_time, status, client_id, location_id, staff_id, client:clients(full_name), staff:staff_members(profile:profiles(full_name)), appointment_services(price_at_booking, services(name))'
+  try {
+    const data = await fetchSymfonyAdminJson<TenantAppointmentDetailedRow[]>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/appointments`
     )
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-    .order('start_time', { ascending: false })
-    .limit(200)
-  if (error) return { success: false, error: error.message }
-  const rows = (data ?? []).map((raw) => {
-    const r = raw as unknown as {
-      id: string
-      start_time: string
-      end_time: string
-      status: string
-      client_id: string
-      staff_id: string
-      location_id: string
-      client: { full_name: string | null } | { full_name: string | null }[] | null
-      staff:
-        | { profile: { full_name: string | null } | { full_name: string | null }[] | null }
-        | { profile: { full_name: string | null } | { full_name: string | null }[] | null }[]
-        | null
-      appointment_services:
-        | Array<{
-            price_at_booking: number | null
-            services: { name: string | null } | { name: string | null }[] | null
-          }>
-        | null
-    }
-    const client = Array.isArray(r.client) ? r.client[0] : r.client
-    const staffOuter = Array.isArray(r.staff) ? r.staff[0] : r.staff
-    const staffProfile = staffOuter
-      ? Array.isArray(staffOuter.profile)
-        ? staffOuter.profile[0]
-        : staffOuter.profile
-      : null
-    const services = (r.appointment_services ?? []).map((as) => {
-      const sv = Array.isArray(as.services) ? as.services[0] : as.services
-      return { name: sv?.name ?? null, price: Number(as.price_at_booking ?? 0) }
-    })
-    return {
-      id: r.id,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      status: r.status,
-      client_id: r.client_id,
-      client_name: client?.full_name ?? null,
-      staff_id: r.staff_id,
-      staff_name: staffProfile?.full_name ?? null,
-      location_id: r.location_id,
-      service_names: services.map((s) => s.name).filter((n): n is string => !!n),
-      total_price: services.reduce((s, x) => s + x.price, 0),
-    }
-  })
-  return { success: true, data: rows }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 // =====================================================
@@ -546,69 +446,13 @@ export interface AppointmentFormOptions {
 export async function getAppointmentFormOptions(
   tenantId: string
 ): Promise<{ success: boolean; data?: AppointmentFormOptions; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = createAdminClient()
-  const [clients, staff, services, locations] = await Promise.all([
-    db
-      .from('clients')
-      .select('id, full_name, email')
-      .eq('tenant_id', tenantId)
-      .order('full_name', { ascending: true })
-      .limit(500),
-    db
-      .from('staff_members')
-      .select('id, role, profile:profiles(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .limit(100),
-    db
-      .from('services')
-      .select('id, name, price, duration_minutes')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .order('display_order', { ascending: true })
-      .limit(200),
-    db.from('locations').select('id, name').eq('tenant_id', tenantId).limit(50),
-  ])
-  if (clients.error) return { success: false, error: clients.error.message }
-  if (staff.error) return { success: false, error: staff.error.message }
-  if (services.error) return { success: false, error: services.error.message }
-  if (locations.error) return { success: false, error: locations.error.message }
-  const staffRows = (staff.data ?? []).map((row) => {
-    const r = row as {
-      id: string
-      role: string | null
-      profile: { full_name: string | null } | { full_name: string | null }[] | null
-    }
-    const p = Array.isArray(r.profile) ? r.profile[0] : r.profile
-    return { id: r.id, name: p?.full_name ?? null, role: r.role }
-  })
-  return {
-    success: true,
-    data: {
-      clients: (clients.data ?? []) as Array<{
-        id: string
-        full_name: string | null
-        email: string | null
-      }>,
-      staff: staffRows,
-      services: (services.data ?? []).map((s) => {
-        const r = s as {
-          id: string
-          name: string
-          price: number
-          duration_minutes: number
-        }
-        return {
-          id: r.id,
-          name: r.name,
-          price: Number(r.price ?? 0),
-          duration_minutes: Number(r.duration_minutes ?? 0),
-        }
-      }),
-      locations: (locations.data ?? []) as Array<{ id: string; name: string }>,
-    },
+  try {
+    const data = await fetchSymfonyAdminJson<AppointmentFormOptions>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/appointments/options`
+    )
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
 }
 
@@ -616,22 +460,17 @@ export async function getAppointmentFormOptions(
 // CLIENT IMPORT (concierge / migration)
 // =====================================================
 
-import type {
-  ImportClientsInput,
-  ImportClientsResult,
-  ImportError,
-} from '@/lib/actions/clienti'
-import {
-  buildImportClientsResult,
-  prepareClientImportPlan,
-  type ClientImportUpdate,
-} from '@/lib/utils/client-import-core'
+function buildImportMetadata(
+  input: ImportClientsInput,
+  actorProfileId: string,
+): Record<string, Json> {
+  return {
+    import_source: input.source,
+    import_filename: input.filename ?? null,
+    initiated_by: actorProfileId,
+  }
+}
 
-/**
- * Variant of importClients for superadmin concierge mode.
- * Operates on an explicit tenantId (skips getCurrentTenantId),
- * tags imported rows with 'concierge', and logs to admin_audit_log.
- */
 export async function importClientsForTenant(
   tenantId: string,
   input: ImportClientsInput,
@@ -648,7 +487,7 @@ export async function importClientsForTenant(
       errors: [],
     }
   }
-  const adminActorId = auth.id
+
   if (!tenantId) {
     return {
       success: false,
@@ -660,6 +499,7 @@ export async function importClientsForTenant(
       errors: [],
     }
   }
+
   if (!input.rows || input.rows.length === 0) {
     return {
       success: false,
@@ -671,6 +511,7 @@ export async function importClientsForTenant(
       errors: [],
     }
   }
+
   if (input.rows.length > 10_000) {
     return {
       success: false,
@@ -682,6 +523,7 @@ export async function importClientsForTenant(
       errors: [],
     }
   }
+
   const hasName = Object.values(input.mapping).includes('full_name')
   if (!hasName) {
     return {
@@ -695,190 +537,123 @@ export async function importClientsForTenant(
     }
   }
 
-  const db = createAdminClient()
+  try {
+    const requestContext = extractConsentRequestContext(await headers())
+    const existingRes = await listTenantClientsDetailed(tenantId)
+    if (!existingRes.success) {
+      return {
+        success: false,
+        status: 'failed',
+        error: existingRes.error ?? 'Impossibile leggere i clienti esistenti',
+        imported: 0,
+        merged: 0,
+        skipped: 0,
+        errors: [],
+      }
+    }
 
-  const { data: tenantRow } = await db
-    .from('tenants')
-    .select('id, business_name')
-    .eq('id', tenantId)
-    .maybeSingle()
-  if (!tenantRow) {
+    const plan = prepareClientImportPlan({
+      tenantId,
+      existingClients: existingRes.data ?? [],
+      rows: input.rows,
+      mapping: input.mapping,
+      duplicateStrategy: input.duplicateStrategy,
+      fallbackTags: ['imported'],
+      alwaysAddTags: ['concierge'],
+    })
+
+    const errors: ImportError[] = [...plan.errors]
+    const metadata = buildImportMetadata(input, auth.id)
+    const occurredAt = new Date().toISOString()
+
+    const toInsert = plan.toInsert.map((row) => ({
+      full_name: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      date_of_birth: row.date_of_birth,
+      marketing_consent: row.marketing_consent,
+      preferred_contact_channel: row.preferred_contact_channel,
+      tags: row.tags,
+      consent: buildSeedConsentPayload({
+        actorProfileId: auth.id,
+        source: CONSENT_SOURCE.CLIENT_IMPORT,
+        marketingAllowed: row.marketing_consent,
+        churnAllowed: true,
+        occurredAt,
+        ipAddress: requestContext.ipAddress ?? null,
+        userAgent: requestContext.userAgent ?? null,
+        metadata,
+      }),
+    }))
+
+    const toUpdate = plan.toUpdate.map((update) => {
+      const patch: Record<string, unknown> = { ...update.patch }
+      let consent: ConsentPayload | undefined
+
+      if (typeof patch.marketing_consent === 'boolean') {
+        consent = buildMarketingConsentPayload({
+          actorProfileId: auth.id,
+          source: CONSENT_SOURCE.CLIENT_IMPORT,
+          allowed: patch.marketing_consent,
+          occurredAt,
+          ipAddress: requestContext.ipAddress ?? null,
+          userAgent: requestContext.userAgent ?? null,
+          metadata,
+        })
+        delete patch.marketing_consent
+      }
+
+      return {
+        id: update.id,
+        patch,
+        ...(consent ? { consent } : {}),
+      }
+    })
+
+    const result = buildImportClientsResult({
+      imported: toInsert.length,
+      merged: plan.merged,
+      skipped: plan.skipped,
+      errors,
+    })
+
+    const commit = await fetchSymfonyAdminJson<{
+      success: boolean
+      jobId?: string
+      imported: number
+    }>(`/api/admin/tenants/${encodeURIComponent(tenantId)}/client-imports/commit`, {
+      method: 'POST',
+      body: {
+        source: input.source,
+        filename: input.filename ?? null,
+        totalRows: input.rows.length,
+        merged: plan.merged,
+        skipped: plan.skipped,
+        status: result.status,
+        errors,
+        toInsert,
+        toUpdate,
+      },
+    })
+
+    revalidatePath(`/admin/tenants/${tenantId}/migration`)
+    revalidatePath(`/admin/tenants/${tenantId}/clients`)
+
+    return {
+      ...result,
+      imported: commit.imported,
+      jobId: commit.jobId,
+    }
+  } catch (error) {
     return {
       success: false,
       status: 'failed',
-      error: 'Tenant non trovato',
+      error: actionError(error),
       imported: 0,
       merged: 0,
       skipped: 0,
       errors: [],
     }
-  }
-
-  const { data: existing } = await db
-    .from('clients')
-    .select('id, full_name, email, phone, date_of_birth, marketing_consent, tags')
-    .eq('tenant_id', tenantId)
-    .is('deleted_at', null)
-
-  const plan = prepareClientImportPlan({
-    tenantId,
-    existingClients: (existing ?? []) as Array<{
-      id: string
-      full_name: string | null
-      email: string | null
-      phone: string | null
-      date_of_birth: string | null
-      marketing_consent: boolean
-      tags: Json | null
-    }>,
-    rows: input.rows,
-    mapping: input.mapping,
-    duplicateStrategy: input.duplicateStrategy,
-    fallbackTags: ['imported'],
-    alwaysAddTags: ['concierge'],
-  })
-
-  const errors: ImportError[] = [...plan.errors]
-  const toInsert: TablesInsert<'clients'>[] = plan.toInsert
-  const skipped = plan.skipped
-  const merged = plan.merged
-
-  async function applyClientUpdate(update: ClientImportUpdate): Promise<void> {
-    const patch: TablesUpdate<'clients'> = { ...update.patch }
-    const marketingConsent = patch.marketing_consent
-    delete patch.marketing_consent
-    if (Object.keys(patch).length > 0) {
-      const { error } = await db
-        .from('clients')
-        .update(patch)
-        .eq('tenant_id', tenantId)
-        .eq('id', update.id)
-
-      if (error) {
-        errors.push({ rowIndex: 0, message: `Errore DB (merge): ${error.message}` })
-        return
-      }
-    }
-
-    if (marketingConsent !== undefined) {
-      try {
-        await applyClientConsentEvents(db, {
-          tenantId,
-          clientId: update.id,
-          actor: CONSENT_ACTOR.SUPERADMIN,
-          actorProfileId: adminActorId,
-          source: CONSENT_SOURCE.CLIENT_IMPORT,
-          events: buildMarketingConsentEvents({
-            allowed: Boolean(marketingConsent),
-            channel: CONSENT_CHANNEL.IMPORT,
-            source: CONSENT_SOURCE.CLIENT_IMPORT,
-            occurredAt: new Date().toISOString(),
-            metadata: {
-              import_source: input.source,
-              import_filename: input.filename ?? null,
-              initiated_by: adminActorId,
-            },
-          }),
-        })
-      } catch (consentError) {
-        errors.push({
-          rowIndex: 0,
-          message: consentError instanceof Error ? `Errore audit consenso (merge): ${consentError.message}` : 'Errore audit consenso (merge)',
-        })
-      }
-    }
-  }
-
-  for (const update of plan.toUpdate) {
-    await applyClientUpdate(update)
-  }
-
-  let imported = 0
-  if (toInsert.length > 0) {
-    for (let i = 0; i < toInsert.length; i += 500) {
-      const chunk = toInsert.slice(i, i + 500)
-      const { data: insertedRows, error, count } = await db
-        .from('clients')
-        .insert(chunk, { count: 'exact' })
-        .select('id, created_at, marketing_consent')
-      if (error) { errors.push({ rowIndex: 0, message: `Errore DB: ${error.message}` }); break }
-
-      try {
-        for (const row of insertedRows ?? []) {
-          await seedClientConsentState(db, {
-            tenantId,
-            clientId: row.id,
-            marketingAllowed: Boolean(row.marketing_consent),
-            churnAllowed: true,
-            actor: CONSENT_ACTOR.SUPERADMIN,
-            actorProfileId: adminActorId,
-            source: CONSENT_SOURCE.CLIENT_IMPORT,
-            occurredAt: row.created_at,
-            metadata: {
-              import_source: input.source,
-              import_filename: input.filename ?? null,
-              initiated_by: adminActorId,
-            },
-          })
-        }
-      } catch (consentError) {
-        const insertedIds = (insertedRows ?? []).map((row) => row.id)
-        if (insertedIds.length > 0) {
-          await db.from('clients').delete().in('id', insertedIds).eq('tenant_id', tenantId)
-        }
-        errors.push({
-          rowIndex: 0,
-          message: consentError instanceof Error ? `Errore audit consenso import: ${consentError.message}` : 'Errore audit consenso import',
-        })
-        break
-      }
-
-      imported += count ?? chunk.length
-    }
-  }
-
-  const result = buildImportClientsResult({
-    imported,
-    merged,
-    skipped,
-    errors,
-  })
-
-  const { data: jobRow } = await db
-    .from('client_import_jobs')
-    .insert({
-      tenant_id: tenantId,
-      initiated_by: auth.id,
-      source: input.source,
-      filename: input.filename ?? null,
-      total_rows: input.rows.length,
-      imported_count: imported,
-      merged_count: merged,
-      skipped_count: skipped,
-      error_count: errors.length,
-      errors: errors.slice(0, 100) as unknown as Json,
-      status: result.status,
-    })
-    .select('id')
-    .single()
-
-  await logAdminAction(auth.id, 'client.import.concierge', 'tenant', tenantId, tenantId, {
-    tenant_name: tenantRow.business_name,
-    source: input.source,
-    filename: input.filename ?? null,
-    total: input.rows.length,
-    imported,
-    merged,
-    skipped,
-    errors: errors.length,
-  })
-
-  revalidatePath(`/admin/tenants/${tenantId}/migration`)
-  revalidatePath(`/admin/tenants/${tenantId}/clients`)
-
-  return {
-    ...result,
-    jobId: jobRow?.id,
   }
 }
 
@@ -900,49 +675,26 @@ export interface ImportJobRow {
 export async function listTenantImportJobs(
   tenantId: string,
 ): Promise<{ success: boolean; data?: ImportJobRow[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('client_import_jobs')
-    .select('id, source, filename, total_rows, imported_count, merged_count, skipped_count, error_count, status, initiated_by, created_at')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  if (error) return { success: false, error: error.message }
-
-  const userIds = [...new Set((data ?? []).map((j) => j.initiated_by).filter((x): x is string => Boolean(x)))]
-  const emailMap = new Map<string, string>()
-  if (userIds.length > 0) {
-    const { data: profs } = await db.from('profiles').select('id, email').in('id', userIds)
-    ;(profs ?? []).forEach((p) => { if (p.email) emailMap.set(p.id, p.email) })
+  try {
+    const data = await fetchSymfonyAdminJson<ImportJobRow[]>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/client-import-jobs`
+    )
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-
-  const rows: ImportJobRow[] = (data ?? []).map((j) => ({
-    ...j,
-    initiator_email: j.initiated_by ? (emailMap.get(j.initiated_by) ?? null) : null,
-  }))
-
-  return { success: true, data: rows }
 }
 
 export async function getImportJobErrors(
   tenantId: string,
   jobId: string,
 ): Promise<{ success: boolean; errors?: ImportError[]; error?: string }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-
-  const db = createAdminClient()
-  const { data, error } = await db
-    .from('client_import_jobs')
-    .select('errors')
-    .eq('tenant_id', tenantId)
-    .eq('id', jobId)
-    .maybeSingle()
-
-  if (error) return { success: false, error: error.message }
-  return { success: true, errors: (data?.errors ?? []) as unknown as ImportError[] }
+  try {
+    const data = await fetchSymfonyAdminJson<{ errors: ImportError[] }>(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/client-import-jobs/${encodeURIComponent(jobId)}/errors`
+    )
+    return { success: true, errors: data.errors ?? [] }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
