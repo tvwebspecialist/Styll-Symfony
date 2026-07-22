@@ -62,6 +62,15 @@ final class GoogleOAuthCompleteController extends AbstractController
             ];
         }
 
+        if ($result->context === 'staff_register_pending' && $result->pendingToken !== null) {
+            return [
+                'context' => 'staff_register_pending',
+                'pendingToken' => $result->pendingToken,
+                'email' => $result->pendingEmail,
+                'fullName' => $result->pendingFullName,
+            ];
+        }
+
         return [
             'context' => 'pwa',
             'tenantSlug' => $result->tenantSlug,

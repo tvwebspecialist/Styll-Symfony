@@ -1,8 +1,13 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { RegisterSignupOptions } from '@/components/auth/register-signup-options'
+import {
+  GOOGLE_REGISTER_PENDING_COOKIE,
+  decodeGoogleRegisterPendingPreview,
+} from '@/lib/auth/google-register-pending'
 import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
 
 export const metadata: Metadata = {
@@ -10,14 +15,29 @@ export const metadata: Metadata = {
 }
 
 interface PageProps {
-  searchParams: Promise<{ intent?: string | string[] | undefined; error?: string }>
+  searchParams: Promise<{
+    intent?: string | string[] | undefined
+    error?: string
+    step?: string
+    provider?: string
+  }>
 }
 
 export default async function RegisterPage({ searchParams }: PageProps) {
   const params = await searchParams
+  const cookieStore = await cookies()
   const intent = readTrialIntent(params.intent)
   const loginHref = buildPathWithTrialIntent('/login', intent)
-  const initialError = params.error ? decodeURIComponent(params.error) : null
+  const googlePendingPreview = decodeGoogleRegisterPendingPreview(
+    cookieStore.get(GOOGLE_REGISTER_PENDING_COOKIE)?.value ?? null,
+  )
+  const requestedGoogleActivityStep = params.step === 'activity' && params.provider === 'google'
+  const canResumeGoogleActivityStep = requestedGoogleActivityStep && googlePendingPreview !== null
+  const initialError = params.error
+    ? decodeURIComponent(params.error)
+    : requestedGoogleActivityStep && !canResumeGoogleActivityStep
+      ? 'Registrazione Google scaduta o non valida. Riprova dal primo step.'
+      : null
 
   return (
     <AuthSplitLayout
@@ -100,11 +120,16 @@ export default async function RegisterPage({ searchParams }: PageProps) {
           className="mt-2 text-sm leading-relaxed"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
-          Registri il tuo account, entri subito in dashboard e trovi già sede, servizi e orari base pronti.
+          Prima confermi i dati di accesso, poi completi i dati della tua attività nello step finale.
         </p>
       </header>
 
-      <RegisterSignupOptions />
+      <RegisterSignupOptions
+        initialStep={canResumeGoogleActivityStep ? 'activity' : 'identity'}
+        initialMethod={canResumeGoogleActivityStep ? 'google' : 'credentials'}
+        initialFullName={googlePendingPreview?.fullName ?? ''}
+        initialEmail={googlePendingPreview?.email ?? ''}
+      />
 
       <p
         className="mt-6 text-center text-sm"

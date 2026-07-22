@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 
 interface GoogleButtonProps {
   mode: 'staff_login' | 'staff_register'
-  acceptedTerms?: boolean
   label?: string
   loadingLabel?: string
   className?: string
@@ -16,8 +15,6 @@ interface GoogleButtonProps {
   variant?: 'primary' | 'secondary'
   redirectTo?: string | null
   fullName?: string
-  businessName?: string
-  businessType?: string
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -50,7 +47,6 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export function GoogleButton({
   mode,
-  acceptedTerms = true,
   label = 'Continua con Google',
   loadingLabel = 'Accesso in corso...',
   className,
@@ -58,29 +54,12 @@ export function GoogleButton({
   variant = 'secondary',
   redirectTo = null,
   fullName = '',
-  businessName = '',
-  businessType = '',
 }: GoogleButtonProps) {
   const [isPending, startTransition] = useTransition()
-  const hasRequiredRegisterBusinessName = businessName.trim().length >= 2
-  const isStaffRegisterBlocked =
-    mode === 'staff_register' && (!acceptedTerms || !hasRequiredRegisterBusinessName)
 
   function handleClick() {
-    if (mode === 'staff_register' && !acceptedTerms) {
-      toast.error('Devi accettare i Termini di Servizio prima di continuare con Google.')
-      return
-    }
-
     startTransition(async () => {
       try {
-        if (mode === 'staff_register') {
-          if (!hasRequiredRegisterBusinessName) {
-            toast.error('Inserisci il nome della tua attività.')
-            return
-          }
-        }
-
         const response = await fetch('/api/auth/google/staff/start', {
           method: 'POST',
           headers: {
@@ -91,9 +70,6 @@ export function GoogleButton({
             mode: mode === 'staff_register' ? 'register' : 'login',
             redirectTo: redirectTo ?? undefined,
             fullName: fullName || undefined,
-            businessName: businessName || undefined,
-            businessType: businessType || undefined,
-            acceptedTerms,
           }),
         })
 
@@ -117,7 +93,7 @@ export function GoogleButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={isPending || isStaffRegisterBlocked}
+      disabled={isPending}
       aria-label={ariaLabel ?? label}
       className={cn(
         variant === 'primary' ? 'styll-btn-primary' : 'styll-btn-secondary',

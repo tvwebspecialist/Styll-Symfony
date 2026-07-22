@@ -67,11 +67,27 @@ Flusso introdotto:
   - **staff login**:
     - se l'utente staff esiste, emette subito JWT Symfony
   - **staff register**:
-    - crea o promuove `User + Profile + Tenant + StaffMember(owner)` tramite `StaffRegistrationService`
-    - emette subito JWT Symfony
+    - non crea ancora account o tenant
+    - emette un `pendingToken` firmato con email/nome/avatar Google
+  - `POST /api/register/google/finalize`
+    - verifica il `pendingToken`
+    - richiede `business_name` + accettazione termini
+    - solo qui crea o promuove `User + Profile + Tenant + StaffMember(owner)` tramite `StaffRegistrationService`
+    - emette il JWT Symfony finale
   - **PWA**:
     - crea o collega il cliente Symfony al tenant indicato nello `state`
     - restituisce `googleIdToken` + `googleAccessToken` per aprire la sessione Supabase lato Next
+
+Decisione architetturale sul wizard register:
+
+- per `email/password`, lo Step 1 tiene `full_name + email + password` solo in stato locale React;
+- la chiamata reale a `POST /api/register` avviene solo allo Step 2, quando sono presenti anche `business_name` e `accepted_terms`;
+- per Google, la callback non provisiona piu immediatamente: salva solo un `pendingToken` HttpOnly e fa atterrare l'utente sullo stesso Step 2 dell'altro percorso.
+
+Trade-off valutato:
+
+- creare subito l'account Symfony allo Step 1 avrebbe richiesto un utente staff incompleto e una seconda fase di provisioning tenant, con piu stati transitori da gestire;
+- il `pendingToken` firmato evita stati parziali nel database, mantiene il provisioning finale interamente server-side e non richiede di fidarsi di dati Google reinviati dal browser.
 
 Decisione tecnica importante:
 

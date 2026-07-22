@@ -18,6 +18,7 @@ final class GoogleOAuthFlowService
     public function __construct(
         private readonly GoogleOAuthProviderInterface $googleOAuthProvider,
         private readonly GoogleOAuthStateSigner $googleOAuthStateSigner,
+        private readonly GoogleStaffRegistrationPendingSigner $googleStaffRegistrationPendingSigner,
         private readonly UserRepository $userRepository,
         private readonly ProfileRepository $profileRepository,
         private readonly StaffMemberRepository $staffMemberRepository,
@@ -107,17 +108,24 @@ final class GoogleOAuthFlowService
         GoogleOAuthIdentity $identity,
         GoogleOAuthStatePayload $statePayload,
     ): GoogleOAuthCompleteResult {
-        $result = $this->staffRegistrationService->registerGoogleStaff(
-            new GoogleStaffProvisioningInput(
+        $fullName = trim($statePayload->fullName ?? '') !== ''
+            ? $statePayload->fullName
+            : $identity->fullName;
+
+        $pendingToken = $this->googleStaffRegistrationPendingSigner->issue(
+            new GoogleStaffRegistrationPendingPayload(
                 email: $identity->email,
-                businessName: $statePayload->businessName ?? '',
-                fullName: $statePayload->fullName ?? $identity->fullName,
-                businessType: $statePayload->businessType,
+                issuedAt: time(),
+                fullName: trim($fullName) !== '' ? $fullName : null,
                 avatarUrl: $identity->avatarUrl,
             ),
         );
 
-        return GoogleOAuthCompleteResult::staff($result->user, '/dashboard');
+        return GoogleOAuthCompleteResult::staffRegisterPending(
+            $pendingToken,
+            $identity->email,
+            trim($fullName) !== '' ? $fullName : null,
+        );
     }
 
     private function completePwaProvisioning(
@@ -142,25 +150,12 @@ final class GoogleOAuthFlowService
 
     private function buildStaffRegisterStatePayload(GoogleOAuthStartInput $input): GoogleOAuthStatePayload
     {
-        if (!$input->acceptedTerms) {
-            throw GoogleOAuthFlowException::badRequest(
-                'Devi accettare i Termini di Servizio prima di continuare con Google.',
-            );
-        }
-
-        $businessName = trim((string) $input->businessName);
-        if (mb_strlen($businessName) < 2) {
-            throw GoogleOAuthFlowException::badRequest('Il nome attività è obbligatorio.');
-        }
-
         return new GoogleOAuthStatePayload(
             context: GoogleOAuthContext::STAFF_REGISTER,
             nonce: bin2hex(random_bytes(16)),
             issuedAt: time(),
-            redirectTo: '/dashboard',
+            redirectTo: '/register',
             fullName: $this->sanitizeOptionalText($input->fullName),
-            businessName: $businessName,
-            businessType: $this->sanitizeOptionalText($input->businessType),
         );
     }
 

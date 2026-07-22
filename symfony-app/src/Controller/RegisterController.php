@@ -35,6 +35,7 @@ final class RegisterController extends AbstractController
         $businessName = trim((string) ($payload['business_name'] ?? ''));
         $fullName = trim((string) ($payload['full_name'] ?? ''));
         $businessType = trim((string) ($payload['business_type'] ?? ''));
+        $acceptedTerms = (bool) ($payload['accepted_terms'] ?? false);
 
         if ($email === '' || !filter_var($email, \FILTER_VALIDATE_EMAIL)) {
             return $this->json(['error' => 'Email non valida.'], Response::HTTP_BAD_REQUEST);
@@ -50,6 +51,13 @@ final class RegisterController extends AbstractController
         if (mb_strlen($businessName) < 2) {
             return $this->json(
                 ['error' => 'Il nome attività è obbligatorio.'],
+                Response::HTTP_BAD_REQUEST,
+            );
+        }
+
+        if (!$acceptedTerms) {
+            return $this->json(
+                ['error' => 'Devi accettare i Termini di Servizio per continuare.'],
                 Response::HTTP_BAD_REQUEST,
             );
         }

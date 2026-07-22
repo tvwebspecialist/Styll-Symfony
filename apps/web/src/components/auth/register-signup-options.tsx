@@ -1,16 +1,12 @@
-'use client'
-
-import { useState } from 'react'
-
 import { RegisterForm } from '@/components/auth/register-form'
 
-export function RegisterSignupOptions() {
-  const [acceptedTerms, setAcceptedTerms] = useState(false)
+interface RegisterSignupOptionsProps {
+  initialStep?: 'identity' | 'activity'
+  initialMethod?: 'credentials' | 'google'
+  initialFullName?: string
+  initialEmail?: string
+}
 
-  return (
-    <RegisterForm
-      acceptedTerms={acceptedTerms}
-      onAcceptedTermsChange={setAcceptedTerms}
-    />
-  )
+export function RegisterSignupOptions(props: RegisterSignupOptionsProps) {
+  return <RegisterForm {...props} />
 }

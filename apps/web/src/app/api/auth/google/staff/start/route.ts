@@ -11,9 +11,6 @@ interface StartPayload {
   mode?: unknown
   redirectTo?: unknown
   fullName?: unknown
-  businessName?: unknown
-  businessType?: unknown
-  acceptedTerms?: unknown
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -28,9 +25,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   const mode = payload.mode === 'register' ? 'register' : 'login'
   const redirectTo = typeof payload.redirectTo === 'string' ? payload.redirectTo.trim() : ''
   const fullName = typeof payload.fullName === 'string' ? payload.fullName.trim() : ''
-  const businessName = typeof payload.businessName === 'string' ? payload.businessName.trim() : ''
-  const businessType = typeof payload.businessType === 'string' ? payload.businessType.trim() : ''
-  const acceptedTerms = payload.acceptedTerms === true
 
   const callbackUrl = buildRootAppUrl('/api/auth/google/callback')
 
@@ -48,9 +42,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         redirect_uri: callbackUrl,
         redirect_to: redirectTo || undefined,
         full_name: fullName || undefined,
-        business_name: businessName || undefined,
-        business_type: businessType || undefined,
-        accepted_terms: acceptedTerms,
       }),
       cache: 'no-store',
     })

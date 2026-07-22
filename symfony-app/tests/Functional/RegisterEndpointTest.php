@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Functional;
 
 use App\Entity\Profile;
-use App\Entity\StaffMember;
 use App\Entity\Tenant;
 use App\Entity\User;
 use App\Security\TenantContext;
@@ -47,6 +46,7 @@ final class RegisterEndpointTest extends WebTestCase
             'full_name' => 'Marco Rossi',
             'business_name' => "Marco's Barbershop",
             'business_type' => 'barbiere',
+            'accepted_terms' => true,
         ]);
 
         self::assertResponseStatusCodeSame(201);
@@ -145,6 +145,7 @@ final class RegisterEndpointTest extends WebTestCase
             'password' => 'Owner-Register-2026!',
             'full_name' => 'Duplicate Owner',
             'business_name' => 'Prima Attività',
+            'accepted_terms' => true,
         ];
 
         $this->client->jsonRequest('POST', '/api/register', $payload);
@@ -173,6 +174,7 @@ final class RegisterEndpointTest extends WebTestCase
             'password' => 'Owner-Register-2026!',
             'full_name' => 'Owner Due',
             'business_name' => 'Marco Barber',
+            'accepted_terms' => true,
         ]);
 
         self::assertResponseStatusCodeSame(201);
@@ -190,5 +192,22 @@ final class RegisterEndpointTest extends WebTestCase
         self::assertIsArray($payload);
 
         return $payload;
+    }
+
+    public function testRegisterRejectsMissingTermsAcceptance(): void
+    {
+        $this->client->jsonRequest('POST', '/api/register', [
+            'email' => 'owner-no-terms@example.test',
+            'password' => 'Owner-Register-2026!',
+            'full_name' => 'Owner No Terms',
+            'business_name' => 'No Terms Barber',
+            'accepted_terms' => false,
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+        self::assertSame(
+            'Devi accettare i Termini di Servizio per continuare.',
+            $this->responsePayload()['error'] ?? null,
+        );
     }
 }

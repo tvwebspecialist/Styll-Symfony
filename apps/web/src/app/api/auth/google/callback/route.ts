@@ -7,6 +7,10 @@ import {
   clearGoogleOAuthStateCookie,
   decodeGoogleOAuthStatePreview,
 } from '@/lib/auth/google-oauth-state'
+import {
+  clearGoogleRegisterPendingCookie,
+  setGoogleRegisterPendingCookie,
+} from '@/lib/auth/google-register-pending'
 import { buildRootAppUrl, buildTenantAppUrl, sanitizeAppRelativePath } from '@/lib/auth/urls'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server'
@@ -48,7 +52,9 @@ function buildFailureRedirect(
   if (preview?.context === 'staff_register') {
     const registerUrl = new URL(buildRootAppUrl('/register'))
     registerUrl.searchParams.set('error', errorMessage)
-    return redirectWithCleanup(registerUrl.toString())
+    const response = redirectWithCleanup(registerUrl.toString())
+    clearGoogleRegisterPendingCookie(response)
+    return response
   }
 
   const loginUrl = new URL(buildRootAppUrl('/login'))
@@ -104,6 +110,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         context?: unknown
         token?: unknown
         redirectTo?: unknown
+        pendingToken?: unknown
+        email?: unknown
+        fullName?: unknown
         tenantSlug?: unknown
         returnTo?: unknown
         googleIdToken?: unknown
@@ -140,6 +149,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const response = redirectWithCleanup(buildRootAppUrl(redirectTo))
     setSymfonyStaffJwtCookie(response, jwt)
+    clearStaffImpersonationCookie(response)
+    return response
+  }
+
+  if (context === 'staff_register_pending') {
+    const pendingToken = typeof backendPayload?.pendingToken === 'string'
+      ? backendPayload.pendingToken.trim()
+      : ''
+
+    if (!pendingToken) {
+      return buildFailureRedirect(preview, 'Registrazione Google non valida o incompleta.')
+    }
+
+    const destination = new URL(buildRootAppUrl('/register'))
+    destination.searchParams.set('step', 'activity')
+    destination.searchParams.set('provider', 'google')
+
+    const response = redirectWithCleanup(destination.toString())
+    setGoogleRegisterPendingCookie(response, pendingToken)
     clearStaffImpersonationCookie(response)
     return response
   }

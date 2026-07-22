@@ -72,15 +72,12 @@ final class GoogleOAuthEndpointTest extends WebTestCase
         parent::tearDown();
     }
 
-    public function testGoogleStaffRegisterCreatesOwnerAndReturnsJwt(): void
+    public function testGoogleStaffRegisterReturnsPendingTokenWithoutProvisioning(): void
     {
         $stateToken = $this->startGoogleFlow([
             'context' => 'staff_register',
             'redirect_uri' => self::CALLBACK_URL,
             'full_name' => 'Marco Google',
-            'business_name' => 'Marco Google Barber',
-            'business_type' => 'barbiere',
-            'accepted_terms' => true,
         ]);
 
         $this->client->jsonRequest('POST', '/api/oauth/google/complete', [
@@ -93,31 +90,88 @@ final class GoogleOAuthEndpointTest extends WebTestCase
         self::assertResponseIsSuccessful();
 
         $payload = $this->responsePayload();
-        self::assertSame('staff', $payload['context'] ?? null);
-        self::assertSame('/dashboard', $payload['redirectTo'] ?? null);
-        self::assertIsString($payload['token'] ?? null);
+        self::assertSame('staff_register_pending', $payload['context'] ?? null);
+        self::assertSame('owner.google.register@example.test', $payload['email'] ?? null);
+        self::assertSame('Marco Google', $payload['fullName'] ?? null);
+        self::assertIsString($payload['pendingToken'] ?? null);
 
         $this->em->clear();
 
         $user = $this->em->getRepository(User::class)->findOneBy([
             'email' => 'owner.google.register@example.test',
         ]);
-        self::assertInstanceOf(User::class, $user);
+        self::assertNull($user);
 
-        $profile = $this->em->getRepository(Profile::class)->find($user->getId());
-        self::assertInstanceOf(Profile::class, $profile);
-        self::assertSame('Marco Google', $profile->getFullName());
-        self::assertSame('https://cdn.example.test/google/marco.jpg', $profile->getAvatarUrl());
-        self::assertSame('staff', $profile->getUserType());
+        $legalAcceptanceCount = (int) $this->em->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM legal_acceptance_events',
+        );
+        self::assertSame(0, $legalAcceptanceCount);
+    }
 
-        $tenant = $this->em->getRepository(Tenant::class)->findOneBy([
-            'slug' => 'marco-google-barber',
+    public function testGoogleStaffRegisterFinalizeCreatesOwnerAndReturnsJwt(): void
+    {
+        $stateToken = $this->startGoogleFlow([
+            'context' => 'staff_register',
+            'redirect_uri' => self::CALLBACK_URL,
+            'full_name' => 'Marco Google',
         ]);
-        self::assertInstanceOf(Tenant::class, $tenant);
+
+        $this->client->jsonRequest('POST', '/api/oauth/google/complete', [
+            'code' => 'staff-register-code',
+            'state' => $stateToken,
+            'state_cookie' => $stateToken,
+            'redirect_uri' => self::CALLBACK_URL,
+        ]);
+
+        self::assertResponseIsSuccessful();
+
+        $pendingPayload = $this->responsePayload();
+        self::assertSame('staff_register_pending', $pendingPayload['context'] ?? null);
+        self::assertIsString($pendingPayload['pendingToken'] ?? null);
+
+        $this->client->jsonRequest('POST', '/api/register/google/finalize', [
+            'pending_token' => $pendingPayload['pendingToken'],
+            'business_name' => 'Marco Google Barber',
+            'business_type' => 'barbiere',
+            'accepted_terms' => true,
+        ]);
+
+        self::assertResponseStatusCodeSame(201);
+
+        $payload = $this->responsePayload();
+        self::assertSame('marco-google-barber', $payload['tenantSlug'] ?? null);
+        self::assertSame('owner', $payload['currentRole'] ?? null);
+        self::assertIsString($payload['token'] ?? null);
+
+        $this->em->clear();
+        $this->disableTenantFilterForAssertions();
+
+        $userRow = $this->em->getConnection()->fetchAssociative(
+            'SELECT id, email FROM users WHERE email = :email',
+            ['email' => 'owner.google.register@example.test'],
+        );
+        self::assertIsArray($userRow);
+        self::assertSame('owner.google.register@example.test', $userRow['email'] ?? null);
+
+        $profileRow = $this->em->getConnection()->fetchAssociative(
+            'SELECT full_name, avatar_url, user_type FROM profiles WHERE id = :id',
+            ['id' => $userRow['id']],
+        );
+        self::assertIsArray($profileRow);
+        self::assertSame('Marco Google', $profileRow['full_name'] ?? null);
+        self::assertSame('https://cdn.example.test/google/marco.jpg', $profileRow['avatar_url'] ?? null);
+        self::assertSame('staff', $profileRow['user_type'] ?? null);
+
+        $tenantRow = $this->em->getConnection()->fetchAssociative(
+            'SELECT id, slug FROM tenants WHERE slug = :slug',
+            ['slug' => 'marco-google-barber'],
+        );
+        self::assertIsArray($tenantRow);
+        self::assertSame('marco-google-barber', $tenantRow['slug'] ?? null);
 
         $legalAcceptanceRow = $this->em->getConnection()->fetchAssociative(
             'SELECT source FROM legal_acceptance_events WHERE user_id = :user_id',
-            ['user_id' => $user->getId()->toRfc4122()],
+            ['user_id' => $userRow['id']],
         );
         self::assertIsArray($legalAcceptanceRow);
         self::assertSame('GOOGLE_OAUTH_REGISTER', $legalAcceptanceRow['source'] ?? null);
