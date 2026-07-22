@@ -401,230 +401,70 @@ export async function sendEmailOtp(email: string): Promise<{ success: boolean; e
     return { success: false, error: RATE_LIMITED_MESSAGE }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithOtp({
-    email: normalizedEmail,
-    options: { shouldCreateUser: true },
-  })
-  if (error) return { success: false, error: mapEmailAuthError(error.message) }
+  const { getSymfonyApiBaseUrl } = await import('@/lib/symfony/api-base-url')
+  const base = getSymfonyApiBaseUrl()
+
+  try {
+    const res = await fetch(`${base}/api/pwa/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email: normalizedEmail }),
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null
+      return { success: false, error: body?.error ?? 'Errore durante l\'invio del codice.' }
+    }
+  } catch {
+    return { success: false, error: 'Impossibile raggiungere il server. Riprova.' }
+  }
+
   return { success: true }
 }
 
 export async function completeEmailOtpProfile(
-  tenantId: string,
+  _tenantId: string,
   profileData: { fullName: string; phone: string; marketingConsent?: boolean }
 ): Promise<{ success: boolean; error?: string }> {
   const fullName = profileData.fullName.trim()
-  const rawPhone = profileData.phone.trim()
+  const phone = profileData.phone.trim()
+
   if (!fullName) {
     return { success: false, error: 'Il nome è obbligatorio.' }
   }
-  if (!rawPhone) {
+  if (!phone) {
     return { success: false, error: 'Il numero di telefono è obbligatorio.' }
   }
 
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('id, business_name')
-    .eq('id', tenantId)
-    .eq('status', 'active')
-    .maybeSingle()
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const jwt = cookieStore.get('styll_symfony_client_jwt')?.value
 
-  if (!tenant) {
-    return { success: false, error: 'Salone non valido.' }
-  }
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
+  if (!jwt) {
     return { success: false, error: 'Sessione non valida. Riprova.' }
   }
 
-  const now = new Date().toISOString()
-  const requestContext = await getConsentRequestContext()
-  const normalizedPhone = normalizePhoneValue(rawPhone)
-  const normalizedEmail = user.email?.trim().toLowerCase() ?? null
-  const marketingAllowed = profileData.marketingConsent ?? false
+  const { getSymfonyApiBaseUrl } = await import('@/lib/symfony/api-base-url')
+  const base = getSymfonyApiBaseUrl()
 
-  const { error: profileUpdateError } = await db
-    .from('profiles')
-    .update({
-      full_name: fullName,
-      phone: normalizedPhone,
-      user_type: 'client',
-      updated_at: now,
-      ...(normalizedEmail ? { email: normalizedEmail } : {}),
-    })
-    .eq('id', user.id)
-
-  if (profileUpdateError) {
-    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  const clientPayload: TablesUpdate<'clients'> = {
-    full_name: fullName,
-    phone: normalizedPhone,
-    updated_at: now,
-    ...(normalizedEmail ? { email: normalizedEmail } : {}),
-  }
-
-  const { data: linkedClient, error: linkedClientError } = await db
-    .from('clients')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (linkedClientError) {
-    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  if (linkedClient?.id) {
-    const { error: updateClientError } = await db
-      .from('clients')
-      .update(clientPayload)
-      .eq('id', linkedClient.id)
-      .eq('tenant_id', tenantId)
-
-    if (updateClientError) {
-      return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-    }
-
-    try {
-      await applyClientConsentEvents(db, {
-        tenantId,
-        clientId: linkedClient.id,
-        actor: CONSENT_ACTOR.CLIENT_PROFILE,
-        actorProfileId: user.id,
-        source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
-        events: buildMarketingConsentEvents({
-          allowed: marketingAllowed,
-          businessName: tenant.business_name ?? 'il salone',
-          channel: CONSENT_CHANNEL.PWA,
-          source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
-          occurredAt: now,
-          ipAddress: requestContext.ipAddress ?? null,
-          metadata: {
-            surface: 'email_otp_profile_completion',
-            ip_address: requestContext.ipAddress ?? null,
-            user_agent: requestContext.userAgent ?? null,
-          },
-          userAgent: requestContext.userAgent ?? null,
-        }),
-      })
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
-    }
-
-    return { success: true }
-  }
-
-  if (normalizedEmail) {
-    const { data: unlinkedClient, error: unlinkedClientError } = await db
-      .from('clients')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('email', normalizedEmail)
-      .is('profile_id', null)
-      .is('deleted_at', null)
-      .maybeSingle()
-
-    if (unlinkedClientError) {
-      return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-    }
-
-    if (unlinkedClient?.id) {
-      const { error: linkClientError } = await db
-        .from('clients')
-        .update({
-          ...clientPayload,
-          profile_id: user.id,
-        })
-        .eq('id', unlinkedClient.id)
-        .eq('tenant_id', tenantId)
-
-      if (linkClientError) {
-        return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-      }
-
-      try {
-        await applyClientConsentEvents(db, {
-          tenantId,
-          clientId: unlinkedClient.id,
-          actor: CONSENT_ACTOR.CLIENT_PROFILE,
-          actorProfileId: user.id,
-          source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
-          events: buildMarketingConsentEvents({
-            allowed: marketingAllowed,
-            businessName: tenant.business_name ?? 'il salone',
-            channel: CONSENT_CHANNEL.PWA,
-            source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
-            occurredAt: now,
-            ipAddress: requestContext.ipAddress ?? null,
-            metadata: {
-              surface: 'email_otp_profile_completion',
-              ip_address: requestContext.ipAddress ?? null,
-              user_agent: requestContext.userAgent ?? null,
-            },
-            userAgent: requestContext.userAgent ?? null,
-          }),
-        })
-      } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
-      }
-
-      return { success: true }
-    }
-  }
-
-  const { data: insertedClient, error: insertClientError } = await db
-    .from('clients')
-    .insert({
-      tenant_id: tenantId,
-      profile_id: user.id,
-      full_name: fullName,
-      phone: normalizedPhone,
-      email: normalizedEmail,
-      created_at: now,
-      updated_at: now,
-      marketing_consent: marketingAllowed,
-      tags: [],
-    })
-    .select('id')
-    .single()
-
-  if (insertClientError) {
-    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  if (!insertedClient?.id) {
-    return { success: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
+  let res: Response
   try {
-    await seedClientConsentState(db, {
-      tenantId,
-      clientId: insertedClient.id,
-      marketingAllowed,
-      churnAllowed: true,
-      businessName: tenant.business_name ?? 'il salone',
-      actor: CONSENT_ACTOR.CLIENT_PROFILE,
-      actorProfileId: user.id,
-      source: CONSENT_SOURCE.PWA_EMAIL_OTP_PROFILE,
-      occurredAt: now,
-      ipAddress: requestContext.ipAddress ?? null,
-      userAgent: requestContext.userAgent ?? null,
-      metadata: {
-        surface: 'email_otp_profile_completion',
+    res = await fetch(`${base}/api/pwa/client/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${jwt}`,
       },
+      body: JSON.stringify({ full_name: fullName, phone }),
     })
-  } catch (error) {
-    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
-    return { success: false, error: error instanceof Error ? error.message : 'Qualcosa è andato storto. Riprova.' }
+  } catch {
+    return { success: false, error: 'Impossibile raggiungere il server. Riprova.' }
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null
+    return { success: false, error: body?.error ?? 'Qualcosa è andato storto. Riprova.' }
   }
 
   return { success: true }
@@ -635,195 +475,74 @@ export async function verifyEmailOtp(
   token: string,
   tenantId: string,
   profileData?: { fullName?: string; phone?: string; marketingConsent?: boolean },
+  tenantSlug?: string,
 ): Promise<{
   success: boolean
   isNewClient: boolean
   error?: string
-  session?: { accessToken: string; refreshToken: string }
+  /** Symfony client JWT — set in httpOnly cookie by this action. */
+  symfonyJwt?: string
 }> {
-  const db = createAdminClient()
-
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('id')
-    .eq('id', tenantId)
-    .eq('status', 'active')
-    .maybeSingle()
-
-  if (!tenant) {
-    return { success: false, isNewClient: false, error: 'Salone non valido.' }
-  }
-
   const normalizedEmail = email.trim().toLowerCase()
+  const slug = tenantSlug?.trim() ?? ''
 
-  // Throttle code-guessing attempts on the email OTP.
   if (!(await checkOtpRateLimit('email-verify', normalizedEmail, 6, 10 * 60 * 1000))) {
     return { success: false, isNewClient: false, error: RATE_LIMITED_MESSAGE }
   }
 
-  const supabase = await createClient()
-
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: normalizedEmail,
-    token,
-    type: 'email',
-  })
-
-  if (error) {
-    return { success: false, isNewClient: false, error: mapEmailAuthError(error.message) }
+  if (!slug) {
+    return { success: false, isNewClient: false, error: 'Tenant non specificato.' }
   }
 
-  if (!data.user) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
+  const { getSymfonyApiBaseUrl } = await import('@/lib/symfony/api-base-url')
+  const base = getSymfonyApiBaseUrl()
 
-  if (!data.session?.access_token || !data.session.refresh_token) {
-    return { success: false, isNewClient: false, error: 'Sessione non valida. Riprova.' }
-  }
-
-  const userId = data.user.id
-  const now = new Date().toISOString()
-
-  // Merge user_type + optional collected profile data in one update
-  const profileUpdatePayload: TablesUpdate<'profiles'> = { user_type: 'client', updated_at: now }
-  if (profileData?.fullName?.trim()) profileUpdatePayload.full_name = profileData.fullName.trim()
-  if (profileData?.phone?.trim()) profileUpdatePayload.phone = normalizePhoneValue(profileData.phone.trim())
-
-  const { error: profileUpdateError } = await db
-    .from('profiles')
-    .update(profileUpdatePayload)
-    .eq('id', userId)
-
-  if (profileUpdateError) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  // Find existing client record: first by profile_id, then by email (unlinked)
-  const [byProfileRes, byEmailRes] = await Promise.all([
-    db
-      .from('clients')
-      .select('id, profile_id')
-      .eq('tenant_id', tenantId)
-      .eq('profile_id', userId)
-      .is('deleted_at', null)
-      .maybeSingle(),
-    db
-      .from('clients')
-      .select('id, profile_id')
-      .eq('tenant_id', tenantId)
-      .eq('email', normalizedEmail)
-      .is('profile_id', null)
-      .is('deleted_at', null)
-      .maybeSingle(),
-  ])
-
-  if (byProfileRes.error) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  if (byProfileRes.data) {
-    return {
-      success: true,
-      isNewClient: false,
-      session: {
-        accessToken: data.session.access_token,
-        refreshToken: data.session.refresh_token,
-      },
-    }
-  }
-
-  if (byEmailRes.error) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  if (byEmailRes.data) {
-    const linkPayload: TablesUpdate<'clients'> = { profile_id: userId, updated_at: now }
-    if (profileData?.fullName?.trim()) linkPayload.full_name = profileData.fullName.trim()
-    if (profileData?.phone?.trim()) linkPayload.phone = normalizePhoneValue(profileData.phone.trim())
-
-    const { error: linkError } = await db
-      .from('clients')
-      .update(linkPayload)
-      .eq('id', byEmailRes.data.id)
-      .eq('tenant_id', tenantId)
-
-    if (linkError) {
-      return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-    }
-
-    return {
-      success: true,
-      isNewClient: false,
-      session: {
-        accessToken: data.session.access_token,
-        refreshToken: data.session.refresh_token,
-      },
-    }
-  }
-
-  // No existing client — fetch profile full_name as fallback and insert
-  const { data: profile } = await db
-    .from('profiles')
-    .select('full_name')
-    .eq('id', userId)
-    .maybeSingle()
-
-  const { data: insertedClient, error: insertError } = await db
-    .from('clients')
-    .insert({
-      tenant_id: tenantId,
-      profile_id: userId,
-      full_name:
-        profileData?.fullName?.trim() ||
-        (profile?.full_name as string | null | undefined)?.trim() ||
-        'Cliente',
-      phone: profileData?.phone?.trim() ? normalizePhoneValue(profileData.phone.trim()) : undefined,
-      email: normalizedEmail,
-      created_at: now,
-      updated_at: now,
-      marketing_consent: profileData?.marketingConsent ?? false,
-      tags: [],
-    })
-    .select('id')
-    .single()
-
-  if (insertError) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
-  if (!insertedClient?.id) {
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
-  }
-
+  let res: Response
   try {
-    const requestContext = await getConsentRequestContext()
-    await seedClientConsentState(db, {
-      tenantId,
-      clientId: insertedClient.id,
-      marketingAllowed: profileData?.marketingConsent ?? false,
-      churnAllowed: true,
-      actor: CONSENT_ACTOR.CLIENT_PROFILE,
-      actorProfileId: userId,
-      source: CONSENT_SOURCE.PWA_EMAIL_OTP_BOOTSTRAP,
-      occurredAt: now,
-      ipAddress: requestContext.ipAddress ?? null,
-      userAgent: requestContext.userAgent ?? null,
-      metadata: {
-        surface: 'email_otp_bootstrap',
-      },
+    res = await fetch(`${base}/api/pwa/otp/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        code: token,
+        tenant_slug: slug,
+        full_name: profileData?.fullName ?? null,
+        phone: profileData?.phone ?? null,
+      }),
     })
   } catch {
-    await db.from('clients').delete().eq('id', insertedClient.id).eq('tenant_id', tenantId)
-    return { success: false, isNewClient: false, error: 'Qualcosa è andato storto. Riprova.' }
+    return { success: false, isNewClient: false, error: 'Impossibile raggiungere il server. Riprova.' }
   }
+
+  const body = await res.json().catch(() => null) as {
+    is_new_client?: boolean
+    token?: string
+    error?: string
+  } | null
+
+  if (!res.ok || !body?.token) {
+    return {
+      success: false,
+      isNewClient: false,
+      error: body?.error ?? 'Codice non valido o scaduto.',
+    }
+  }
+
+  // Store Symfony client JWT as httpOnly cookie
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  cookieStore.set('styll_symfony_client_jwt', body.token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: '/',
+  })
 
   return {
     success: true,
-    isNewClient: true,
-    session: {
-      accessToken: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-    },
+    isNewClient: body.is_new_client ?? false,
+    symfonyJwt: body.token,
   }
 }
 

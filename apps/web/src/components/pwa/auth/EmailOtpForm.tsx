@@ -13,8 +13,6 @@ import {
   MARKETING_SIGNUP_PREFIX,
   MARKETING_SIGNUP_SUFFIX,
 } from '@/lib/consent-copy'
-import { createClient } from '@/lib/supabase/client'
-import { createPwaClient } from '@/lib/supabase/pwa-client'
 import { useTenantPath } from '@/lib/hooks/use-tenant-path'
 import { hasAnalyticsConsent } from '@/lib/analytics-consent'
 import { trackEvent, getCurrentAnonymousId, type AppSurface } from '@/lib/site-analytics/track'
@@ -187,7 +185,7 @@ export function EmailOtpForm({
     setError(null)
 
     const normalizedEmail = email.trim().toLowerCase()
-    const result = await verifyEmailOtp(normalizedEmail, code, tenantId)
+    const result = await verifyEmailOtp(normalizedEmail, code, tenantId, undefined, tenantSlug)
 
     if (!result.success) {
       setLoading(false)
@@ -200,24 +198,6 @@ export function EmailOtpForm({
         otpRefs.current[0]?.focus()
       }, 600)
       return
-    }
-
-    try {
-      const cookieClient = createClient()
-      const pwaClient = createPwaClient()
-      if (result.session) {
-        const sessionPayload = {
-          access_token: result.session.accessToken,
-          refresh_token: result.session.refreshToken,
-        }
-
-        await Promise.all([
-          cookieClient.auth.setSession(sessionPayload),
-          pwaClient.auth.setSession(sessionPayload),
-        ])
-      }
-    } catch {
-      // Non-blocking — session works via cookies
     }
 
     if (result.isNewClient) {

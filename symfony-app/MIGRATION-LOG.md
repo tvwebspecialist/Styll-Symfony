@@ -6,6 +6,230 @@
 
 ---
 
+## FASE 1 — Password reset staff via email — 2026-07-22
+
+**Branch:** `feat/symfony-password-reset-and-pwa-auth`
+
+### Obiettivo
+
+Implementare il reset password staff via email lato Symfony (senza SMTP — token loggato), con frontend Next.js corrispondente.
+
+### Backend Symfony
+
+Nuovi file:
+
+- `src/Entity/PasswordResetToken.php` — token hashed SHA-256, scadenza 1h, monouso
+- `src/Repository/PasswordResetTokenRepository.php` — `findValidByHash`, `invalidatePendingForEmail`
+- `migrations/Version20260722180000.php` — tabella `password_reset_tokens`
+- `src/Service/PasswordResetService.php` — `requestReset` (no user enumeration), `confirmReset`
+- `src/Service/PasswordResetConfirmResult.php` — value object esito conferma
+- `src/Controller/PasswordResetRequestController.php` — `POST /api/password-reset/request`
+- `src/Controller/PasswordResetConfirmController.php` — `POST /api/password-reset/confirm`
+
+### Frontend Next.js
+
+Nuovi file:
+
+- `apps/web/src/app/(auth)/reset-password/page.tsx`
+- `apps/web/src/components/auth/reset-password-form.tsx`
+- `apps/web/src/app/api/auth/staff/password-reset/confirm/route.ts`
+
+Modifiche:
+
+- `apps/web/src/app/(auth)/register/actions.ts` — `requestPasswordReset` chiama Symfony invece di Supabase
+- `apps/web/src/components/auth/login-form.tsx` — link "Password dimenticata?" ripristinato
+
+### Verifiche reali
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox tests/Functional/PasswordResetEndpointTest.php
+```
+
+Risultato: **8/8 test verdi**, `Assertions: 35`.
+
+---
+
+## FASE 2 — Auth PWA cliente migrata a Symfony OTP email — 2026-07-22
+
+**Branch:** `feat/symfony-password-reset-and-pwa-auth`
+
+### Obiettivo
+
+Portare il flusso OTP email cliente PWA da Supabase a Symfony, con provisioning User+Profile+Client in Symfony DB e JWT client emesso da Symfony.
+
+### Backend Symfony
+
+Nuovi file:
+
+- `src/Service/PwaClientEmailOtpService.php` — `sendOtp`, `verifyOtp` con provisioning + JWT
+- `src/Service/PwaClientOtpResult.php` — value object esito
+- `src/Controller/PwaClientOtpSendController.php` — `POST /api/pwa/otp/send`
+- `src/Controller/PwaClientOtpVerifyController.php` — `POST /api/pwa/otp/verify`
+- `src/Controller/PwaClientProfileUpdateController.php` — `PATCH /api/pwa/client/profile`
+
+Modifiche:
+
+- `src/Repository/EmailVerificationTokenRepository.php` — aggiunti `findActiveSendToken`, `findForVerification`, `findActiveForEmail`, `invalidateAllForEmail`
+- `config/packages/security.yaml` — `^/api/pwa` aperto con `PUBLIC_ACCESS`
+
+Decisioni architetturali:
+
+- `withoutTenantFilter()` pattern (stesso di `GoogleOAuthFlowService`) per bypassare il TenantFilter Doctrine nelle chiamate PUBLIC_ACCESS senza JWT
+- JWT `ROLE_PWA_CLIENT` con claims `client_id`, `tenant_id`, `tenant_slug`, `email` — salvato come cookie httpOnly `styll_symfony_client_jwt` in Next.js
+- `PATCH /api/pwa/client/profile` decodifica manualmente i claims JWT via `JWTTokenManagerInterface::decode($token)` per estrarre `client_id`
+
+### Frontend Next.js
+
+Modifiche:
+
+- `apps/web/src/lib/actions/pwa-auth.ts`
+  - `sendEmailOtp`: chiama Symfony `POST /api/pwa/otp/send` invece di Supabase
+  - `verifyEmailOtp`: chiama Symfony `POST /api/pwa/otp/verify`, salva JWT in cookie httpOnly `styll_symfony_client_jwt`
+  - `completeEmailOtpProfile`: chiama Symfony `PATCH /api/pwa/client/profile` con Bearer JWT dal cookie
+- `apps/web/src/components/pwa/auth/EmailOtpForm.tsx`
+  - passa `tenantSlug` a `verifyEmailOtp`
+  - rimosso `createClient()` / `createPwaClient()` / `setSession()` Supabase
+
+### Verifiche reali
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato: **112/112 test verdi**, `Assertions: 904`, `PHPUnit Deprecations: 3`.
+
+### Gap residui documentati
+
+- **Dati PWA**: il layer dati della PWA (clienti, appuntamenti, loyalty, wishlist) legge ancora Supabase; la sessione Symfony è usata solo per auth.
+- **FASE 3 OTP SMS/Twilio**: non implementato — richiede credenziali Twilio non disponibili.
+
+---
+
+## Sessione admin full migration audit — 2026-07-22
+
+**Branch:** `feat/symfony-admin-migration`
+
+### Audit frontend admin eseguito prima di modifiche applicative
+
+Perimetro auditato:
+
+- `apps/web/src/app/admin/**`
+- `apps/web/src/components/admin/**`
+
+Pattern cercati realmente:
+
+- `supabase.auth.getUser()`
+- `createClient()`
+- `createAdminClient()`
+- `.from('...')`
+
+### Stato reale trovato nel codice
+
+#### 100% Symfony
+
+- **Nessuna funzionalita dati admin e oggi 100% Symfony.**
+- Il JWT staff Symfony viene gia usato per recuperare l'identita base (`getOptionalSymfonyStaffMe()`), ma nel perimetro admin non esiste ancora una lettura/scrittura end-to-end servita solo da Symfony.
+
+#### Ibridi: auth/gating Symfony, dati ancora Supabase
+
+- `apps/web/src/app/admin/actions.ts`
+  - `requireSuperadmin()` parte da sessione staff Symfony, ma conferma `profiles.is_superadmin` via Supabase.
+- `apps/web/src/app/admin/layout.tsx`
+  - gate iniziale con `getOptionalSymfonyStaffMe()`, poi badge/count via Supabase (`profiles`, `tenants`, `platform_notifications`).
+- `apps/web/src/app/admin/actions-tenants.ts`
+  - CRUD tenant, shadow mode, subscription, export tenant data: autorizzazione Symfony, persistenza/lettura Supabase.
+- `apps/web/src/app/admin/actions-users.ts`
+  - update profilo, invite/reset/delete user, memberships tenant, impersonation: autorizzazione Symfony, persistenza Supabase/Auth Supabase admin.
+- `apps/web/src/app/admin/actions-content.ts`
+  - servizi, locations, staff, working hours, upload admin image: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/actions-data.ts`
+  - clienti, appuntamenti, import jobs, seed demo: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/actions-plans.ts`
+  - subscription plans e tenant subscriptions: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/actions-system.ts`
+  - audit log, dashboard stats, admin settings, email templates, global search: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/actions-onboarding.ts`
+  - onboarding tokens: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/analytics/page.tsx`
+  - gate con `requireSuperadmin()`, ma dipende da `actions-system.ts`, quindi di fatto ibrido.
+- `apps/web/src/app/admin/tenants/[tenantId]/products/actions.ts`
+  - prodotti e inventario: autorizzazione Symfony, dati Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/actions.ts`
+  - tenant integrations WhatsApp: autorizzazione Symfony, dati Supabase.
+
+#### 100% Supabase lato dati/admin delivery
+
+- `apps/web/src/app/admin/tenants/page.tsx`
+  - lista tenant, conteggi client/staff/subscription via query Supabase dirette.
+- `apps/web/src/app/admin/users/page.tsx`
+  - lista utenti/staff/tenant via query Supabase dirette.
+- `apps/web/src/app/admin/tenants/[tenantId]/page.tsx`
+  - overview tenant e subscription via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/layout.tsx`
+  - shell tenant admin con conteggi servizi/staff/locations/clienti/appuntamenti via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/analytics/page.tsx`
+  - tenant activity log, appointments, tenant lookup via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/services/page.tsx`
+  - servizi via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/locations/page.tsx`
+  - locations via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/staff/page.tsx`
+  - staff members + profili disponibili via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/working-hours/page.tsx`
+  - working hours + staff via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/products/page.tsx`
+  - prodotti, locations, inventory via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/subscription/page.tsx`
+  - plans e tenant subscriptions via Supabase.
+- `apps/web/src/app/admin/tenants/[tenantId]/whatsapp/page.tsx`
+  - tenant integrations, inbox conversations/messages, webhook events via Supabase.
+- `apps/web/src/components/admin/notification-bell.tsx`
+  - unread/realtime `platform_notifications` via client Supabase browser-side.
+
+#### UI-only / nessuna sorgente dati rilevata nell'audit
+
+- componenti presentazionali in `apps/web/src/components/admin/*` tranne `notification-bell.tsx`
+- client components in `apps/web/src/app/admin/**/**-client.tsx` che ricevono props dai page loader/actions
+- pagine statiche come `apps/web/src/app/admin/help/page.tsx`
+
+### Conclusione audit frontend
+
+- La migrazione admin dichiarata come "gia portata su Symfony" nelle sessioni precedenti riguarda soprattutto:
+  - sessione staff JWT Symfony
+  - redirect/gating staff
+  - primi wrapper `requireSuperadmin()`
+- **La sorgente dati admin resta pero prevalentemente Supabase**:
+  - query dirette server-side da `createAdminClient()`
+  - scritture server actions su `.from(...)`
+  - realtime browser-side da client Supabase
+
+### Audit backend Symfony esistente per area admin
+
+Evidenze reali trovate:
+
+- Entita presenti:
+  - `AdminAuditLog`
+  - `AdminSetting`
+  - `EmailTemplate`
+  - `PlatformNotification`
+  - `Tenant`
+  - `StaffMember`
+  - `Profile`
+  - `User`
+- Controller admin-specifici trovati:
+  - solo `BackupController.php`
+- Endpoint admin mancanti al momento dell'audit:
+  - nessun endpoint Symfony dedicato per lista/dettaglio tenant admin
+  - nessun endpoint Symfony dedicato per lista/dettaglio utenti staff admin
+  - nessun endpoint Symfony dedicato per `admin_settings`
+  - nessun endpoint Symfony dedicato per `admin_audit_log`
+  - nessun endpoint Symfony dedicato per `platform_notifications`
+  - nessun endpoint Symfony dedicato per `subscription_plans` / `tenant_subscriptions`
+
+Questo significa che la migrazione completa della dashboard superadmin richiede prima la costruzione della superficie API/admin Symfony, non solo il refactor del frontend Next.
+
+---
+
 ## Sessione Google OAuth Symfony per staff + PWA — 2026-07-22
 
 **Branch:** `feat/symfony-google-oauth`
