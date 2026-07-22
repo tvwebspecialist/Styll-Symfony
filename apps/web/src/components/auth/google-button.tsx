@@ -62,6 +62,9 @@ export function GoogleButton({
   businessType = '',
 }: GoogleButtonProps) {
   const [isPending, startTransition] = useTransition()
+  const hasRequiredRegisterBusinessName = businessName.trim().length >= 2
+  const isStaffRegisterBlocked =
+    mode === 'staff_register' && (!acceptedTerms || !hasRequiredRegisterBusinessName)
 
   function handleClick() {
     if (mode === 'staff_register' && !acceptedTerms) {
@@ -72,11 +75,7 @@ export function GoogleButton({
     startTransition(async () => {
       try {
         if (mode === 'staff_register') {
-          if (fullName.trim().length < 2) {
-            toast.error('Inserisci il tuo nome completo.')
-            return
-          }
-          if (businessName.trim().length < 2) {
+          if (!hasRequiredRegisterBusinessName) {
             toast.error('Inserisci il nome della tua attività.')
             return
           }
@@ -118,7 +117,7 @@ export function GoogleButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={isPending || (mode === 'staff_register' && !acceptedTerms)}
+      disabled={isPending || isStaffRegisterBlocked}
       aria-label={ariaLabel ?? label}
       className={cn(
         variant === 'primary' ? 'styll-btn-primary' : 'styll-btn-secondary',
