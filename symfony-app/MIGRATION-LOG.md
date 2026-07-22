@@ -2643,6 +2643,103 @@ Modifiche:
 
 Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
 
+---
+
+## RIEPILOGO SESSIONE NOTTURNA — 2026-07-22
+
+### Completato e verificato con certezza
+
+- **FASE A completata**
+  - site analytics admin migrate a Symfony
+  - endpoint nuovi:
+    - `GET /api/admin/analytics`
+    - `GET /api/admin/tenants/{tenantId}/analytics`
+  - verifica reale:
+    - test mirato `AdminAnalyticsControllerTest`: **3/3 verdi**, **42 assertions**
+    - suite completa dopo Fase A: **121/121 verdi**, **Assertions: 1030**, **PHPUnit Deprecations: 3**
+    - `curl` locale eseguiti con risposta coerente per analytics tenant e platform
+
+- **FASE B completata**
+  - `uploadAdminImage()` non usa piu Supabase Storage
+  - endpoint nuovo:
+    - `POST /api/admin/uploads/image`
+  - verifica reale:
+    - test mirato `AdminImageUploadControllerTest`: **3/3 verdi**, **30 assertions**
+    - suite completa dopo Fase B: **124/124 verdi**, **Assertions: 1060**, **PHPUnit Deprecations: 3**
+    - `curl` locale:
+      - upload admin **201**
+      - asset pubblicato **200**
+
+- **FASE C completata parzialmente, nella tranche a basso rischio**
+  - migrate a client pubblico Symfony:
+    - `apps/web/src/app/api/favicon/route.ts`
+    - `apps/web/src/app/api/og/route.tsx`
+    - `apps/web/src/app/api/pwa-icon/route.tsx`
+  - verifica reale:
+    - lint mirato frontend: **passa senza output**
+    - runtime locale Next:
+      - `GET /api/favicon?slug=barbiere-di-prova` → **200**
+      - `GET /api/og?slug=barbiere-di-prova` → **200**
+      - `GET /api/pwa-icon?slug=barbiere-di-prova&size=128` → **200**
+
+- **FASE D eseguita come audit/report**
+  - creato `symfony-app/docs/SECURITY-AUDIT.md`
+  - conferme principali:
+    - `TenantFilter` coerente su **46 entity** tenant-scoped
+    - nessun leak evidente di campi sensibili nel namespace `/api/public`
+    - `composer audit` pulito
+    - `CORS_ALLOW_ORIGIN` prod example senza wildcard
+    - porte `docker-compose.yml` bindate a `127.0.0.1`
+  - gap reali trovati:
+    - `backup_run` vuota e backup verify non configurabile nel compose locale
+    - assenza di rate limiting/login throttling Symfony su login e password reset
+    - `pnpm audit --prod`: **33 vulnerabilita** (`7 high`, `22 moderate`, `4 low`)
+
+### Bloccato o rimasto fuori chiusura
+
+- `apps/web/src/app/sitemap.ts`
+  - richiede un indice pubblico Symfony dei tenant attivi con `slug` e `updated_at`
+- `apps/web/src/app/api/pwa-splash/route.tsx`
+  - dipende da `splash_color`, non esposto dal DTO pubblico Symfony corrente
+- residui Supabase piu ampi fuori WhatsApp ma non banali
+  - `apps/web/src/proxy.ts`
+  - `apps/web/src/lib/tenant-context.ts`
+  - `apps/web/src/app/onboarding/**`
+  - `apps/web/src/lib/actions/pwa-auth.ts`
+  - `apps/web/src/lib/client-privacy-rights.ts`
+  - `apps/web/src/lib/actions/app-settings.ts`
+- backup restore test reale impossibile in questo ambiente
+  - `backup_run` senza record
+  - `BACKUP_B2_*`, `BACKUP_REPORT_TOKEN`, `ADMIN_API_TOKEN` tutti vuoti nel compose locale
+
+### Stato finale suite PHPUnit
+
+Comando finale eseguito realmente:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato finale reale:
+
+- **124/124 test verdi**
+- **Assertions: 1060**
+- **PHPUnit Deprecations: 3**
+
+### Raccomandazione prossimi passi
+
+1. Dare priorita a un task dedicato di hardening auth:
+   - `login_throttling` / `symfony/rate-limiter`
+   - rate limiting per password reset e OTP
+2. Sbloccare operativamente i backup:
+   - produrre il primo `backup_run`
+   - configurare token e credenziali B2
+   - eseguire una restore verification reale
+3. Chiudere i residui frontend semplici ancora pendenti:
+   - endpoint/lista tenant pubblica per `sitemap.ts`
+   - supporto `splash_color` nel public DTO per `pwa-splash`
+4. Pianificare una sessione dedicata per i residui Supabase piu grandi fuori scope WhatsApp, iniziando da `proxy.ts` / `tenant-context.ts` o dal blocco `app-settings`
+
 ### Verifiche reali
 
 Cache obbligatorie eseguite realmente dopo le modifiche Symfony:
