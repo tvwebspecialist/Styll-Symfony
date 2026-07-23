@@ -593,6 +593,68 @@ final class TestTenantFixture
     }
 
     /**
+     * Seeds two tenants for Fase 2b Loyalty WRITE tests.
+     *
+     * Builds on seedTwoTenantsWithBookingData() and adds:
+     *   - loyaltyConfigA: active, classic template, 100 pts/visit
+     *   - rewardA1: 50 pts cost (cheap — usable immediately after 1 visit)
+     *   - rewardA2: 1000 pts cost (expensive — for "insufficient" tests)
+     *
+     * clientA starts with NO ClientLoyalty (created by listener on first completion).
+     * appointmentA is status=confirmed, owned by clientA+staffA — ready to be completed.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     *   loyaltyConfigA: LoyaltyConfig,
+     *   rewardA1: Reward, rewardA2: Reward,
+     * }
+     */
+    public function seedTwoTenantsWithLoyaltyWriteData(): array
+    {
+        $base = $this->seedTwoTenantsWithBookingData();
+
+        $loyaltyConfigA = (new LoyaltyConfig())
+            ->setTenant($base['tenantA'])
+            ->setTemplate(LoyaltyConfig::TEMPLATE_CLASSIC)
+            ->setIsActive(true)
+            ->setPointsPerVisit(100)
+            ->setStreakThresholdDays(45)
+            ->setVersion(1);
+
+        $rewardA1 = (new Reward())
+            ->setTenant($base['tenantA'])
+            ->setName('Prodotto gratis')
+            ->setPointsCost(50)
+            ->setRewardType(Reward::TYPE_PRODUCT)
+            ->setIsActive(true)
+            ->setDisplayOrder(1);
+
+        $rewardA2 = (new Reward())
+            ->setTenant($base['tenantA'])
+            ->setName('Sconto VIP')
+            ->setPointsCost(1000)
+            ->setRewardType(Reward::TYPE_DISCOUNT)
+            ->setIsActive(true)
+            ->setDisplayOrder(2);
+
+        $this->em->persist($loyaltyConfigA);
+        $this->em->persist($rewardA1);
+        $this->em->persist($rewardA2);
+        $this->em->flush();
+
+        return [
+            ...$base,
+            'loyaltyConfigA' => $loyaltyConfigA,
+            'rewardA1'       => $rewardA1,
+            'rewardA2'       => $rewardA2,
+        ];
+    }
+
+    /**
      * Seeds two tenants for Fase 1c Loyalty read-only tests.
      *
      * Tenant A — full loyalty setup:

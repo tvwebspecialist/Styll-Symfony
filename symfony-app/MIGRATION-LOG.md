@@ -3726,7 +3726,92 @@ php bin/console doctrine:schema:validate --skip-sync
 | `PATCH /api/appointments/{id}/status` | ✅ | State machine + evento |
 | `DELETE /api/appointments/{id}` | ✅ | Soft delete |
 | Aggiornamento servizi prenotati | ❌ | Fuori scope 2a — delete+re-add complesso |
-| Assegnazione punti loyalty (on completed) | ❌ | Listener `AppointmentStatusChangedEvent` — prossima fase |
+| Aggiornamento servizi prenotati | ❌ | Fuori scope 2a — delete+re-add complesso |
+| Assegnazione punti loyalty (on completed) | ✅ | `AppointmentCompletedLoyaltyListener` — Fase 2b |
 | Notifiche (Mercure/email on status change) | ❌ | Listener — prossima fase |
 | Vendita prodotti in appuntamento | ❌ | `appointment_products` — trigger inventario già in DB |
 | Pagamenti | ❌ | Fuori scope progetto attuale |
+
+---
+
+## FASE 2b — Loyalty SCRITTURA (v1 — solo template Classico) — 2026-07-23
+
+**Branch:** `dev`
+
+### Obiettivo
+
+Collegare l'assegnazione automatica dei punti al completamento di un appuntamento (solo logica del template classic), esporre l'aggiustamento manuale per walk-in/clienti senza PWA, ed esporre il riscatto di una reward. Tutto transazionale — lo stato punti rimane sempre consistente.
+
+### Nuovi file
+
+```
+src/EventListener/AppointmentCompletedLoyaltyListener.php
+src/Controller/LoyaltyAdjustController.php
+src/Controller/RewardRedemptionCreateController.php
+tests/Functional/LoyaltyWriteTest.php
+tests/Support/TestTenantFixture.php  ← seedTwoTenantsWithLoyaltyWriteData()
+```
+
+### Endpoint
+
+| Metodo | Path | Descrizione |
+|---|---|---|
+| *(listener)* | `AppointmentStatusChangedEvent` | Assegna punti su `newStatus='completed'` |
+| `POST` | `/api/clients/{id}/loyalty/adjust` | Aggiustamento manuale (+bonus / -adjustment) |
+| `POST` | `/api/clients/{id}/reward-redemptions` | Riscatto immediato reward (barber-side) |
+
+### Comportamenti chiave
+
+**Listener `AppointmentCompletedLoyaltyListener`**
+- Attivato da `AppointmentStatusChangedEvent` solo se `newStatus = 'completed'`
+- Carica `LoyaltyConfig` attivo (`ended_at IS NULL AND is_active = true`) del tenant
+- Se template ≠ `classic`: logga info e ritorna senza assegnare (gap v2)
+- Se classic: crea `ClientLoyalty` se mancante, incrementa `total_points + available_points + last_visit_date`, inserisce `LoyaltyTransaction(type='earn', appointment_id=...)`
+- Idempotenza: `idx_loyalty_one_earn_per_appt` (partial UNIQUE su `appointment_id WHERE type='earn'`) — `UniqueConstraintViolationException` catturata silenziosamente
+- **Resilienza**: qualsiasi `\Throwable` nel listener è catturato, loggato e inghiottito — il cambio di stato (`PATCH /status`) restituisce sempre 200 anche se il loyalty fallisce
+
+**`POST /api/clients/{id}/loyalty/adjust`**
+- `points > 0`: type `bonus`, incrementa `total_points + available_points`
+- `points < 0`: type `adjustment`, decrementa solo `available_points` (total è lifetime counter)
+- Blocca se `available_points + delta < 0` → 422
+- Crea `ClientLoyalty` se non esiste
+- Registra lo staff che ha eseguito l'operazione
+
+**`POST /api/clients/{id}/reward-redemptions`**
+- Valida reward attiva nel tenant; 422 se non trovata
+- Valida `ClientLoyalty` esiste; 422 `NOT_ENROLLED` se non iscritto
+- Valida `available_points >= points_cost`; 422 `INSUFFICIENT_POINTS` se insufficienti
+- Transazione atomica: decrementa `available_points` (NON `total_points`), crea `RewardRedemption(confirmed_at=now, confirmed_by=staff)`, crea `LoyaltyTransaction(type='redeem', points=-cost)`
+
+### Dettagli tecnici
+
+- **`idx_loyalty_configs_active`**: partial unique index `ON loyalty_configs(tenant_id) WHERE ended_at IS NULL` — un solo config attivo per tenant. Per sostituire il config attivo: settare `ended_at = now` sul vecchio, poi inserire il nuovo.
+- **`idx_loyalty_one_earn_per_appt`**: partial unique index `ON loyalty_transactions(appointment_id) WHERE type='earn' AND appointment_id IS NOT NULL` — idempotenza automatica lato DB.
+- **`total_points` vs `available_points`**: `total_points` è il cumulativo lifetime (solo earn e bonus lo incrementano). `available_points` è il saldo spendibile (decrementa su redeem e adjustment negativo).
+- **Listener context**: il listener gira nella stessa HTTP request (event dispatch sincrono) — `TenantFilter` già attivo, EM già aperto.
+
+### Test
+
+```bash
+php bin/phpunit tests/Functional/LoyaltyWriteTest.php --testdox
+# Tests: 19, Assertions: 146 — TUTTI VERDI
+
+php bin/phpunit --no-coverage
+# Tests: 240, Assertions: 2008 — TUTTI VERDI (nessuna regressione)
+
+php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+### Gap residui Area Loyalty dopo questa fase
+
+| Feature | Stato | Note |
+|---|---|---|
+| Earn punti su completamento (classic) | ✅ | Listener — Fase 2b |
+| Aggiustamento manuale | ✅ | `POST /api/clients/{id}/loyalty/adjust` |
+| Riscatto reward (immediato, barber) | ✅ | `POST /api/clients/{id}/reward-redemptions` |
+| Template streak_master / vip_club | ❌ | v2 — non implementato |
+| Streak e tier aggiornamento | ❌ | v2 — calcolo complesso |
+| Badge / notifiche loyalty | ❌ | v2 |
+| Scadenza punti (`TYPE_EXPIRE`) | ❌ | v2 |
+| Riscatto PWA client (pending → confirmed) | ❌ | Flusso PWA — `requestRewardRedemption` |
