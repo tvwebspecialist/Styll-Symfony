@@ -3483,3 +3483,152 @@ docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:vali
 | `AppointmentService.applied_promotion_id` | ❌ mancante | Presente in TS (`promotion_title`), non mappato in Symfony |
 | N+1 lazy load relations (GET collection) | ⚠️ noto | Accettabile per range date limitato; EagerLoadingExtension non applicabile con getter virtuali |
 | Frontend wiring | ❌ non fatto | `apps/web/src/lib/actions/calendario.ts` legge ancora Supabase |
+
+---
+
+## FASE — Loyalty read-only (Area 7) — 2026-07-23
+
+**Branch:** `dev`
+
+### Obiettivo
+
+Implementare il layer read-only della Loyalty Symfony (Fase 1c). Solo lettura: nessuna scrittura su `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions`. La scrittura (assegnazione punti, riscatto) è un blocco successivo che dipende dal completamento dell'Appointment CRUD in scrittura.
+
+---
+
+### Entità Doctrine utilizzate
+
+Tutte le entità erano già presenti (create in sessioni precedenti, fuori dal pilot CRM/Calendar):
+
+| Entità | Tabella | Note |
+|---|---|---|
+| `LoyaltyConfig` | `loyalty_configs` | template, points_per_visit/euro, streak_threshold_days, version, started_at/ended_at |
+| `Reward` | `rewards` | catalogo premi (max 6 applicativo), is_active, display_order |
+| `ClientLoyalty` | `client_loyalty` | stato aggregato per cliente: punti totali/disponibili, streak, tier |
+| `LoyaltyTransaction` | `loyalty_transactions` | log immutabile (earn/redeem/bonus/import/expire/adjustment) |
+| `RewardRedemption` | `reward_redemptions` | riscatti effettuati, confirmed_at nullable |
+| **NON toccate** | `tier_configs`, `badges`, `client_badges` | gamification v2 — fuori scope Fase 1c |
+
+Nessuna modifica alle entity class — nessuna migration necessaria.
+
+---
+
+### Endpoint implementati (tutti custom controller, nessun ApiResource)
+
+#### `GET /api/loyalty-config`
+
+- Restituisce la configurazione loyalty attiva del tenant corrente (`ended_at IS NULL`)
+- TenantFilter Doctrine auto-applica la restrizione tenant_id
+- **404** se il tenant non ha ancora configurato la loyalty
+- Risposta: `{ id, template, isActive, pointsPerVisit, pointsPerEuro, streakThresholdDays, version, startedAt }`
+
+#### `GET /api/rewards`
+
+- Restituisce il catalogo rewards attivi del tenant (`is_active = true`), ordinato per `display_order ASC`
+- TenantFilter auto-applica — Tenant B senza rewards ottiene `[]` (non leak cross-tenant)
+- Risposta: array di `{ id, name, description, pointsCost, rewardType, displayOrder, isActive }`
+
+#### `GET /api/clients/{id}/loyalty`
+
+- Restituisce lo stato loyalty del cliente specificato
+- Guard 1: cliente deve appartenere al tenant corrente (TenantFilter + `deletedAt IS NULL`) → **404** se non trovato
+- Guard 2: cliente deve avere un record `client_loyalty` → **404** se non iscritto
+- **Convenzione "non iscritto" → 404**: coerente con la semantica REST — il sub-resource `/clients/{id}/loyalty` non esiste finché il cliente non guadagna i primi punti. Il frontend mostra "no loyalty data" su 404. Documentato nel contract.
+- Risposta: `{ id, clientId, totalPoints, availablePoints, currentStreak, longestStreak, currentTier, tierPointsThisYear, tierYear, tierGraceExpiresAt, lastVisitDate, updatedAt }`
+
+#### `GET /api/clients/{id}/loyalty-transactions`
+
+- Storico transazioni punti del cliente, ordinato per `created_at DESC`, paginato
+- Parametri: `?page=1` (default 1), `?limit=20` (default 20, max 100)
+- Guard cross-tenant: stessa logica client → 404
+- Risposta: `{ items: [{ id, type, points, description, createdAt }], total, page, limit }`
+
+#### `GET /api/clients/{id}/reward-redemptions`
+
+- Storico riscatti del cliente, ordinato per `created_at DESC`, paginato
+- JOIN eager con `Reward` per esporre `rewardName` e `rewardId` senza N+1
+- Guard cross-tenant: stessa logica client → 404
+- Risposta: `{ items: [{ id, rewardId, rewardName, pointsSpent, confirmedAt, createdAt }], total, page, limit }`
+
+---
+
+### File creati
+
+- `src/Controller/LoyaltyConfigController.php`
+- `src/Controller/RewardsController.php`
+- `src/Controller/ClientLoyaltyController.php`
+- `src/Controller/ClientLoyaltyTransactionsController.php`
+- `src/Controller/ClientRewardRedemptionsController.php`
+- `tests/Functional/LoyaltyEndpointTest.php` — 17 test funzionali
+
+**Modificato:**
+- `tests/Support/TestTenantFixture.php` — aggiunto `seedTwoTenantsWithLoyaltyData()`
+
+**Nessuna migration** — entità già esistenti, nessun cambio schema.
+
+---
+
+### Fixture di test (`seedTwoTenantsWithLoyaltyData`)
+
+| Dato | Tenant | Valore |
+|---|---|---|
+| `loyaltyConfigA` | A | classic, 100 pts/visita, active |
+| `rewardA1` | A | 500 pts, product |
+| `rewardA2` | A | 1000 pts, discount |
+| `clientA` | A | iscritto: 200 total / 150 available / streak 3 |
+| `clientAUnenrolled` | A | secondo client, NON iscritto (no ClientLoyalty) |
+| `transactionA` | A | earn +200 pts per clientA |
+| `redemptionA` | A | 50 pts spesi su rewardA1, confirmed |
+| Tenant B | B | nessun dato loyalty (per test 404 e isolation) |
+| `clientBCross` | B | primo client di B — usato per test cross-tenant → 404 |
+
+---
+
+### Verifiche eseguite
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox --filter LoyaltyEndpointTest
+# Tests: 17, Assertions: 127 — TUTTI VERDI
+
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+# Tests: 196, Assertions: 1705 — TUTTI VERDI (nessuna regressione)
+
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+---
+
+### Decisioni architetturali
+
+- **Custom controller per tutti gli endpoint**: le route loyalty non si prestano all'ApiResource dichiarativo (config = single object, rest nested under `/clients/{id}/...`). Custom controllers con DQL esplicito è lo stesso pattern del CalendarioSlotsController.
+- **Nessuna modifica alle entity** (nessun `#[Groups]` aggiunto): i controller serializzano manualmente con `$this->json([...])`, evitando di toccare entità già esistenti e rischi di regressione.
+- **TenantFilter auto-applicato a tutti i DQL**: il Doctrine SQL filter è attivo sull'EntityManager per tutta la durata della request autenticata — nessuna clausola `tenant_id` manuale necessaria nei DQL dei controller.
+- **Isolation Tenant B**: Tenant B non ha dati loyalty nel fixture. Questo permette di testare sia il 404 reale (no config/no rewards) sia l'isolamento (Tenant A non vede dati di Tenant B e viceversa) in modo semplice e senza stato condiviso tra tenant.
+
+---
+
+### Gap residui Area 7
+
+| Feature | Stato | Note |
+|---|---|---|
+| `TierConfig`, `Badge`, `ClientBadge` | ❌ non esposti | Gamification v2 — fuori scope Fase 1c |
+| Scrittura punti (earn on appointment completion) | ❌ non implementata | Dipende dall'Appointment CRUD write (prossimo blocco) |
+| Riscatto reward da staff (barberRedeemForClient) | ❌ non implementata | Stesso prerequisito |
+| Riscatto reward da cliente PWA (requestRewardRedemption) | ❌ non implementata | Richiede context PWA client JWT |
+| Assegnazione punti manuale (addManualPoints) | ❌ non implementata | Future fase write |
+| Frontend wiring | ❌ non fatto | `apps/web/src/lib/actions/loyalty.ts` legge ancora Supabase |
+
+---
+
+### Stato migrazione Loyalty dopo questa fase
+
+| Endpoint | Symfony | Note |
+|---|---|---|
+| `GET /api/loyalty-config` | ✅ | config attiva, 404 se nessuna |
+| `GET /api/rewards` | ✅ | solo attivi, ordinati, tenant-isolated |
+| `GET /api/clients/{id}/loyalty` | ✅ | 404 se non iscritto (documentato) |
+| `GET /api/clients/{id}/loyalty-transactions` | ✅ | paginato, DESC |
+| `GET /api/clients/{id}/reward-redemptions` | ✅ | paginato, DESC, con reward name |
+| Scrittura punti / riscatto | ❌ | prossimo blocco — richiede Appointment CRUD write |
+| `GET /api/loyalty/top-clients` | ❌ | non prioritario, da aggiungere |
