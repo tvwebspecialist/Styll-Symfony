@@ -1,4 +1,4 @@
-import type { AiDraftProvider } from './draft-provider.ts'
+import type { AiDraftProvider, AiDraftRequest } from './draft-provider.ts'
 import { deterministicFakeDraftProvider } from './deterministic-fake-draft-provider.ts'
 
 type InboxDraftProviderMode = 'fake' | 'anthropic'
@@ -44,7 +44,7 @@ export function resolveConfiguredInboxDraftProvider(
 
     return {
       providerId,
-      async generateDraft(input) {
+      async generateDraft(input: AiDraftRequest) {
         providerPromise ??= import('./anthropic-draft-provider.ts').then(
           ({ createAnthropicDraftProvider }) =>
             createAnthropicDraftProvider({

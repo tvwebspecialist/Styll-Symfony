@@ -1,6 +1,6 @@
 import type { Json } from '@/types'
-import { getInboxToolDefinition } from '../messaging/tool-registry.ts'
-import type { ToolPolicyDecision } from '../messaging/contracts.ts'
+import { getInboxToolDefinition, listInboxToolDefinitions } from '../messaging/tool-registry.ts'
+import type { InboxToolName, ToolPolicyDecision } from '../messaging/contracts.ts'
 import {
   AI_DRAFT_INTENTS,
   type AvailabilityResult,
@@ -30,6 +30,7 @@ import { resolveReceptionistConversationState } from './receptionist-conversatio
 const MAX_DRAFT_TEXT_LENGTH = 4096
 const MAX_INTERNAL_REASONING_LENGTH = 640
 const AI_DRAFT_INTENT_SET = new Set<string>(AI_DRAFT_INTENTS)
+const INBOX_TOOL_NAMES = new Set<string>(listInboxToolDefinitions().map((tool) => tool.name))
 
 const POLICY_PRIORITY: Record<ToolPolicyDecision, number> = {
   allow: 0,
@@ -205,16 +206,20 @@ function readBoundedNullableString(
   return normalized
 }
 
-function parseStructuredToolCalls(
-  value: unknown,
-): Array<{ name: string; arguments: Record<string, unknown> }> {
+function parseStructuredToolCalls(value: unknown): AiDraftToolCall[] {
   if (!Array.isArray(value) || value.length > 6) {
     malformedProviderResponse()
   }
 
-  return value.map((entry) => {
+  return value.flatMap((entry) => {
     if (!isRecord(entry) || typeof entry.name !== 'string') {
       malformedProviderResponse()
+    }
+
+    const name = entry.name.trim()
+
+    if (!INBOX_TOOL_NAMES.has(name)) {
+      return []
     }
 
     const argumentsValue = entry.arguments ?? {}
@@ -222,10 +227,7 @@ function parseStructuredToolCalls(
       malformedProviderResponse()
     }
 
-    return {
-      name: entry.name.trim(),
-      arguments: argumentsValue,
-    }
+    return [{ name: name as InboxToolName, arguments: argumentsValue }]
   })
 }
 

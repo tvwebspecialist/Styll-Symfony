@@ -1,6 +1,7 @@
 import type {
   AiDraftIntent,
   AiDraftMessage,
+  AppointmentPlannerMemory,
   AppointmentPreparationField,
   AppointmentPreparedToolCall,
   AppointmentResolvedDate,
@@ -551,7 +552,7 @@ function updateAppointmentState(
   }
 }
 
-function buildBookingPlanner(state: InternalAppointmentState) {
+function buildBookingPlanner(state: InternalAppointmentState): AppointmentPlannerMemory {
   const completeFields: AppointmentPreparationField[] = []
   const missingFields: AppointmentPreparationField[] = []
 

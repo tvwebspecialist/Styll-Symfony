@@ -7,6 +7,7 @@ import {
   type AiDraftProvider,
   type AiDraftRequest,
   type AiDraftResponse,
+  type AiDraftToolCall,
 } from './draft-provider.ts'
 
 export const ANTHROPIC_INBOX_DRAFT_MODEL = 'claude-sonnet-5' as const
@@ -431,9 +432,7 @@ function readNullableReasoning(value: unknown): string | null {
   })
 }
 
-function readRequestedTools(
-  value: unknown,
-): Array<{ name: string; arguments: Record<string, unknown> }> {
+function readRequestedTools(value: unknown): AiDraftToolCall[] {
   if (value === undefined || value === null) {
     return []
   }
@@ -444,7 +443,7 @@ function readRequestedTools(
     )
   }
 
-  return value.map((entry) => {
+  return value.flatMap((entry) => {
     if (!isRecord(entry)) {
       throw new AnthropicDraftProviderResponseError(
         'Anthropic draft response field "understanding.requestedToolCalls" is invalid.',
@@ -452,6 +451,11 @@ function readRequestedTools(
     }
 
     const name = readTrimmedString(entry.name, 'understanding.requestedToolCalls.name')
+
+    if (!INBOX_TOOL_NAMES.has(name)) {
+      return []
+    }
+
     const argumentsValue = entry.arguments ?? {}
     if (!isRecord(argumentsValue)) {
       throw new AnthropicDraftProviderResponseError(
@@ -459,10 +463,7 @@ function readRequestedTools(
       )
     }
 
-    return {
-      name,
-      arguments: argumentsValue,
-    }
+    return [{ name: name as InboxToolName, arguments: argumentsValue }]
   })
 }
 
