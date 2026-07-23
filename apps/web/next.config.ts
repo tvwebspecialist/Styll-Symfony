@@ -11,8 +11,11 @@ const symfonyApiBaseUrl =
 function buildRemotePattern(url: string) {
   try {
     const parsed = new URL(url)
+    const rawProtocol = parsed.protocol.replace(':', '')
+    const protocol: 'http' | 'https' = rawProtocol === 'http' ? 'http' : 'https'
+
     return {
-      protocol: parsed.protocol.replace(':', ''),
+      protocol,
       hostname: parsed.hostname,
       ...(parsed.port ? { port: parsed.port } : {}),
     }

@@ -10,6 +10,7 @@ import {
   editInboxDraftApprovalText,
   type InboxDraftApprovalState,
 } from '@/lib/ai/inbox-draft-approval-core'
+import type { PublicInboxDraftResult } from '@/lib/ai/inbox-draft-orchestrator'
 import {
   getInboxConversations,
   getInboxLatestAiRuntime,
@@ -82,55 +83,7 @@ type InternalNoteApiResponse =
 type GenerateDraftApiResponse =
   | {
       ok: true
-      draft: {
-        text: string
-        promptId: string
-        promptVersion: string
-        providerLabel: string
-        usedAuthoritativeKnowledge: boolean
-        sources: Array<{
-          kind: 'conversation' | 'knowledge' | 'policy' | 'tool_result'
-          label: string
-        }>
-        decision: {
-          kind: 'draft_review' | 'human_handoff' | 'auto_reply_candidate' | 'action_prepare_candidate' | 'blocked'
-          reasonCode: string
-          reasonSummary: string
-          handoffRecommended: boolean
-          appointmentPreparation: {
-            action: 'booking' | 'reschedule' | 'cancellation'
-            plannerState: string
-            eligible: boolean
-            completeFields: Array<
-              | 'service'
-              | 'requested_date'
-              | 'requested_time'
-              | 'current_appointment_reference'
-            >
-            missingFields: Array<
-              | 'service'
-              | 'requested_date'
-              | 'requested_time'
-              | 'current_appointment_reference'
-            >
-            nextQuestion: string | null
-            preparedToolCall: {
-              name: 'prepare_appointment' | 'prepare_reschedule' | 'prepare_cancellation'
-              arguments: {
-                service?: string
-                requested_date?: string
-                requested_time?: string
-                current_appointment_reference?: string
-                customer_notes: string
-                conversation_summary: string
-              }
-            } | null
-            service: string | null
-            requestedDate: string | null
-            requestedTime: string | null
-          } | null
-        }
-      }
+      draft: PublicInboxDraftResult
     }
   | {
       ok: false
