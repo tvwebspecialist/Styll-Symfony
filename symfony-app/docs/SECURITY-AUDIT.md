@@ -47,19 +47,22 @@ Verifiche eseguite realmente:
      - nessun backup recente dimostrabile
      - impossibile eseguire una restore-verification reale via `BackupVerifyService`
 
-2. **Rate limiting auth incompleto**
-   - in `symfony-app/config/packages/security.yaml` non e configurato `login_throttling`
-   - `symfony/rate-limiter` non compare in `symfony-app/composer.json`
-   - `PasswordResetService::requestReset()` non applica throttling/rate limit per IP o email oltre al comportamento anti-enumerazione
-   - `PwaClientEmailOtpService` ha mitigazioni applicative parziali:
+2. **Rate limiting auth rafforzato il 2026-07-23**
+   - `symfony/rate-limiter` e ora installato e dichiarato in `symfony-app/composer.json`
+   - `security.yaml` usa `login_throttling` con limiter custom IP + `email+IP` per `/api/login`
+   - i controller pubblici sensibili applicano ora limiter espliciti con risposta `HTTP 429` e messaggio generico
+   - `PwaClientEmailOtpService` mantiene le mitigazioni applicative gia presenti:
      - resend cooldown: `60s`
      - lockout dopo `5` tentativi
      - lockout duration: `15` minuti
-   - manca comunque un rate limit centralizzato per:
+   - sopra tali mitigazioni e ora presente un rate limit centralizzato per:
      - `/api/login`
      - `/api/password-reset/request`
+     - `/api/password-reset/confirm`
      - `/api/pwa/otp/send`
      - `/api/pwa/otp/verify`
+     - `/api/register`
+     - `/api/oauth/google/start` con `context=staff_register` (upstream di `/api/auth/google/staff/start`)
 
 3. **Dipendenze frontend con vulnerabilita note**
    - `pnpm audit --prod` riporta **33 vulnerabilita**
@@ -211,29 +214,58 @@ Nota:
 
 ### D6. Rate limiting / brute force
 
-Stato reale:
+Stato remediation aggiornato al **2026-07-23**:
 
-- **login**: nessun `login_throttling` configurato
-- **password reset request**: nessun rate limiter dedicato
-- **OTP send**: nessun rate limiter Symfony; solo cooldown applicativo nel servizio OTP
-- **OTP verify**: lockout applicativo esiste, ma non c'e rate limiting/IP throttling centralizzato
+- `symfony/rate-limiter` installato e configurato
+- tutte le saturazioni dei limiter rispondono con `HTTP 429 Too Many Requests`
+- il payload di errore e uniforme e generico: `Troppe richieste. Riprova più tardi.`
+- i test funzionali coprono soglia, sforamento e reset finestra
 
-Valutazione:
+Limiti implementati:
 
-- gap di sicurezza **alto** per login e reset password
-- gap **medio-alto** per OTP, mitigato solo in parte dal lockout del token
+- **`POST /api/login`**
+  - `5` tentativi **falliti** per `email+IP` in `15 minuti`
+  - `20` tentativi **falliti** globali per `IP` in `15 minuti`
+  - implementazione: `login_throttling` Symfony con limiter custom
+- **`POST /api/password-reset/request`**
+  - `3` richieste per `email+IP` in `1 ora`
+  - `12` richieste globali per `IP` in `1 ora`
+  - conteggio su ogni richiesta valida, per limitare spam email e user enumeration amplification
+- **`POST /api/password-reset/confirm`**
+  - `5` tentativi **falliti** per `token+IP` in `15 minuti`
+  - `20` tentativi **falliti** globali per `IP` in `15 minuti`
+- **`POST /api/pwa/otp/send`**
+  - `5` richieste per `email+IP` in `1 ora`
+  - `20` richieste globali per `IP` in `1 ora`
+  - rafforzamento in depth sopra il cooldown applicativo `60s`
+- **`POST /api/pwa/otp/verify`**
+  - `5` tentativi **falliti** per `email+IP` in `15 minuti`
+  - `20` tentativi **falliti** globali per `IP` in `15 minuti`
+  - resta attivo anche il lockout applicativo sul token: `5` errori, blocco `15 minuti`
+- **`POST /api/register`**
+  - `5` richieste per `email+IP` in `1 ora`
+  - `15` richieste globali per `IP` in `1 ora`
+  - scelta piu permissiva del login per tollerare retry di onboarding, ma con freno reale sullo spam
+- **`POST /api/oauth/google/start` con `context=staff_register`**
+  - `15` richieste globali per `IP` in `1 ora`
+  - in questa fase del flusso non esiste ancora un identificatore email affidabile prima del callback Google; il controllo e quindi per `IP`
+
+Valutazione aggiornata:
+
+- il gap di sicurezza su login, password reset e OTP rilevato il `2026-07-22` e **risolto**
+- il lockout OTP applicativo non e stato rimosso: ora opera in combinazione con il limiter HTTP
+- restano aperti altri temi dell'audit non collegati a brute force: backup non verificato e vulnerabilita frontend note
 
 ## Priorita raccomandate
 
 ### Alta
 
-1. Implementare rate limiting su `/api/login`, `/api/password-reset/request`, `/api/pwa/otp/send`, `/api/pwa/otp/verify`
-2. Rendere verificabile il sistema backup:
+1. Rendere verificabile il sistema backup:
    - produrre almeno un `backup_run`
    - configurare i token backup
    - configurare credenziali B2
    - provare una restore verification reale
-3. Affrontare le vulnerabilita frontend `high`
+2. Affrontare le vulnerabilita frontend `high`
 
 ### Media
 
@@ -246,4 +278,4 @@ Valutazione:
 
 ## Conclusione
 
-Non ho trovato evidenze di rottura dell'isolamento tenant nel modello Doctrine o leak evidenti nel namespace pubblico `/api/public`. I gap piu concreti emersi sono operativi e di hardening: backup non dimostrato, rate limiting assente sui principali endpoint auth, e vulnerabilita frontend note nelle dipendenze npm.
+Non ho trovato evidenze di rottura dell'isolamento tenant nel modello Doctrine o leak evidenti nel namespace pubblico `/api/public`. Il gap di brute-force protection sui principali endpoint auth, presente nel report del `2026-07-22`, e stato chiuso il `2026-07-23` con `symfony/rate-limiter`, `login_throttling`, test funzionali dedicati e risposta `429` uniforme. Restano aperti i gap operativi su backup non dimostrato e vulnerabilita frontend note nelle dipendenze npm.

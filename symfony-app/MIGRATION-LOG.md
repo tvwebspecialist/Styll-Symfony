@@ -2645,6 +2645,109 @@ Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
 
 ---
 
+## FASE D — Hardening auth con Symfony rate limiter — 2026-07-23
+
+**Branch:** `feat/symfony-rate-limiting`
+
+### Obiettivo
+
+Chiudere il gap di brute-force protection segnalato in `symfony-app/docs/SECURITY-AUDIT.md`, aggiungendo rate limiting reale e testato sugli endpoint di autenticazione sensibili senza toccare il blocco inbox AI / WhatsApp.
+
+### Implementazione effettiva
+
+Dipendenze e configurazione:
+
+- aggiunto `symfony/rate-limiter` a `symfony-app/composer.json`
+- introdotto `config/packages/rate_limiter.yaml` con limiter dedicati per login, reset password, OTP, register e Google staff start
+- abilitato `login_throttling` in `config/packages/security.yaml`
+- aggiunto handler custom per restituire `HTTP 429` con messaggio uniforme `Troppe richieste. Riprova più tardi.`
+
+Servizi introdotti:
+
+- `App\Security\RateLimiting\RateLimitKeyGenerator`
+  - hasha IP, email e token con `APP_SECRET` per evitare chiavi in chiaro nello storage del limiter
+- `App\Security\RateLimiting\StaffLoginRateLimiter`
+  - combina `IP` globale e `email+IP` per il firewall `json_login`
+- `App\Security\RateLimiting\AuthRateLimiter`
+  - centralizza i limiter applicativi per i controller pubblici
+- `App\Security\RateLimiting\RateLimitResponseFactory`
+  - genera risposta JSON `429` uniforme con header `Retry-After`
+- `App\Security\ApiAuthenticationFailureHandler`
+  - converte i `TooManyLoginAttemptsAuthenticationException` del login in risposta API coerente
+
+Controller protetti:
+
+- `POST /api/login`
+  - `5` tentativi falliti per `email+IP` in `15 minuti`
+  - `20` tentativi falliti globali per `IP` in `15 minuti`
+- `POST /api/password-reset/request`
+  - `3` richieste per `email+IP` in `1 ora`
+  - `12` richieste globali per `IP` in `1 ora`
+- `POST /api/password-reset/confirm`
+  - `5` tentativi falliti per `token+IP` in `15 minuti`
+  - `20` tentativi falliti globali per `IP` in `15 minuti`
+- `POST /api/pwa/otp/send`
+  - `5` richieste per `email+IP` in `1 ora`
+  - `20` richieste globali per `IP` in `1 ora`
+  - mantiene anche il cooldown applicativo gia esistente `60s`
+- `POST /api/pwa/otp/verify`
+  - `5` tentativi falliti per `email+IP` in `15 minuti`
+  - `20` tentativi falliti globali per `IP` in `15 minuti`
+  - mantiene anche il lockout applicativo sul token: `5` errori, `15 minuti`
+- `POST /api/register`
+  - `5` richieste per `email+IP` in `1 ora`
+  - `15` richieste globali per `IP` in `1 ora`
+- `POST /api/oauth/google/start` con `context=staff_register`
+  - `15` richieste globali per `IP` in `1 ora`
+  - nota: prima del callback Google non esiste ancora un identificatore email affidabile da combinare con l'IP
+
+Scelta implementativa:
+
+- **conteggio su fallimento** per login, `password-reset/confirm` e `otp/verify`, cosi i success path non consumano tentativi
+- **conteggio su ogni richiesta valida** per `password-reset/request`, `otp/send`, `register` e `google staff start`, perche il rischio principale e l'abuso/spam del flusso stesso
+- in `test` le finestre dei limiter scendono a `1 secondo`; per `login`, `register` e `google staff start` alcune soglie sono ridotte solo in ambiente test per rendere deterministico il reset senza attendere minuti o un'ora reali
+- `TestTenantFixture` pulisce `cache.rate_limiter` tra i test per evitare contaminazione fra casi distinti
+
+### Verifiche reali
+
+Cache clear eseguito realmente prima dei test:
+
+```bash
+docker compose exec php php bin/console cache:clear
+docker compose exec -T php env APP_ENV=test php bin/console cache:clear
+```
+
+Suite mirata auth:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --filter "AuthRateLimitingTest|PwaClientOtpEndpointTest" --testdox
+```
+
+Risultato reale:
+
+- **19/19 test verdi**
+- **Assertions: 117**
+- **PHPUnit Deprecations: 3**
+
+Suite completa obbligatoria:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Risultato reale:
+
+- **131/131 test verdi**
+- **Assertions: 1132**
+- **PHPUnit Deprecations: 3**
+
+### Note operative
+
+- `config/reference.php` cambia automaticamente con l'abilitazione del componente `rate_limiter` e ora riflette `enabled: true`
+- nessun file sotto `apps/web/src/app/api/webhooks/meta-whatsapp`, `apps/web/src/lib/messaging` o Inbox AI e stato toccato
+
+---
+
 ## RIEPILOGO SESSIONE NOTTURNA — 2026-07-22
 
 ### Completato e verificato con certezza
