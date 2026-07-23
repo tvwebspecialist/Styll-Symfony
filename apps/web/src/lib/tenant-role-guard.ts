@@ -81,18 +81,7 @@ export async function getTenantRoleContext(
   const tenantId = explicitTenantId ?? (await getActiveTenantId())
   if (!tenantId) return null
 
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('slug')
-    .eq('id', tenantId)
-    .maybeSingle()
-
-  if (!tenant?.slug) {
-    return null
-  }
-
-  const me = await getOptionalSymfonyStaffMe(tenant.slug)
+  const me = await getOptionalSymfonyStaffMe()
   if (!me) {
     return null
   }
@@ -105,23 +94,19 @@ export async function getTenantRoleContext(
       tenantId,
       userId: me.user.id,
       role: membership.role as TenantRole,
-      db,
+      db: createAdminClient(),
     }
   }
 
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', me.user.id)
-    .maybeSingle()
-
-  if (!profile?.is_superadmin) return null
+  if (!me.user.roles.includes('ROLE_SUPERADMIN')) {
+    return null
+  }
 
   return {
     tenantId,
     userId: me.user.id,
     role: 'superadmin',
-    db,
+    db: createAdminClient(),
   }
 }
 

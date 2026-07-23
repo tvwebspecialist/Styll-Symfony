@@ -2645,6 +2645,245 @@ Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
 
 ---
 
+## FASE E — Audit stato reale core sessione/tenant frontend — 2026-07-23
+
+**Branch:** `feat/symfony-core-routing-migration`
+
+### Obiettivo
+
+Determinare lo stato esatto attuale dei file frontend piu centrali ancora coinvolti nella risoluzione di sessione staff, tenant attivo e ruolo, prima di qualsiasi modifica runtime:
+
+- `apps/web/src/lib/tenant-role-guard.ts`
+- `apps/web/src/lib/tenant-context.ts`
+- `apps/web/src/lib/proxy-auth-guard.ts`
+- `apps/web/src/proxy.ts`
+
+### Audit reale eseguito
+
+Lettura riga per riga dei quattro file e dei primitive Symfony gia introdotti nelle sessioni precedenti:
+
+- `apps/web/src/lib/symfony/staff-context.ts`
+- `apps/web/src/lib/symfony/staff-client.ts`
+
+Conclusione generale dell audit:
+
+- **nessuno dei 4 file usa piu `supabase.auth`**
+- la **fonte di verita primaria dell identita staff** e gia il JWT Symfony `styll_symfony_staff_jwt` + `/api/me`
+- i 4 file **non sono pero ancora tutti completamente Symfony-only**
+- restano dipendenze ibride su:
+  - query Supabase admin necessarie a slug, shadow mode e lookup owner/superadmin
+  - euristiche cookie legacy in `proxy-auth-guard.ts`
+  - commenti/documentazione interna non piu allineati in `proxy.ts`
+
+### Stato esatto file per file
+
+#### `apps/web/src/lib/tenant-role-guard.ts`
+
+Stato reale:
+
+- **non usa `supabase.auth`**
+- usa gia `getOptionalSymfonyStaffMe()` e `listSymfonyStaffMemberships()`
+- **non e completamente Symfony-only**
+
+Dettaglio:
+
+- `getTenantRoleContext()` risolve `tenantId` tramite `getActiveTenantId()`
+- poi interroga Supabase admin `tenants.slug` per poter chiamare `getOptionalSymfonyStaffMe(tenant.slug)`
+- il ruolo tenant viene letto dalle membership Symfony
+- se manca una membership, il fallback superadmin dipende ancora da query Supabase admin su `profiles.is_superadmin`
+- il contesto esportato include ancora `db: ReturnType<typeof createAdminClient>`
+
+Valutazione:
+
+- **sessione:** Symfony
+- **tenant/role resolution:** ibrida Symfony + Supabase admin
+
+#### `apps/web/src/lib/tenant-context.ts`
+
+Stato reale:
+
+- **non usa `supabase.auth`**
+- usa gia `getOptionalSymfonyStaffMe()` e `listSymfonyStaffMemberships()`
+- **non e completamente Symfony-only**
+
+Dettaglio:
+
+- `getStaffImpersonationState()` autentica il caller via Symfony, ma valida il target impersonato con query Supabase admin su `staff_members`
+- `getValidatedImpersonationStateForUser()` dipende da `getValidatedAdminShadowContext()` e quindi dal cookie shadow admin + query Supabase admin
+- `getActiveTenantId()` usa Symfony come sorgente primaria del tenant corrente, ma mantiene il fallback shadow mode via Supabase admin
+- `resolveActiveProfile()` e `resolveActiveProfileForTenant()` usano ancora query Supabase admin per trovare l owner del tenant (`staff_members.profile_id`)
+- `resolveActiveProfileForTenant()` legge anche `tenants.slug` via Supabase admin prima di interrogare `/api/me`
+
+Valutazione:
+
+- **sessione:** Symfony
+- **tenant context / impersonation / owner profile resolution:** ibrida Symfony + Supabase admin
+
+#### `apps/web/src/lib/proxy-auth-guard.ts`
+
+Stato reale:
+
+- **non usa `supabase.auth`**
+- **non usa direttamente `/api/me` o `getOptionalSymfonyStaffMe()`**
+- **resta ibrido per compatibilita cookie**
+
+Dettaglio:
+
+- il guard non legge l utente direttamente: riceve `getUser()` da `proxy.ts`
+- riconosce correttamente il cookie Symfony `styll_symfony_staff_jwt`
+- mantiene pero anche `SUPABASE_AUTH_COOKIE_NAME = /^sb-.*-auth-token...$/`
+- `hasPlausibleStaffSessionCookie()` considera valida sia una sessione plausibile Supabase sia una plausibile Symfony
+
+Valutazione:
+
+- **identity check reale:** delegato a `proxy.ts`, oggi Symfony
+- **bootstrap/redirect heuristics:** ancora ibride per compatibilita con cookie Supabase legacy
+
+#### `apps/web/src/proxy.ts`
+
+Stato reale:
+
+- **non usa `supabase.auth`**
+- usa gia `getOptionalSymfonyStaffMeFromRequest()` come sorgente dell utente staff nel middleware
+- **non e ancora completamente Symfony-only**
+
+Dettaglio:
+
+- `getUser()` passato a `applyProxyAuthGuards()` deriva da `getOptionalSymfonyStaffMeFromRequest()`
+- `getOnboardingCompleted()` e `getActiveStaffTenantIds()` derivano anch essi da `/api/me`
+- `getTenantSlug()` prova prima le membership Symfony, ma mantiene fallback Supabase admin su `tenants.slug`
+- `getValidatedShadowTenantId()` usa ancora `getValidatedAdminShadowContext()` e quindi Supabase admin
+- `getIsSuperadmin()` usa ancora query Supabase admin su `profiles.is_superadmin`
+- il blocco `BOOKING_SUCCESS_PATH` usa Supabase admin per validare tenant e appointment token; questo non e auth staff, ma resta una dipendenza runtime separata
+- e presente ancora il commento obsoleto `carrying over Supabase session cookies`, mentre il codice copia genericamente i cookie della response
+
+Valutazione:
+
+- **staff auth middleware:** Symfony
+- **shadow mode / superadmin / fallback tenant slug:** ibrido Symfony + Supabase admin
+- **commenti interni:** parzialmente non allineati
+
+### Correzione dello stato dichiarato nelle note precedenti
+
+Le sessioni precedenti avevano gia migrato la **fonte primaria di sessione staff** dal middleware e dai resolver core verso Symfony, ma alcune note in questo log risultano oggi **troppo ottimistiche** se lette come "migrazione completa".
+
+La formulazione corretta al 23 luglio 2026 e:
+
+- la dipendenza da `supabase.auth` in questi 4 file e stata rimossa
+- la sessione staff e gia letta da Symfony
+- la migrazione a **Symfony come unica fonte di verita per sessione/tenant/ruolo** non e ancora completa perche restano lookup e guardie accessorie ancora appoggiate a Supabase admin
+
+### Implicazione operativa per la fase successiva
+
+Ordine prudente di migrazione confermato per la fase incrementale:
+
+1. `apps/web/src/lib/tenant-role-guard.ts`
+2. `apps/web/src/lib/tenant-context.ts`
+3. `apps/web/src/lib/proxy-auth-guard.ts`
+4. `apps/web/src/proxy.ts`
+
+Nessuna modifica runtime e stata ancora applicata in questa fase di audit.
+
+### Verifiche baseline prima della Fase 2
+
+Verifiche reali eseguite prima di toccare i 4 file in scope:
+
+- `POST http://127.0.0.1:8080/api/login`
+  - credenziali: `owner@barbiere-di-prova.local` / `Owner-Bridge-2026!`
+  - esito reale: **200**
+  - il backend Symfony restituisce un JWT valido
+- `POST http://localhost:3000/api/auth/staff/login`
+  - esito reale: **200**
+  - il route handler Next salva davvero il cookie `styll_symfony_staff_jwt`
+- `GET http://localhost:3000/login` con quel cookie
+  - esito reale: **307**
+  - `Location: http://barbiere-di-prova-dashboard.localhost:3000/`
+
+Baseline problem trovato prima di ogni migrazione dei 4 file:
+
+- `GET http://localhost:3000/?_tenant_slug=barbiere-di-prova&_tenant_type=landing`
+  - esito reale: **404**
+  - `x-middleware-rewrite: /tenant/landing/barbiere-di-prova`
+- `GET http://localhost:3000/tenant/landing/barbiere-di-prova`
+  - esito reale: **404**
+  - il body HTML contiene comunque il contenuto della landing del tenant `barbiere-di-prova`
+
+Causa probabile del baseline issue:
+
+- `apps/web/src/app/tenant/landing/[slug]/page.tsx` legge gia i contenuti da Symfony (`getLandingDataSymfony(slug)`)
+- ma `apps/web/src/app/tenant/landing/[slug]/layout.tsx` continua a dipendere da `getTenantBySlug(slug)` in `apps/web/src/lib/tenant.ts`
+- `apps/web/src/lib/tenant.ts` interroga ancora Supabase admin come source of truth per metadata/branding
+- nel runtime locale attuale questo lookup va in `notFound()`, producendo `404`, mentre il body della pagina continua a renderizzare i dati Symfony
+
+Impatto sul protocollo della Fase 2:
+
+- i check affidabili gia disponibili per ogni step sono:
+  - login Symfony reale
+  - redirect root -> dashboard con cookie Symfony reale
+- il check "landing 200" non e oggi un baseline verde dei 4 file in scope; va quindi trattato come **bloccante preesistente fuori scope immediato**, da non peggiorare durante la migrazione
+
+---
+
+## FASE F — Tentativo 1 su `tenant-role-guard.ts` — 2026-07-23
+
+### Delta applicato
+
+File modificati nel working tree:
+
+- `apps/web/src/lib/tenant-role-guard.ts`
+- `apps/web/tests/unit/inbox-queries.test.mjs`
+
+Scelta implementativa:
+
+- rimosso il lookup Supabase admin di `tenants.slug`
+- rimosso il lookup Supabase admin di `profiles.is_superadmin`
+- il ruolo tenant viene ora risolto solo da:
+  - `getActiveTenantId()`
+  - `getOptionalSymfonyStaffMe()`
+  - `listSymfonyStaffMemberships(me)`
+  - `me.user.roles.includes('ROLE_SUPERADMIN')`
+- `ctx.db` resta intenzionalmente invariato per le action dati che dipendono ancora da Supabase admin, per non allargare lo scope oltre sessione/tenant/role
+
+### Verifiche reali post-modifica
+
+- `POST http://127.0.0.1:8080/api/login`
+  - esito reale: **200**
+- `POST http://localhost:3000/api/auth/staff/login`
+  - esito reale: **200**
+- `GET http://localhost:3000/login` con cookie `styll_symfony_staff_jwt`
+  - esito reale: **307**
+  - `Location: http://barbiere-di-prova-dashboard.localhost:3000/`
+- test mirato:
+
+```bash
+pnpm --filter web exec node --experimental-strip-types --test tests/unit/inbox-queries.test.mjs
+```
+
+Risultato reale:
+
+- **23/23 test verdi**
+
+### Gate bloccante rimasto attivo
+
+- `GET http://localhost:3000/?_tenant_slug=barbiere-di-prova&_tenant_type=landing`
+  - esito reale: **404**
+  - `x-middleware-rewrite: /tenant/landing/barbiere-di-prova`
+
+Valutazione:
+
+- il `404` della landing **non e stato introdotto da questo delta**
+- il problema resta quello gia emerso in baseline:
+  - `tenant/landing/[slug]/layout.tsx` usa ancora `getTenantBySlug()` basato su Supabase admin
+  - il contenuto landing arriva invece da Symfony e continua a renderizzare nel body
+
+### Decisione operativa
+
+- **nessun commit creato in questa fase**
+- **non si passa al file successivo**
+- motivo: il protocollo utente richiede i 3 check verdi prima del commit atomico del singolo file, ma il gate "landing 200" e al momento bloccato da un difetto preesistente fuori dai 4 file richiesti
+
+---
+
 ## FASE D — Hardening auth con Symfony rate limiter — 2026-07-23
 
 **Branch:** `feat/symfony-rate-limiting`
