@@ -3632,3 +3632,101 @@ docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:vali
 | `GET /api/clients/{id}/reward-redemptions` | ✅ | paginato, DESC, con reward name |
 | Scrittura punti / riscatto | ❌ | prossimo blocco — richiede Appointment CRUD write |
 | `GET /api/loyalty/top-clients` | ❌ | non prioritario, da aggiungere |
+
+---
+
+## FASE 2a — Appointment CRUD write — 2026-07-23
+
+### Obiettivo
+
+Implementare le operazioni di scrittura sull'entità `Appointment` con tutte le garanzie di integrità del DB gestite correttamente a livello applicativo. Nessun 500 generico su conflitti attesi.
+
+### Endpoint implementati
+
+| Metodo | Route | Controller | Note |
+|---|---|---|---|
+| `POST` | `/api/appointments` | `AppointmentCreateController` | Crea appuntamento + snapshot prezzi servizi |
+| `PATCH` | `/api/appointments/{id}` | `AppointmentUpdateController` | Aggiorna campi non-status con optimistic lock |
+| `PATCH` | `/api/appointments/{id}/status` | `AppointmentStatusController` | Cambio stato con state machine + evento |
+| `DELETE` | `/api/appointments/{id}` | `AppointmentDeleteController` | Soft delete (`deleted_at`) |
+
+### Matrice transizioni di stato
+
+```
+pending   → confirmed, cancelled
+confirmed → completed, cancelled, no_show
+completed → cancelled  (correzione amministrativa)
+no_show   → confirmed, cancelled
+cancelled → (nessuna — stato terminale)
+```
+
+### Gestione conflitti (409 invece di 500)
+
+**Overlap staff (23P01)**: Il DB ha `EXCLUDE USING gist (staff_id WITH =, tstzrange(start_time, end_time) WITH &&)`. L'eccezione DBAL risultante è una `DriverException` generica (23P01 non è mappato nell'ExceptionConverter PostgreSQL di Doctrine). Il controller ispeziona la catena di cause con `getPrevious()` cercando `no_overlapping_appointments`, `exclusion_violation`, `23P01` nel messaggio. → 409 `OVERLAP_CONFLICT`.
+
+**Optimistic lock version mismatch**: Il campo `version` su `Appointment` ha `#[ORM\Version]`. Il DB ha anche un trigger BEFORE UPDATE che fa `NEW.version = OLD.version + 1` — entrambi concordano perché: Doctrine fa `SET version = N+1 WHERE version = N`, il trigger vede `OLD.version = N` e imposta `NEW.version = N+1`. Nessun conflitto. Se il client manda una versione stale, `$em->lock($entity, LockMode::OPTIMISTIC, $clientVersion)` fa un check in-memory e lancia `OptimisticLockException` immediatamente. → 409 `OPTIMISTIC_LOCK_CONFLICT`.
+
+### Extension point — AppointmentStatusChangedEvent
+
+`src/Event/AppointmentStatusChangedEvent.php` è un evento readonly che viene dispatchiato da `AppointmentStatusController` ad ogni transizione di stato riuscita. Nessun listener registrato in questa fase. I listener per loyalty, notifiche e inventario verranno collegati nelle fasi successive.
+
+```php
+final readonly class AppointmentStatusChangedEvent {
+    public string $appointmentId;
+    public string $tenantId;
+    public string $previousStatus;
+    public string $newStatus;
+    public \DateTimeImmutable $occurredAt;
+}
+```
+
+### Snapshot prezzi servizi
+
+`POST /api/appointments` con `serviceIds[]` crea righe `appointment_services` con `price_at_booking = service.price` al momento del booking. Il prezzo è immutabile dopo la creazione (invariante del DB: `price_at_booking NOT NULL`). I servizi non sono modificabili via PATCH (update cambia solo startTime/endTime, staffId, locationId, notes).
+
+### Soft delete
+
+`DELETE /api/appointments/{id}` imposta `deleted_at = now()`. `AppointmentSoftDeleteExtension` filtra i soft-deleted da `GET /api/appointments` e `GET /api/appointments/{id}` tramite API Platform.
+
+### Refresh collection post-flush
+
+Dopo `persist(AppointmentService)` + `flush()`, la collection `appointmentServices` sull'`Appointment` non viene aggiornata automaticamente (Doctrine lazy loading). Si usa `$em->refresh($appointment)` per forzare il reload da DB prima di serializzare la risposta del POST.
+
+### Fixture aggiunta
+
+`TestTenantFixture::seedTwoTenantsWithBookingData()` — costruisce su `seedTwoTenantsWithCalendarData()` aggiungendo `clientBCross` (client di Tenant B) per i test di isolamento cross-tenant nel CRUD write.
+
+### Verifiche eseguite
+
+```bash
+php bin/phpunit tests/Functional/AppointmentWriteTest.php --testdox
+# Tests: 25, Assertions: 157 — TUTTI VERDI
+
+php bin/phpunit --no-coverage
+# Tests: 221, Assertions: 1862 — TUTTI VERDI (nessuna regressione)
+
+php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+### Decisioni architetturali
+
+- **4 controller separati**: pattern coerente con Loyalty controllers (un file per endpoint). Duplicazione dei metodi privati (`isOverlapViolation`, `serializeAppointment`) accettata — nessuna astrazione prematura.
+- **No `bookingConfirmationToken` nei POST dashboard**: il token di conferma serve al flusso PWA guest. Gli appuntamenti da dashboard non lo richiedono.
+- **`status` limitato a `pending`/`confirmed` nella creazione**: un appuntamento non può nascere `completed`, `cancelled` o `no_show`.
+- **`notes` nel PATCH /status**: permette di aggiungere note contestuali al cambio di stato (es. "cancellato per maltempo") senza richiedere un secondo PATCH.
+- **`version` obbligatorio nel PATCH generale** (non nel PATCH /status): il cambio di stato è idempotente e non comporta modifiche a campi "fisici" — non richiede version check. Le modifiche a startTime/endTime/staff/notes sono più pericolose da sovrascrivere.
+
+### Gap residui Area 4 dopo questa fase
+
+| Feature | Stato | Note |
+|---|---|---|
+| `POST /api/appointments` | ✅ | Con service snapshot |
+| `PATCH /api/appointments/{id}` | ✅ | Optimistic lock + overlap |
+| `PATCH /api/appointments/{id}/status` | ✅ | State machine + evento |
+| `DELETE /api/appointments/{id}` | ✅ | Soft delete |
+| Aggiornamento servizi prenotati | ❌ | Fuori scope 2a — delete+re-add complesso |
+| Assegnazione punti loyalty (on completed) | ❌ | Listener `AppointmentStatusChangedEvent` — prossima fase |
+| Notifiche (Mercure/email on status change) | ❌ | Listener — prossima fase |
+| Vendita prodotti in appuntamento | ❌ | `appointment_products` — trigger inventario già in DB |
+| Pagamenti | ❌ | Fuori scope progetto attuale |

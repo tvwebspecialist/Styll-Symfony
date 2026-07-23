@@ -394,6 +394,49 @@ final class TestTenantFixture
     }
 
     /**
+     * Seeds two tenants for Fase 2a appointment write tests.
+     *
+     * Builds on seedTwoTenantsWithCalendarData() and adds clientBCross to the returned array
+     * so cross-tenant create/update/delete tests can reference a client from Tenant B.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     * }
+     */
+    public function seedTwoTenantsWithBookingData(): array
+    {
+        $base = $this->seedTwoTenantsWithCalendarData();
+
+        // Retrieve a client from Tenant B for cross-tenant tests
+        /** @var Client $clientBCross */
+        $clientBCross = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $base['tenantB'])
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        return [
+            'tenantA'      => $base['tenantA'],
+            'tenantB'      => $base['tenantB'],
+            'staffA'       => $base['staffA'],
+            'staffB'       => $base['staffB'],
+            'locationA'    => $base['locationA'],
+            'serviceA'     => $base['serviceA'],
+            'clientA'      => $base['clientA'],
+            'clientBCross' => $clientBCross,
+            'appointmentA' => $base['appointmentA'],
+            'appointmentB' => $base['appointmentB'],
+        ];
+    }
+
+    /**
      * Seeds two tenants with calendar data for Fase 1b tests.
      *
      * Returns data needed for appointment and availability tests:
