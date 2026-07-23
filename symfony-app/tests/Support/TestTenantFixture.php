@@ -394,6 +394,95 @@ final class TestTenantFixture
     }
 
     /**
+     * Seeds two tenants for Fase 2c catalog write tests.
+     *
+     * Builds on seedTwoTenantsWithBookingData() and adds:
+     *   - serviceCategoryA: "Taglio" category for tenantA
+     *   - serviceB: second service for tenantA (for delete/update tests)
+     *   - productA: active product (price_sell=12.00) for tenantA
+     *   - productInactive: inactive product for tenantA (testing 422 on appointment products)
+     *   - productB: active product for tenantB (cross-tenant isolation)
+     *   - inventoryA: productA at locationA, quantity=10, threshold=5
+     *
+     * appointmentA (from booking data) is status=confirmed at locationA — ready for product add.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     *   serviceCategoryA: ServiceCategory,
+     *   serviceB: Service,
+     *   productA: Product, productInactive: Product, productB: Product,
+     *   inventoryA: ProductInventory,
+     * }
+     */
+    public function seedTwoTenantsWithCatalogData(): array
+    {
+        $base = $this->seedTwoTenantsWithBookingData();
+
+        $serviceCategoryA = (new ServiceCategory())
+            ->setTenant($base['tenantA'])
+            ->setName('Taglio')
+            ->setDisplayOrder(0);
+
+        $serviceB = (new Service())
+            ->setTenant($base['tenantA'])
+            ->setName('Barba')
+            ->setPrice('15.00')
+            ->setDurationMinutes(20)
+            ->setDisplayOrder(10)
+            ->setIsActive(true);
+
+        $productA = (new Product())
+            ->setTenant($base['tenantA'])
+            ->setName('Gel capelli')
+            ->setPriceSell('12.00')
+            ->setPriceCost('4.00')
+            ->setSku('GEL-001')
+            ->setDisplayOrder(0)
+            ->setIsActive(true)
+            ->setIsNew(false);
+
+        $productInactive = (new Product())
+            ->setTenant($base['tenantA'])
+            ->setName('Prodotto dismesso')
+            ->setPriceSell('5.00')
+            ->setDisplayOrder(99)
+            ->setIsActive(false);
+
+        $productB = (new Product())
+            ->setTenant($base['tenantB'])
+            ->setName('Prodotto Tenant B')
+            ->setPriceSell('20.00')
+            ->setDisplayOrder(0)
+            ->setIsActive(true);
+
+        $inventoryA = (new ProductInventory())
+            ->setTenant($base['tenantA'])
+            ->setProduct($productA)
+            ->setLocation($base['locationA'])
+            ->setQuantity(10)
+            ->setLowStockThreshold(5);
+
+        foreach ([$serviceCategoryA, $serviceB, $productA, $productInactive, $productB, $inventoryA] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+
+        return [
+            ...$base,
+            'serviceCategoryA' => $serviceCategoryA,
+            'serviceB'         => $serviceB,
+            'productA'         => $productA,
+            'productInactive'  => $productInactive,
+            'productB'         => $productB,
+            'inventoryA'       => $inventoryA,
+        ];
+    }
+
+    /**
      * Seeds two tenants for Fase 2a appointment write tests.
      *
      * Builds on seedTwoTenantsWithCalendarData() and adds clientBCross to the returned array
@@ -589,6 +678,68 @@ final class TestTenantFixture
             'clientA'       => $clientA,
             'appointmentA'  => $appointmentA,
             'appointmentB'  => $appointmentB,
+        ];
+    }
+
+    /**
+     * Seeds two tenants for Fase 2b Loyalty WRITE tests.
+     *
+     * Builds on seedTwoTenantsWithBookingData() and adds:
+     *   - loyaltyConfigA: active, classic template, 100 pts/visit
+     *   - rewardA1: 50 pts cost (cheap — usable immediately after 1 visit)
+     *   - rewardA2: 1000 pts cost (expensive — for "insufficient" tests)
+     *
+     * clientA starts with NO ClientLoyalty (created by listener on first completion).
+     * appointmentA is status=confirmed, owned by clientA+staffA — ready to be completed.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     *   loyaltyConfigA: LoyaltyConfig,
+     *   rewardA1: Reward, rewardA2: Reward,
+     * }
+     */
+    public function seedTwoTenantsWithLoyaltyWriteData(): array
+    {
+        $base = $this->seedTwoTenantsWithBookingData();
+
+        $loyaltyConfigA = (new LoyaltyConfig())
+            ->setTenant($base['tenantA'])
+            ->setTemplate(LoyaltyConfig::TEMPLATE_CLASSIC)
+            ->setIsActive(true)
+            ->setPointsPerVisit(100)
+            ->setStreakThresholdDays(45)
+            ->setVersion(1);
+
+        $rewardA1 = (new Reward())
+            ->setTenant($base['tenantA'])
+            ->setName('Prodotto gratis')
+            ->setPointsCost(50)
+            ->setRewardType(Reward::TYPE_PRODUCT)
+            ->setIsActive(true)
+            ->setDisplayOrder(1);
+
+        $rewardA2 = (new Reward())
+            ->setTenant($base['tenantA'])
+            ->setName('Sconto VIP')
+            ->setPointsCost(1000)
+            ->setRewardType(Reward::TYPE_DISCOUNT)
+            ->setIsActive(true)
+            ->setDisplayOrder(2);
+
+        $this->em->persist($loyaltyConfigA);
+        $this->em->persist($rewardA1);
+        $this->em->persist($rewardA2);
+        $this->em->flush();
+
+        return [
+            ...$base,
+            'loyaltyConfigA' => $loyaltyConfigA,
+            'rewardA1'       => $rewardA1,
+            'rewardA2'       => $rewardA2,
         ];
     }
 
