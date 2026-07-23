@@ -3483,3 +3483,250 @@ docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:vali
 | `AppointmentService.applied_promotion_id` | ❌ mancante | Presente in TS (`promotion_title`), non mappato in Symfony |
 | N+1 lazy load relations (GET collection) | ⚠️ noto | Accettabile per range date limitato; EagerLoadingExtension non applicabile con getter virtuali |
 | Frontend wiring | ❌ non fatto | `apps/web/src/lib/actions/calendario.ts` legge ancora Supabase |
+
+---
+
+## FASE — Loyalty read-only (Area 7) — 2026-07-23
+
+**Branch:** `dev`
+
+### Obiettivo
+
+Implementare il layer read-only della Loyalty Symfony (Fase 1c). Solo lettura: nessuna scrittura su `loyalty_configs`, `rewards`, `client_loyalty`, `loyalty_transactions`, `reward_redemptions`. La scrittura (assegnazione punti, riscatto) è un blocco successivo che dipende dal completamento dell'Appointment CRUD in scrittura.
+
+---
+
+### Entità Doctrine utilizzate
+
+Tutte le entità erano già presenti (create in sessioni precedenti, fuori dal pilot CRM/Calendar):
+
+| Entità | Tabella | Note |
+|---|---|---|
+| `LoyaltyConfig` | `loyalty_configs` | template, points_per_visit/euro, streak_threshold_days, version, started_at/ended_at |
+| `Reward` | `rewards` | catalogo premi (max 6 applicativo), is_active, display_order |
+| `ClientLoyalty` | `client_loyalty` | stato aggregato per cliente: punti totali/disponibili, streak, tier |
+| `LoyaltyTransaction` | `loyalty_transactions` | log immutabile (earn/redeem/bonus/import/expire/adjustment) |
+| `RewardRedemption` | `reward_redemptions` | riscatti effettuati, confirmed_at nullable |
+| **NON toccate** | `tier_configs`, `badges`, `client_badges` | gamification v2 — fuori scope Fase 1c |
+
+Nessuna modifica alle entity class — nessuna migration necessaria.
+
+---
+
+### Endpoint implementati (tutti custom controller, nessun ApiResource)
+
+#### `GET /api/loyalty-config`
+
+- Restituisce la configurazione loyalty attiva del tenant corrente (`ended_at IS NULL`)
+- TenantFilter Doctrine auto-applica la restrizione tenant_id
+- **404** se il tenant non ha ancora configurato la loyalty
+- Risposta: `{ id, template, isActive, pointsPerVisit, pointsPerEuro, streakThresholdDays, version, startedAt }`
+
+#### `GET /api/rewards`
+
+- Restituisce il catalogo rewards attivi del tenant (`is_active = true`), ordinato per `display_order ASC`
+- TenantFilter auto-applica — Tenant B senza rewards ottiene `[]` (non leak cross-tenant)
+- Risposta: array di `{ id, name, description, pointsCost, rewardType, displayOrder, isActive }`
+
+#### `GET /api/clients/{id}/loyalty`
+
+- Restituisce lo stato loyalty del cliente specificato
+- Guard 1: cliente deve appartenere al tenant corrente (TenantFilter + `deletedAt IS NULL`) → **404** se non trovato
+- Guard 2: cliente deve avere un record `client_loyalty` → **404** se non iscritto
+- **Convenzione "non iscritto" → 404**: coerente con la semantica REST — il sub-resource `/clients/{id}/loyalty` non esiste finché il cliente non guadagna i primi punti. Il frontend mostra "no loyalty data" su 404. Documentato nel contract.
+- Risposta: `{ id, clientId, totalPoints, availablePoints, currentStreak, longestStreak, currentTier, tierPointsThisYear, tierYear, tierGraceExpiresAt, lastVisitDate, updatedAt }`
+
+#### `GET /api/clients/{id}/loyalty-transactions`
+
+- Storico transazioni punti del cliente, ordinato per `created_at DESC`, paginato
+- Parametri: `?page=1` (default 1), `?limit=20` (default 20, max 100)
+- Guard cross-tenant: stessa logica client → 404
+- Risposta: `{ items: [{ id, type, points, description, createdAt }], total, page, limit }`
+
+#### `GET /api/clients/{id}/reward-redemptions`
+
+- Storico riscatti del cliente, ordinato per `created_at DESC`, paginato
+- JOIN eager con `Reward` per esporre `rewardName` e `rewardId` senza N+1
+- Guard cross-tenant: stessa logica client → 404
+- Risposta: `{ items: [{ id, rewardId, rewardName, pointsSpent, confirmedAt, createdAt }], total, page, limit }`
+
+---
+
+### File creati
+
+- `src/Controller/LoyaltyConfigController.php`
+- `src/Controller/RewardsController.php`
+- `src/Controller/ClientLoyaltyController.php`
+- `src/Controller/ClientLoyaltyTransactionsController.php`
+- `src/Controller/ClientRewardRedemptionsController.php`
+- `tests/Functional/LoyaltyEndpointTest.php` — 17 test funzionali
+
+**Modificato:**
+- `tests/Support/TestTenantFixture.php` — aggiunto `seedTwoTenantsWithLoyaltyData()`
+
+**Nessuna migration** — entità già esistenti, nessun cambio schema.
+
+---
+
+### Fixture di test (`seedTwoTenantsWithLoyaltyData`)
+
+| Dato | Tenant | Valore |
+|---|---|---|
+| `loyaltyConfigA` | A | classic, 100 pts/visita, active |
+| `rewardA1` | A | 500 pts, product |
+| `rewardA2` | A | 1000 pts, discount |
+| `clientA` | A | iscritto: 200 total / 150 available / streak 3 |
+| `clientAUnenrolled` | A | secondo client, NON iscritto (no ClientLoyalty) |
+| `transactionA` | A | earn +200 pts per clientA |
+| `redemptionA` | A | 50 pts spesi su rewardA1, confirmed |
+| Tenant B | B | nessun dato loyalty (per test 404 e isolation) |
+| `clientBCross` | B | primo client di B — usato per test cross-tenant → 404 |
+
+---
+
+### Verifiche eseguite
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox --filter LoyaltyEndpointTest
+# Tests: 17, Assertions: 127 — TUTTI VERDI
+
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+# Tests: 196, Assertions: 1705 — TUTTI VERDI (nessuna regressione)
+
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+---
+
+### Decisioni architetturali
+
+- **Custom controller per tutti gli endpoint**: le route loyalty non si prestano all'ApiResource dichiarativo (config = single object, rest nested under `/clients/{id}/...`). Custom controllers con DQL esplicito è lo stesso pattern del CalendarioSlotsController.
+- **Nessuna modifica alle entity** (nessun `#[Groups]` aggiunto): i controller serializzano manualmente con `$this->json([...])`, evitando di toccare entità già esistenti e rischi di regressione.
+- **TenantFilter auto-applicato a tutti i DQL**: il Doctrine SQL filter è attivo sull'EntityManager per tutta la durata della request autenticata — nessuna clausola `tenant_id` manuale necessaria nei DQL dei controller.
+- **Isolation Tenant B**: Tenant B non ha dati loyalty nel fixture. Questo permette di testare sia il 404 reale (no config/no rewards) sia l'isolamento (Tenant A non vede dati di Tenant B e viceversa) in modo semplice e senza stato condiviso tra tenant.
+
+---
+
+### Gap residui Area 7
+
+| Feature | Stato | Note |
+|---|---|---|
+| `TierConfig`, `Badge`, `ClientBadge` | ❌ non esposti | Gamification v2 — fuori scope Fase 1c |
+| Scrittura punti (earn on appointment completion) | ❌ non implementata | Dipende dall'Appointment CRUD write (prossimo blocco) |
+| Riscatto reward da staff (barberRedeemForClient) | ❌ non implementata | Stesso prerequisito |
+| Riscatto reward da cliente PWA (requestRewardRedemption) | ❌ non implementata | Richiede context PWA client JWT |
+| Assegnazione punti manuale (addManualPoints) | ❌ non implementata | Future fase write |
+| Frontend wiring | ❌ non fatto | `apps/web/src/lib/actions/loyalty.ts` legge ancora Supabase |
+
+---
+
+### Stato migrazione Loyalty dopo questa fase
+
+| Endpoint | Symfony | Note |
+|---|---|---|
+| `GET /api/loyalty-config` | ✅ | config attiva, 404 se nessuna |
+| `GET /api/rewards` | ✅ | solo attivi, ordinati, tenant-isolated |
+| `GET /api/clients/{id}/loyalty` | ✅ | 404 se non iscritto (documentato) |
+| `GET /api/clients/{id}/loyalty-transactions` | ✅ | paginato, DESC |
+| `GET /api/clients/{id}/reward-redemptions` | ✅ | paginato, DESC, con reward name |
+| Scrittura punti / riscatto | ❌ | prossimo blocco — richiede Appointment CRUD write |
+| `GET /api/loyalty/top-clients` | ❌ | non prioritario, da aggiungere |
+
+---
+
+## FASE 2a — Appointment CRUD write — 2026-07-23
+
+### Obiettivo
+
+Implementare le operazioni di scrittura sull'entità `Appointment` con tutte le garanzie di integrità del DB gestite correttamente a livello applicativo. Nessun 500 generico su conflitti attesi.
+
+### Endpoint implementati
+
+| Metodo | Route | Controller | Note |
+|---|---|---|---|
+| `POST` | `/api/appointments` | `AppointmentCreateController` | Crea appuntamento + snapshot prezzi servizi |
+| `PATCH` | `/api/appointments/{id}` | `AppointmentUpdateController` | Aggiorna campi non-status con optimistic lock |
+| `PATCH` | `/api/appointments/{id}/status` | `AppointmentStatusController` | Cambio stato con state machine + evento |
+| `DELETE` | `/api/appointments/{id}` | `AppointmentDeleteController` | Soft delete (`deleted_at`) |
+
+### Matrice transizioni di stato
+
+```
+pending   → confirmed, cancelled
+confirmed → completed, cancelled, no_show
+completed → cancelled  (correzione amministrativa)
+no_show   → confirmed, cancelled
+cancelled → (nessuna — stato terminale)
+```
+
+### Gestione conflitti (409 invece di 500)
+
+**Overlap staff (23P01)**: Il DB ha `EXCLUDE USING gist (staff_id WITH =, tstzrange(start_time, end_time) WITH &&)`. L'eccezione DBAL risultante è una `DriverException` generica (23P01 non è mappato nell'ExceptionConverter PostgreSQL di Doctrine). Il controller ispeziona la catena di cause con `getPrevious()` cercando `no_overlapping_appointments`, `exclusion_violation`, `23P01` nel messaggio. → 409 `OVERLAP_CONFLICT`.
+
+**Optimistic lock version mismatch**: Il campo `version` su `Appointment` ha `#[ORM\Version]`. Il DB ha anche un trigger BEFORE UPDATE che fa `NEW.version = OLD.version + 1` — entrambi concordano perché: Doctrine fa `SET version = N+1 WHERE version = N`, il trigger vede `OLD.version = N` e imposta `NEW.version = N+1`. Nessun conflitto. Se il client manda una versione stale, `$em->lock($entity, LockMode::OPTIMISTIC, $clientVersion)` fa un check in-memory e lancia `OptimisticLockException` immediatamente. → 409 `OPTIMISTIC_LOCK_CONFLICT`.
+
+### Extension point — AppointmentStatusChangedEvent
+
+`src/Event/AppointmentStatusChangedEvent.php` è un evento readonly che viene dispatchiato da `AppointmentStatusController` ad ogni transizione di stato riuscita. Nessun listener registrato in questa fase. I listener per loyalty, notifiche e inventario verranno collegati nelle fasi successive.
+
+```php
+final readonly class AppointmentStatusChangedEvent {
+    public string $appointmentId;
+    public string $tenantId;
+    public string $previousStatus;
+    public string $newStatus;
+    public \DateTimeImmutable $occurredAt;
+}
+```
+
+### Snapshot prezzi servizi
+
+`POST /api/appointments` con `serviceIds[]` crea righe `appointment_services` con `price_at_booking = service.price` al momento del booking. Il prezzo è immutabile dopo la creazione (invariante del DB: `price_at_booking NOT NULL`). I servizi non sono modificabili via PATCH (update cambia solo startTime/endTime, staffId, locationId, notes).
+
+### Soft delete
+
+`DELETE /api/appointments/{id}` imposta `deleted_at = now()`. `AppointmentSoftDeleteExtension` filtra i soft-deleted da `GET /api/appointments` e `GET /api/appointments/{id}` tramite API Platform.
+
+### Refresh collection post-flush
+
+Dopo `persist(AppointmentService)` + `flush()`, la collection `appointmentServices` sull'`Appointment` non viene aggiornata automaticamente (Doctrine lazy loading). Si usa `$em->refresh($appointment)` per forzare il reload da DB prima di serializzare la risposta del POST.
+
+### Fixture aggiunta
+
+`TestTenantFixture::seedTwoTenantsWithBookingData()` — costruisce su `seedTwoTenantsWithCalendarData()` aggiungendo `clientBCross` (client di Tenant B) per i test di isolamento cross-tenant nel CRUD write.
+
+### Verifiche eseguite
+
+```bash
+php bin/phpunit tests/Functional/AppointmentWriteTest.php --testdox
+# Tests: 25, Assertions: 157 — TUTTI VERDI
+
+php bin/phpunit --no-coverage
+# Tests: 221, Assertions: 1862 — TUTTI VERDI (nessuna regressione)
+
+php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+### Decisioni architetturali
+
+- **4 controller separati**: pattern coerente con Loyalty controllers (un file per endpoint). Duplicazione dei metodi privati (`isOverlapViolation`, `serializeAppointment`) accettata — nessuna astrazione prematura.
+- **No `bookingConfirmationToken` nei POST dashboard**: il token di conferma serve al flusso PWA guest. Gli appuntamenti da dashboard non lo richiedono.
+- **`status` limitato a `pending`/`confirmed` nella creazione**: un appuntamento non può nascere `completed`, `cancelled` o `no_show`.
+- **`notes` nel PATCH /status**: permette di aggiungere note contestuali al cambio di stato (es. "cancellato per maltempo") senza richiedere un secondo PATCH.
+- **`version` obbligatorio nel PATCH generale** (non nel PATCH /status): il cambio di stato è idempotente e non comporta modifiche a campi "fisici" — non richiede version check. Le modifiche a startTime/endTime/staff/notes sono più pericolose da sovrascrivere.
+
+### Gap residui Area 4 dopo questa fase
+
+| Feature | Stato | Note |
+|---|---|---|
+| `POST /api/appointments` | ✅ | Con service snapshot |
+| `PATCH /api/appointments/{id}` | ✅ | Optimistic lock + overlap |
+| `PATCH /api/appointments/{id}/status` | ✅ | State machine + evento |
+| `DELETE /api/appointments/{id}` | ✅ | Soft delete |
+| Aggiornamento servizi prenotati | ❌ | Fuori scope 2a — delete+re-add complesso |
+| Assegnazione punti loyalty (on completed) | ❌ | Listener `AppointmentStatusChangedEvent` — prossima fase |
+| Notifiche (Mercure/email on status change) | ❌ | Listener — prossima fase |
+| Vendita prodotti in appuntamento | ❌ | `appointment_products` — trigger inventario già in DB |
+| Pagamenti | ❌ | Fuori scope progetto attuale |

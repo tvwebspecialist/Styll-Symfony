@@ -6,8 +6,11 @@ namespace App\Tests\Support;
 
 use App\Entity\Appointment;
 use App\Entity\Client;
+use App\Entity\ClientLoyalty;
 use App\Entity\GalleryPhoto;
 use App\Entity\Location;
+use App\Entity\LoyaltyConfig;
+use App\Entity\LoyaltyTransaction;
 use App\Entity\PortfolioPhoto;
 use App\Entity\Product;
 use App\Entity\ProductInventory;
@@ -15,6 +18,8 @@ use App\Entity\Profile;
 use App\Entity\Promotion;
 use App\Entity\PromotionProduct;
 use App\Entity\PromotionService;
+use App\Entity\Reward;
+use App\Entity\RewardRedemption;
 use App\Entity\Service;
 use App\Entity\ServiceCategory;
 use App\Entity\StaffMember;
@@ -389,6 +394,49 @@ final class TestTenantFixture
     }
 
     /**
+     * Seeds two tenants for Fase 2a appointment write tests.
+     *
+     * Builds on seedTwoTenantsWithCalendarData() and adds clientBCross to the returned array
+     * so cross-tenant create/update/delete tests can reference a client from Tenant B.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     * }
+     */
+    public function seedTwoTenantsWithBookingData(): array
+    {
+        $base = $this->seedTwoTenantsWithCalendarData();
+
+        // Retrieve a client from Tenant B for cross-tenant tests
+        /** @var Client $clientBCross */
+        $clientBCross = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $base['tenantB'])
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        return [
+            'tenantA'      => $base['tenantA'],
+            'tenantB'      => $base['tenantB'],
+            'staffA'       => $base['staffA'],
+            'staffB'       => $base['staffB'],
+            'locationA'    => $base['locationA'],
+            'serviceA'     => $base['serviceA'],
+            'clientA'      => $base['clientA'],
+            'clientBCross' => $clientBCross,
+            'appointmentA' => $base['appointmentA'],
+            'appointmentB' => $base['appointmentB'],
+        ];
+    }
+
+    /**
      * Seeds two tenants with calendar data for Fase 1b tests.
      *
      * Returns data needed for appointment and availability tests:
@@ -541,6 +589,142 @@ final class TestTenantFixture
             'clientA'       => $clientA,
             'appointmentA'  => $appointmentA,
             'appointmentB'  => $appointmentB,
+        ];
+    }
+
+    /**
+     * Seeds two tenants for Fase 1c Loyalty read-only tests.
+     *
+     * Tenant A — full loyalty setup:
+     *   - LoyaltyConfig (active, classic template, ended_at=null)
+     *   - Reward A1 (500 pts) and Reward A2 (1000 pts), both active
+     *   - clientA: enrolled — ClientLoyalty with 200 total / 150 available / streak 3
+     *   - LoyaltyTransaction earn +200 pts for clientA
+     *   - RewardRedemption 50 pts for clientA using Reward A1
+     *   - clientAUnenrolled: second client of tenantA with NO ClientLoyalty record
+     *
+     * Tenant B — no loyalty data (no config, no rewards) — used to verify:
+     *   - GET /api/loyalty-config → 404 for tenant B
+     *   - GET /api/rewards → [] for tenant B
+     *   - cross-tenant client isolation (clientBCross UUID unknown to tenant A)
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   clientA: Client, clientAUnenrolled: Client, clientBCross: Client,
+     *   loyaltyConfigA: LoyaltyConfig,
+     *   rewardA1: Reward, rewardA2: Reward,
+     *   clientLoyaltyA: ClientLoyalty,
+     *   transactionA: LoyaltyTransaction,
+     *   redemptionA: RewardRedemption,
+     * }
+     */
+    public function seedTwoTenantsWithLoyaltyData(): array
+    {
+        $base = $this->seedTwoTenantsWithClients();
+        /** @var Tenant $tenantA */
+        $tenantA = $base['tenantA'];
+        /** @var Tenant $tenantB */
+        $tenantB = $base['tenantB'];
+
+        // Retrieve clients: two per tenant created by seedTwoTenantsWithClients
+        $clientsA = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $tenantA)
+            ->orderBy('c.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        /** @var Client $clientA */
+        $clientA = $clientsA[0];
+        /** @var Client $clientAUnenrolled */
+        $clientAUnenrolled = $clientsA[1];
+
+        /** @var Client $clientBCross */
+        $clientBCross = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $tenantB)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        // Tenant A: active loyalty config (classic, 100 pts/visit)
+        $loyaltyConfigA = (new LoyaltyConfig())
+            ->setTenant($tenantA)
+            ->setTemplate(LoyaltyConfig::TEMPLATE_CLASSIC)
+            ->setIsActive(true)
+            ->setPointsPerVisit(100)
+            ->setStreakThresholdDays(45)
+            ->setVersion(1);
+
+        // Tenant A: two active rewards (Tenant B gets none)
+        $rewardA1 = (new Reward())
+            ->setTenant($tenantA)
+            ->setName('Prodotto gratis')
+            ->setDescription('Un prodotto a scelta in regalo.')
+            ->setPointsCost(500)
+            ->setRewardType(Reward::TYPE_PRODUCT)
+            ->setDisplayOrder(1)
+            ->setIsActive(true);
+
+        $rewardA2 = (new Reward())
+            ->setTenant($tenantA)
+            ->setName('Sconto 10%')
+            ->setDescription('10% di sconto sulla prossima visita.')
+            ->setPointsCost(1000)
+            ->setRewardType(Reward::TYPE_DISCOUNT)
+            ->setDisplayOrder(2)
+            ->setIsActive(true);
+
+        // Tenant A: clientA is enrolled — 200 total, 150 available (50 spent on redemption)
+        $clientLoyaltyA = (new ClientLoyalty())
+            ->setTenant($tenantA)
+            ->setClient($clientA)
+            ->setTotalPoints(200)
+            ->setAvailablePoints(150)
+            ->setCurrentStreak(3)
+            ->setLongestStreak(3)
+            ->setCurrentTier('bronze')
+            ->setTierPointsThisYear(200)
+            ->setTierYear((int) (new \DateTimeImmutable())->format('Y'));
+
+        // Earn transaction: +200 pts
+        $transactionA = (new LoyaltyTransaction())
+            ->setTenant($tenantA)
+            ->setClient($clientA)
+            ->setType(LoyaltyTransaction::TYPE_EARN)
+            ->setPoints(200)
+            ->setDescription('Visita completata')
+            ->setLoyaltyConfigVersion(1);
+
+        // Redemption: 50 pts spent on rewardA1 (confirmed)
+        $redemptionA = (new RewardRedemption())
+            ->setTenant($tenantA)
+            ->setClient($clientA)
+            ->setReward($rewardA1)
+            ->setPointsSpent(50)
+            ->setConfirmedAt(new \DateTimeImmutable('2030-01-14T12:00:00+00:00'));
+
+        foreach ([$loyaltyConfigA, $rewardA1, $rewardA2, $clientLoyaltyA, $transactionA, $redemptionA] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+
+        return [
+            'tenantA'          => $tenantA,
+            'tenantB'          => $tenantB,
+            'clientA'          => $clientA,
+            'clientAUnenrolled' => $clientAUnenrolled,
+            'clientBCross'     => $clientBCross,
+            'loyaltyConfigA'   => $loyaltyConfigA,
+            'rewardA1'         => $rewardA1,
+            'rewardA2'         => $rewardA2,
+            'clientLoyaltyA'   => $clientLoyaltyA,
+            'transactionA'     => $transactionA,
+            'redemptionA'      => $redemptionA,
         ];
     }
 }
