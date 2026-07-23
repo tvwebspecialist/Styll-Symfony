@@ -5,21 +5,48 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Post;
+use App\Doctrine\ClientSoftDeleteExtension;
+use App\Filter\ClientSearchFilter;
 use App\Repository\ClientRepository;
+use App\State\ClientPersistProcessor;
+use App\State\SoftDeleteClientProcessor;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * AREA 5 — CRM: Client entity
- * Multi-tenant: every row belongs to one tenant. tenant_id is enforced by TenantFilter.
+ * Multi-tenant: every row belongs to one tenant. tenant_id enforced by TenantFilter.
  */
 #[ApiResource(
     operations: [
-        new GetCollection(),
+        new GetCollection(
+            normalizationContext: ['groups' => ['client:read']],
+            filters: [ClientSearchFilter::class],
+        ),
+        new Get(
+            normalizationContext: ['groups' => ['client:read']],
+        ),
+        new Post(
+            normalizationContext: ['groups' => ['client:read']],
+            denormalizationContext: ['groups' => ['client:write']],
+            processor: ClientPersistProcessor::class,
+        ),
+        new Patch(
+            normalizationContext: ['groups' => ['client:read']],
+            denormalizationContext: ['groups' => ['client:write']],
+            processor: ClientPersistProcessor::class,
+        ),
+        new Delete(
+            processor: SoftDeleteClientProcessor::class,
+        ),
     ],
-    normalizationContext: ['groups' => ['client:read']],
 )]
 #[ORM\Entity(repositoryClass: ClientRepository::class)]
 #[ORM\Table(name: 'clients')]
@@ -41,30 +68,41 @@ class Client
     private ?Profile $profile = null;
 
     #[ORM\Column(name: 'full_name', type: 'string', length: 255)]
-    #[Groups(['client:read'])]
+    #[Groups(['client:read', 'client:write'])]
+    #[Assert\NotBlank(message: 'Il nome è obbligatorio.')]
+    #[Assert\Length(max: 255)]
     private string $fullName;
 
     #[ORM\Column(type: 'string', length: 30, nullable: true)]
-    #[Groups(['client:read'])]
+    #[Groups(['client:read', 'client:write'])]
+    #[Assert\Length(max: 30)]
     private ?string $phone = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
-    #[Groups(['client:read'])]
+    #[Groups(['client:read', 'client:write'])]
+    #[Assert\Email]
+    #[Assert\Length(max: 255)]
     private ?string $email = null;
 
     #[ORM\Column(name: 'date_of_birth', type: 'date_immutable', nullable: true)]
+    #[Groups(['client:read', 'client:write'])]
     private ?\DateTimeImmutable $dateOfBirth = null;
 
     #[ORM\Column(name: 'preferred_contact_channel', type: 'string', length: 20, nullable: true)]
+    #[Groups(['client:read', 'client:write'])]
+    #[Assert\Choice(choices: ['push', 'whatsapp', 'sms', 'email'], message: 'Canale non valido.')]
     private ?string $preferredContactChannel = 'sms';
 
     #[ORM\Column(name: 'marketing_consent', type: 'boolean')]
+    #[Groups(['client:read', 'client:write'])]
     private bool $marketingConsent = false;
 
     #[ORM\Column(name: 'avatar_url', type: 'string', length: 500, nullable: true)]
+    #[Groups(['client:read', 'client:write'])]
     private ?string $avatarUrl = null;
 
     #[ORM\Column(type: 'json')]
+    #[Groups(['client:read', 'client:write'])]
     private array $tags = [];
 
     #[ORM\ManyToOne(targetEntity: Client::class)]
@@ -72,6 +110,7 @@ class Client
     private ?Client $referredBy = null;
 
     #[ORM\Column(name: 'churn_opted_out', type: 'boolean')]
+    #[Groups(['client:read', 'client:write'])]
     private bool $churnOptedOut = false;
 
     #[ORM\Column(name: 'deleted_at', type: 'datetimetz_immutable', nullable: true)]
@@ -86,9 +125,11 @@ class Client
     private ?Profile $createdBy = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetimetz_immutable')]
+    #[Groups(['client:read'])]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column(name: 'updated_at', type: 'datetimetz_immutable')]
+    #[Groups(['client:read'])]
     private \DateTimeImmutable $updatedAt;
 
     public function __construct()

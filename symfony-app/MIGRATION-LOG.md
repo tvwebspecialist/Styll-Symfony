@@ -3299,3 +3299,75 @@ Risultato reale finale dopo Fase C:
 - **PHPUnit Deprecations: 3**
 
 Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
+
+---
+
+## FASE 1a — CRM Clienti (CRUD completo) — 2026-07-23
+
+**Branch:** `dev`
+
+### Obiettivo
+
+Implementare il CRM clienti lato Symfony con CRUD completo, note staff, analytics read-only, bulk import e ricerca globale. Sostituisce `apps/web/src/lib/actions/clienti.ts` e la parte clienti di `dashboard-search.ts` come sorgente dati.
+
+### Backend Symfony — Nuovi file
+
+- `src/Entity/ClientAnalytics.php` — entità read-only sulla vista `client_analytics` (nessuna migration: tabella già presente in `07_crm.sql`)
+- `src/Repository/ClientAnalyticsRepository.php` — repository standard
+- `src/Doctrine/ClientSoftDeleteExtension.php` — AP4 collection+item extension: aggiunge `AND alias.deletedAt IS NULL` solo per `Client`; il DELETE fisico non avviene mai
+- `src/Filter/ClientSearchFilter.php` — AP4 `AbstractFilter` custom: `?q=` OR-search su `fullName`, `email`, `phone` (case-insensitive LOWER+LIKE); registered as `api_platform.filter` service
+- `src/State/ClientPersistProcessor.php` — processor AP4 per POST e PATCH: inietta `tenant` dal `TenantContext`; cattura `UniqueConstraintViolationException` su `(tenant_id, phone)` e rilancia come `ValidationException` (422 pulito)
+- `src/State/SoftDeleteClientProcessor.php` — processor AP4 per DELETE: imposta `deleted_at = now()` senza rimozione fisica
+- `src/Controller/ClientNotesController.php` — `GET/POST /api/clients/{clientId}/notes`; note sempre staff-private; staff risolto via DQL join `profile↔staff_member`
+- `src/Controller/ClientNoteController.php` — `PATCH/DELETE /api/client-notes/{noteId}`; tenant isolation esplicita + TenantFilter
+- `src/Controller/ClientAnalyticsController.php` — `GET /api/clients/{clientId}/analytics`; restituisce default-zero se nessuna riga aggregata
+- `src/Controller/ClientBulkImportController.php` — `POST /api/clients/bulk-import`; strategia SKIP su duplicati (phone → email); chunk 500 righe; crea record `client_import_jobs` con source validata contro check constraint (`csv_generic`, `fresha`, `treatwell`, `booksy`)
+
+### Backend Symfony — File modificati
+
+- `src/Entity/Client.php`
+  - operazioni AP4: `GetCollection` (con `filters: [ClientSearchFilter::class]`), `Get`, `Post`, `Patch`, `Delete`
+  - gruppi di serializzazione `client:write` su `fullName`, `phone`, `email`, `dateOfBirth`, `preferredContactChannel`, `marketingConsent`, `avatarUrl`, `tags`, `churnOptedOut`
+  - validazioni: `@NotBlank` su `fullName`, `@Email` su `email`, `@Choice` su `preferredContactChannel`
+  - `createdAt` e `updatedAt` aggiunti a `client:read`
+
+### Decisioni architetturali
+
+- **Soft delete via AP4 extension**: `ClientSoftDeleteExtension` implementa sia `QueryCollectionExtensionInterface` che `QueryItemExtensionInterface` — più mirato di un filtro Doctrine globale.
+- **`#[ApiFilter]` non funziona senza `resource_class_directories`**: `api_platform.resource_class_directories = []` perché la config usa solo `mapping.paths` verso un file YAML. La soluzione è registrare il filtro direttamente sull'operazione `GetCollection` con `filters: [ClientSearchFilter::class]` (service ID diretto nel `api_platform.filter_locator`).
+- **`find()` vs `findOneBy()`**: nei custom controller `findOneBy()` garantisce il passaggio attraverso TenantFilter (identity map può bypassare `find()`).
+- **Unicità telefono per tenant**: cattura DB-level `UniqueConstraintViolationException` nel processor → `ValidationException` 422; nessun `@UniqueEntity` perché il tenant è iniettato *dopo* la deserializzazione ma *prima* del flush.
+- **Bulk import**: `source` default `'csv_generic'` (check constraint DB: `fresha|treatwell|booksy|csv_generic`); prima era `'csv_upload'` → errore 23514.
+
+### Verifiche reali
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+
+docker compose exec -T php env APP_ENV=test php bin/phpunit tests/Functional/CrmClientsEndpointTest.php --testdox
+# OK (31 tests, 315 assertions)
+
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+# OK, but there were issues! Tests: 162, Assertions: 1445, PHPUnit Deprecations: 3
+```
+
+### Stato migrazione Area 5 (CRM Clienti) dopo questa fase
+
+| Endpoint | Symfony | Note |
+|---|---|---|
+| `GET /api/clients` | ✅ | TenantFilter + soft-delete filter + `?q=` search |
+| `GET /api/clients/{id}` | ✅ | soft-delete guard |
+| `POST /api/clients` | ✅ | tenant auto-inject, unicità telefono 422 |
+| `PATCH /api/clients/{id}` | ✅ | parziale |
+| `DELETE /api/clients/{id}` | ✅ | soft delete (imposta `deleted_at`) |
+| `GET /api/clients/{id}/notes` | ✅ | staff-private |
+| `POST /api/clients/{id}/notes` | ✅ | risolve staff corrente da JWT |
+| `PATCH /api/client-notes/{id}` | ✅ | tenant-isolated |
+| `DELETE /api/client-notes/{id}` | ✅ | hard delete (la nota stessa non è soft-deleted) |
+| `GET /api/clients/{id}/analytics` | ✅ | read-only, default-zero se assente |
+| `POST /api/clients/bulk-import` | ✅ | skip duplicati, `client_import_jobs` |
+
+Gap residui Area 5:
+- Nessun endpoint migrato verso `apps/web` in questa sessione (fuori perimetro della fase 1a).
+- `apps/web/src/lib/actions/clienti.ts` ancora legge Supabase — da collegare agli endpoint Symfony in una fase frontend dedicata.
