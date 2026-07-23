@@ -292,7 +292,12 @@ final class AuthRateLimitingTest extends WebTestCase
 
     private function waitForRateLimitWindowReset(): void
     {
-        usleep(1_200_000);
+        $retryAfterSeconds = max(
+            1,
+            (int) $this->client->getResponse()->headers->get('Retry-After', '2'),
+        );
+
+        usleep(($retryAfterSeconds * 1_000_000) + 200_000);
     }
 
     /**

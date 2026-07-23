@@ -2643,6 +2643,68 @@ Modifiche:
 
 Nessun file del blocco inbox AI / WhatsApp escluso e stato modificato.
 
+## 2026-07-23 - Stabilizzato il rate limiting auth nei test Docker
+
+### Cosa era rotto
+
+La suite reale Docker `env APP_ENV=test php bin/phpunit --testdox` era flaky sui test di auth rate limiting.
+Nel run verificato il **23 luglio 2026** il failure reale era:
+
+- `App\Tests\Functional\AuthRateLimiting::testPwaOtpSendRateLimitReturns429AndResetsAfterWindow`
+
+L endpoint rispondeva `200 OK` invece di `429 Too Many Requests`.
+
+### Root cause
+
+I controller applicativi coinvolti (`PasswordResetRequestController`, `PasswordResetConfirmController`, `PwaClientOtpSendController`, `PwaClientOtpVerifyController`, `RegisterController`, `GoogleOAuthStartController`) chiamavano gia correttamente `AuthRateLimiter`.
+
+La causa era nel profilo `when@test` di `config/packages/rate_limiter.yaml`:
+
+- limiter auth configurati con `policy: fixed_window`
+- finestra ridotta a `interval: '1 second'`
+- helper test con attesa fissa `usleep(1_200_000)`
+
+Durante la suite completa in Docker alcune sequenze da 3-6 richieste potevano superare di poco il secondo tra primo e ultimo hit. In quel caso il `fixed_window` apriva una nuova finestra prima del tentativo che il test si aspettava bloccato e la risposta tornava `200` o `422` invece di `429`.
+
+Il sintomo poteva quindi apparire su endpoint diversi a seconda del timing reale della suite, pur con codice controller corretto.
+
+### Fix applicato
+
+Modificati solo asset di test:
+
+- nel profilo `when@test` tutti i limiter auth mantengono `fixed_window` ma usano `interval: '2 seconds'`
+- i limiti numerici restano invariati
+- `AuthRateLimitingTest::waitForRateLimitWindowReset()` usa il valore reale di `Retry-After` con piccolo buffer, invece di un tempo fisso
+- nessuna modifica al comportamento di produzione
+
+Questo rende i test Docker deterministici senza alterare la logica applicativa reale e senza toccare il blocco WhatsApp/Inbox AI.
+
+### Verifica eseguita
+
+Cache Symfony ripulita in Docker:
+
+```bash
+docker compose exec php php bin/console cache:clear
+```
+
+Suite auth rate limiting:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox --filter AuthRateLimiting
+```
+
+Suite completa:
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+```
+
+Esito finale verificato:
+
+- **131 test**
+- **1130 assertion**
+- **0 failure**
+
 ---
 
 ## FASE E — Audit stato reale core sessione/tenant frontend — 2026-07-23

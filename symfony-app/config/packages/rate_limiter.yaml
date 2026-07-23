@@ -58,31 +58,31 @@ when@test:
         rate_limiter:
             staff_login_ip:
                 limit: 10
-                interval: '1 second'
+                interval: '2 seconds'
             staff_login_email_ip:
                 limit: 3
-                interval: '1 second'
+                interval: '2 seconds'
             password_reset_request_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             password_reset_request_email_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             password_reset_confirm_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             password_reset_confirm_token_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             pwa_otp_send_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             pwa_otp_send_email_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             pwa_otp_verify_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             pwa_otp_verify_email_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             staff_register_ip:
                 limit: 3
-                interval: '1 second'
+                interval: '2 seconds'
             staff_register_email_ip:
-                interval: '1 second'
+                interval: '2 seconds'
             google_staff_register_start_ip:
                 limit: 3
-                interval: '1 second'
+                interval: '2 seconds'
