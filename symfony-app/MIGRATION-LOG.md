@@ -3815,3 +3815,151 @@ php bin/console doctrine:schema:validate --skip-sync
 | Badge / notifiche loyalty | ❌ | v2 |
 | Scadenza punti (`TYPE_EXPIRE`) | ❌ | v2 |
 | Riscatto PWA client (pending → confirmed) | ❌ | Flusso PWA — `requestRewardRedemption` |
+
+---
+
+## FASE 2c — Catalogo (Servizi, Prodotti, Inventario)
+
+**Data:** 2026-07-23  
+**Branch:** `dev`  
+**Commit:** da aggiungere al termine della fase
+
+### Endpoint implementati
+
+#### Categorie servizi — `ServiceCategoryController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| GET | `/api/service-categories` | Lista categorie del tenant |
+| POST | `/api/service-categories` | Crea nuova categoria |
+| PATCH | `/api/service-categories/{id}` | Rinomina / riordina categoria |
+| DELETE | `/api/service-categories/{id}` | Cancellazione fisica (CASCADE SET NULL su `services.category_id`) |
+
+- 409 `DUPLICATE_NAME` se `(tenant_id, name)` già esiste (partial unique index)
+- DELETE fisico; servizi collegati perdono il riferimento categoria (→ `NULL`) senza errore
+
+#### Servizi — `ServiceController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| GET | `/api/services` | Lista servizi (filtro `?active=1`) |
+| POST | `/api/services` | Crea servizio (required: `name`, `price`, `durationMinutes`) |
+| PATCH | `/api/services/{id}` | Aggiorna nome, prezzo, durata, categoria, flag, ordine |
+| DELETE | `/api/services/{id}` | Cancellazione fisica; 409 `IN_USE` se referenziato in `appointment_services` |
+
+- Nessun `deleted_at` sulla tabella — disattivazione via `isActive = false`
+- 409 `IN_USE` su delete: `ForeignKeyConstraintViolationException` (DBAL 4.x) → suggerisce `isActive = false`
+
+#### Staff–Servizi — `StaffServicesController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| GET | `/api/staff-members/{staffId}/services` | Lista servizi assegnati allo staff |
+| POST | `/api/staff-members/{staffId}/services` | Assegna servizio a staff member (idempotente) |
+| DELETE | `/api/staff-members/{staffId}/services/{id}` | Rimuove assegnazione |
+
+- POST idempotente: se `StaffService` già esiste → 200; se nuovo → 201
+- TenantFilter blocca staff e servizi cross-tenant
+
+#### Prodotti — `ProductController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| GET | `/api/products` | Lista prodotti con giacenze aggregate |
+| POST | `/api/products` | Crea prodotto + init automatico giacenza |
+| PATCH | `/api/products/{id}` | Aggiorna campi prodotto |
+| DELETE | `/api/products/{id}` | Cancellazione fisica; 409 `IN_USE` se referenziato in `appointment_products` |
+
+- Nessun `deleted_at` — disattivazione via `isActive = false`
+- Risposta include `totalStock` (somma di tutte le sedi), `isLowStock` (almeno una sede sotto soglia), array `inventory` per sede
+- `isLowStock` calcolato come `quantity <= lowStockThreshold` (usa soglia per-riga, non valore fisso)
+
+#### Inventario prodotti — `ProductInventoryController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| GET | `/api/product-inventory` | Lista giacenze (filtro `?locationId=UUID`) |
+| PATCH | `/api/product-inventory/{id}` | Rettifica manuale quantità e/o soglia alert |
+
+- Rettifica manuale per conti fisici; `quantity >= 0`, `lowStockThreshold >= 0`
+- Il decremento automatico (vendita) è delegato al trigger DB — questo endpoint non lo invoca
+
+#### Prodotti in appuntamento — `AppointmentProductController`
+
+| Metodo | URL | Descrizione |
+|---|---|---|
+| POST | `/api/appointments/{id}/products` | Registra vendita/utilizzo prodotto su appuntamento |
+
+- 422 `PRODUCT_NOT_AVAILABLE` se prodotto non attivo o cross-tenant
+- `priceAtSale` = snapshot di `product.priceSell` al momento della vendita (cambi futuri non impattano storico)
+- **Il decremento inventario NON è eseguito in PHP** — gestito interamente dal trigger DB `trg_decrement_inventory`
+
+### Strategia init inventario
+
+Su `POST /api/products`, dopo il persist del prodotto:
+
+1. Query tutte le `Location` attive (`isActive = true`) del tenant
+2. Per ognuna crea `ProductInventory(quantity=0, lowStockThreshold=3)`
+3. `em->flush()` + `em->refresh($product)` per popolare la collection `inventoryEntries`
+4. Risposta include già le righe inventory appena create
+
+Nessuna location attiva → nessuna riga inventory creata (prodotto senza giacenza, coerente).
+
+### Trigger DB — trg_decrement_inventory
+
+```sql
+-- AFTER INSERT ON appointment_products
+-- Decrementa product_inventory WHERE product_id=NEW.product_id
+--   AND location_id = (SELECT location_id FROM appointments WHERE id=NEW.appointment_id)
+--   AND tenant_id=NEW.tenant_id
+-- Se nessuna riga corrisponde (location senza inventory), UPDATE colpisce 0 righe — nessun errore.
+```
+
+**PHP non tocca `product_inventory` su inserimento `appointment_products`.** Solo INSERT; trigger fa il resto. Evita doppio decremento.
+
+Test di verifica trigger (`CatalogProductTest::testAddProductToAppointmentDecrementsInventory`):
+
+```php
+// qty 10 prima della vendita
+$qtyBefore = (int) $conn->fetchOne('SELECT quantity FROM product_inventory WHERE id = ?', [$invId]);
+self::assertSame(10, $qtyBefore);
+
+// POST /api/appointments/{id}/products con quantity=2
+// ...
+
+// qty 8 dopo — trigger ha decrementato
+$qtyAfter = (int) $conn->fetchOne('SELECT quantity FROM product_inventory WHERE id = ?', [$invId]);
+self::assertSame(8, $qtyAfter, 'Il trigger DB deve aver decrementato la quantità di 2 (10 → 8)');
+```
+
+### Test
+
+```bash
+php bin/phpunit tests/Functional/CatalogServiceTest.php --testdox
+# Tests: 28, Assertions: 173 — TUTTI VERDI
+
+php bin/phpunit tests/Functional/CatalogProductTest.php --testdox
+# Tests: 27, Assertions: 178 — TUTTI VERDI
+
+php bin/phpunit --no-coverage
+# Tests: 295, Assertions: 2359 — TUTTI VERDI (nessuna regressione)
+
+php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+### Tabella stato migrazione — Catalogo
+
+| Feature | Stato | Note |
+|---|---|---|
+| CRUD categorie servizi | ✅ | `ServiceCategoryController` |
+| CRUD servizi | ✅ | `ServiceController` — `isActive`, nessun soft-delete |
+| Staff–servizi (assign/remove) | ✅ | `StaffServicesController` — idempotente |
+| CRUD prodotti | ✅ | `ProductController` — `isActive`, nessun soft-delete |
+| Init inventario automatico | ✅ | Su create prodotto, per ogni location attiva |
+| GET/PATCH inventario prodotti | ✅ | `ProductInventoryController` |
+| Vendita prodotto in appuntamento | ✅ | `AppointmentProductController` — trigger DB decrementa |
+| Storno prodotto da appuntamento | ❌ | v2 |
+| Movimenti inventario / audit trail | ❌ | v2 — `inventory_movements` non implementato |
+| Notifiche scorta bassa | ❌ | v2 — flag `isLowStock` esposto, notifica non inviata |
+| Rimozione da appuntamento | ❌ | v2 |

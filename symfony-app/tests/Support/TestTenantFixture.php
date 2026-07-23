@@ -394,6 +394,95 @@ final class TestTenantFixture
     }
 
     /**
+     * Seeds two tenants for Fase 2c catalog write tests.
+     *
+     * Builds on seedTwoTenantsWithBookingData() and adds:
+     *   - serviceCategoryA: "Taglio" category for tenantA
+     *   - serviceB: second service for tenantA (for delete/update tests)
+     *   - productA: active product (price_sell=12.00) for tenantA
+     *   - productInactive: inactive product for tenantA (testing 422 on appointment products)
+     *   - productB: active product for tenantB (cross-tenant isolation)
+     *   - inventoryA: productA at locationA, quantity=10, threshold=5
+     *
+     * appointmentA (from booking data) is status=confirmed at locationA — ready for product add.
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service,
+     *   clientA: Client, clientBCross: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     *   serviceCategoryA: ServiceCategory,
+     *   serviceB: Service,
+     *   productA: Product, productInactive: Product, productB: Product,
+     *   inventoryA: ProductInventory,
+     * }
+     */
+    public function seedTwoTenantsWithCatalogData(): array
+    {
+        $base = $this->seedTwoTenantsWithBookingData();
+
+        $serviceCategoryA = (new ServiceCategory())
+            ->setTenant($base['tenantA'])
+            ->setName('Taglio')
+            ->setDisplayOrder(0);
+
+        $serviceB = (new Service())
+            ->setTenant($base['tenantA'])
+            ->setName('Barba')
+            ->setPrice('15.00')
+            ->setDurationMinutes(20)
+            ->setDisplayOrder(10)
+            ->setIsActive(true);
+
+        $productA = (new Product())
+            ->setTenant($base['tenantA'])
+            ->setName('Gel capelli')
+            ->setPriceSell('12.00')
+            ->setPriceCost('4.00')
+            ->setSku('GEL-001')
+            ->setDisplayOrder(0)
+            ->setIsActive(true)
+            ->setIsNew(false);
+
+        $productInactive = (new Product())
+            ->setTenant($base['tenantA'])
+            ->setName('Prodotto dismesso')
+            ->setPriceSell('5.00')
+            ->setDisplayOrder(99)
+            ->setIsActive(false);
+
+        $productB = (new Product())
+            ->setTenant($base['tenantB'])
+            ->setName('Prodotto Tenant B')
+            ->setPriceSell('20.00')
+            ->setDisplayOrder(0)
+            ->setIsActive(true);
+
+        $inventoryA = (new ProductInventory())
+            ->setTenant($base['tenantA'])
+            ->setProduct($productA)
+            ->setLocation($base['locationA'])
+            ->setQuantity(10)
+            ->setLowStockThreshold(5);
+
+        foreach ([$serviceCategoryA, $serviceB, $productA, $productInactive, $productB, $inventoryA] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+
+        return [
+            ...$base,
+            'serviceCategoryA' => $serviceCategoryA,
+            'serviceB'         => $serviceB,
+            'productA'         => $productA,
+            'productInactive'  => $productInactive,
+            'productB'         => $productB,
+            'inventoryA'       => $inventoryA,
+        ];
+    }
+
+    /**
      * Seeds two tenants for Fase 2a appointment write tests.
      *
      * Builds on seedTwoTenantsWithCalendarData() and adds clientBCross to the returned array
