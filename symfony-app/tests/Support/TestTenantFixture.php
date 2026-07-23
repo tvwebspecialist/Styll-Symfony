@@ -21,6 +21,7 @@ use App\Entity\Tenant;
 use App\Entity\User;
 use App\Entity\WebsitePhoto;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Cache\CacheItemPoolInterface;
 use RuntimeException;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -33,6 +34,7 @@ final class TestTenantFixture
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly CacheItemPoolInterface $rateLimiterCache,
     ) {}
 
     /**
@@ -113,6 +115,7 @@ final class TestTenantFixture
             'TRUNCATE TABLE users, tenants RESTART IDENTITY CASCADE',
         );
         $this->em->clear();
+        $this->rateLimiterCache->clear();
     }
 
     /**

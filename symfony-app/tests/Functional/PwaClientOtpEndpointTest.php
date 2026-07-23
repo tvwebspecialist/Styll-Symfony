@@ -167,7 +167,7 @@ final class PwaClientOtpEndpointTest extends WebTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
-    public function testVerifyLocksAfterMaxAttempts(): void
+    public function testVerifyLocksAfterMaxAttemptsAndRateLimitsTheSixthAttempt(): void
     {
         $email = 'lockout@example.test';
         $this->seedOtp($email);
@@ -178,17 +178,27 @@ final class PwaClientOtpEndpointTest extends WebTestCase
                 'code' => '000000',
                 'tenant_slug' => self::TENANT_A_SLUG,
             ]);
+
+            self::assertResponseStatusCodeSame(422);
         }
 
-        // 6th attempt — should hit the lockout path
+        $tokenRow = $this->em->getConnection()->fetchAssociative(
+            'SELECT attempts, locked_until FROM email_verification_tokens WHERE email = :email ORDER BY created_at DESC LIMIT 1',
+            ['email' => $email],
+        );
+        self::assertIsArray($tokenRow);
+        self::assertSame(5, (int) ($tokenRow['attempts'] ?? 0));
+        self::assertNotNull($tokenRow['locked_until'] ?? null);
+
+        // 6th attempt — the endpoint-level limiter should now answer before the service lockout message leaks.
         $this->client->jsonRequest('POST', '/api/pwa/otp/verify', [
             'email' => $email,
             'code' => '000000',
             'tenant_slug' => self::TENANT_A_SLUG,
         ]);
         $payload = $this->responsePayload();
-        self::assertResponseStatusCodeSame(422);
-        self::assertStringContainsString('Troppi tentativ', $payload['error'] ?? '');
+        self::assertResponseStatusCodeSame(429);
+        self::assertSame('Troppe richieste. Riprova più tardi.', $payload['error'] ?? null);
     }
 
     public function testVerifyOtpTenantIsolation(): void
