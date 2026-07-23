@@ -5,7 +5,9 @@ import { NextRequest, NextResponse } from 'next/server.js'
 
 import {
   applyProxyAuthGuards,
+  hasPlausibleStaffSessionCookie,
   hasPlausibleSupabaseSessionCookie,
+  hasPlausibleSymfonyStaffSessionCookie,
   isPublicAuthBootstrapPath,
   type ProxyAuthGuardDependencies,
   type ProxyAuthGuardInput,
@@ -92,6 +94,12 @@ test('Supabase auth cookie detection accepts session, chunked session and PKCE v
   assert.equal(hasPlausibleSupabaseSessionCookie(['styll_cookie_consent_v1']), false)
 })
 
+test('Symfony JWT cookie detection accepts the dedicated staff cookie', () => {
+  assert.equal(hasPlausibleSymfonyStaffSessionCookie(['styll_symfony_staff_jwt']), true)
+  assert.equal(hasPlausibleSymfonyStaffSessionCookie(['sb-demo-auth-token']), false)
+  assert.equal(hasPlausibleStaffSessionCookie(['styll_symfony_staff_jwt']), true)
+})
+
 test('GET anonymous /login returns without calling getUser', async () => {
   const request = makeRequest('https://styll.it/login')
   const response = NextResponse.next({ request })
@@ -152,6 +160,32 @@ test('authenticated user on /login still follows the existing tenant redirect', 
   assert.equal(getUserCalls, 1)
   assert.equal(result.status, 307)
   assert.equal(result.headers.get('location'), 'https://acme-dashboard.styll.it/')
+})
+
+test('authenticated user on /register preserves localhost port when redirecting to a tenant dashboard', async () => {
+  const request = makeRequest('http://localhost:3000/register', makeAuthCookie())
+  const response = NextResponse.next({ request })
+
+  const result = await applyProxyAuthGuards(
+    createBaseInput(request, response, {
+      isAuthPage: true,
+      rootDomain: 'localhost:3000',
+      securityOptions: {
+        ...SECURITY_OPTIONS,
+        rootDomain: 'localhost:3000',
+      },
+    }),
+    createDeps({
+      getUser: async () => ({ id: 'user-1' }),
+      getOnboardingCompleted: async () => true,
+      getActiveStaffTenantIds: async () => ['tenant-1'],
+      getTenantSlug: async () => 'demo',
+    })
+  )
+
+  assert.ok(result)
+  assert.equal(result.status, 307)
+  assert.equal(result.headers.get('location'), 'http://demo-dashboard.localhost:3000/')
 })
 
 test('anonymous dashboard requests stay protected', async () => {

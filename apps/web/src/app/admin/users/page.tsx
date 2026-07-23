@@ -1,20 +1,23 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchSymfonyAdminJson } from '@/lib/symfony/admin-client'
 import { UsersClient } from './users-client'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UsersPage() {
-  const db = createAdminClient()
-  const [usersRes, tenantsRes] = await Promise.all([
-    db
-      .from('profiles')
-      .select('id, full_name, email, is_superadmin, onboarding_completed, created_at')
-      .eq('is_superadmin', true)
-      .order('created_at', { ascending: false }),
-    db
-      .from('tenants')
-      .select('id, business_name, slug')
-      .order('business_name', { ascending: true }),
+  const [users, tenants] = await Promise.all([
+    fetchSymfonyAdminJson<Array<{
+      id: string
+      full_name: string | null
+      email: string | null
+      is_superadmin: boolean | null
+      onboarding_completed: boolean | null
+      created_at: string
+    }>>('/api/admin/users'),
+    fetchSymfonyAdminJson<Array<{
+      id: string
+      business_name: string
+      slug: string
+    }>>('/api/admin/tenants'),
   ])
 
   return (
@@ -26,8 +29,12 @@ export default async function UsersPage() {
         </p>
       </div>
       <UsersClient
-        initialUsers={(usersRes.data ?? []) as never}
-        initialTenants={(tenantsRes.data ?? []) as never}
+        initialUsers={users as never}
+        initialTenants={tenants.map((tenant) => ({
+          id: tenant.id,
+          business_name: tenant.business_name,
+          slug: tenant.slug,
+        })) as never}
       />
     </div>
   )

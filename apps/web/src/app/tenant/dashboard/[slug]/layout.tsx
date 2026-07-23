@@ -16,6 +16,11 @@ import { NotificationCountProvider } from '@/contexts/NotificationCountContext'
 import { NotificationOnboardingDashboard } from '@/components/dashboard/NotificationOnboardingDashboard'
 import { CookieBanner } from '@/components/shared/CookieBanner'
 import { createTenantSurfacePaths } from '@/lib/pwa-redirect'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
+import { SymfonyStaffApiError } from '@/lib/symfony/staff-client'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -105,14 +110,44 @@ export async function generateViewport({
 export default async function TenantDashboardLayout({ params, children }: Props) {
   const { slug } = await params
 
-  const tenantBySlug = await getTenantBySlug(slug)
-  if (!tenantBySlug) notFound()
+  let me
+  try {
+    me = await getOptionalSymfonyStaffMe(slug)
+  } catch (error) {
+    if (error instanceof SymfonyStaffApiError && error.code === 'forbidden') {
+      redirect(selectTenantUrl('error=access_denied'))
+    }
+
+    throw error
+  }
+
+  if (!me?.currentTenant || me.currentTenant.tenant.slug !== slug) redirect(loginUrl())
+
+  const db = createAdminClient()
+  const { data: tenantRow } = await db
+    .from('tenants')
+    .select('id, primary_color, secondary_color, font_family, settings')
+    .eq('id', me.currentTenant.tenant.id)
+    .maybeSingle()
+
+  const tenantBySlug = {
+    tenant_id: me.currentTenant.tenant.id,
+    slug: me.currentTenant.tenant.slug,
+    business_name: me.currentTenant.tenant.businessName,
+    primary_color: (tenantRow as { primary_color?: string | null } | null)?.primary_color ?? '#111111',
+    secondary_color: (tenantRow as { secondary_color?: string | null } | null)?.secondary_color ?? '#E94560',
+    logo_url: me.currentTenant.tenant.logoUrl,
+    font_family: (tenantRow as { font_family?: string | null } | null)?.font_family ?? 'Outfit',
+    status: me.currentTenant.tenant.status,
+    settings: (tenantRow as { settings?: Record<string, unknown> } | null)?.settings ?? {},
+  }
 
   const ctx = await resolveActiveProfileForTenant(tenantBySlug.tenant_id)
   if (!ctx) redirect(loginUrl())
 
-  const db = createAdminClient()
   const impersonation = await getImpersonationState()
+  const memberships = listSymfonyStaffMemberships(me)
+  const currentMembership = memberships.find((membership) => membership.tenant.id === tenantBySlug.tenant_id)
 
   const { data: profile } = await db
     .from('profiles')
@@ -121,23 +156,14 @@ export default async function TenantDashboardLayout({ params, children }: Props)
     .maybeSingle()
 
   const isSuperadmin = !!profile?.is_superadmin
-  const { data: allStaffRows } = await db
-    .from('staff_members')
-    .select('tenant_id')
-    .eq('profile_id', ctx.realUserId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-
-  const allTenantIds = (allStaffRows ?? []).map((r) => r.tenant_id as string)
-
-  if (allTenantIds.length === 0 && !isSuperadmin) redirect(onboardingUrl())
+  if (memberships.length === 0 && !isSuperadmin) redirect(onboardingUrl())
 
   // Access guard: user must have access to the tenant selected by URL slug.
-  if (!allTenantIds.includes(tenantBySlug.tenant_id) && !isSuperadmin) {
+  if (!currentMembership && !isSuperadmin) {
     redirect(selectTenantUrl('error=access_denied'))
   }
 
-  const [{ data: ownerProfile }, { data: adminProfile }, { count: unreadNotifCount }, { data: currentStaffRow }] = await Promise.all([
+  const [{ data: ownerProfile }, { data: adminProfile }, { count: unreadNotifCount }] = await Promise.all([
     db
       .from('profiles')
       .select('full_name, avatar_url, email')
@@ -152,14 +178,6 @@ export default async function TenantDashboardLayout({ params, children }: Props)
       .eq('tenant_id', tenantBySlug.tenant_id)
       .eq('is_read', false)
       .or(`profile_id.is.null,profile_id.eq.${ctx.profileId}`),
-    db
-      .from('staff_members')
-      .select('role')
-      .eq('tenant_id', tenantBySlug.tenant_id)
-      .eq('profile_id', ctx.realUserId)
-      .eq('is_active', true)
-      .is('deleted_at', null)
-      .maybeSingle(),
   ])
 
   if (tenantBySlug.status === 'suspended' && !impersonation.active) {
@@ -168,17 +186,20 @@ export default async function TenantDashboardLayout({ params, children }: Props)
 
   const displayName =
     ownerProfile?.full_name ||
+    me.profile.fullName ||
     (ownerProfile?.email as string | null | undefined) ||
+    me.user.email ||
     'Utente'
 
   const adminName =
     (ctx.isShadow &&
       (adminProfile?.full_name ||
         (adminProfile?.email as string | null | undefined))) ||
+    me.user.email ||
     'Admin'
 
   const canAccessManagementSurfaces =
-    isSuperadmin || currentStaffRow?.role === 'owner' || currentStaffRow?.role === 'manager'
+    isSuperadmin || currentMembership?.role === 'owner' || currentMembership?.role === 'manager'
   const dashboardPath = await createTenantSurfacePaths('dashboard', slug)
   const cookiePath = dashboardPath('/cookie')
 

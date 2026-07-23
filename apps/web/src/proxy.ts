@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 
 import {
   ADMIN_SHADOW_COOKIE,
@@ -9,6 +8,12 @@ import {
 import { applyProxyAuthGuards, isProxyAuthPage, type ProxyAuthUser } from '@/lib/proxy-auth-guard'
 import { getPublicTenantSurface, resolveTenantRewrite } from '@/lib/proxy-routing'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  getOptionalSymfonyStaffMeFromRequest,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
+import type { SymfonyStaffMeDto } from '@/lib/symfony/staff-client'
+import { clearSymfonyStaffJwtCookie } from '@/lib/symfony/staff-session'
 import { applySecurityHeaders, type CspOptions } from '@/lib/security/csp'
 
 // ─── Subdomain routing ────────────────────────────────────────────────────────
@@ -72,6 +77,11 @@ function buildBookingTokenFailureResponse(
     }
   )
   return applySecurityHeaders(response, securityOptions)
+}
+
+function getRequestedDashboardSlug(pathname: string): string | null {
+  const match = pathname.match(/^\/tenant\/dashboard\/([^/]+)/)
+  return match?.[1] ? decodeURIComponent(match[1]) : null
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -166,46 +176,31 @@ export async function proxy(request: NextRequest) {
     const isOnboarding = pathname.startsWith(ONBOARDING_PREFIX)
     const isAuthPage = isProxyAuthPage(pathname) && pathname !== LEGACY_COMPLETE
 
-    let supabase: ReturnType<typeof createServerClient> | null = null
     let adminDb: ReturnType<typeof createAdminClient> | null = null
-
-    const getSupabase = () => {
-      if (supabase) return supabase
-
-      supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        {
-          cookies: {
-            getAll() {
-              return request.cookies.getAll()
-            },
-            setAll(
-              cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]
-            ) {
-              const cookieDomain =
-                process.env.NODE_ENV === 'production' ? `.${ROOT_DOMAIN}` : undefined
-              cookiesToSet.forEach(({ name, value }) => {
-                request.cookies.set(name, value)
-              })
-              cookiesToSet.forEach(({ name, value, options }) => {
-                response.cookies.set(name, value, {
-                  ...options,
-                  ...(cookieDomain ? { domain: cookieDomain } : {}),
-                })
-              })
-            },
-          },
-        }
-      )
-
-      return supabase
-    }
+    let symfonyStaffMePromise: Promise<SymfonyStaffMeDto | null> | null = null
 
     const getAdminDb = () => {
       if (adminDb) return adminDb
       adminDb = createAdminClient()
       return adminDb
+    }
+
+    const getSymfonyStaffMe = async () => {
+      if (symfonyStaffMePromise) {
+        return symfonyStaffMePromise
+      }
+
+      const requestedTenantSlug = getRequestedDashboardSlug(tenantRewriteUrl?.pathname ?? pathname)
+
+      symfonyStaffMePromise = getOptionalSymfonyStaffMeFromRequest(
+        request,
+        requestedTenantSlug,
+      ).catch((error) => {
+        clearSymfonyStaffJwtCookie(response)
+        return Promise.reject(error)
+      })
+
+      return symfonyStaffMePromise
     }
 
     const guardResponse = await applyProxyAuthGuards(
@@ -228,10 +223,8 @@ export async function proxy(request: NextRequest) {
         applySecurityHeaders,
         clearShadowCookie: clearAdminShadowCookieOnResponse,
         getUser: async (): Promise<ProxyAuthUser | null> => {
-          const {
-            data: { user },
-          } = await getSupabase().auth.getUser()
-          return user ? { id: user.id } : null
+          const me = await getSymfonyStaffMe()
+          return me ? { id: me.user.id } : null
         },
         getValidatedShadowTenantId: async (userId, rawShadowCookieValue) => {
           const shadowCtx = await getValidatedAdminShadowContext(
@@ -251,27 +244,27 @@ export async function proxy(request: NextRequest) {
           return !!(adminProfile as { is_superadmin?: boolean } | null)?.is_superadmin
         },
         getOnboardingCompleted: async (userId) => {
-          const { data: profile } = await getSupabase()
-            .from('profiles')
-            .select('onboarding_completed')
-            .eq('id', userId)
-            .maybeSingle()
-
-          return !!profile?.onboarding_completed
+          const me = await getSymfonyStaffMe()
+          return me?.user.id === userId ? me.profile.onboardingCompleted : false
         },
         getActiveStaffTenantIds: async (userId, limit) => {
-          const { data: staffRows } = await getAdminDb()
-            .from('staff_members')
-            .select('tenant_id')
-            .eq('profile_id', userId)
-            .eq('is_active', true)
-            .is('deleted_at', null)
-            .order('created_at', { ascending: true })
-            .limit(limit)
+          const me = await getSymfonyStaffMe()
+          if (!me || me.user.id !== userId) {
+            return []
+          }
 
-          return (staffRows ?? []).map((row) => row.tenant_id)
+          return listSymfonyStaffMemberships(me)
+            .slice(0, limit)
+            .map((membership) => membership.tenant.id)
         },
         getTenantSlug: async (tenantId) => {
+          const me = await getSymfonyStaffMe()
+          const membership = listSymfonyStaffMemberships(me)
+            .find((entry) => entry.tenant.id === tenantId)
+          if (membership) {
+            return membership.tenant.slug
+          }
+
           const { data: tenantRow } = await getAdminDb()
             .from('tenants')
             .select('slug')

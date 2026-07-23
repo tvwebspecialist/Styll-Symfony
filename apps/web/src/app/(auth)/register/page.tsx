@@ -1,115 +1,43 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { MessageCircle, Mail } from 'lucide-react'
+import { cookies } from 'next/headers'
 
 import { AuthSplitLayout } from '@/components/auth/auth-split-layout'
 import { RegisterSignupOptions } from '@/components/auth/register-signup-options'
+import {
+  GOOGLE_REGISTER_PENDING_COOKIE,
+  decodeGoogleRegisterPendingPreview,
+} from '@/lib/auth/google-register-pending'
 import { buildPathWithTrialIntent, readTrialIntent } from '@/lib/trial-intent'
-import { validateOnboardingToken } from '@/app/admin/actions-onboarding'
 
 export const metadata: Metadata = {
   title: 'Crea il tuo account — Styll',
 }
 
-// ─── Contact popup shown when no valid token ───────────────────
-function ContactGate({ reason }: { reason?: string }) {
-  return (
-    <AuthSplitLayout
-      caption="Zero commissioni. Il tuo brand. I tuoi dati. Sempre."
-    >
-      <div className="flex flex-col items-center justify-center h-full py-12 px-4 text-center">
-        <div
-          className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
-          style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
-        >
-          <span style={{ fontSize: 28 }}>🔒</span>
-        </div>
-
-        <h1
-          className="text-2xl font-bold tracking-tight"
-          style={{ color: 'var(--color-fg)', letterSpacing: '-0.02em' }}
-        >
-          Registrazione su invito
-        </h1>
-        <p
-          className="mt-3 text-sm leading-relaxed max-w-xs"
-          style={{ color: 'var(--color-fg-secondary)' }}
-        >
-          {reason
-            ? reason
-            : 'La registrazione è disponibile solo tramite link privato.'}
-          {' '}Contattami per ricevere il tuo link personale.
-        </p>
-
-        <div className="mt-8 flex flex-col gap-3 w-full max-w-xs">
-          <a
-            href="https://wa.me/3770802075"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{
-              background: '#25D366',
-              color: '#ffffff',
-            }}
-          >
-            <MessageCircle size={18} />
-            Scrivimi su WhatsApp
-          </a>
-
-          <a
-            href="mailto:t.v.webspecialist@gmail.com"
-            className="flex items-center justify-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold transition-colors"
-            style={{
-              background: 'var(--color-bg-secondary)',
-              color: 'var(--color-fg)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
-            <Mail size={18} />
-            Invia un'email
-          </a>
-        </div>
-
-        <p
-          className="mt-8 text-xs"
-          style={{ color: 'var(--color-fg-muted)' }}
-        >
-          Già hai un link?{' '}
-          <Link
-            href="/register"
-            className="underline underline-offset-2"
-            style={{ color: 'var(--color-fg-secondary)' }}
-          >
-            Usa il link ricevuto
-          </Link>
-        </p>
-      </div>
-    </AuthSplitLayout>
-  )
-}
-
 interface PageProps {
-  searchParams: Promise<{ intent?: string | string[] | undefined; error?: string; token?: string }>
+  searchParams: Promise<{
+    intent?: string | string[] | undefined
+    error?: string
+    step?: string
+    provider?: string
+  }>
 }
 
 export default async function RegisterPage({ searchParams }: PageProps) {
   const params = await searchParams
-
-  // ── Token gating ────────────────────────────────────────────
-  const rawToken = params.token
-  if (!rawToken) {
-    return <ContactGate />
-  }
-
-  const validation = await validateOnboardingToken(rawToken)
-  if (!validation.valid) {
-    return <ContactGate reason={validation.error} />
-  }
-
-  // ── Valid token → show registration form ─────────────────────
+  const cookieStore = await cookies()
   const intent = readTrialIntent(params.intent)
   const loginHref = buildPathWithTrialIntent('/login', intent)
-  const initialError = params.error ? decodeURIComponent(params.error) : null
+  const googlePendingPreview = decodeGoogleRegisterPendingPreview(
+    cookieStore.get(GOOGLE_REGISTER_PENDING_COOKIE)?.value ?? null,
+  )
+  const requestedGoogleActivityStep = params.step === 'activity' && params.provider === 'google'
+  const canResumeGoogleActivityStep = requestedGoogleActivityStep && googlePendingPreview !== null
+  const initialError = params.error
+    ? decodeURIComponent(params.error)
+    : requestedGoogleActivityStep && !canResumeGoogleActivityStep
+      ? 'Registrazione Google scaduta o non valida. Riprova dal primo step.'
+      : null
 
   return (
     <AuthSplitLayout
@@ -124,7 +52,6 @@ export default async function RegisterPage({ searchParams }: PageProps) {
         </Link>
       }
     >
-      {/* Desktop Styll link */}
       <Link
         href="/"
         className="hidden lg:block text-2xl font-bold tracking-tight mb-2"
@@ -133,7 +60,6 @@ export default async function RegisterPage({ searchParams }: PageProps) {
         Styll
       </Link>
 
-      {/* Mobile hero */}
       <div className="mb-6 mt-2 lg:hidden">
         <div
           style={{
@@ -165,7 +91,7 @@ export default async function RegisterPage({ searchParams }: PageProps) {
               Inizia gratis oggi
             </div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-              14 giorni di prova. Nessuna carta richiesta.
+              Crea il tuo spazio in pochi minuti. Nessuna carta richiesta.
             </div>
           </div>
         </div>
@@ -194,11 +120,16 @@ export default async function RegisterPage({ searchParams }: PageProps) {
           className="mt-2 text-sm leading-relaxed"
           style={{ color: 'var(--color-fg-secondary)' }}
         >
-          In 2 minuti. Nessuna carta di credito. Annulli quando vuoi.
+          Prima confermi i dati di accesso, poi completi i dati della tua attività nello step finale.
         </p>
       </header>
 
-      <RegisterSignupOptions intent={intent} token={rawToken} />
+      <RegisterSignupOptions
+        initialStep={canResumeGoogleActivityStep ? 'activity' : 'identity'}
+        initialMethod={canResumeGoogleActivityStep ? 'google' : 'credentials'}
+        initialFullName={googlePendingPreview?.fullName ?? ''}
+        initialEmail={googlePendingPreview?.email ?? ''}
+      />
 
       <p
         className="mt-6 text-center text-sm"

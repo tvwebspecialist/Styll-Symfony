@@ -1,502 +1,483 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Camera, Eye, EyeOff, Loader2, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
-import { cn } from '@/lib/utils'
-import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { identifyLead } from '@/components/marketing/PostHogProvider'
+import { GoogleButton } from '@/components/auth/google-button'
+import { savePlatformLead } from '@/lib/actions/platform-leads'
 import { buildRootAppUrl } from '@/lib/auth/urls'
-import { EMAIL_PASSWORD_REGISTER_SOURCE } from '@/lib/legal/b2b-register-acceptance-shared'
-import { buildPathWithTrialIntent } from '@/lib/trial-intent'
-import { markOnboardingTokenUsed } from '@/app/admin/actions-onboarding'
+import { cn } from '@/lib/utils'
+import type { BusinessType } from '@/types/database'
 
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2MB
-const EMAIL_VERIFICATION_SEND_ERROR =
-  "Account creato, ma non siamo riusciti a inviare il codice. Richiedine uno dalla schermata successiva."
+const BUSINESS_TYPES: Array<{ value: BusinessType; label: string }> = [
+  { value: 'barbiere', label: 'Barbiere' },
+  { value: 'parrucchiere', label: 'Parrucchiere' },
+  { value: 'salone_misto', label: 'Salone misto' },
+  { value: 'beauty_center', label: 'Beauty center' },
+  { value: 'altro', label: 'Altro' },
+]
 
-type SendEmailVerificationResponse = {
-  success: boolean
-  error?: string
-}
+type RegisterStep = 'identity' | 'activity'
+type RegisterMethod = 'credentials' | 'google'
 
-type PrepareLegalAcceptanceResponse = {
-  success: boolean
-  error?: string
-}
-
-type ConsumeLegalAcceptanceResponse = {
-  success: boolean
-  error?: string
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
-function validate(
+function validateIdentity(
   fullName: string,
   email: string,
   password: string,
   password2: string,
+): string[] {
+  const errors: string[] = []
+
+  if (fullName.trim().length < 2) errors.push('Inserisci il tuo nome completo')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Email non valida')
+  if (password.length < 8) errors.push('La password deve avere almeno 8 caratteri')
+  if (password !== password2) errors.push('Le password non corrispondono')
+
+  return errors
+}
+
+function validateActivity(
+  businessName: string,
   acceptedTerms: boolean,
 ): string[] {
-  const errs: string[] = []
-  if (fullName.trim().length < 2) errs.push('Inserisci il tuo nome completo')
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.push('Email non valida')
-  if (password.length < 8) errs.push('La password deve avere almeno 8 caratteri')
-  if (password !== password2) errs.push('Le password non corrispondono')
-  if (!acceptedTerms) errs.push('Devi accettare i Termini di Servizio per continuare')
-  return errs
+  const errors: string[] = []
+
+  if (businessName.trim().length < 2) errors.push('Inserisci il nome della tua attività')
+  if (!acceptedTerms) errors.push('Devi accettare i Termini di Servizio per continuare')
+
+  return errors
+}
+
+interface RegisterFormProps {
+  initialStep?: RegisterStep
+  initialMethod?: RegisterMethod
+  initialFullName?: string
+  initialEmail?: string
 }
 
 export function RegisterForm({
-  acceptedTerms: controlledAcceptedTerms,
-  intent = null,
-  onAcceptedTermsChange,
-  token = null,
-}: {
-  acceptedTerms?: boolean
-  intent?: string | null
-  onAcceptedTermsChange?: (nextValue: boolean) => void
-  token?: string | null
-}) {
+  initialStep = 'identity',
+  initialMethod = 'credentials',
+  initialFullName = '',
+  initialEmail = '',
+}: RegisterFormProps) {
   const router = useRouter()
   const privacyHref = buildRootAppUrl('/privacy')
   const termsHref = buildRootAppUrl('/termini')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const fullNameRef = useRef<HTMLInputElement>(null)
-  const emailRef = useRef<HTMLInputElement>(null)
-  const passwordRef = useRef<HTMLInputElement>(null)
-  const password2Ref = useRef<HTMLInputElement>(null)
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
+  const [step, setStep] = useState<RegisterStep>(initialStep)
+  const [method, setMethod] = useState<RegisterMethod>(initialMethod)
+  const [fullName, setFullName] = useState(initialFullName)
+  const [businessName, setBusinessName] = useState('')
+  const [businessType, setBusinessType] = useState<BusinessType>('barbiere')
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
-  const [uncontrolledAcceptedTerms, setUncontrolledAcceptedTerms] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showPw, setShowPw] = useState(false)
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const acceptedTerms = controlledAcceptedTerms ?? uncontrolledAcceptedTerms
-  const setAcceptedTerms = onAcceptedTermsChange ?? setUncontrolledAcceptedTerms
-  const initials = useMemo(() => getInitials(fullName), [fullName])
+  const isIdentityStep = step === 'identity'
+  const isGoogleFlow = method === 'google'
 
-  function handleAvatarChange(file: File | undefined) {
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      toast.error('Carica un file immagine')
-      return
-    }
-    if (file.size > MAX_AVATAR_BYTES) {
-      toast.error('Immagine troppo grande (max 2MB)')
-      return
-    }
-    setAvatarFile(file)
-    const reader = new FileReader()
-    reader.onload = () =>
-      setAvatarPreview(typeof reader.result === 'string' ? reader.result : null)
-    reader.readAsDataURL(file)
-  }
-
-  function clearAvatar() {
-    setAvatarFile(null)
-    setAvatarPreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  function handleSubmit(e: React.FormEvent) {
+  function handleIdentitySubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const effectiveFullName = fullName || fullNameRef.current?.value || ''
-    const effectiveEmail = email || emailRef.current?.value || ''
-    const effectivePassword = password || passwordRef.current?.value || ''
-    const effectivePassword2 = password2 || password2Ref.current?.value || ''
 
-    const errors = validate(
-      effectiveFullName,
-      effectiveEmail,
-      effectivePassword,
-      effectivePassword2,
-      acceptedTerms,
-    )
+    const errors = validateIdentity(fullName, email, password, password2)
+    if (errors.length > 0) {
+      toast.error(errors[0])
+      return
+    }
+
+    setMethod('credentials')
+    setStep('activity')
+  }
+
+  function handleBackToIdentity() {
+    if (isPending) {
+      return
+    }
+
+    if (isGoogleFlow) {
+      router.push('/register')
+      router.refresh()
+      return
+    }
+
+    setStep('identity')
+  }
+
+  function handleActivitySubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+
+    const errors = validateActivity(businessName, acceptedTerms)
     if (errors.length > 0) {
       toast.error(errors[0])
       return
     }
 
     startTransition(async () => {
-      const supabase = createClient()
-      const cleanName = effectiveFullName.trim()
-      const cleanEmail = effectiveEmail.trim().toLowerCase()
-
-      // Keep the lead capture on /register before sign-up creates an auth session.
-      await savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
-
-      if (!token) {
-        toast.error('Token di registrazione non valido. Riapri il link di invito.')
-        return
-      }
-
-      const prepareResponse = await fetch('/api/auth/register/legal-acceptance', {
-        body: JSON.stringify({
-          email: cleanEmail,
-          onboardingToken: token,
-          source: EMAIL_PASSWORD_REGISTER_SOURCE,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-      })
-
-      const prepareResult = (await prepareResponse.json().catch(() => null)) as
-        | PrepareLegalAcceptanceResponse
-        | null
-
-      if (!prepareResponse.ok || !prepareResult?.success) {
-        toast.error(prepareResult?.error || 'Impossibile registrare l’accettazione dei Termini. Riprova.')
-        return
-      }
-
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: effectivePassword,
-        options: {
-          data: {
-            full_name: cleanName,
-          },
-        },
-      })
-
-      if (error) {
-        toast.error(error.message)
-        return
-      }
-
-      const userId = data.user?.id
-      const hasSession = !!data.session
-
-      if (hasSession) {
-        const consumeResponse = await fetch('/api/auth/register/legal-acceptance/consume', {
-          body: JSON.stringify({
-            source: EMAIL_PASSWORD_REGISTER_SOURCE,
-          }),
-          headers: { 'Content-Type': 'application/json' },
-          method: 'POST',
-        }).catch(() => {})
-
-        const consumeResult = consumeResponse
-          ? (((await consumeResponse.json().catch(() => null)) as ConsumeLegalAcceptanceResponse | null) ?? null)
-          : null
-
-        if (!consumeResponse?.ok || !consumeResult?.success) {
-          await supabase.auth.signOut().catch(() => {})
-          toast.error(
-            consumeResult?.error || 'Impossibile confermare l’accettazione dei Termini. Riprova dalla registrazione.',
-          )
-          return
-        }
-      }
-
-      // Upload avatar (richiede sessione attiva)
-      if (avatarFile && userId && hasSession) {
-        const ext = avatarFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-        const path = `${userId}/avatar.${ext}`
-        const { error: upErr } = await supabase.storage
-          .from('avatars')
-          .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type })
-        if (!upErr) {
-          const { data: pub } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(path)
-          if (pub?.publicUrl) {
-            await supabase
-              .from('profiles')
-              .update({ avatar_url: pub.publicUrl })
-              .eq('id', userId)
+      const cleanFullName = fullName.trim()
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanBusinessName = businessName.trim()
+      const endpoint = isGoogleFlow
+        ? '/api/auth/google/staff/register/finalize'
+        : '/api/auth/staff/register'
+      const requestBody = isGoogleFlow
+        ? {
+            businessName: cleanBusinessName,
+            businessType,
+            acceptedTerms,
           }
-        }
+        : {
+            fullName: cleanFullName,
+            email: cleanEmail,
+            password,
+            businessName: cleanBusinessName,
+            businessType,
+            acceptedTerms,
+          }
+
+      if (cleanEmail) {
+        await savePlatformLead({ email: cleanEmail, source: 'trial_signup' }).catch(() => {})
       }
 
-      if (!hasSession) {
-        // Supabase email confirmation disabled — shouldn't happen, but handle it
-        toast.success('Account creato! Controlla la tua email per confermare.')
-        router.push(buildPathWithTrialIntent('/login', intent))
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
+        toast.error(payload?.error || 'Impossibile completare la registrazione.')
         return
       }
 
-      // Mark onboarding token as used
-      if (token) {
-        await markOnboardingTokenUsed(token, cleanEmail).catch(() => {})
-      }
-
-      // PostHog identify stays client-side; OTP send uses an API route.
-      identifyLead(cleanEmail, { full_name: cleanName, source: 'trial_signup' })
-
-      // Use an API route so the OTP POST does not go back through /register.
-      try {
-        const verificationResponse = await fetch('/api/email-verification/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail }),
+      if (cleanEmail) {
+        identifyLead(cleanEmail, {
+          full_name: cleanFullName || undefined,
+          business_name: cleanBusinessName,
+          business_type: businessType,
+          registration_method: isGoogleFlow ? 'google' : 'credentials',
+          source: 'trial_signup',
         })
-        const verificationResult =
-          (await verificationResponse.json()) as SendEmailVerificationResponse
-
-        if (!verificationResponse.ok || !verificationResult.success) {
-          toast.error(verificationResult.error || EMAIL_VERIFICATION_SEND_ERROR)
-        }
-      } catch {
-        toast.error(EMAIL_VERIFICATION_SEND_ERROR)
       }
 
-      router.push(
-        buildPathWithTrialIntent(`/verifica-email?email=${encodeURIComponent(cleanEmail)}`, intent)
-      )
+      router.push('/dashboard')
       router.refresh()
     })
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Avatar */}
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Carica foto profilo"
-          className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full transition-colors"
-          style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          {avatarPreview ? (
-            <Image
-              src={avatarPreview}
-              alt="Avatar"
-              width={64}
-              height={64}
-              unoptimized
-              className="h-full w-full object-cover"
-            />
-          ) : fullName.trim() ? (
-            <span
-              className="text-lg font-bold"
-              style={{ color: 'var(--color-fg)' }}
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { key: 'identity', index: '1', title: 'Identità' },
+          { key: 'activity', index: '2', title: 'Attività' },
+        ].map((item) => {
+          const isActive = step === item.key
+
+          return (
+            <div
+              key={item.key}
+              className="rounded-2xl border px-4 py-3"
+              style={{
+                borderColor: isActive ? 'var(--color-fg)' : 'var(--color-border)',
+                backgroundColor: isActive ? 'rgba(13,13,26,0.04)' : 'transparent',
+              }}
             >
-              {initials}
-            </span>
-          ) : (
-            <Camera
-              className="h-5 w-5"
-              style={{ color: 'var(--color-fg-secondary)' }}
-            />
-          )}
-        </button>
-        <div className="flex flex-col gap-1">
-          <span
-            className="text-xs font-semibold"
-            style={{ color: 'var(--color-fg)' }}
-          >
-            Foto profilo
-          </span>
-          <div className="flex items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="font-medium underline-offset-2 hover:underline"
-              style={{ color: 'var(--color-fg)' }}
-            >
-              {avatarPreview ? 'Cambia' : 'Carica'}
-            </button>
-            {avatarPreview && (
-              <>
-                <span style={{ color: 'var(--color-fg-muted)' }}>·</span>
-                <button
-                  type="button"
-                  onClick={clearAvatar}
-                  className="flex items-center gap-1 font-medium underline-offset-2 hover:underline"
-                  style={{ color: 'var(--color-fg-secondary)' }}
-                >
-                  <X className="h-3 w-3" /> Rimuovi
-                </button>
-              </>
-            )}
-          </div>
-          <span
-            className="text-[11px]"
-            style={{ color: 'var(--color-fg-muted)' }}
-          >
-            Opzionale · max 2MB
-          </span>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(e) => handleAvatarChange(e.target.files?.[0])}
-        />
+              <div
+                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+                style={{ color: 'var(--color-fg-secondary)' }}
+              >
+                Step {item.index}
+              </div>
+              <div
+                className="mt-1 text-sm font-semibold"
+                style={{ color: 'var(--color-fg)' }}
+              >
+                {item.title}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
-      <label htmlFor="fullName" className="flex flex-col gap-1.5">
-        <span
-          className="text-xs font-semibold"
-          style={{ color: 'var(--color-fg)' }}
-        >
-          Nome completo
-        </span>
-        <input
-          id="fullName"
-          autoComplete="name"
-          required
-          ref={fullNameRef}
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder="Marco Rossi"
-          className="styll-input w-full px-4 py-3 text-sm"
-          style={{ fontSize: 16 }}
-        />
-      </label>
+      {isIdentityStep ? (
+        <form onSubmit={handleIdentitySubmit} className="flex flex-col gap-4">
+          <div>
+            <h2
+              className="text-base font-semibold"
+              style={{ color: 'var(--color-fg)' }}
+            >
+              Crea le tue credenziali
+            </h2>
+            <p
+              className="mt-1 text-sm"
+              style={{ color: 'var(--color-fg-secondary)' }}
+            >
+              Inserisci i dati di accesso oppure continua direttamente con Google.
+            </p>
+          </div>
 
-      <label htmlFor="email" className="flex flex-col gap-1.5">
-        <span
-          className="text-xs font-semibold"
-          style={{ color: 'var(--color-fg)' }}
-        >
-          Email
-        </span>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          ref={emailRef}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@esempio.com"
-          className="styll-input w-full px-4 py-3 text-sm"
-          style={{ fontSize: 16 }}
-        />
-      </label>
+          <label htmlFor="fullName" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Nome completo
+            </span>
+            <input
+              id="fullName"
+              autoComplete="name"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Marco Rossi"
+              disabled={isPending}
+              className="styll-input w-full px-4 py-3 text-sm"
+              style={{ fontSize: 16 }}
+            />
+          </label>
 
-      <label htmlFor="password" className="flex flex-col gap-1.5">
-        <span
-          className="text-xs font-semibold"
-          style={{ color: 'var(--color-fg)' }}
-        >
-          Password
-        </span>
-        <div className="relative">
-          <input
-            id="password"
-            type={showPw ? 'text' : 'password'}
-            autoComplete="new-password"
-            required
-            minLength={8}
-            ref={passwordRef}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Almeno 8 caratteri"
-            className="styll-input w-full px-4 py-3 pr-11 text-sm"
-            style={{ fontSize: 16 }}
-          />
+          <label htmlFor="email" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Email
+            </span>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@esempio.com"
+              disabled={isPending}
+              className="styll-input w-full px-4 py-3 text-sm"
+              style={{ fontSize: 16 }}
+            />
+          </label>
+
+          <label htmlFor="password" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Password
+            </span>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPw ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimo 8 caratteri"
+                disabled={isPending}
+                className="styll-input w-full px-4 py-3 pr-11 text-sm"
+                style={{ fontSize: 16 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
+                className="absolute inset-y-0 right-0 px-3"
+                disabled={isPending}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </label>
+
+          <label htmlFor="password2" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Conferma password
+            </span>
+            <input
+              id="password2"
+              type={showPw ? 'text' : 'password'}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={password2}
+              onChange={(e) => setPassword2(e.target.value)}
+              placeholder="Ripeti la password"
+              disabled={isPending}
+              className="styll-input w-full px-4 py-3 text-sm"
+              style={{ fontSize: 16 }}
+            />
+          </label>
+
           <button
-            type="button"
-            onClick={() => setShowPw((v) => !v)}
-            aria-label={showPw ? 'Nascondi password' : 'Mostra password'}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 styll-hover-color-bg-secondary"
-            style={{ color: 'var(--color-fg-secondary)', minWidth: 44, minHeight: 44 }}
+            type="submit"
+            disabled={isPending}
+            className={cn(
+              'styll-btn-primary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm',
+            )}
+            style={{ fontWeight: 600 }}
           >
-            {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {isPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : null}
+            <span>Continua</span>
           </button>
-        </div>
-      </label>
 
-      <label htmlFor="password2" className="flex flex-col gap-1.5">
-        <span
-          className="text-xs font-semibold"
-          style={{ color: 'var(--color-fg)' }}
-        >
-          Conferma password
-        </span>
-        <input
-          id="password2"
-          type={showPw ? 'text' : 'password'}
-          autoComplete="new-password"
-          required
-          ref={password2Ref}
-          value={password2}
-          onChange={(e) => setPassword2(e.target.value)}
-          placeholder="Ripeti la password"
-          className="styll-input w-full px-4 py-3 text-sm"
-          style={{ fontSize: 16 }}
-        />
-        {password2 && password !== password2 && (
-          <span
-            className="text-xs"
-            style={{ color: 'var(--color-danger)' }}
-          >
-            Le password non corrispondono
-          </span>
-        )}
-      </label>
+          <div className="relative py-1">
+            <div className="absolute inset-0 flex items-center" aria-hidden>
+              <div className="w-full border-t" style={{ borderColor: 'var(--color-border)' }} />
+            </div>
+            <div className="relative flex justify-center">
+              <span
+                className="px-3 text-xs font-medium"
+                style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-fg-secondary)' }}
+              >
+                Oppure
+              </span>
+            </div>
+          </div>
 
-      <label className="flex items-start gap-3 text-sm leading-6" style={{ color: 'var(--color-fg-muted)' }}>
-        <input
-          type="checkbox"
-          checked={acceptedTerms}
-          onChange={(e) => setAcceptedTerms(e.target.checked)}
-          className="mt-1 h-4 w-4 rounded border"
-          style={{ accentColor: 'var(--color-fg)' }}
-        />
-        <span>
-          Accetto i{' '}
-          <Link
-            href={termsHref}
-            className="font-medium underline underline-offset-2"
-            style={{ color: 'var(--color-fg)' }}
-          >
-            Termini di Servizio
-          </Link>{' '}
-          e dichiaro di aver preso visione della{' '}
-          <Link
-            href={privacyHref}
-            className="font-medium underline underline-offset-2"
-            style={{ color: 'var(--color-fg)' }}
-          >
-            Privacy Policy
-          </Link>
-          . Se il tuo accesso prevede un piano a pagamento, le condizioni economiche applicabili ti vengono
-          mostrate prima dell&apos;attivazione.
-        </span>
-      </label>
+          <GoogleButton
+            mode="staff_register"
+            label="Continua con Google"
+            loadingLabel="Reindirizzamento a Google..."
+            fullName={fullName}
+            className="w-full"
+          />
+        </form>
+      ) : (
+        <form onSubmit={handleActivitySubmit} className="flex flex-col gap-4">
+          <div>
+            <h2
+              className="text-base font-semibold"
+              style={{ color: 'var(--color-fg)' }}
+            >
+              Completa la tua attività
+            </h2>
+            <p
+              className="mt-1 text-sm"
+              style={{ color: 'var(--color-fg-secondary)' }}
+            >
+              {isGoogleFlow
+                ? 'Google ha già fornito i tuoi dati personali. Qui ci serve solo il contesto del negozio.'
+                : 'Ultimo step: definiamo il negozio che verrà creato in dashboard.'}
+            </p>
+          </div>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className={cn(
-          'styll-btn-primary mt-2 flex w-full items-center justify-center gap-2 px-4 py-3 text-sm'
-        )}
-        style={{ minHeight: 52 }}
-      >
-        {isPending ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Creazione account...
-          </>
-        ) : (
-          'Crea account'
-        )}
-      </button>
-    </form>
+          <div
+            className="rounded-2xl border px-4 py-3"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor: 'rgba(13,13,26,0.03)',
+            }}
+          >
+            <div
+              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: 'var(--color-fg-secondary)' }}
+            >
+              Metodo scelto
+            </div>
+            <div className="mt-1 text-sm font-semibold" style={{ color: 'var(--color-fg)' }}>
+              {isGoogleFlow ? 'Continua con Google' : 'Email e password'}
+            </div>
+            {fullName ? (
+              <div className="mt-2 text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
+                {fullName}
+              </div>
+            ) : null}
+            {email ? (
+              <div className="text-sm" style={{ color: 'var(--color-fg-secondary)' }}>
+                {email}
+              </div>
+            ) : null}
+          </div>
+
+          <label htmlFor="businessName" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Nome attività
+            </span>
+            <input
+              id="businessName"
+              autoComplete="organization"
+              required
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="Marco's Barbershop"
+              disabled={isPending}
+              className="styll-input w-full px-4 py-3 text-sm"
+              style={{ fontSize: 16 }}
+            />
+          </label>
+
+          <label htmlFor="businessType" className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-fg)' }}>
+              Tipo di attività
+            </span>
+            <select
+              id="businessType"
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as BusinessType)}
+              disabled={isPending}
+              className="styll-input w-full px-4 py-3 text-sm"
+              style={{ fontSize: 16 }}
+            >
+              {BUSINESS_TYPES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              disabled={isPending}
+              className="mt-0.5 h-4 w-4 rounded border-neutral-300"
+            />
+            <span
+              className="text-sm leading-relaxed"
+              style={{ color: 'var(--color-fg-secondary)' }}
+            >
+              Accetto i{' '}
+              <Link href={termsHref} target="_blank" rel="noreferrer" className="font-semibold underline">
+                Termini di Servizio
+              </Link>{' '}
+              e dichiaro di aver preso visione della{' '}
+              <Link href={privacyHref} target="_blank" rel="noreferrer" className="font-semibold underline">
+                Privacy Policy
+              </Link>
+              . Le condizioni economiche applicabili ti vengono mostrate prima dell&apos;attivazione.
+            </span>
+          </label>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleBackToIdentity}
+              disabled={isPending}
+              className="styll-btn-secondary w-full px-4 py-3 text-sm sm:w-auto"
+              style={{ fontWeight: 600 }}
+            >
+              Indietro
+            </button>
+
+            <button
+              type="submit"
+              disabled={isPending}
+              className={cn(
+                'styll-btn-primary flex w-full items-center justify-center gap-2 px-4 py-3 text-sm',
+              )}
+              style={{ fontWeight: 600 }}
+            >
+              {isPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : null}
+              <span>Crea il mio negozio</span>
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }

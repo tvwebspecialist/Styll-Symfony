@@ -4,9 +4,12 @@ import { randomBytes } from 'crypto'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveTenantId } from '@/lib/tenant-context'
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { MANAGER_ROLES } from '@/lib/constants'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 import type { TablesUpdate } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -49,27 +52,18 @@ async function getTeamActorContext(): Promise<{
   const tenantId = await getActiveTenantId()
   if (!tenantId) return null
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return null
 
   const db = createAdminClient()
-  const { data: currentStaff } = await db
-    .from('staff_members')
-    .select('id, role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
 
-  if (!currentStaff) {
+  if (!membership) {
     const { data: profile } = await db
       .from('profiles')
       .select('is_superadmin')
-      .eq('id', user.id)
+      .eq('id', me.user.id)
       .maybeSingle()
 
     if (!profile?.is_superadmin) return null
@@ -78,7 +72,7 @@ async function getTeamActorContext(): Promise<{
       tenantId,
       db,
       currentStaff: {
-        id: user.id,
+        id: me.user.id,
         role: 'superadmin',
       },
     }
@@ -87,7 +81,10 @@ async function getTeamActorContext(): Promise<{
   return {
     tenantId,
     db,
-    currentStaff: currentStaff as CurrentStaffRow,
+    currentStaff: {
+      id: membership.staffMemberId,
+      role: membership.role as TeamActorRole,
+    },
   }
 }
 
@@ -177,14 +174,14 @@ export async function getTeamData(): Promise<TeamData> {
   const tenantId = await getActiveTenantId()
   if (!tenantId) return { staffMembers: [], currentStaff: null }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return { staffMembers: [], currentStaff: null }
 
   const db = createAdminClient()
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
 
-  const [staffRes, locsRes, currentStaffRes, currentProfileRes] = await Promise.all([
+  const [staffRes, locsRes, currentProfileRes] = await Promise.all([
     db
       .from('staff_members')
       .select('id, profile_id, role, is_active, photo_url, profiles(full_name, email, avatar_url)')
@@ -192,23 +189,11 @@ export async function getTeamData(): Promise<TeamData> {
       .is('deleted_at', null)
       .order('role', { ascending: true }),
     db.from('locations').select('id, name').eq('tenant_id', tenantId).eq('is_active', true),
-    user
-      ? db
-          .from('staff_members')
-          .select('id, role')
-          .eq('tenant_id', tenantId)
-          .eq('profile_id', user.id)
-          .eq('is_active', true)
-          .is('deleted_at', null)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    user
-      ? db
-          .from('profiles')
-          .select('is_superadmin')
-          .eq('id', user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    db
+      .from('profiles')
+      .select('is_superadmin')
+      .eq('id', me.user.id)
+      .maybeSingle(),
   ])
 
   const rawStaff = staffRes.data ?? []
@@ -242,11 +227,10 @@ export async function getTeamData(): Promise<TeamData> {
     }
   })
 
-  const currentStaffData = currentStaffRes.data as any
-  const currentStaff = currentStaffData
-    ? { staffId: currentStaffData.id as string, role: currentStaffData.role as string }
+  const currentStaff = membership
+    ? { staffId: membership.staffMemberId, role: membership.role }
     : (currentProfileRes.data as { is_superadmin?: boolean } | null)?.is_superadmin
-      ? { staffId: user!.id, role: 'superadmin' }
+      ? { staffId: me.user.id, role: 'superadmin' }
     : null
 
   return { staffMembers, currentStaff }
@@ -329,12 +313,8 @@ export async function inviteTeamMember(
 
     const tenantId = ctx.tenantId
     const db = ctx.db
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) return { success: false, error: 'Non autenticato' }
+    const me = await getOptionalSymfonyStaffMe()
+    if (!me) return { success: false, error: 'Non autenticato' }
 
     // Check if there's already a pending invitation for this email
     const { data: existingInvite } = await db
@@ -388,7 +368,7 @@ export async function inviteTeamMember(
        email: email.toLowerCase(),
        token,
        role,
-       created_by: user.id,
+       created_by: me.user.id,
        status: 'pending',
      })
      .select('id, expires_at')
@@ -409,7 +389,7 @@ export async function inviteTeamMember(
    const { data: profileData } = await db
      .from('profiles')
      .select('full_name')
-     .eq('id', user.id)
+     .eq('id', me.user.id)
      .single()
 
    const tenantName = tenantData?.business_name || 'Styll'

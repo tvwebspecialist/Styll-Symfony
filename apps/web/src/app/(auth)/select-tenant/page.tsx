@@ -1,8 +1,11 @@
 import { redirect } from 'next/navigation'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-import { resolveActiveProfile } from '@/lib/tenant-context'
 import { LogOut, ArrowRight, Scissors } from 'lucide-react'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
+import { clearSymfonyStaffJwtCookieInStore } from '@/lib/symfony/staff-session'
+import { cookies } from 'next/headers'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 
@@ -26,25 +29,23 @@ export default async function SelectTenantPage({
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  const ctx = await resolveActiveProfile()
-  if (!ctx) redirect('/login')
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) redirect('/login')
 
-  const db = createAdminClient()
-  const { data: memberships } = await db
-    .from('staff_members')
-    .select('role, tenants!tenant_id(id, business_name, logo_url, slug, status)')
-    .eq('profile_id', ctx.realUserId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-
-  if (!memberships || memberships.length === 0) {
+  const memberships = listSymfonyStaffMemberships(me)
+  if (memberships.length === 0) {
     redirect('/onboarding/step-1')
   }
 
   // Single tenant → skip picker and go directly to dashboard
   if (memberships.length === 1) {
-    const t = (memberships[0].tenants as unknown) as TenantInfo | null
+    const t = {
+      id: memberships[0].tenant.id,
+      business_name: memberships[0].tenant.businessName,
+      logo_url: memberships[0].tenant.logoUrl,
+      slug: memberships[0].tenant.slug,
+      status: memberships[0].tenant.status,
+    } satisfies TenantInfo
     if (t?.slug) redirect(dashboardUrl(t.slug))
     redirect('/onboarding/step-1')
   }
@@ -54,8 +55,8 @@ export default async function SelectTenantPage({
 
   async function handleSignOut() {
     'use server'
-    const supabase = await createClient()
-    await supabase.auth.signOut()
+    const cookieStore = await cookies()
+    clearSymfonyStaffJwtCookieInStore(cookieStore)
     redirect('/login')
   }
 
@@ -142,10 +143,16 @@ export default async function SelectTenantPage({
           maxWidth: 480,
         }}
       >
-        {memberships.map((m) => {
-          const tenant = (m.tenants as unknown) as TenantInfo | null
+        {memberships.map((membership) => {
+          const tenant = {
+            id: membership.tenant.id,
+            business_name: membership.tenant.businessName,
+            logo_url: membership.tenant.logoUrl,
+            slug: membership.tenant.slug,
+            status: membership.tenant.status,
+          } satisfies TenantInfo
           if (!tenant) return null
-          const role = m.role as string
+          const role = membership.role
           const roleLabel = role === 'owner' ? 'Proprietario' : role === 'manager' ? 'Manager' : 'Staff'
           const isSuspended = tenant.status === 'suspended'
 

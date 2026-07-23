@@ -1,14 +1,20 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 
-import { requireSuperadmin, type ActionResult } from './actions'
+import type { ActionResult } from './actions'
 
-function getDb() {
-  return createClient(
-    (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim(),
-    (process.env.SUPABASE_SECRET_KEY ?? '').trim()
-  )
+function actionError(error: unknown): string {
+  if (error instanceof SymfonyAdminApiError) {
+    if (error.details.body) {
+      try {
+        const parsed = JSON.parse(error.details.body) as { error?: string }
+        if (parsed.error) return parsed.error
+      } catch {}
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Errore sconosciuto.'
 }
 
 export interface OnboardingToken {
@@ -28,33 +34,23 @@ export async function listOnboardingTokens(): Promise<{
   data?: OnboardingToken[]
   error?: string
 }> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = getDb()
-  const { data, error } = await db
-    .from('onboarding_tokens')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100)
-  if (error) return { success: false, error: error.message }
-  return { success: true, data: (data ?? []) as OnboardingToken[] }
+  try {
+    const data = await fetchSymfonyAdminJson<OnboardingToken[]>('/api/admin/onboarding-tokens')
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
+  }
 }
 
 export async function deleteOnboardingToken(id: string): Promise<ActionResult> {
-  const auth = await requireSuperadmin()
-  if ('error' in auth) return { success: false, error: auth.error }
-  const db = getDb()
-  const { data: token } = await db
-    .from('onboarding_tokens')
-    .select('used_at')
-    .eq('id', id)
-    .maybeSingle()
-  if ((token as { used_at: string | null } | null)?.used_at) {
-    return { success: false, error: 'Token già usato, impossibile eliminarlo.' }
+  try {
+    await fetchSymfonyAdminJson(`/api/admin/onboarding-tokens/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: actionError(error) }
   }
-  const { error } = await db.from('onboarding_tokens').delete().eq('id', id)
-  if (error) return { success: false, error: error.message }
-  return { success: true }
 }
 
 export async function validateOnboardingToken(token: string): Promise<{
@@ -62,42 +58,12 @@ export async function validateOnboardingToken(token: string): Promise<{
   barbiere_email?: string | null
   error?: string
 }> {
-  const db = getDb()
-  const { data } = await db
-    .from('onboarding_tokens')
-    .select('id, barbiere_email, expires_at, used_at, active')
-    .eq('token', token)
-    .maybeSingle()
-
-  const row = data as {
-    id: string
-    barbiere_email: string | null
-    expires_at: string
-    used_at: string | null
-    active: boolean
-  } | null
-
-  if (!row) return { valid: false, error: 'Token non trovato.' }
-  if (!row.active) return { valid: false, error: 'Token disattivato.' }
-  if (row.used_at) return { valid: false, error: 'Token già utilizzato.' }
-  if (new Date(row.expires_at) < new Date()) return { valid: false, error: 'Token scaduto.' }
-  return { valid: true, barbiere_email: row.barbiere_email }
+  return { valid: false, error: 'Validazione token ancora non migrata lato Symfony.' }
 }
 
 export async function markOnboardingTokenUsed(
-  token: string,
-  usedByEmail: string
+  _token: string,
+  _usedByEmail: string
 ): Promise<ActionResult> {
-  const db = getDb()
-  const { error } = await db
-    .from('onboarding_tokens')
-    .update({
-      used_at: new Date().toISOString(),
-      used_by_email: usedByEmail,
-      active: false,
-    })
-    .eq('token', token)
-    .is('used_at', null)
-  if (error) return { success: false, error: error.message }
-  return { success: true }
+  return { success: false, error: 'Mark token used ancora non migrato lato Symfony.' }
 }

@@ -13,7 +13,6 @@ import {
   ArrowLeftRight,
   type LucideIcon,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { useTenantContext } from '@/lib/hooks/use-tenant-context'
 import type { ProfileData, SubscriptionInfo } from '@/lib/actions/profilo'
 import { DatiPersonali } from './sections/DatiPersonali'
@@ -80,9 +79,12 @@ export function ProfiloClient({
   const current = SECTIONS.find((s) => s.key === active)!
 
   async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/auth/staff/logout', {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    })
     router.push('/login')
+    router.refresh()
   }
 
   const initials =

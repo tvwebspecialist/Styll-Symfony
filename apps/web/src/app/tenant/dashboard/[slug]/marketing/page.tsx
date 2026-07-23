@@ -1,7 +1,5 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
-import { getTenantBySlug } from '@/lib/tenant'
 import { MarketingTabs } from '@/components/dashboard/marketing/MarketingTabs'
 import {
   getTenantRoleContext,
@@ -11,6 +9,7 @@ import {
   TENANT_PERMISSIONS,
   throwForbidden,
 } from '@/lib/tenant-role-guard'
+import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,15 +19,10 @@ export default async function MarketingPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) notFound()
-  const ctx = await getTenantRoleContext(tenant.tenant_id)
+  const me = await getOptionalSymfonyStaffMe(slug)
+  const tenantId = me?.currentTenant?.tenant.id
+  if (!tenantId) notFound()
+  const ctx = await getTenantRoleContext(tenantId)
   if (!ctx || !hasTenantRole(ctx.role, INBOX_TENANT_ROLES)) {
     throwForbidden()
   }
@@ -38,7 +32,7 @@ export default async function MarketingPage({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Suspense>
         <MarketingTabs
-          tenantId={tenant.tenant_id}
+          tenantId={tenantId}
           allowedTabs={canManageMarketing ? undefined : ['messaggi']}
           defaultTab={canManageMarketing ? undefined : 'messaggi'}
           inboxOnly={!canManageMarketing}

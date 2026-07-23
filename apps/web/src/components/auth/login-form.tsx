@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { createClient } from '@/lib/supabase/client'
+import { GoogleButton } from '@/components/auth/google-button'
 import { cn } from '@/lib/utils'
 
 interface LoginFormProps {
@@ -19,14 +19,10 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
-  const [isReady, setIsReady] = useState(false)
   const [isPending, startTransition] = useTransition()
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setIsReady(true)
-  }, [])
+  const isReady = true
 
   function handleSubmit() {
     const emailValue = emailRef.current?.value || email
@@ -36,19 +32,26 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
       return
     }
     startTransition(async () => {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({
-        email: emailValue.trim().toLowerCase(),
-        password: passwordValue,
+      const response = await fetch('/api/auth/staff/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          email: emailValue.trim().toLowerCase(),
+          password: passwordValue,
+        }),
       })
-      if (error) {
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null
         toast.error(
-          error.message.toLowerCase().includes('invalid')
-            ? 'Email o password non corretti'
-            : error.message
+          payload?.error || 'Impossibile completare il login.'
         )
         return
       }
+
       router.push(redirectTo || '/dashboard')
       router.refresh()
     })
@@ -101,7 +104,7 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
           </span>
           <Link
             href="/forgot-password"
-            className="text-xs font-medium underline-offset-2 hover:underline"
+            className="text-xs underline-offset-2 hover:underline"
             style={{ color: 'var(--color-fg-secondary)' }}
           >
             Password dimenticata?
@@ -152,6 +155,21 @@ export function LoginForm({ initialError = null, redirectTo = null }: LoginFormP
           'Accedi'
         )}
       </button>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-border, #e5e7eb)' }} />
+        <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: 'var(--color-fg-secondary)' }}>
+          oppure
+        </span>
+        <div className="h-px flex-1" style={{ backgroundColor: 'var(--color-border, #e5e7eb)' }} />
+      </div>
+
+      <GoogleButton
+        mode="staff_login"
+        redirectTo={redirectTo}
+        variant="secondary"
+        loadingLabel="Reindirizzamento a Google..."
+      />
     </form>
   )
 }

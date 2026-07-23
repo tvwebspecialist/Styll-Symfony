@@ -35,15 +35,26 @@ export async function requestPasswordReset(
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { success: false, error: 'Email non valida' }
   }
-  const supabase = await createClient()
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: buildRootAppUrl('/auth/reset-password'),
-  })
+  const { getSymfonyApiBaseUrl } = await import('@/lib/symfony/api-base-url')
+  const base = getSymfonyApiBaseUrl()
 
-  if (error) {
-    return { success: false, error: error.message }
+  let res: Response
+  try {
+    res = await fetch(`${base}/api/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+  } catch {
+    return { success: false, error: 'Impossibile raggiungere il server. Riprova.' }
   }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null
+    return { success: false, error: body?.error ?? 'Errore durante la richiesta.' }
+  }
+
   return { success: true }
 }
 

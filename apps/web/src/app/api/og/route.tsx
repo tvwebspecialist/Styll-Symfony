@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { safeImageUrl } from '@/lib/safe-image-url'
+import { fetchSymfonyPublicTenant } from '@/lib/symfony/public-client'
 
 export const runtime = 'edge'
 
@@ -12,20 +12,26 @@ export async function GET(req: NextRequest) {
     return new Response('Missing slug', { status: 400 })
   }
 
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('business_name, logo_url, primary_color')
-    .eq('slug', slug)
-    .eq('status', 'active')
-    .maybeSingle()
+  let tenant:
+    | {
+        businessName: string
+        logoUrl: string | null
+        primaryColor: string | null
+      }
+    | null = null
 
-  const bgColor = tenant?.primary_color ?? '#0A0A0A'
-  const businessName = tenant?.business_name ?? 'Barbiere'
+  try {
+    tenant = await fetchSymfonyPublicTenant(slug)
+  } catch {
+    tenant = null
+  }
+
+  const bgColor = tenant?.primaryColor ?? '#0A0A0A'
+  const businessName = tenant?.businessName ?? 'Barbiere'
 
   // Try to load logo with 2s timeout
   let logoSrc: string | null = null
-  const safeLogo = safeImageUrl(tenant?.logo_url)
+  const safeLogo = safeImageUrl(tenant?.logoUrl)
   if (safeLogo) {
     try {
       const logoFetch = fetch(safeLogo).then(async (r) => {

@@ -1,6 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { MANAGER_ROLES, type StaffRoleValue } from '@/lib/constants'
-import { createClient } from '@/lib/supabase/server'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 import { getActiveTenantId } from '@/lib/tenant-context'
 import { forbidden } from 'next/navigation'
 
@@ -75,30 +78,33 @@ export function hasTenantPermission(
 export async function getTenantRoleContext(
   explicitTenantId?: string
 ): Promise<TenantRoleContext | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-
   const tenantId = explicitTenantId ?? (await getActiveTenantId())
   if (!tenantId) return null
 
   const db = createAdminClient()
-  const { data: staffRow } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('slug')
+    .eq('id', tenantId)
     .maybeSingle()
 
-  if (staffRow?.role) {
+  if (!tenant?.slug) {
+    return null
+  }
+
+  const me = await getOptionalSymfonyStaffMe(tenant.slug)
+  if (!me) {
+    return null
+  }
+
+  const membership = listSymfonyStaffMemberships(me)
+    .find((entry) => entry.tenant.id === tenantId)
+
+  if (membership?.role) {
     return {
       tenantId,
-      userId: user.id,
-      role: staffRow.role as TenantRole,
+      userId: me.user.id,
+      role: membership.role as TenantRole,
       db,
     }
   }
@@ -106,14 +112,14 @@ export async function getTenantRoleContext(
   const { data: profile } = await db
     .from('profiles')
     .select('is_superadmin')
-    .eq('id', user.id)
+    .eq('id', me.user.id)
     .maybeSingle()
 
   if (!profile?.is_superadmin) return null
 
   return {
     tenantId,
-    userId: user.id,
+    userId: me.user.id,
     role: 'superadmin',
     db,
   }

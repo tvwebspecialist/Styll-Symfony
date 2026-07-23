@@ -1,13 +1,12 @@
-import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   fetchSiteAnalyticsDailyRows,
   type SiteAnalyticsDailyRow,
   type SiteAnalyticsDb,
 } from '@/lib/site-analytics/daily'
-import { getTenantBySlug } from '@/lib/tenant'
 import { SiteAnalyticsClient } from '@/components/dashboard/analytics/SiteAnalyticsClient'
+import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,19 +117,16 @@ async function getAnalyticsData(tenantId: string) {
 
 export default async function AnalyticsPage({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const me = await getOptionalSymfonyStaffMe(slug)
+  const tenantId = me?.currentTenant?.tenant.id
+  if (!tenantId) notFound()
 
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) notFound()
-
-  const data = await getAnalyticsData(tenant.tenant_id)
+  const data = await getAnalyticsData(tenantId)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SiteAnalyticsClient
-        tenantId={tenant.tenant_id}
+        tenantId={tenantId}
         daily={data.daily}
         bookingSources={data.bookingSources}
         totalClients={data.totalClients}

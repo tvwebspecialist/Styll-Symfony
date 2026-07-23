@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getTenantOwnerInfo } from '@/app/admin/actions'
+import { fetchSymfonyAdminJson, SymfonyAdminApiError } from '@/lib/symfony/admin-client'
 import { OverviewClient } from './overview-client'
 import { TenantOwnerCard } from './tenant-owner-card'
 
@@ -14,30 +14,40 @@ export default async function TenantOverviewPage({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const db = createAdminClient()
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('*')
-    .eq('id', tenantId)
-    .maybeSingle()
-  if (!tenant) notFound()
+  let tenant: {
+    id: string
+    business_name: string
+    slug: string
+    timezone: string
+    status: string
+    primary_color: string | null
+    secondary_color: string | null
+    logo_url: string | null
+    font_family: string | null
+    settings: Record<string, unknown> | null
+    created_at: string
+    updated_at: string
+    subscription: {
+      status: string | null
+      current_period_start: string | null
+      current_period_end: string | null
+      plan_name: string | null
+      price_monthly: number | null
+    }
+  }
 
-  const [{ data: sub }, ownerRes] = await Promise.all([
-    db
-      .from('tenant_subscriptions')
-      .select(
-        'status, current_period_start, current_period_end, plan:subscription_plans(name, price_monthly)',
-      )
-      .eq('tenant_id', tenantId)
-      .maybeSingle(),
+  try {
+    tenant = await fetchSymfonyAdminJson(`/api/admin/tenants/${encodeURIComponent(tenantId)}`)
+  } catch (error) {
+    if (error instanceof SymfonyAdminApiError && error.details.status === 404) {
+      notFound()
+    }
+    throw error
+  }
+
+  const [ownerRes] = await Promise.all([
     getTenantOwnerInfo(tenantId),
   ])
-
-  const planRel = (sub?.plan ?? null) as
-    | { name: string; price_monthly: number }
-    | { name: string; price_monthly: number }[]
-    | null
-  const plan = Array.isArray(planRel) ? planRel[0] : planRel
   const owner = ownerRes.success ? ownerRes.data ?? null : null
 
   return (
@@ -73,25 +83,25 @@ export default async function TenantOverviewPage({
             </Link>
           </div>
           <dl className="mt-3 space-y-2 text-sm">
-            <Row label="Piano" value={plan?.name ?? '—'} />
+            <Row label="Piano" value={tenant.subscription?.plan_name ?? '—'} />
             <Row
               label="Prezzo"
-              value={plan ? `€ ${Number(plan.price_monthly).toFixed(2)} / mese` : '—'}
+              value={tenant.subscription?.price_monthly != null ? `€ ${Number(tenant.subscription.price_monthly).toFixed(2)} / mese` : '—'}
             />
-            <Row label="Stato" value={sub?.status ?? '—'} />
+            <Row label="Stato" value={tenant.subscription?.status ?? '—'} />
             <Row
               label="Periodo dal"
               value={
-                sub?.current_period_start
-                  ? new Date(sub.current_period_start).toLocaleDateString('it-IT')
+                tenant.subscription?.current_period_start
+                  ? new Date(tenant.subscription.current_period_start).toLocaleDateString('it-IT')
                   : '—'
               }
             />
             <Row
               label="Periodo al"
               value={
-                sub?.current_period_end
-                  ? new Date(sub.current_period_end).toLocaleDateString('it-IT')
+                tenant.subscription?.current_period_end
+                  ? new Date(tenant.subscription.current_period_end).toLocaleDateString('it-IT')
                   : '—'
               }
             />

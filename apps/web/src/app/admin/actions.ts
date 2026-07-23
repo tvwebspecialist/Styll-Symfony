@@ -5,8 +5,8 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { clearAdminShadowCookie } from '@/lib/admin-shadow-cookie'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { getOptionalSymfonyStaffMe } from '@/lib/symfony/staff-context'
+import { clearSymfonyStaffJwtCookieInStore } from '@/lib/symfony/staff-session'
 
 import {
   assignTenantOwnerByEmail as assignTenantOwnerByEmailAction,
@@ -91,19 +91,10 @@ export interface ActionResult {
 }
 
 export async function requireSuperadmin(): Promise<{ id: string } | { error: string }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { error: 'Sessione non valida.' }
-  const db = createAdminClient()
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', user.id)
-    .maybeSingle()
-  if (!profile?.is_superadmin) return { error: 'Permessi insufficienti.' }
-  return { id: user.id }
+  const me = await getOptionalSymfonyStaffMe()
+  if (!me) return { error: 'Sessione non valida.' }
+  if (!me.user.roles.includes('ROLE_SUPERADMIN')) return { error: 'Permessi insufficienti.' }
+  return { id: me.user.id }
 }
 
 export async function bumpAdmin() {
@@ -113,8 +104,7 @@ export async function bumpAdmin() {
 export async function signOutAction() {
   const cookieStore = await cookies()
   clearAdminShadowCookie(cookieStore)
-  const supabase = await createClient()
-  await supabase.auth.signOut()
+  clearSymfonyStaffJwtCookieInStore(cookieStore)
   redirect('/login')
 }
 

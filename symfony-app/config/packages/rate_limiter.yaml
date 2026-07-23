@@ -1,0 +1,88 @@
+framework:
+    rate_limiter:
+        staff_login_ip:
+            policy: fixed_window
+            limit: 20
+            interval: '15 minutes'
+        staff_login_email_ip:
+            policy: fixed_window
+            limit: 5
+            interval: '15 minutes'
+        password_reset_request_ip:
+            policy: fixed_window
+            limit: 12
+            interval: '1 hour'
+        password_reset_request_email_ip:
+            policy: fixed_window
+            limit: 3
+            interval: '1 hour'
+        password_reset_confirm_ip:
+            policy: fixed_window
+            limit: 20
+            interval: '15 minutes'
+        password_reset_confirm_token_ip:
+            policy: fixed_window
+            limit: 5
+            interval: '15 minutes'
+        pwa_otp_send_ip:
+            policy: fixed_window
+            limit: 20
+            interval: '1 hour'
+        pwa_otp_send_email_ip:
+            policy: fixed_window
+            limit: 5
+            interval: '1 hour'
+        pwa_otp_verify_ip:
+            policy: fixed_window
+            limit: 20
+            interval: '15 minutes'
+        pwa_otp_verify_email_ip:
+            policy: fixed_window
+            limit: 5
+            interval: '15 minutes'
+        staff_register_ip:
+            policy: fixed_window
+            limit: 15
+            interval: '1 hour'
+        staff_register_email_ip:
+            policy: fixed_window
+            limit: 5
+            interval: '1 hour'
+        google_staff_register_start_ip:
+            policy: fixed_window
+            limit: 15
+            interval: '1 hour'
+
+when@test:
+    framework:
+        rate_limiter:
+            staff_login_ip:
+                limit: 10
+                interval: '1 second'
+            staff_login_email_ip:
+                limit: 3
+                interval: '1 second'
+            password_reset_request_ip:
+                interval: '1 second'
+            password_reset_request_email_ip:
+                interval: '1 second'
+            password_reset_confirm_ip:
+                interval: '1 second'
+            password_reset_confirm_token_ip:
+                interval: '1 second'
+            pwa_otp_send_ip:
+                interval: '1 second'
+            pwa_otp_send_email_ip:
+                interval: '1 second'
+            pwa_otp_verify_ip:
+                interval: '1 second'
+            pwa_otp_verify_email_ip:
+                interval: '1 second'
+            staff_register_ip:
+                limit: 3
+                interval: '1 second'
+            staff_register_email_ip:
+                interval: '1 second'
+            google_staff_register_start_ip:
+                limit: 3
+                interval: '1 second'

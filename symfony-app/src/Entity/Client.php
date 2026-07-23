@@ -44,9 +44,9 @@ class Client
     #[Groups(['client:read'])]
     private string $fullName;
 
-    #[ORM\Column(type: 'string', length: 30)]
+    #[ORM\Column(type: 'string', length: 30, nullable: true)]
     #[Groups(['client:read'])]
-    private string $phone;
+    private ?string $phone = null;
 
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     #[Groups(['client:read'])]
@@ -111,8 +111,8 @@ class Client
     public function setProfile(?Profile $profile): static { $this->profile = $profile; return $this; }
     public function getFullName(): string { return $this->fullName; }
     public function setFullName(string $name): static { $this->fullName = $name; return $this; }
-    public function getPhone(): string { return $this->phone; }
-    public function setPhone(string $phone): static { $this->phone = $phone; return $this; }
+    public function getPhone(): ?string { return $this->phone; }
+    public function setPhone(?string $phone): static { $this->phone = $phone; return $this; }
     public function getEmail(): ?string { return $this->email; }
     public function setEmail(?string $email): static { $this->email = $email; return $this; }
     public function getDateOfBirth(): ?\DateTimeImmutable { return $this->dateOfBirth; }

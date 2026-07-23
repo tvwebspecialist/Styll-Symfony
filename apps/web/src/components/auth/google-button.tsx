@@ -5,25 +5,16 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
-import { buildRootAppUrl } from '@/lib/auth/urls'
-import {
-  GOOGLE_OAUTH_REGISTER_SOURCE,
-  ROOT_OAUTH_FLOW_LOGIN,
-  ROOT_OAUTH_FLOW_REGISTER,
-  buildRootOAuthCallbackPath,
-} from '@/lib/legal/b2b-register-acceptance-shared'
-import { createClient } from '@/lib/supabase/client'
 
 interface GoogleButtonProps {
-  acceptedTerms?: boolean
+  mode: 'staff_login' | 'staff_register'
   label?: string
   loadingLabel?: string
   className?: string
   ariaLabel?: string
   variant?: 'primary' | 'secondary'
-  intent?: string | null
-  onboardingToken?: string | null
-  oauthFlow?: 'login' | 'register'
+  redirectTo?: string | null
+  fullName?: string
 }
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -55,73 +46,43 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export function GoogleButton({
-  acceptedTerms = true,
+  mode,
   label = 'Continua con Google',
   loadingLabel = 'Accesso in corso...',
   className,
   ariaLabel,
   variant = 'secondary',
-  intent,
-  onboardingToken = null,
-  oauthFlow = ROOT_OAUTH_FLOW_LOGIN,
+  redirectTo = null,
+  fullName = '',
 }: GoogleButtonProps) {
   const [isPending, startTransition] = useTransition()
 
   function handleClick() {
-    if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER && !acceptedTerms) {
-      toast.error('Devi accettare i Termini di Servizio prima di continuare con Google.')
-      return
-    }
-
     startTransition(async () => {
       try {
-        if (oauthFlow === ROOT_OAUTH_FLOW_REGISTER) {
-          if (!onboardingToken) {
-            toast.error('Token di registrazione non valido. Riapri il link di invito.')
-            return
-          }
-
-          const prepareResponse = await fetch('/api/auth/register/legal-acceptance', {
-            body: JSON.stringify({
-              onboardingToken,
-              source: GOOGLE_OAUTH_REGISTER_SOURCE,
-            }),
-            headers: { 'Content-Type': 'application/json' },
-            method: 'POST',
-          })
-
-          const prepareResult = (await prepareResponse.json().catch(() => null)) as
-            | { error?: string; success?: boolean }
-            | null
-
-          if (!prepareResponse.ok || !prepareResult?.success) {
-            toast.error(prepareResult?.error || 'Impossibile preparare la registrazione con Google. Riprova.')
-            return
-          }
-        }
-
-        const supabase = createClient()
-        const callbackPath = buildRootOAuthCallbackPath({ flow: oauthFlow, intent })
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: buildRootAppUrl(callbackPath),
-            queryParams: {
-              access_type: 'offline',
-              prompt: 'consent',
-            },
-            // skipBrowserRedirect so we navigate manually AFTER document.cookie
-            // is committed — avoids iOS Safari ITP race condition where a Server
-            // Action Set-Cookie may not be persisted before the cross-site
-            // navigation to accounts.google.com starts.
-            skipBrowserRedirect: true,
+        const response = await fetch('/api/auth/google/staff/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
+          body: JSON.stringify({
+            mode: mode === 'staff_register' ? 'register' : 'login',
+            redirectTo: redirectTo ?? undefined,
+            fullName: fullName || undefined,
+          }),
         })
-        if (error || !data.url) {
-          toast.error('Impossibile avviare il login con Google. Riprova.')
+
+        const payload = (await response.json().catch(() => null)) as
+          | { authorizationUrl?: string; error?: string }
+          | null
+
+        if (!response.ok || !payload?.authorizationUrl) {
+          toast.error(payload?.error || 'Impossibile avviare il login con Google. Riprova.')
           return
         }
-        window.location.href = data.url
+
+        window.location.href = payload.authorizationUrl
       } catch {
         toast.error('Impossibile avviare il login con Google. Riprova.')
       }
@@ -132,7 +93,7 @@ export function GoogleButton({
     <button
       type="button"
       onClick={handleClick}
-      disabled={isPending || (oauthFlow === ROOT_OAUTH_FLOW_REGISTER && !acceptedTerms)}
+      disabled={isPending}
       aria-label={ariaLabel ?? label}
       className={cn(
         variant === 'primary' ? 'styll-btn-primary' : 'styll-btn-secondary',

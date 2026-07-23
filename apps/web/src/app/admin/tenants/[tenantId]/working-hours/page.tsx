@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchSymfonyAdminJson } from '@/lib/symfony/admin-client'
 import { WorkingHoursClient } from './working-hours-client'
 
 export const dynamic = 'force-dynamic'
@@ -9,24 +9,16 @@ export default async function WorkingHoursPage({
   params: Promise<{ tenantId: string }>
 }) {
   const { tenantId } = await params
-  const db = createAdminClient()
-  const [{ data: staff }, { data: hours }] = await Promise.all([
-    db
-      .from('staff_members')
-      .select('id, profile:profiles(full_name, email)')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: true }),
-    db
-      .from('working_hours')
-      .select('staff_id, day_of_week, start_time, end_time')
-      .eq('tenant_id', tenantId),
-  ])
+  const data = await fetchSymfonyAdminJson<{
+    staff: Array<{ id: string; profile?: { full_name: string | null; email: string | null } | null }>
+    hours: Array<{ staff_id: string; day_of_week: number; start_time: string; end_time: string }>
+  }>(`/api/admin/tenants/${encodeURIComponent(tenantId)}/working-hours`)
 
   return (
     <WorkingHoursClient
       tenantId={tenantId}
-      staff={(staff ?? []) as never}
-      hours={(hours ?? []) as never}
+      staff={data.staff as never}
+      hours={data.hours as never}
     />
   )
 }

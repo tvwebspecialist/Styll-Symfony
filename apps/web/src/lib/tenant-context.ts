@@ -1,11 +1,14 @@
 import { cookies, headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 import {
   ADMIN_SHADOW_COOKIE,
   getValidatedAdminShadowContext,
 } from '@/lib/admin-shadow-cookie'
 import { MANAGER_ROLES } from '@/lib/constants'
+import {
+  getOptionalSymfonyStaffMe,
+  listSymfonyStaffMemberships,
+} from '@/lib/symfony/staff-context'
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'styll.it'
 const DASHBOARD_SUFFIX = '-dashboard'
@@ -70,53 +73,6 @@ async function getDashboardSlugFromRequest(): Promise<string | null> {
   return null
 }
 
-async function userCanAccessTenant(
-  db: ReturnType<typeof createAdminClient>,
-  userId: string,
-  tenantId: string
-): Promise<boolean> {
-  const { data: staffRow } = await db
-    .from('staff_members')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('profile_id', userId)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (staffRow) return true
-
-  const { data: profile } = await db
-    .from('profiles')
-    .select('is_superadmin')
-    .eq('id', userId)
-    .maybeSingle()
-
-  return !!profile?.is_superadmin
-}
-
-async function getDashboardTenantIdFromRequest(
-  db: ReturnType<typeof createAdminClient>,
-  userId: string
-): Promise<{ matchedDashboardUrl: boolean; tenantId: string | null }> {
-  const slug = await getDashboardSlugFromRequest()
-  if (!slug) return { matchedDashboardUrl: false, tenantId: null }
-
-  const { data: tenant } = await db
-    .from('tenants')
-    .select('id')
-    .eq('slug', slug)
-    .maybeSingle()
-
-  const tenantId = tenant?.id as string | undefined
-  if (!tenantId) return { matchedDashboardUrl: true, tenantId: null }
-
-  return {
-    matchedDashboardUrl: true,
-    tenantId: (await userCanAccessTenant(db, userId, tenantId)) ? tenantId : null,
-  }
-}
-
 export const IMPERSONATE_STAFF_COOKIE = 'styll_impersonate_staff'
 
 export interface StaffImpersonationState {
@@ -137,9 +93,8 @@ export async function getStaffImpersonationState(): Promise<StaffImpersonationSt
   const staffMemberId = cookieStore.get(IMPERSONATE_STAFF_COOKIE)?.value ?? null
   if (!staffMemberId) return none
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return none
+  const me = await getOptionalSymfonyStaffMe(await getDashboardSlugFromRequest())
+  if (!me) return none
 
   const db = createAdminClient()
 
@@ -153,16 +108,12 @@ export async function getStaffImpersonationState(): Promise<StaffImpersonationSt
 
   if (!targetStaff) return none
 
-  const { data: callerStaff } = await db
-    .from('staff_members')
-    .select('role')
-    .eq('tenant_id', targetStaff.tenant_id)
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const callerMembership = listSymfonyStaffMemberships(me)
+    .find((membership) => membership.tenant.id === targetStaff.tenant_id)
 
-  if (!callerStaff || !MANAGER_ROLES.includes(callerStaff.role as typeof MANAGER_ROLES[number])) return none
+  if (!callerMembership || !MANAGER_ROLES.includes(callerMembership.role as typeof MANAGER_ROLES[number])) {
+    return none
+  }
 
   const profile = targetStaff.profiles as { full_name?: string | null } | null
   return {
@@ -175,6 +126,26 @@ export async function getStaffImpersonationState(): Promise<StaffImpersonationSt
 
 export const IMPERSONATE_COOKIE = ADMIN_SHADOW_COOKIE
 
+async function getValidatedImpersonationStateForUser(userId: string): Promise<{
+  active: boolean
+  tenantId: string | null
+  businessName: string | null
+}> {
+  const cookieStore = await cookies()
+  const tenantId = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
+  if (!tenantId) return { active: false, tenantId: null, businessName: null }
+
+  const db = createAdminClient()
+  const shadowCtx = await getValidatedAdminShadowContext(db, userId, tenantId)
+  if (!shadowCtx.tenantId) return { active: false, tenantId: null, businessName: null }
+
+  return {
+    active: true,
+    tenantId: shadowCtx.tenantId,
+    businessName: shadowCtx.businessName,
+  }
+}
+
 /**
  * Resolve the active tenant id for the current request.
  *
@@ -184,35 +155,20 @@ export const IMPERSONATE_COOKIE = ADMIN_SHADOW_COOKIE
  * - Otherwise, fall back to the user's primary `staff_members.tenant_id`.
  */
 export async function getActiveTenantId(): Promise<string | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const dashboardSlug = await getDashboardSlugFromRequest()
+  const me = await getOptionalSymfonyStaffMe(dashboardSlug)
+  if (!me) return null
 
-  const db = createAdminClient()
-  const tenantFromDashboardUrl = await getDashboardTenantIdFromRequest(db, user.id)
-  if (tenantFromDashboardUrl.matchedDashboardUrl) {
-    return tenantFromDashboardUrl.tenantId
+  if (dashboardSlug) {
+    return me.currentTenant?.tenant.id ?? null
   }
 
-  const cookieStore = await cookies()
-  const impersonatedTenant = cookieStore.get(IMPERSONATE_COOKIE)?.value
-
-  if (impersonatedTenant) {
-    const shadowCtx = await getValidatedAdminShadowContext(db, user.id, impersonatedTenant)
-    if (shadowCtx.tenantId) return shadowCtx.tenantId
+  const impersonation = await getValidatedImpersonationStateForUser(me.user.id)
+  if (impersonation.active && impersonation.tenantId) {
+    return impersonation.tenantId
   }
 
-  const { data } = await db
-    .from('staff_members')
-    .select('tenant_id')
-    .eq('profile_id', user.id)
-    .eq('is_active', true)
-    .is('deleted_at', null)
-    .limit(1)
-    .maybeSingle()
-  return data?.tenant_id ?? null
+  return me.currentTenant?.tenant.id ?? null
 }
 
 /**
@@ -224,25 +180,10 @@ export async function getImpersonationState(): Promise<{
   tenantId: string | null
   businessName: string | null
 }> {
-  const cookieStore = await cookies()
-  const tenantId = cookieStore.get(IMPERSONATE_COOKIE)?.value ?? null
-  if (!tenantId) return { active: false, tenantId: null, businessName: null }
+  const me = await getOptionalSymfonyStaffMe(await getDashboardSlugFromRequest())
+  if (!me) return { active: false, tenantId: null, businessName: null }
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { active: false, tenantId: null, businessName: null }
-
-  const db = createAdminClient()
-  const shadowCtx = await getValidatedAdminShadowContext(db, user.id, tenantId)
-  if (!shadowCtx.tenantId) return { active: false, tenantId: null, businessName: null }
-
-  return {
-    active: true,
-    tenantId: shadowCtx.tenantId,
-    businessName: shadowCtx.businessName,
-  }
+  return getValidatedImpersonationStateForUser(me.user.id)
 }
 
 export interface ActiveProfileResolution {
@@ -267,32 +208,29 @@ export interface ActiveProfileResolution {
  * active but the tenant has no active owner row, falls back to the real user.
  */
 export async function resolveActiveProfile(): Promise<ActiveProfileResolution | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const dashboardSlug = await getDashboardSlugFromRequest()
+  const me = await getOptionalSymfonyStaffMe(dashboardSlug)
+  if (!me) return null
 
-  const impersonation = await getImpersonationState()
+  const impersonation = await getValidatedImpersonationStateForUser(me.user.id)
   if (!impersonation.active || !impersonation.tenantId) {
     return {
-      profileId: user.id,
-      realUserId: user.id,
+      profileId: me.profile.id,
+      realUserId: me.user.id,
       isShadow: false,
       tenantId: null,
     }
   }
 
   const db = createAdminClient()
-  const tenantFromDashboardUrl = await getDashboardTenantIdFromRequest(db, user.id)
-  const shadowTenantId = tenantFromDashboardUrl.matchedDashboardUrl
-    ? tenantFromDashboardUrl.tenantId
+  const shadowTenantId = dashboardSlug
+    ? me.currentTenant?.tenant.id ?? null
     : impersonation.tenantId
 
   if (!shadowTenantId) {
     return {
-      profileId: user.id,
-      realUserId: user.id,
+      profileId: me.profile.id,
+      realUserId: me.user.id,
       isShadow: false,
       tenantId: null,
     }
@@ -310,8 +248,8 @@ export async function resolveActiveProfile(): Promise<ActiveProfileResolution | 
     .maybeSingle()
 
   return {
-    profileId: ownerStaff?.profile_id ?? user.id,
-    realUserId: user.id,
+    profileId: ownerStaff?.profile_id ?? me.profile.id,
+    realUserId: me.user.id,
     isShadow: ownerStaff?.profile_id != null,
     tenantId: shadowTenantId,
   }
@@ -326,23 +264,26 @@ export async function resolveActiveProfile(): Promise<ActiveProfileResolution | 
 export async function resolveActiveProfileForTenant(
   tenantId: string
 ): Promise<ActiveProfileResolution | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+  const db = createAdminClient()
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('slug')
+    .eq('id', tenantId)
+    .maybeSingle()
 
-  const impersonation = await getImpersonationState()
+  const me = await getOptionalSymfonyStaffMe(tenant?.slug ?? null)
+  if (!me) return null
+
+  const impersonation = await getValidatedImpersonationStateForUser(me.user.id)
   if (!impersonation.active) {
     return {
-      profileId: user.id,
-      realUserId: user.id,
+      profileId: me.profile.id,
+      realUserId: me.user.id,
       isShadow: false,
       tenantId: null,
     }
   }
 
-  const db = createAdminClient()
   const { data: ownerStaff } = await db
     .from('staff_members')
     .select('profile_id')
@@ -355,8 +296,8 @@ export async function resolveActiveProfileForTenant(
     .maybeSingle()
 
   return {
-    profileId: ownerStaff?.profile_id ?? user.id,
-    realUserId: user.id,
+    profileId: ownerStaff?.profile_id ?? me.profile.id,
+    realUserId: me.user.id,
     isShadow: ownerStaff?.profile_id != null,
     tenantId,
   }
