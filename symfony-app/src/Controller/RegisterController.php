@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Exception\StaffRegistrationConflictException;
+use App\Security\RateLimiting\AuthRateLimiter;
+use App\Security\RateLimiting\RateLimitResponseFactory;
 use App\Service\StaffRegistrationInput;
 use App\Service\StaffRegistrationService;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
@@ -19,6 +21,8 @@ final class RegisterController extends AbstractController
     public function __construct(
         private readonly StaffRegistrationService $staffRegistrationService,
         private readonly JWTTokenManagerInterface $jwtTokenManager,
+        private readonly AuthRateLimiter $authRateLimiter,
+        private readonly RateLimitResponseFactory $rateLimitResponseFactory,
     ) {}
 
     #[Route('/api/register', methods: ['POST'])]
@@ -67,6 +71,11 @@ final class RegisterController extends AbstractController
                 ['error' => 'Il nome completo deve avere almeno 2 caratteri.'],
                 Response::HTTP_BAD_REQUEST,
             );
+        }
+
+        $rateLimit = $this->authRateLimiter->consumeStaffRegister($request, $email);
+        if ($rateLimit !== null) {
+            return $this->rateLimitResponseFactory->create($rateLimit);
         }
 
         try {

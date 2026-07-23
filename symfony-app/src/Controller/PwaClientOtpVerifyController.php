@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\PwaClientEmailOtpService;
+use App\Security\RateLimiting\AuthRateLimiter;
+use App\Security\RateLimiting\RateLimitResponseFactory;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,6 +17,8 @@ final class PwaClientOtpVerifyController extends AbstractController
 {
     public function __construct(
         private readonly PwaClientEmailOtpService $otpService,
+        private readonly AuthRateLimiter $authRateLimiter,
+        private readonly RateLimitResponseFactory $rateLimitResponseFactory,
     ) {}
 
     #[Route('/api/pwa/otp/verify', methods: ['POST'])]
@@ -44,9 +48,16 @@ final class PwaClientOtpVerifyController extends AbstractController
             return $this->json(['error' => 'Tenant non specificato.'], Response::HTTP_BAD_REQUEST);
         }
 
+        $rateLimit = $this->authRateLimiter->checkPwaOtpVerify($request, $email);
+        if ($rateLimit !== null) {
+            return $this->rateLimitResponseFactory->create($rateLimit);
+        }
+
         $result = $this->otpService->verifyOtp($email, $code, $tenantSlug, $fullName ?: null, $phone ?: null);
 
         if (!$result->success) {
+            $this->authRateLimiter->registerPwaOtpVerifyFailure($request, $email);
+
             return $this->json(['error' => $result->error], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

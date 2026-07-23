@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Exception\GoogleOAuthFlowException;
+use App\Security\RateLimiting\AuthRateLimiter;
+use App\Security\RateLimiting\RateLimitResponseFactory;
+use App\Service\GoogleOAuthContext;
 use App\Service\GoogleOAuthFlowService;
 use App\Service\GoogleOAuthStartInput;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,6 +20,8 @@ final class GoogleOAuthStartController extends AbstractController
 {
     public function __construct(
         private readonly GoogleOAuthFlowService $googleOAuthFlowService,
+        private readonly AuthRateLimiter $authRateLimiter,
+        private readonly RateLimitResponseFactory $rateLimitResponseFactory,
     ) {}
 
     #[Route('/api/oauth/google/start', methods: ['POST'])]
@@ -32,9 +37,17 @@ final class GoogleOAuthStartController extends AbstractController
             return $this->json(['error' => 'Payload JSON non valido.'], Response::HTTP_BAD_REQUEST);
         }
 
+        $context = trim((string) ($payload['context'] ?? ''));
+        if ($context === GoogleOAuthContext::STAFF_REGISTER) {
+            $rateLimit = $this->authRateLimiter->consumeGoogleStaffRegisterStart($request);
+            if ($rateLimit !== null) {
+                return $this->rateLimitResponseFactory->create($rateLimit);
+            }
+        }
+
         try {
             $result = $this->googleOAuthFlowService->start(new GoogleOAuthStartInput(
-                context: trim((string) ($payload['context'] ?? '')),
+                context: $context,
                 redirectUri: trim((string) ($payload['redirect_uri'] ?? '')),
                 redirectTo: $this->optionalString($payload['redirect_to'] ?? null),
                 returnTo: $this->optionalString($payload['return_to'] ?? null),

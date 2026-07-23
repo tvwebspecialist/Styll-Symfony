@@ -51,6 +51,29 @@ services:
         arguments:
             $appBaseUrl: '%env(FRONTEND_URL)%'
 
+    App\Security\RateLimiting\RateLimitKeyGenerator:
+        arguments:
+            $secret: '%kernel.secret%'
+
+    App\Security\RateLimiting\StaffLoginRateLimiter:
+        arguments:
+            $globalFactory: '@limiter.staff_login_ip'
+            $localFactory: '@limiter.staff_login_email_ip'
+
+    App\Security\RateLimiting\AuthRateLimiter:
+        arguments:
+            $passwordResetRequestIpFactory: '@limiter.password_reset_request_ip'
+            $passwordResetRequestEmailIpFactory: '@limiter.password_reset_request_email_ip'
+            $passwordResetConfirmIpFactory: '@limiter.password_reset_confirm_ip'
+            $passwordResetConfirmTokenIpFactory: '@limiter.password_reset_confirm_token_ip'
+            $pwaOtpSendIpFactory: '@limiter.pwa_otp_send_ip'
+            $pwaOtpSendEmailIpFactory: '@limiter.pwa_otp_send_email_ip'
+            $pwaOtpVerifyIpFactory: '@limiter.pwa_otp_verify_ip'
+            $pwaOtpVerifyEmailIpFactory: '@limiter.pwa_otp_verify_email_ip'
+            $staffRegisterIpFactory: '@limiter.staff_register_ip'
+            $staffRegisterEmailIpFactory: '@limiter.staff_register_email_ip'
+            $googleStaffRegisterStartIpFactory: '@limiter.google_staff_register_start_ip'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
@@ -59,3 +82,5 @@ when@test:
         App\Tests\Support\TestTenantFixture:
             public: true
             autowire: true
+            arguments:
+                $rateLimiterCache: '@cache.rate_limiter'
