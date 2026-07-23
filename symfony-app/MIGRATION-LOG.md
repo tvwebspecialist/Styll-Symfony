@@ -3371,3 +3371,115 @@ docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
 Gap residui Area 5:
 - Nessun endpoint migrato verso `apps/web` in questa sessione (fuori perimetro della fase 1a).
 - `apps/web/src/lib/actions/clienti.ts` ancora legge Supabase — da collegare agli endpoint Symfony in una fase frontend dedicata.
+
+---
+
+## FASE — Calendario read-only (Area 4) — 2026-07-23
+
+**Branch:** `dev`
+
+### Obiettivo
+
+Implementare il layer read-only del calendario Symfony (Fase 1b), portando la logica di:
+
+- `apps/web/src/lib/actions/calendario.ts` → `GET /api/appointments` + `GET /api/appointments/{id}`
+- `apps/web/src/lib/actions/booking-slots.ts` → `GET /api/availability/slots`
+
+Perimetro: **solo lettura**. Nessuna mutation su `appointments`, `working_hours`, `working_hour_overrides`.
+
+---
+
+### Endpoint implementati
+
+#### `GET /api/appointments`
+
+- Filtri: `?from=YYYY-MM-DD`, `?to=YYYY-MM-DD`, `?staffId=UUID`, `?status=string`
+- Filtro soft-delete automatico via `AppointmentSoftDeleteExtension` (implementa `QueryCollectionExtensionInterface` + `QueryItemExtensionInterface`)
+- Filtro data/staff/status via `AppointmentCalendarFilter` (estende `AbstractFilter` API Platform)
+- TenantFilter Doctrine già attivo sull'entità `Appointment`
+- Paginazione API Platform standard
+
+#### `GET /api/appointments/{id}`
+
+- Caricamento lazy delle relazioni: client, staff, location, appointmentServices
+- `AppointmentSoftDeleteExtension` esclude i soft-deleted anche sull'item (restituisce 404 se `deleted_at IS NOT NULL`)
+
+**Campi esposti** (gruppo `appointment:read`):
+`id`, `startTime`, `endTime`, `status`, `bookingSource`, `notes`, `clientId`, `clientFullName`, `staffId`, `staffFullName`, `locationId`, `locationName`, `services[]`, `totalPrice`
+
+#### `GET /api/availability/slots`
+
+Controller custom (`AvailabilitySlotsController`) — porta `booking-slots.ts`.
+
+Parametri:
+- `staffId=UUID` (obbligatorio)
+- `date=YYYY-MM-DD` (obbligatorio, data locale nel timezone target)
+- `serviceId=UUID` (opzionale — risolve `duration_minutes` dalla Service entity)
+- `serviceDuration=int` (opzionale — durata esplicita in minuti)
+- `timezone=Europe/Rome` (opzionale, default `Europe/Rome`)
+- `excludeAppointmentId=UUID` (opzionale — esclude dal calcolo busy windows, per reschedule)
+
+Risposta: `{ slots: [{time: "HH:MM", available: bool}], isWorkingDay: bool, reason?: string }`
+
+Logica:
+1. Verifica staff appartiene al tenant corrente (404 se no)
+2. Data passata → `{ slots: [], isWorkingDay: true }` (stesso comportamento TS)
+3. Override `is_closed=true` → `{ slots: [], isWorkingDay: false, reason }`
+4. Override con orari custom → usa quelli come finestre di lavoro
+5. Nessun override → query `working_hours` per `day_of_week` (PHP `format('w')` = 0=Sun, identico a JS `getUTCDay()`)
+6. Nessuna finestra → `{ slots: [], isWorkingDay: false, reason: 'Giorno di riposo' }`
+7. Genera slot grid ogni 30 min, marca `available: false` se `slotStart < busy.end && slotEnd > busy.start`
+8. Appuntamenti convertiti da UTC a minuti locali via `setTimezone($tz)->format('G') * 60 + format('i')`
+
+---
+
+### File modificati/creati
+
+**Nuovi:**
+- `src/Filter/AppointmentCalendarFilter.php` — filtro API Platform per date, staffId, status
+- `src/Doctrine/AppointmentSoftDeleteExtension.php` — estensione auto-registrata per `deletedAt IS NULL`
+- `src/Controller/AvailabilitySlotsController.php` — controller custom slot availability
+- `tests/Functional/CalendarioEndpointTest.php` — 17 test funzionali
+
+**Modificati:**
+- `src/Entity/Appointment.php` — aggiunto `#[ApiResource]` con GetCollection+Get, `#[Groups(['appointment:read'])]` sui campi, `OneToMany` per `appointmentServices`, getter virtuali
+- `src/Entity/AppointmentService.php` — aggiunto `inversedBy: 'appointmentServices'` su `ManyToOne`
+- `tests/Support/TestTenantFixture.php` — aggiunto `seedTwoTenantsWithCalendarData()`
+
+**Nessuna nuova migration** — tutte le modifiche sono metadata Doctrine, nessun cambio schema.
+
+---
+
+### Verifiche eseguite
+
+```bash
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox --filter CalendarioEndpointTest
+# Tests: 17, Assertions: 133 — TUTTI VERDI
+
+docker compose exec -T php env APP_ENV=test php bin/phpunit --testdox
+# Tests: 179, Assertions: 1578 — TUTTI VERDI (nessuna regressione)
+
+docker compose exec -T php env APP_ENV=test php bin/console doctrine:schema:validate --skip-sync
+# [OK] The mapping files are correct.
+```
+
+---
+
+### Decisioni architetturali
+
+- **Getter virtuali su `Appointment`** (`getClientId`, `getClientFullName`, `getStaffId`, `getStaffFullName`, `getLocationId`, `getLocationName`, `getServices`, `getTotalPrice`) invece di aggiungere `#[Groups]` alle entità `Client`, `StaffMember`, `Profile`, `Location`. Minimizza le modifiche alle entità esistenti e il rischio di regressioni sui test CRM.
+- **`EXTRA_LAZY` fetch** su `appointmentServices` — evita caricamento dell'intera collection per le operazioni sul singolo appuntamento.
+- **No `security:` su `#[ApiResource]`** — la protezione è affidata al firewall Symfony (JWT obbligatorio per `/api/*` eccetto rotte `PUBLIC_ACCESS`). Il pacchetto `symfony/expression-language` non è installato; aggiungerlo non è necessario data la copertura del firewall.
+- **Fuso orario slot**: le `working_hours` sono ore locali (stored as `time`), gli appuntamenti sono UTC (`datetimetz_immutable`). La conversione avviene nel controller: `utcToLocalMinutes()` porta l'appuntamento in minuti locali prima del confronto.
+- **Fixture timestamp UTC corretto**: `appointmentA` stored a `09:00 UTC` = `10:00 Europe/Rome` (UTC+1 in gennaio), così le asserzioni dei test (busy window 10:00–11:00 locale) sono accurate.
+
+---
+
+### Gap residui Area 4
+
+| Campo | Stato | Note |
+|---|---|---|
+| `Service.color` | ❌ mancante | Presente in `CalendarioAppointment.services[].color` (TS), non in entity Symfony |
+| `AppointmentService.applied_promotion_id` | ❌ mancante | Presente in TS (`promotion_title`), non mappato in Symfony |
+| N+1 lazy load relations (GET collection) | ⚠️ noto | Accettabile per range date limitato; EagerLoadingExtension non applicabile con getter virtuali |
+| Frontend wiring | ❌ non fatto | `apps/web/src/lib/actions/calendario.ts` legge ancora Supabase |

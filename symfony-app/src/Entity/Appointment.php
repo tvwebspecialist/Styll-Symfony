@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use App\Filter\AppointmentCalendarFilter;
 use App\Repository\AppointmentRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 
 /**
@@ -13,6 +20,17 @@ use Symfony\Component\Uid\Uuid;
  * Exclusion constraint (no overlapping appointments per staff) is enforced at DB level.
  * Optimistic locking via `version` column prevents concurrent double-booking.
  */
+#[ApiResource(
+    operations: [
+        new GetCollection(
+            normalizationContext: ['groups' => ['appointment:read']],
+            filters: [AppointmentCalendarFilter::class],
+        ),
+        new Get(
+            normalizationContext: ['groups' => ['appointment:read']],
+        ),
+    ],
+)]
 #[ORM\Entity(repositoryClass: AppointmentRepository::class)]
 #[ORM\Table(name: 'appointments')]
 #[ORM\HasLifecycleCallbacks]
@@ -35,6 +53,7 @@ class Appointment
 
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]
+    #[Groups(['appointment:read'])]
     private Uuid $id;
 
     #[ORM\ManyToOne(targetEntity: Tenant::class)]
@@ -53,16 +72,23 @@ class Appointment
     #[ORM\JoinColumn(name: 'location_id', referencedColumnName: 'id', nullable: false)]
     private Location $location;
 
+    #[ORM\OneToMany(targetEntity: AppointmentService::class, mappedBy: 'appointment', fetch: 'EXTRA_LAZY')]
+    private Collection $appointmentServices;
+
     #[ORM\Column(name: 'start_time', type: 'datetimetz_immutable')]
+    #[Groups(['appointment:read'])]
     private \DateTimeImmutable $startTime;
 
     #[ORM\Column(name: 'end_time', type: 'datetimetz_immutable')]
+    #[Groups(['appointment:read'])]
     private \DateTimeImmutable $endTime;
 
     #[ORM\Column(type: 'string', length: 20)]
+    #[Groups(['appointment:read'])]
     private string $status = self::STATUS_CONFIRMED;
 
     #[ORM\Column(name: 'booking_source', type: 'string', length: 30)]
+    #[Groups(['appointment:read'])]
     private string $bookingSource = self::SOURCE_PWA;
 
     #[ORM\ManyToOne(targetEntity: Profile::class)]
@@ -74,6 +100,7 @@ class Appointment
     private ?Profile $createdBy = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
+    #[Groups(['appointment:read'])]
     private ?string $notes = null;
 
     #[ORM\Column(name: 'payment_status', type: 'string', length: 20)]
@@ -104,6 +131,7 @@ class Appointment
         $this->id = Uuid::v4();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+        $this->appointmentServices = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -121,6 +149,52 @@ class Appointment
     public function setStaff(StaffMember $staff): static { $this->staff = $staff; return $this; }
     public function getLocation(): Location { return $this->location; }
     public function setLocation(Location $location): static { $this->location = $location; return $this; }
+
+    /** @return Collection<int, AppointmentService> */
+    public function getAppointmentServices(): Collection { return $this->appointmentServices; }
+
+    #[Groups(['appointment:read'])]
+    public function getClientId(): string { return (string) $this->client->getId(); }
+
+    #[Groups(['appointment:read'])]
+    public function getClientFullName(): ?string { return $this->client->getFullName(); }
+
+    #[Groups(['appointment:read'])]
+    public function getStaffId(): string { return (string) $this->staff->getId(); }
+
+    #[Groups(['appointment:read'])]
+    public function getStaffFullName(): ?string { return $this->staff->getProfile()->getFullName(); }
+
+    #[Groups(['appointment:read'])]
+    public function getLocationId(): string { return (string) $this->location->getId(); }
+
+    #[Groups(['appointment:read'])]
+    public function getLocationName(): string { return $this->location->getName(); }
+
+    #[Groups(['appointment:read'])]
+    public function getServices(): array
+    {
+        return array_values(array_map(
+            static fn (AppointmentService $as): array => [
+                'id' => (string) $as->getService()->getId(),
+                'name' => $as->getService()->getName(),
+                'durationMinutes' => $as->getService()->getDurationMinutes(),
+                'category' => $as->getService()->getCategory(),
+                'priceAtBooking' => $as->getPriceAtBooking(),
+            ],
+            $this->appointmentServices->toArray(),
+        ));
+    }
+
+    #[Groups(['appointment:read'])]
+    public function getTotalPrice(): float
+    {
+        $total = 0.0;
+        foreach ($this->appointmentServices as $as) {
+            $total += (float) $as->getPriceAtBooking();
+        }
+        return $total;
+    }
     public function getStartTime(): \DateTimeImmutable { return $this->startTime; }
     public function setStartTime(\DateTimeImmutable $t): static { $this->startTime = $t; return $this; }
     public function getEndTime(): \DateTimeImmutable { return $this->endTime; }

@@ -24,7 +24,7 @@ class AppointmentService
     #[ORM\JoinColumn(name: 'tenant_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private Tenant $tenant;
 
-    #[ORM\ManyToOne(targetEntity: Appointment::class)]
+    #[ORM\ManyToOne(targetEntity: Appointment::class, inversedBy: 'appointmentServices')]
     #[ORM\JoinColumn(name: 'appointment_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private Appointment $appointment;
 
