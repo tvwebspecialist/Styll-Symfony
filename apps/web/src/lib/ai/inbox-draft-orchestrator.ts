@@ -12,6 +12,7 @@ import {
 } from './inbox-draft-orchestrator-core'
 import { prepareInboxDraftRequest } from './inbox-draft-context'
 import type { AppointmentPreparationField } from './inbox-draft-decision'
+import { resolveConfiguredInboxAvailabilityGateway } from './inbox-availability-gateway-selection'
 import {
   InboxDraftProviderSelectionError,
   resolveConfiguredInboxDraftProvider,
@@ -30,10 +31,51 @@ export interface PublicInboxDraftDecision {
   handoffRecommended: boolean
   appointmentPreparation: {
     action: 'booking' | 'reschedule' | 'cancellation'
+    plannerState: string
     eligible: boolean
     completeFields: AppointmentPreparationField[]
     missingFields: AppointmentPreparationField[]
     nextQuestion: string | null
+    preparedToolCall: {
+      name:
+        | 'prepare_booking_sandbox'
+        | 'prepare_appointment'
+        | 'prepare_reschedule'
+        | 'prepare_cancellation'
+      arguments: {
+        service?: string
+        requested_date?: string
+        requested_time?: string
+        selected_slot?: string
+        customer_name?: string | null
+        current_appointment_reference?: string
+        customer_notes: string
+        conversation_summary: string
+      }
+    } | null
+    service: string | null
+    requestedDate: string | null
+    requestedTime: string | null
+    availabilityResult: {
+      available: boolean
+      requestedSlot: {
+        date: string
+        startTime: string
+        endTime: string
+        staffIds: string[]
+      } | null
+      suggestedSlots: Array<{
+        date: string
+        startTime: string
+        endTime: string
+        staffIds: string[]
+      }>
+      reason:
+        | 'available'
+        | 'slot_unavailable'
+        | 'business_closed'
+        | 'service_unavailable'
+    } | null
   } | null
 }
 
@@ -42,6 +84,7 @@ export interface PublicInboxDraftResult {
   promptId: string
   promptVersion: string
   providerLabel: string
+  usedAuthoritativeKnowledge: boolean
   sources: PublicInboxDraftSourceAttribution[]
   decision: PublicInboxDraftDecision
 }
@@ -54,6 +97,7 @@ function toPublicDraftResult(
     promptId: result.promptId,
     promptVersion: result.promptVersion,
     providerLabel: resolveInboxDraftProviderLabel(result.providerId),
+    usedAuthoritativeKnowledge: result.usedAuthoritativeKnowledge,
     sources: result.citedSources.map((source) => ({
       kind: source.kind,
       label: source.label,
@@ -66,10 +110,16 @@ function toPublicDraftResult(
       appointmentPreparation: result.decision.appointmentPreparation
         ? {
             action: result.decision.appointmentPreparation.action,
+            plannerState: result.decision.appointmentPreparation.plannerState,
             eligible: result.decision.appointmentPreparation.eligible,
             completeFields: result.decision.appointmentPreparation.completeFields,
             missingFields: result.decision.appointmentPreparation.missingFields,
             nextQuestion: result.decision.appointmentPreparation.nextQuestion,
+            preparedToolCall: result.decision.appointmentPreparation.preparedToolCall,
+            service: result.decision.appointmentPreparation.service,
+            requestedDate: result.decision.appointmentPreparation.requestedDate,
+            requestedTime: result.decision.appointmentPreparation.requestedTime,
+            availabilityResult: result.decision.appointmentPreparation.availabilityResult,
           }
         : null,
     },
@@ -93,10 +143,12 @@ function buildInboxAiRunContextUpdate(
 
 function createDefaultInboxDraftDeps(): GenerateInboxDraftCoreDeps {
   const provider = resolveConfiguredInboxDraftProvider()
+  const availabilityGateway = resolveConfiguredInboxAvailabilityGateway()
 
   return {
     loadDraftRequest: prepareInboxDraftRequest,
     provider,
+    availabilityGateway,
     async createRun(input) {
       const db = createMessagingAdminClient()
       const { data, error } = await db
@@ -104,6 +156,10 @@ function createDefaultInboxDraftDeps(): GenerateInboxDraftCoreDeps {
         .insert({
           tenant_id: input.tenantId,
           conversation_id: input.conversationId,
+          message_id: input.messageId,
+          provider_id: input.providerId,
+          prompt_id: input.promptId,
+          prompt_version: input.promptVersion,
           model: input.model,
           mode: 'draft_only',
           status: 'started',
@@ -125,6 +181,17 @@ function createDefaultInboxDraftDeps(): GenerateInboxDraftCoreDeps {
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
+          message_id: input.messageId,
+          provider_id: input.providerId,
+          prompt_id: input.promptId,
+          prompt_version: input.promptVersion,
+          intent: input.intent,
+          confidence: input.confidence,
+          decision_kind: input.decisionKind,
+          reason_code: input.reasonCode,
+          deterministic_resolver: input.deterministicResolver,
+          used_authoritative_knowledge: input.usedAuthoritativeKnowledge,
+          cited_source_summary: input.citedSourceSummary as unknown as Json,
           final_policy_decision: input.finalPolicyDecision,
           handoff_reason: input.handoffReason,
           input_context: input.inputContext,
@@ -144,6 +211,13 @@ function createDefaultInboxDraftDeps(): GenerateInboxDraftCoreDeps {
         .update({
           status: 'failed',
           completed_at: new Date().toISOString(),
+          message_id: input.messageId,
+          provider_id: input.providerId,
+          prompt_id: input.promptId,
+          prompt_version: input.promptVersion,
+          decision_kind: input.decisionKind,
+          reason_code: input.reasonCode,
+          error_category: input.errorCategory,
           input_context: buildInboxAiRunContextUpdate(input.inputContext, {
             error_message: input.errorMessage,
           }),

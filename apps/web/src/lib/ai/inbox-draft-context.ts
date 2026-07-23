@@ -31,6 +31,21 @@ export async function prepareInboxDraftRequest(
 ) {
   await requireInboxTenantContext(tenantId)
 
+  return loadInboxDraftRequestData(tenantId, conversationId)
+}
+
+export async function prepareInboxDraftRequestSystem(
+  tenantId: string,
+  conversationId: string,
+) {
+  return loadInboxDraftRequestData(tenantId, conversationId)
+}
+
+async function loadInboxDraftRequestData(
+  tenantId: string,
+  conversationId: string,
+) {
+
   const promptDefinition = getInboxDraftPromptDefinition()
   const db = createAdminClient()
   const messagingDb = createMessagingAdminClient()
@@ -139,7 +154,7 @@ export async function prepareInboxDraftRequest(
       id: service.id,
       name: service.name,
       description: service.description ?? null,
-      price: service.price,
+      price: service.price ?? null,
       durationMinutes: service.duration_minutes,
       displayOrder: service.display_order,
     })),

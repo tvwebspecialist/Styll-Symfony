@@ -2,13 +2,18 @@ import type {
   InboxConversationStatus,
   InboxOwnershipMode,
 } from '../messaging/contracts.ts'
-import type { InboxAiReceptionistConfig } from './draft-provider.ts'
+import type {
+  InboxAiCustomFaqTopic,
+  InboxAiReceptionistConfig,
+} from './draft-provider.ts'
 import {
   getInboxDraftPromptDefinition,
   listInboxDraftAllowedToolDefinitions,
   listInboxDraftAllowedTools,
   renderInboxDraftSystemPrompt,
 } from './prompt-registry.ts'
+import { resolveInboxConversationMemory } from './inbox-memory-resolver.ts'
+import { resolveDeterministicReceptionistConversationState } from './receptionist-conversation-state.ts'
 import type {
   AiDraftContextSection,
   AiDraftMessage,
@@ -28,6 +33,14 @@ const DAY_NAMES = [
 
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi
 const PHONE_PATTERN = /(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g
+const CUSTOM_FAQ_TOPIC_LABELS: Record<InboxAiCustomFaqTopic, string> = {
+  payment_methods: 'Metodi di pagamento',
+  parking: 'Parcheggio',
+  late_arrival: 'Ritardi',
+  cancellation_policy: 'Politica di cancellazione',
+  accessibility: 'Accessibilita',
+  location_instructions: 'Indicazioni sede',
+}
 
 export type InboxDraftPreparationErrorCode =
   | 'CONVERSATION_NOT_FOUND'
@@ -73,7 +86,7 @@ export interface InboxDraftServiceRecord {
   id: string
   name: string
   description: string | null
-  price: number
+  price: number | null
   durationMinutes: number
   displayOrder: number
 }
@@ -133,6 +146,18 @@ function sanitizeOptionalText(
 function formatPrice(value: number): string {
   const normalized = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
   return `EUR ${normalized}`
+}
+
+function formatServicePrice(value: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 'Prezzo non configurato'
+  }
+
+  return formatPrice(value)
+}
+
+function customFaqTopicLabel(topic: InboxAiCustomFaqTopic): string {
+  return CUSTOM_FAQ_TOPIC_LABELS[topic]
 }
 
 function authorLabel(author: AiDraftMessage['author']): string {
@@ -235,6 +260,56 @@ function buildConversationStateSection(
   }
 }
 
+function buildConversationMemorySection(
+  memory: PreparedInboxDraftRequest['conversationMemory'],
+  receptionistState: PreparedInboxDraftRequest['receptionistState'],
+  sources: AiDraftSource[],
+): AiDraftContextSection {
+  const sourceRefs: string[] = []
+  const pushMessageRef = (messageId: string | null | undefined) => {
+    if (!messageId) return
+    pushUniqueSourceRef(sourceRefs, `message:${messageId}`)
+  }
+
+  pushMessageRef(memory.lastService?.sourceMessageId)
+  pushMessageRef(memory.lastDate?.sourceMessageId)
+  pushMessageRef(memory.lastTime?.sourceMessageId)
+
+  const lines = [
+    `latest_intent=${memory.latestIntent}`,
+    `active_intent=${memory.activeIntent ?? 'none'}`,
+    `service=${memory.lastService?.name ?? 'missing'}`,
+    `requested_date=${memory.lastDate?.isoDate ?? 'missing'}`,
+    `requested_time=${memory.lastTime?.normalizedTime ?? 'missing'}`,
+    `appointment_reference=${memory.lastAppointmentReference ?? 'missing'}`,
+    `last_missing_slot=${memory.lastMissingSlot ?? 'none'}`,
+    `state_active_goal=${receptionistState.activeGoal ?? 'none'}`,
+    `state_missing_fields=${receptionistState.missingFields.join(',') || 'none'}`,
+  ]
+
+  if (memory.planner) {
+    lines.push(`planner_state=${memory.planner.state}`)
+    if (memory.planner.preferredWindow) {
+      lines.push(`preferred_window=${memory.planner.preferredWindow}`)
+    }
+
+    const nextQuestion = sanitizeOptionalText(memory.planner.nextQuestion, 140)
+    const summary = sanitizeOptionalText(memory.planner.conversationSummary, 220)
+    const notes = sanitizeOptionalText(memory.planner.customerNotes, 220)
+
+    if (nextQuestion) lines.push(`next_question=${nextQuestion}`)
+    if (summary) lines.push(`conversation_summary=${summary}`)
+    if (notes) lines.push(`customer_notes=${notes}`)
+  }
+
+  return {
+    key: 'conversation_memory',
+    title: 'Conversation memory',
+    text: lines.join('\n'),
+    sourceRefs,
+  }
+}
+
 function buildTenantProfileSection(
   input: BuildInboxDraftRequestInput,
   sources: AiDraftSource[],
@@ -304,7 +379,7 @@ function buildServicesSection(
     const description = sanitizeOptionalText(service.description, 140)
     const parts = [
       service.name,
-      formatPrice(service.price),
+      formatServicePrice(service.price),
       `${service.durationMinutes} min`,
     ]
     if (description) parts.push(description)
@@ -321,6 +396,38 @@ function buildServicesSection(
   return {
     key: 'services',
     title: 'Active services',
+    text: lines.join('\n'),
+    sourceRefs,
+  }
+}
+
+function buildCustomFaqSection(
+  input: BuildInboxDraftRequestInput,
+  sources: AiDraftSource[],
+): AiDraftContextSection | null {
+  const enabledFaqs = input.tenant.receptionistConfig.customFaqs
+    .filter((entry) => entry.enabled)
+    .slice(0, 12)
+
+  if (enabledFaqs.length === 0) return null
+
+  const lines: string[] = []
+  const sourceRefs: string[] = []
+
+  for (const entry of enabledFaqs) {
+    const sourceRef = `faq:${entry.topic}`
+    pushUniqueSource(sources, {
+      kind: 'knowledge',
+      label: `FAQ: ${customFaqTopicLabel(entry.topic)}`,
+      ref: sourceRef,
+    })
+    pushUniqueSourceRef(sourceRefs, sourceRef)
+    lines.push(`- ${customFaqTopicLabel(entry.topic)}: ${entry.answer}`)
+  }
+
+  return {
+    key: 'custom_faqs',
+    title: 'Tenant FAQ',
     text: lines.join('\n'),
     sourceRefs,
   }
@@ -441,11 +548,34 @@ export function buildInboxDraftRequest(
   const promptDefinition = getInboxDraftPromptDefinition()
   const sources: AiDraftSource[] = []
   const messages = buildConversationMessages(input, sources)
+  const conversationMemory = resolveInboxConversationMemory({
+    messages,
+    serviceCatalog: input.services.map((service) => ({
+      id: service.id,
+      name: service.name,
+      price: service.price,
+      durationMinutes: service.durationMinutes,
+    })),
+    timezone: input.tenant.timezone,
+  })
+  const receptionistState = resolveDeterministicReceptionistConversationState({
+    messages,
+    serviceCatalog: input.services.map((service) => ({
+      id: service.id,
+      name: service.name,
+      price: service.price,
+      durationMinutes: service.durationMinutes,
+    })),
+    timezone: input.tenant.timezone,
+    conversationMemory,
+  })
   const contextSections = [
     buildConversationStateSection(input, sources),
+    buildConversationMemorySection(conversationMemory, receptionistState, sources),
     buildTenantProfileSection(input, sources),
     buildServicesSection(input, sources),
     buildWorkingHoursSection(input, sources),
+    buildCustomFaqSection(input, sources),
     buildToolPoliciesSection(sources),
   ].filter((section): section is AiDraftContextSection => section !== null)
 
@@ -476,5 +606,8 @@ export function buildInboxDraftRequest(
       price: service.price,
       durationMinutes: service.durationMinutes,
     })),
+    customFaqCatalog: input.tenant.receptionistConfig.customFaqs.filter((entry) => entry.enabled),
+    conversationMemory,
+    receptionistState,
   }
 }

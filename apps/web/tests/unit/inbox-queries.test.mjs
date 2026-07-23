@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import {
   queryInboxConversations,
   queryInboxMessages,
+  queryLatestInboundInboxAiRun,
 } from '../../src/lib/messaging/inbox-queries.ts'
 
 // ── Mock DB builder ───────────────────────────────────────────────────────────
@@ -260,6 +261,144 @@ test('queryInboxMessages: both tenant_id AND conversation_id filters applied (ID
     'timeline query must only load audit and internal note rows')
 })
 
+test('queryLatestInboundInboxAiRun returns the latest inbound-linked AI run with safe source summaries', async () => {
+  const db = makeMockDb({
+    inbox_ai_runs: {
+      data: [
+        {
+          id: 'run-manual',
+          message_id: null,
+          status: 'completed',
+          provider_id: 'deterministic_fake_draft_v1',
+          prompt_id: 'whatsapp_inbox_draft_only',
+          prompt_version: '2026-07-20.v5',
+          output_summary: 'Manual draft should be ignored here.',
+          decision_kind: 'draft_review',
+          reason_code: 'draft_only_mode',
+          used_authoritative_knowledge: false,
+          cited_source_summary: [],
+          error_category: null,
+          created_at: '2026-07-20T10:01:00Z',
+          completed_at: '2026-07-20T10:02:00Z',
+          mode: 'draft_only',
+          input_context: {},
+        },
+        {
+          id: 'run-inbound',
+          message_id: 'msg-1',
+          status: 'completed',
+          provider_id: 'anthropic_claude_sonnet_5_draft_v1',
+          prompt_id: 'whatsapp_inbox_draft_only',
+          prompt_version: '2026-07-20.v5',
+          output_summary: 'Il prezzo indicato per Taglio e EUR 25.',
+          decision_kind: 'auto_reply_candidate',
+          reason_code: 'auto_reply_ready',
+          used_authoritative_knowledge: true,
+          cited_source_summary: [
+            { kind: 'knowledge', label: 'Service: Taglio' },
+            { kind: 'knowledge', label: 'Tenant profile' },
+          ],
+          error_category: null,
+          created_at: '2026-07-20T10:00:00Z',
+          completed_at: '2026-07-20T10:00:03Z',
+          mode: 'draft_only',
+          input_context: {
+            response: {
+              decision: {
+                appointment_preparation: {
+                  action: 'booking',
+                  plannerState: 'appointment_complete',
+                  eligible: true,
+                  completeFields: ['service', 'requested_date', 'requested_time'],
+                  missingFields: [],
+                  nextQuestion: null,
+                  preparedToolCall: {
+                    name: 'prepare_appointment',
+                    arguments: {
+                      service: 'Taglio',
+                      requested_date: '2026-07-21',
+                      requested_time: '16:00',
+                      customer_notes: 'Vorrei prenotare un taglio domani alle 16.',
+                      conversation_summary: 'Richiesta di prenotazione, servizio Taglio, giorno 2026-07-21, orario 16:00',
+                    },
+                  },
+                  service: 'Taglio',
+                  requestedDate: '2026-07-21',
+                  requestedTime: '16:00',
+                },
+              },
+            },
+          },
+        },
+      ],
+      error: null,
+    },
+    inbox_messages: {
+      data: [
+        {
+          id: 'msg-1',
+          body_text: 'Quanto costa il taglio?',
+          created_at: '2026-07-20T09:59:00Z',
+        },
+      ],
+      error: null,
+    },
+  })
+
+  const result = await queryLatestInboundInboxAiRun(db, 'tenant-a', 'conv-1')
+
+  assert.equal(result?.id, 'run-inbound')
+  assert.equal(result?.messageId, 'msg-1')
+  assert.equal(result?.status, 'completed')
+  assert.equal(result?.usedAuthoritativeKnowledge, true)
+  assert.deepEqual(result?.citedSourceSummary, [
+    { kind: 'knowledge', label: 'Service: Taglio' },
+    { kind: 'knowledge', label: 'Tenant profile' },
+  ])
+  assert.equal(result?.appointmentPreparation?.plannerState, 'appointment_complete')
+  assert.equal(result?.appointmentPreparation?.preparedToolCall?.arguments.requested_date, '2026-07-21')
+})
+
+test('queryLatestInboundInboxAiRun keeps tenant scope on both ai run and message lookup', async () => {
+  const capturedCalls = {}
+  const db = makeMockDb({
+    inbox_ai_runs: {
+      data: [
+        {
+          id: 'run-1',
+          message_id: 'msg-1',
+          status: 'queued',
+          provider_id: 'deterministic_fake_draft_v1',
+          prompt_id: 'whatsapp_inbox_draft_only',
+          prompt_version: '2026-07-20.v5',
+          output_summary: null,
+          decision_kind: null,
+          reason_code: null,
+          used_authoritative_knowledge: false,
+          cited_source_summary: [],
+          error_category: null,
+          created_at: '2026-07-20T10:00:00Z',
+          completed_at: null,
+          mode: 'draft_only',
+          input_context: {},
+        },
+      ],
+      error: null,
+    },
+    inbox_messages: {
+      data: [{ id: 'msg-1', body_text: 'Ciao', created_at: '2026-07-20T09:59:00Z' }],
+      error: null,
+    },
+  }, capturedCalls)
+
+  await queryLatestInboundInboxAiRun(db, 'tenant-a', 'conv-xyz')
+
+  assert.equal(capturedCalls.inbox_ai_runs[0].filters['tenant_id'], 'tenant-a')
+  assert.equal(capturedCalls.inbox_ai_runs[0].filters['conversation_id'], 'conv-xyz')
+  assert.equal(capturedCalls.inbox_messages[0].filters['tenant_id'], 'tenant-a')
+  assert.equal(capturedCalls.inbox_messages[0].filters['id'], 'msg-1')
+})
+
 test('queryInboxMessages: conversation from different tenant → empty (simulated IDOR attempt)', async () => {
   // The DB mock simulates what Supabase does: when tenant_id='tenant-a' AND
   // conversation_id belongs to 'tenant-b', the join returns 0 rows.
@@ -501,14 +640,16 @@ test('auth guard: tenant-role-guard exposes staff access to inbox', () => {
 test('auth guard: tenant-role-guard still blocks inactive and deleted staff', () => {
   const dir = path.dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(path.join(dir, '../../src/lib/tenant-role-guard.ts'), 'utf8')
-  assert.ok(src.includes(".eq('is_active', true)"), 'active-staff lookup must require is_active = true')
-  assert.ok(src.includes(".is('deleted_at', null)"), 'active-staff lookup must require deleted_at IS NULL')
+  assert.ok(src.includes('const membership = listSymfonyStaffMemberships(me)'), 'tenant-role-guard must resolve memberships from Symfony /api/me data')
+  assert.ok(src.includes(".find((entry) => entry.tenant.id === tenantId)"), 'tenant-role-guard must scope membership lookup to the requested tenant id')
 })
 
 test('auth guard: tenant-role-guard scopes inbox access to the requested tenant', () => {
   const dir = path.dirname(fileURLToPath(import.meta.url))
   const src = readFileSync(path.join(dir, '../../src/lib/tenant-role-guard.ts'), 'utf8')
-  assert.ok(src.includes(".eq('tenant_id', tenantId)"), 'tenant role lookup must scope staff membership by tenant_id')
+  assert.ok(src.includes("me.user.roles.includes('ROLE_SUPERADMIN')"), 'tenant-role-guard must derive superadmin access from Symfony roles')
+  assert.ok(!src.includes(".from('profiles')"), 'tenant-role-guard must not query Supabase profiles for superadmin auth')
+  assert.ok(!src.includes(".from('tenants')"), 'tenant-role-guard must not query Supabase tenants to resolve membership auth')
 })
 
 test('tenant context: active tenant fallback ignores deleted staff memberships', () => {

@@ -13,8 +13,8 @@ function makeDraftRequest(overrides = {}) {
     tenantId: 'tenant-a',
     conversationId: 'conversation-1',
     promptId: 'whatsapp_inbox_draft_only',
-    promptVersion: '2026-07-20.v3',
-    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v3\nMode: draft_only',
+    promptVersion: '2026-07-20.v6',
+    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v6\nMode: draft_only',
     messages: [
       {
         id: 'message-1',
@@ -92,7 +92,7 @@ test('buildAnthropicDraftRequestPayload keeps prompt, transcript, context and tr
   const payload = buildAnthropicDraftRequestPayload(makeDraftRequest())
 
   assert.equal(payload.model, 'claude-sonnet-5')
-  assert.equal(payload.system, 'Prompt whatsapp_inbox_draft_only@2026-07-20.v3\nMode: draft_only')
+  assert.equal(payload.system, 'Prompt whatsapp_inbox_draft_only@2026-07-20.v6\nMode: draft_only')
   assert.equal(payload.thinking.type, 'disabled')
   assert.equal(payload.messages.length, 1)
   assert.equal(payload.messages[0].role, 'user')
@@ -101,7 +101,8 @@ test('buildAnthropicDraftRequestPayload keeps prompt, transcript, context and tr
   assert.match(payload.messages[0].content, /\[message:message-1\]/)
   assert.match(payload.messages[0].content, /## Tenant profile \[tenant_profile\]/)
   assert.match(payload.messages[0].content, /service:service-1 \| knowledge \| Service: Taglio/)
-  assert.match(payload.messages[0].content, /Allowed intents: faq, greeting, appointment_booking/)
+  assert.match(payload.messages[0].content, /Allowed intents: greeting, pricing, opening_hours, booking/)
+  assert.match(payload.messages[0].content, /conversation_memory/)
   assert.equal(payload.output_config.format.type, 'json_schema')
 })
 
@@ -118,19 +119,34 @@ test('createAnthropicDraftProvider maps structured output into the shared draft 
             id: 'anthropic-run-1',
             parsed_output: {
               draft: ' Ciao, il riferimento disponibile e Taglio | EUR 25 | 30 min. Per una conferma finale faccio verificare allo staff. ',
-              confidence: 0.94,
               reasoning: 'La richiesta riguarda il pricing e va limitata al listino disponibile.',
-              requested_tools: [
-                {
-                  name: 'get_prices',
-                  arguments: {
-                    source: 'listino_attivo',
-                  },
+              understanding: {
+                intent: 'pricing',
+                confidence: 0.94,
+                handoff: false,
+                entities: {
+                  service: 'Taglio',
+                  requestedDate: null,
+                  requestedTime: null,
+                  appointmentReference: null,
+                  customerName: null,
+                  customerNotes: 'Quanto costa taglio e barba?',
                 },
-              ],
-              cited_sources: ['message:message-1', 'service:service-1', 'message:message-1'],
-              handoff: false,
-              intent: 'pricing',
+                corrections: {
+                  replacesService: false,
+                  replacesDate: false,
+                  replacesTime: false,
+                },
+                requestedToolCalls: [
+                  {
+                    name: 'get_prices',
+                    arguments: {
+                      source: 'listino_attivo',
+                    },
+                  },
+                ],
+                citedSources: ['message:message-1', 'service:service-1', 'message:message-1'],
+              },
             },
           }
         },
@@ -146,6 +162,8 @@ test('createAnthropicDraftProvider maps structured output into the shared draft 
   assert.equal(result.confidence, 0.94)
   assert.equal(result.intent, 'pricing')
   assert.equal(result.handoff, false)
+  assert.equal(result.understanding.intent, 'pricing')
+  assert.equal(result.understanding.entities.service, 'Taglio')
   assert.equal(result.internalReasoning, 'La richiesta riguarda il pricing e va limitata al listino disponibile.')
   assert.deepEqual(result.citedSources, ['message:message-1', 'service:service-1'])
   assert.deepEqual(result.requestedToolCalls, [

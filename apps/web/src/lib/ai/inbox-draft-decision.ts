@@ -1,18 +1,32 @@
 import type { InboxToolName } from '../messaging/contracts.ts'
 import { getInboxToolDefinition } from '../messaging/tool-registry.ts'
 import type {
+  AvailabilityResult,
   AiDraftIntent,
   AiDraftSource,
+  AppointmentPreparationField,
+  AppointmentPlannerState,
+  AppointmentPreparedToolCall,
   InboxAiReceptionistMode,
   PreparedInboxDraftRequest,
+  ReceptionistConversationState,
 } from './draft-provider.ts'
+import type { DeterministicFaqResolution } from './inbox-deterministic-faq-resolver.ts'
 import type { InboxDraftRequestedToolCall } from './inbox-draft-orchestrator-core.ts'
+import {
+  buildReceptionistConversationSummary,
+  resolveDeterministicReceptionistConversationState,
+  buildReceptionistPreparedToolCall,
+} from './receptionist-conversation-state.ts'
+
+export type { AppointmentPreparationField } from './draft-provider.ts'
 
 const HUMAN_HANDOFF_INTENTS = new Set<AiDraftIntent>([
   'complaint',
   'human_request',
   'unknown',
 ])
+
 const LOW_RISK_AUTO_REPLY_INTENTS = new Set<AiDraftIntent>([
   'faq',
   'greeting',
@@ -21,6 +35,7 @@ const LOW_RISK_AUTO_REPLY_INTENTS = new Set<AiDraftIntent>([
 ])
 
 type AppointmentDecisionToolName =
+  | 'prepare_booking_sandbox'
   | 'prepare_appointment'
   | 'prepare_reschedule'
   | 'prepare_cancellation'
@@ -35,10 +50,17 @@ export type InboxDraftDecisionKind =
 export type InboxDraftDecisionReasonCode =
   | 'tenant_mode_disabled'
   | 'provider_response_incomplete'
+  | 'provider_not_configured'
+  | 'provider_timeout'
+  | 'provider_malformed_response'
+  | 'provider_failed'
   | 'provider_requested_handoff'
   | 'intent_requires_human'
   | 'confidence_below_threshold'
   | 'missing_required_sources'
+  | 'authoritative_answer_missing'
+  | 'authoritative_answer_ambiguous'
+  | 'authoritative_answer_unavailable'
   | 'human_control_active'
   | 'ai_paused'
   | 'tool_policy_denied'
@@ -47,10 +69,16 @@ export type InboxDraftDecisionReasonCode =
   | 'auto_reply_policy_blocked'
   | 'auto_reply_intent_not_allowed'
   | 'auto_reply_mutating_tool_requested'
-  | 'action_missing_tool'
-  | 'action_tool_not_prepare_only'
   | 'action_missing_fields'
   | 'action_ready'
+  | 'appointment_missing_service'
+  | 'appointment_missing_date'
+  | 'appointment_missing_time'
+  | 'availability_available'
+  | 'availability_unavailable'
+  | 'availability_business_closed'
+  | 'availability_missing_information'
+  | 'appointment_complete'
   | 'manual_review_default'
 
 export type AppointmentPreparationAction =
@@ -58,20 +86,23 @@ export type AppointmentPreparationAction =
   | 'reschedule'
   | 'cancellation'
 
-export type AppointmentPreparationField =
-  | 'customer_identity'
-  | 'service'
-  | 'requested_date'
-  | 'requested_time_or_window'
-  | 'current_appointment_reference'
-
 export interface AppointmentPreparationStatus {
   action: AppointmentPreparationAction
   requestedToolName: AppointmentDecisionToolName
+  plannerState: AppointmentPlannerState
   eligible: boolean
   completeFields: AppointmentPreparationField[]
   missingFields: AppointmentPreparationField[]
   nextQuestion: string | null
+  preparedToolCall: AppointmentPreparedToolCall | null
+  service: string | null
+  requestedDate: string | null
+  requestedTime: string | null
+  appointmentReference: string | null
+  customerName: string | null
+  customerNotes: string | null
+  conversationSummary: string | null
+  availabilityResult: AvailabilityResult | null
 }
 
 export interface InboxDraftDecision {
@@ -93,16 +124,31 @@ export interface ResolveInboxDraftDecisionInput {
     draftText: string
     citedSources: AiDraftSource[]
     requestedToolCalls: InboxDraftRequestedToolCall[]
+    availabilityResult: AvailabilityResult | null
+    understanding: {
+      intent: AiDraftIntent
+      confidence: number | null
+      handoff: boolean
+    }
+    receptionistState: ReceptionistConversationState
+    authoritativeResolution?: DeterministicFaqResolution | null
   }
 }
 
 const DECISION_REASON_SUMMARIES: Record<InboxDraftDecisionReasonCode, string> = {
   tenant_mode_disabled: 'L AI receptionist e disattivata per questo tenant.',
   provider_response_incomplete: 'La risposta AI non e abbastanza completa per essere instradata in sicurezza.',
+  provider_not_configured: 'Il provider AI configurato non e disponibile correttamente per questo tenant.',
+  provider_timeout: 'Il provider AI non ha risposto entro il tempo previsto.',
+  provider_malformed_response: 'Il provider AI ha restituito un output strutturato non valido.',
+  provider_failed: 'La generazione della bozza AI non e riuscita.',
   provider_requested_handoff: 'Il provider suggerisce esplicitamente il passaggio a un operatore umano.',
   intent_requires_human: 'L intento rilevato richiede presidio umano.',
   confidence_below_threshold: 'La confidenza del provider e troppo bassa per procedere senza handoff.',
   missing_required_sources: 'Le fonti citate non supportano abbastanza la risposta proposta.',
+  authoritative_answer_missing: 'I dati tenant-scoped disponibili non bastano per produrre una risposta FAQ affidabile.',
+  authoritative_answer_ambiguous: 'La richiesta FAQ corrisponde a dati tenant-scoped ambigui e richiede verifica umana.',
+  authoritative_answer_unavailable: 'La risposta FAQ richiede dati tenant-scoped che non risultano configurati in modo utilizzabile.',
   human_control_active: 'La conversazione e gia sotto controllo umano.',
   ai_paused: 'L AI e gia in pausa per questa conversazione.',
   tool_policy_denied: 'Il tool richiesto non e autorizzato per questa modalita.',
@@ -111,18 +157,23 @@ const DECISION_REASON_SUMMARIES: Record<InboxDraftDecisionReasonCode, string> = 
   auto_reply_policy_blocked: 'La risposta non soddisfa i criteri conservativi per un FAQ candidate.',
   auto_reply_intent_not_allowed: 'L intento non e abilitato per il routing FAQ supervisionato di questo tenant.',
   auto_reply_mutating_tool_requested: 'La risposta richiede tool o conferme incompatibili con un FAQ candidate.',
-  action_missing_tool: 'La richiesta richiede un tool di preparazione non disponibile o non coerente.',
-  action_tool_not_prepare_only: 'Il tool richiesto non e un prepare_* sicuro per questa fase.',
   action_missing_fields: 'Mancano dati obbligatori prima di preparare un azione di business.',
   action_ready: 'La richiesta contiene i dati minimi per preparare un azione senza eseguirla.',
+  appointment_missing_service: 'Manca ancora il servizio da prenotare.',
+  appointment_missing_date: 'Manca ancora il giorno richiesto per la prenotazione.',
+  appointment_missing_time: 'Manca ancora l orario richiesto per la prenotazione.',
+  availability_available: 'Lo slot richiesto e disponibile e puo essere preparato in sandbox.',
+  availability_unavailable: 'Lo slot richiesto non e disponibile e servono alternative reali.',
+  availability_business_closed: 'L orario richiesto cade fuori dalle aperture disponibili.',
+  availability_missing_information: 'La disponibilita non puo essere verificata in modo affidabile con i dati correnti.',
+  appointment_complete: 'La richiesta contiene i dati minimi per preparare la prenotazione senza eseguirla.',
   manual_review_default: 'La bozza resta in revisione umana conservativa.',
 }
 
-function normalizeTranscript(messages: PreparedInboxDraftRequest['messages']): string {
-  return messages
-    .map((message) => message.text)
-    .join('\n')
-    .toLowerCase()
+export function resolveInboxDraftDecisionReasonSummary(
+  reasonCode: InboxDraftDecisionReasonCode,
+): string {
+  return DECISION_REASON_SUMMARIES[reasonCode]
 }
 
 function hasKnowledgeSource(
@@ -132,30 +183,64 @@ function hasKnowledgeSource(
   return sources.some((source) => source.ref.startsWith(prefix))
 }
 
+function resolveEffectiveIntent(
+  request: PreparedInboxDraftRequest,
+  providerIntent: AiDraftIntent,
+  receptionistState: ReceptionistConversationState,
+): AiDraftIntent {
+  const memoryIntent = receptionistState.lastIntent ?? request.conversationMemory.latestIntent
+  const activeIntent = receptionistState.activeGoal ?? request.conversationMemory.activeIntent
+
+  if (
+    memoryIntent === 'greeting'
+    || memoryIntent === 'pricing'
+    || memoryIntent === 'opening_hours'
+    || memoryIntent === 'booking'
+    || memoryIntent === 'reschedule'
+    || memoryIntent === 'cancel'
+    || memoryIntent === 'complaint'
+    || memoryIntent === 'human_request'
+  ) {
+    return memoryIntent
+  }
+
+  if (memoryIntent === 'conversational_followup' && activeIntent) {
+    return activeIntent
+  }
+
+  return providerIntent
+}
+
 function hasRequiredSourcesForIntent(
   request: PreparedInboxDraftRequest,
   result: ResolveInboxDraftDecisionInput['result'],
+  effectiveIntent: AiDraftIntent,
 ): boolean {
   if (result.citedSources.length === 0) {
     return false
   }
 
   const sourceRefs = new Set(request.sources.map((source) => source.ref))
-  if (result.citedSources.some((source) => !sourceRefs.has(source.ref))) {
+  if (
+    result.citedSources.some(
+      (source) => !sourceRefs.has(source.ref) && !source.ref.startsWith('tool_result:'),
+    )
+  ) {
     return false
   }
 
-  switch (result.intent) {
+  switch (effectiveIntent) {
     case 'pricing':
       return hasKnowledgeSource(result.citedSources, 'service:')
     case 'opening_hours':
       return hasKnowledgeSource(result.citedSources, 'working_hours:')
     case 'faq':
-      return result.citedSources.some((source) =>
-        source.kind === 'knowledge'
-        || source.kind === 'policy'
-        || source.kind === 'tool_result',
-      )
+      return hasKnowledgeSource(result.citedSources, 'faq:')
+        || result.citedSources.some((source) =>
+          source.kind === 'knowledge'
+          || source.kind === 'policy'
+          || source.kind === 'tool_result'
+        )
     case 'greeting':
       return result.citedSources.some((source) => source.ref.startsWith('message:'))
         || hasKnowledgeSource(result.citedSources, 'tenant:')
@@ -183,79 +268,26 @@ function isModeCandidateEnabled(mode: InboxAiReceptionistMode): boolean {
   return mode === 'supervised' || mode === 'autonomous_faq'
 }
 
-function firstRequestedTool(
-  requestedToolCalls: InboxDraftRequestedToolCall[],
-  toolName: AppointmentDecisionToolName,
-): InboxDraftRequestedToolCall | null {
-  return requestedToolCalls.find((toolCall) => toolCall.name === toolName) ?? null
-}
-
-function detectRequestedService(request: PreparedInboxDraftRequest): string | null {
-  const transcript = normalizeTranscript(request.messages)
-  const catalog = [...request.serviceCatalog].sort(
-    (left, right) => right.name.length - left.name.length,
-  )
-
-  for (const service of catalog) {
-    const normalizedName = service.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const pattern = new RegExp(`(^|[^a-z0-9])${normalizedName}([^a-z0-9]|$)`, 'i')
-    if (pattern.test(transcript)) {
-      return service.name
-    }
+function authoritativeFailureReason(
+  resolution: DeterministicFaqResolution | null | undefined,
+): InboxDraftDecisionReasonCode | null {
+  if (!resolution?.attempted || resolution.resolved) {
+    return null
   }
 
-  return null
-}
-
-function readLastMatch(
-  pattern: RegExp,
-  text: string,
-): string | null {
-  const matches = [...text.matchAll(pattern)]
-  const lastMatch = matches.at(-1)
-  return lastMatch?.[1] ?? null
-}
-
-function detectRequestedDate(
-  request: PreparedInboxDraftRequest,
-  action: AppointmentPreparationAction,
-): string | null {
-  const transcript = normalizeTranscript(request.messages)
-  const pattern = /\b(oggi|domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?)\b/gi
-  const match = action === 'reschedule'
-    ? readLastMatch(pattern, transcript)
-    : transcript.match(pattern)?.[0] ?? null
-
-  return match
-}
-
-function detectRequestedTimeOrWindow(
-  request: PreparedInboxDraftRequest,
-  action: AppointmentPreparationAction,
-): string | null {
-  const transcript = normalizeTranscript(request.messages)
-  const explicitTimePattern = /\b(?:alle|per le|verso le)\s*(\d{1,2}(?::\d{2})?)\b/gi
-  const explicitTime = action === 'reschedule'
-    ? readLastMatch(explicitTimePattern, transcript)
-    : transcript.match(/\b(?:alle|per le|verso le)\s*(\d{1,2}(?::\d{2})?)\b/i)?.[1] ?? null
-
-  if (explicitTime) {
-    return explicitTime
+  switch (resolution.reasonCode) {
+    case 'pricing_service_ambiguous':
+    case 'custom_faq_ambiguous':
+      return 'authoritative_answer_ambiguous'
+    case 'pricing_catalog_empty':
+    case 'pricing_service_missing':
+    case 'pricing_service_price_missing':
+    case 'opening_hours_missing':
+    case 'custom_faq_missing':
+      return 'authoritative_answer_missing'
+    default:
+      return 'authoritative_answer_unavailable'
   }
-
-  const windowPattern = /\b(mattina|pomeriggio|sera|prima mattina|tarda mattinata)\b/gi
-  return action === 'reschedule'
-    ? readLastMatch(windowPattern, transcript)
-    : transcript.match(windowPattern)?.[0] ?? null
-}
-
-function detectCurrentAppointmentReference(request: PreparedInboxDraftRequest): string | null {
-  const transcript = normalizeTranscript(request.messages)
-  const match = transcript.match(
-    /\b(?:appuntamento|prenotazione)(?:\s+(?:di|del|per))?\s+(oggi|domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?(?:\s+alle\s+\d{1,2}(?::\d{2})?)?)\b/i,
-  )
-
-  return match?.[1] ?? null
 }
 
 function buildNextQuestion(
@@ -264,83 +296,17 @@ function buildNextQuestion(
 ): string | null {
   switch (missingField) {
     case 'service':
-      return 'Quale servizio devo considerare per la richiesta?'
+      return 'Che servizio desideri?'
     case 'requested_date':
       return action === 'booking'
-        ? 'Per quale giorno vorresti fissare l appuntamento?'
+        ? 'Per quale giorno preferisci?'
         : 'Per quale giorno va preparata la modifica?'
-    case 'requested_time_or_window':
-      return action === 'cancellation'
-        ? null
-        : 'Hai gia una fascia oraria o un orario preferito?'
+    case 'requested_time':
+      return 'A che ora preferisci?'
     case 'current_appointment_reference':
-      return 'Mi indichi il riferimento dell appuntamento da modificare o cancellare?'
-    case 'customer_identity':
-      return 'Serve verificare il cliente associato a questa conversazione prima di procedere.'
+      return 'Quale appuntamento vuoi modificare o annullare?'
     default:
       return null
-  }
-}
-
-function buildAppointmentPreparationStatus(
-  request: PreparedInboxDraftRequest,
-  requestedToolName: AppointmentDecisionToolName,
-): AppointmentPreparationStatus {
-  const action: AppointmentPreparationAction =
-    requestedToolName === 'prepare_appointment'
-      ? 'booking'
-      : requestedToolName === 'prepare_reschedule'
-        ? 'reschedule'
-        : 'cancellation'
-
-  const completeFields: AppointmentPreparationField[] = []
-  const missingFields: AppointmentPreparationField[] = []
-
-  if (request.conversationState.clientId) {
-    completeFields.push('customer_identity')
-  } else {
-    missingFields.push('customer_identity')
-  }
-
-  if (action === 'booking') {
-    if (detectRequestedService(request)) {
-      completeFields.push('service')
-    } else {
-      missingFields.push('service')
-    }
-  }
-
-  if (action === 'booking' || action === 'reschedule') {
-    if (detectRequestedDate(request, action)) {
-      completeFields.push('requested_date')
-    } else {
-      missingFields.push('requested_date')
-    }
-  }
-
-  if (action === 'booking' || action === 'reschedule') {
-    if (detectRequestedTimeOrWindow(request, action)) {
-      completeFields.push('requested_time_or_window')
-    } else {
-      missingFields.push('requested_time_or_window')
-    }
-  }
-
-  if (action === 'reschedule' || action === 'cancellation') {
-    if (detectCurrentAppointmentReference(request)) {
-      completeFields.push('current_appointment_reference')
-    } else {
-      missingFields.push('current_appointment_reference')
-    }
-  }
-
-  return {
-    action,
-    requestedToolName,
-    eligible: missingFields.length === 0,
-    completeFields,
-    missingFields,
-    nextQuestion: buildNextQuestion(action, missingFields[0]),
   }
 }
 
@@ -368,6 +334,7 @@ function buildDecision(
 function resolveAutoReplyDecision(
   request: PreparedInboxDraftRequest,
   result: ResolveInboxDraftDecisionInput['result'],
+  effectiveIntent: AiDraftIntent,
 ): InboxDraftDecision {
   const hasMutatingTool = result.requestedToolCalls.some((toolCall) => {
     const definition = getInboxToolDefinition(toolCall.name)
@@ -382,7 +349,7 @@ function resolveAutoReplyDecision(
     return buildDecision('draft_review', 'draft_only_mode')
   }
 
-  if (!request.receptionistConfig.allowedAutonomousIntents.includes(result.intent)) {
+  if (!request.receptionistConfig.allowedAutonomousIntents.includes(effectiveIntent)) {
     return buildDecision('draft_review', 'auto_reply_intent_not_allowed')
   }
 
@@ -393,37 +360,226 @@ function resolveAutoReplyDecision(
   return buildDecision('auto_reply_candidate', 'auto_reply_ready')
 }
 
-function resolveAppointmentDecision(
-  request: PreparedInboxDraftRequest,
-  result: ResolveInboxDraftDecisionInput['result'],
-): InboxDraftDecision {
-  const expectedToolName: AppointmentDecisionToolName =
-    result.intent === 'appointment_booking'
-      ? 'prepare_appointment'
-      : result.intent === 'appointment_change'
-        ? 'prepare_reschedule'
-        : 'prepare_cancellation'
+function buildBookingPreparation(
+  receptionistState: ReceptionistConversationState,
+  availabilityResult: AvailabilityResult | null,
+): AppointmentPreparationStatus {
+  const missingFields = receptionistState.missingFields.map((field) => {
+    switch (field) {
+      case 'service':
+        return 'service'
+      case 'requestedDate':
+        return 'requested_date'
+      case 'requestedTime':
+        return 'requested_time'
+      case 'appointmentReference':
+        return 'current_appointment_reference'
+    }
+  })
+  const completeFields: AppointmentPreparationField[] = []
+  if (receptionistState.service) completeFields.push('service')
+  if (receptionistState.requestedDate) completeFields.push('requested_date')
+  if (receptionistState.requestedTime) completeFields.push('requested_time')
+  const preparedToolCall = buildReceptionistPreparedToolCall(receptionistState, {
+    availabilityResult,
+  })
 
-  const requestedTool = firstRequestedTool(result.requestedToolCalls, expectedToolName)
-  if (!requestedTool) {
-    return buildDecision('draft_review', 'action_missing_tool')
+  let plannerState: AppointmentPlannerState = 'appointment_complete'
+  let nextQuestion = receptionistState.nextQuestion
+
+  if (missingFields[0] === 'service') {
+    plannerState = 'appointment_missing_service'
+  } else if (missingFields[0] === 'requested_date') {
+    plannerState = 'appointment_missing_date'
+  } else if (missingFields[0] === 'requested_time') {
+    plannerState = 'appointment_missing_time'
+  } else if (!availabilityResult) {
+    plannerState = 'availability_missing_information'
+  } else if (availabilityResult.reason === 'available') {
+    plannerState = 'availability_available'
+  } else if (availabilityResult.reason === 'business_closed') {
+    plannerState = 'availability_business_closed'
+    if (!missingFields.includes('requested_time')) {
+      missingFields.push('requested_time')
+    }
+    nextQuestion = availabilityResult.suggestedSlots.length > 0
+      ? 'Tra questi orari quale preferisci?'
+      : 'A che ora preferisci?'
+  } else if (availabilityResult.reason === 'slot_unavailable') {
+    plannerState = 'availability_unavailable'
+    if (!missingFields.includes('requested_time')) {
+      missingFields.push('requested_time')
+    }
+    nextQuestion = availabilityResult.suggestedSlots.length > 0
+      ? 'Tra questi orari quale preferisci?'
+      : 'A che ora preferisci?'
+  } else {
+    plannerState = 'availability_missing_information'
   }
 
-  if (requestedTool.policy === 'deny_ai') {
+  return {
+    action: 'booking',
+    requestedToolName: 'prepare_booking_sandbox',
+    plannerState,
+    eligible: preparedToolCall?.name === 'prepare_booking_sandbox',
+    completeFields,
+    missingFields,
+    nextQuestion,
+    preparedToolCall: preparedToolCall?.name === 'prepare_booking_sandbox' ? preparedToolCall : null,
+    service: receptionistState.service,
+    requestedDate: receptionistState.requestedDate,
+    requestedTime: receptionistState.requestedTime,
+    appointmentReference: receptionistState.appointmentReference,
+    customerName: receptionistState.customerName,
+    customerNotes: receptionistState.customerNotes,
+    conversationSummary: buildReceptionistConversationSummary(receptionistState),
+    availabilityResult,
+  }
+}
+
+function reasonFromPlannerState(
+  plannerState: AppointmentPlannerState,
+): InboxDraftDecisionReasonCode {
+  switch (plannerState) {
+    case 'appointment_missing_service':
+      return 'appointment_missing_service'
+    case 'appointment_missing_date':
+      return 'appointment_missing_date'
+    case 'appointment_missing_time':
+      return 'appointment_missing_time'
+    case 'availability_available':
+      return 'availability_available'
+    case 'availability_unavailable':
+      return 'availability_unavailable'
+    case 'availability_business_closed':
+      return 'availability_business_closed'
+    case 'availability_missing_information':
+      return 'availability_missing_information'
+    case 'appointment_complete':
+      return 'appointment_complete'
+    default:
+      return 'action_missing_fields'
+  }
+}
+
+function resolveBookingDecision(
+  request: PreparedInboxDraftRequest,
+  receptionistState: ReceptionistConversationState,
+  availabilityResult: AvailabilityResult | null,
+): InboxDraftDecision {
+  const definition = getInboxToolDefinition('prepare_booking_sandbox')
+  if (definition.policy === 'deny_ai') {
     return buildDecision('human_handoff', 'tool_policy_denied', {
       handoffRecommended: true,
     })
   }
 
-  const definition = getInboxToolDefinition(requestedTool.name)
-  if (definition.category !== 'prepare_mutation') {
-    return buildDecision('draft_review', 'action_tool_not_prepare_only')
+  const appointmentPreparation = buildBookingPreparation(receptionistState, availabilityResult)
+  const reasonCode = reasonFromPlannerState(appointmentPreparation.plannerState)
+
+  if (!appointmentPreparation.eligible) {
+    return buildDecision('draft_review', reasonCode, {
+      appointmentPreparation,
+    })
   }
 
-  const appointmentPreparation = buildAppointmentPreparationStatus(
-    request,
-    expectedToolName,
-  )
+  if (!isModeCandidateEnabled(request.receptionistConfig.mode)) {
+    return buildDecision('draft_review', 'draft_only_mode', {
+      appointmentPreparation,
+    })
+  }
+
+  return buildDecision('action_prepare_candidate', 'availability_available', {
+    appointmentPreparation,
+    eligibleToolNames: ['prepare_booking_sandbox'],
+  })
+}
+
+function buildSecondaryActionPreparation(
+  receptionistState: ReceptionistConversationState,
+  action: Extract<AppointmentPreparationAction, 'reschedule' | 'cancellation'>,
+): AppointmentPreparationStatus {
+  const completeFields: AppointmentPreparationField[] = []
+  const missingFields: AppointmentPreparationField[] = []
+
+  const requestedDate = receptionistState.requestedDate
+  const requestedTime = receptionistState.requestedTime
+  const currentAppointmentReference = receptionistState.appointmentReference
+
+  if (action === 'reschedule') {
+    if (requestedDate) {
+      completeFields.push('requested_date')
+    } else {
+      missingFields.push('requested_date')
+    }
+
+    if (requestedTime) {
+      completeFields.push('requested_time')
+    } else {
+      missingFields.push('requested_time')
+    }
+  }
+
+  if (currentAppointmentReference) {
+    completeFields.push('current_appointment_reference')
+  } else {
+    missingFields.push('current_appointment_reference')
+  }
+
+  const requestedToolName = action === 'reschedule'
+    ? 'prepare_reschedule'
+    : 'prepare_cancellation'
+  const preparedToolCall = buildReceptionistPreparedToolCall(receptionistState)
+
+  return {
+    action,
+    requestedToolName,
+    plannerState: 'not_applicable',
+    eligible:
+      missingFields.length === 0
+      && (
+        (action === 'reschedule' && preparedToolCall?.name === 'prepare_reschedule')
+        || (action === 'cancellation' && preparedToolCall?.name === 'prepare_cancellation')
+      ),
+    completeFields,
+    missingFields,
+    nextQuestion: receptionistState.nextQuestion ?? buildNextQuestion(action, missingFields[0]),
+    preparedToolCall:
+      action === 'reschedule'
+        ? preparedToolCall?.name === 'prepare_reschedule'
+          ? preparedToolCall
+          : null
+        : preparedToolCall?.name === 'prepare_cancellation'
+          ? preparedToolCall
+          : null,
+    service: receptionistState.service,
+    requestedDate,
+    requestedTime,
+    appointmentReference: currentAppointmentReference,
+    customerName: receptionistState.customerName,
+    customerNotes: receptionistState.customerNotes,
+    conversationSummary: buildReceptionistConversationSummary(receptionistState),
+    availabilityResult: null,
+  }
+}
+
+function resolveSecondaryActionDecision(
+  request: PreparedInboxDraftRequest,
+  receptionistState: ReceptionistConversationState,
+  action: Extract<AppointmentPreparationAction, 'reschedule' | 'cancellation'>,
+): InboxDraftDecision {
+  const toolName: AppointmentDecisionToolName = action === 'reschedule'
+    ? 'prepare_reschedule'
+    : 'prepare_cancellation'
+  const definition = getInboxToolDefinition(toolName)
+
+  if (definition.policy === 'deny_ai') {
+    return buildDecision('human_handoff', 'tool_policy_denied', {
+      handoffRecommended: true,
+    })
+  }
+
+  const appointmentPreparation = buildSecondaryActionPreparation(receptionistState, action)
   if (!appointmentPreparation.eligible) {
     return buildDecision('draft_review', 'action_missing_fields', {
       appointmentPreparation,
@@ -438,7 +594,7 @@ function resolveAppointmentDecision(
 
   return buildDecision('action_prepare_candidate', 'action_ready', {
     appointmentPreparation,
-    eligibleToolNames: [requestedTool.name],
+    eligibleToolNames: [toolName],
   })
 }
 
@@ -446,6 +602,24 @@ export function resolveInboxDraftDecision(
   input: ResolveInboxDraftDecisionInput,
 ): InboxDraftDecision {
   const { request, result } = input
+  const receptionistState = result.receptionistState
+    ?? request.receptionistState
+    ?? resolveDeterministicReceptionistConversationState({
+      messages: request.messages,
+      serviceCatalog: request.serviceCatalog,
+      timezone: request.tenantProfile.timezone,
+      conversationMemory: request.conversationMemory,
+    })
+  const understanding = result.understanding ?? {
+    intent: result.intent,
+    confidence: result.confidence,
+    handoff: result.handoff,
+  }
+  const effectiveIntent = resolveEffectiveIntent(
+    request,
+    understanding.intent,
+    receptionistState,
+  )
 
   if (request.receptionistConfig.mode === 'disabled') {
     return buildDecision('blocked', 'tenant_mode_disabled')
@@ -454,7 +628,6 @@ export function resolveInboxDraftDecision(
   if (
     result.confidence === null
     || result.draftText.trim().length === 0
-    || result.citedSources.length === 0
   ) {
     return buildDecision('human_handoff', 'provider_response_incomplete', {
       handoffRecommended: true,
@@ -479,7 +652,7 @@ export function resolveInboxDraftDecision(
     })
   }
 
-  if (HUMAN_HANDOFF_INTENTS.has(result.intent)) {
+  if (HUMAN_HANDOFF_INTENTS.has(effectiveIntent)) {
     return buildDecision('human_handoff', 'intent_requires_human', {
       handoffRecommended: true,
     })
@@ -491,20 +664,33 @@ export function resolveInboxDraftDecision(
     })
   }
 
-  if (!hasRequiredSourcesForIntent(request, result)) {
+  const authoritativeFailure = authoritativeFailureReason(
+    result.authoritativeResolution,
+  )
+  if (authoritativeFailure) {
+    return buildDecision('draft_review', authoritativeFailure)
+  }
+
+  if (!hasRequiredSourcesForIntent(request, result, effectiveIntent)) {
     return buildDecision('human_handoff', 'missing_required_sources', {
       handoffRecommended: true,
     })
   }
 
-  if (result.intent === 'appointment_booking'
-    || result.intent === 'appointment_change'
-    || result.intent === 'appointment_cancel') {
-    return resolveAppointmentDecision(request, result)
+  if (effectiveIntent === 'booking') {
+    return resolveBookingDecision(request, receptionistState, result.availabilityResult ?? null)
   }
 
-  if (LOW_RISK_AUTO_REPLY_INTENTS.has(result.intent)) {
-    return resolveAutoReplyDecision(request, result)
+  if (effectiveIntent === 'reschedule') {
+    return resolveSecondaryActionDecision(request, receptionistState, 'reschedule')
+  }
+
+  if (effectiveIntent === 'cancel') {
+    return resolveSecondaryActionDecision(request, receptionistState, 'cancellation')
+  }
+
+  if (LOW_RISK_AUTO_REPLY_INTENTS.has(effectiveIntent)) {
+    return resolveAutoReplyDecision(request, result, effectiveIntent)
   }
 
   return buildDecision('draft_review', 'manual_review_default')

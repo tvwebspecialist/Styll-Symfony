@@ -52,6 +52,12 @@ const TOOL_REGISTRY: Record<
     requiresCustomerConfirmation: false,
     requiresStaffApproval: false,
   },
+  prepare_booking_sandbox: {
+    category: 'prepare_mutation',
+    description: 'Prepara una prenotazione sandbox senza scrivere appuntamenti reali.',
+    requiresCustomerConfirmation: false,
+    requiresStaffApproval: false,
+  },
   prepare_appointment: {
     category: 'prepare_mutation',
     description: 'Prepara una proposta di prenotazione senza confermarla.',

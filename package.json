@@ -9,6 +9,7 @@
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint",
     "type-check": "pnpm --filter web type-check",
+    "demo:receptionist": "node --experimental-strip-types scripts/receptionist-demo.ts",
     "test:security:unit": "pnpm --filter web test:security:unit",
     "test:e2e": "pnpm --filter web test:e2e",
     "test:e2e:ui": "pnpm --filter web test:e2e:ui",

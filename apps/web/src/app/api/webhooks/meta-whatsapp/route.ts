@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import type { Json } from '@/types'
+import { enqueueInboundInboxAiRun } from '@/lib/ai/inbound-inbox-ai-runtime'
 import { metaWhatsAppAdapter } from '@/lib/messaging/meta-whatsapp-adapter'
 import { createMessagingAdminClient } from '@/lib/messaging/db'
 import {
@@ -21,6 +22,9 @@ interface ProcessingSummary {
   received: number
   duplicates: number
   inboundMessages: number
+  aiQueued: number
+  aiQueueDuplicates: number
+  aiQueueFailed: number
   humanMessageEchoes: number
   statusUpdates: number
   unresolvedTenant: number
@@ -177,7 +181,7 @@ async function persistInboundMessage(input: {
     throw new Error(logError?.message ?? 'messages_log insert failed')
   }
 
-  const { error: inboxError } = await db.from('inbox_messages').insert({
+  const { data: inboxMessage, error: inboxError } = await db.from('inbox_messages').insert({
     tenant_id: input.tenantId,
     conversation_id: input.conversationId,
     provider: 'meta_whatsapp',
@@ -191,9 +195,15 @@ async function persistInboundMessage(input: {
     raw_payload: input.rawPayload as Json,
     messages_log_id: messageLog.id,
   })
+    .select('id')
+    .single()
 
-  if (inboxError) {
-    throw new Error(`inbox_messages insert failed: ${inboxError.message}`)
+  if (inboxError || !inboxMessage) {
+    throw new Error(`inbox_messages insert failed: ${inboxError?.message ?? 'missing inserted row'}`)
+  }
+
+  return {
+    messageId: inboxMessage.id,
   }
 }
 
@@ -428,6 +438,9 @@ export async function POST(req: NextRequest) {
     received: events.length,
     duplicates: 0,
     inboundMessages: 0,
+    aiQueued: 0,
+    aiQueueDuplicates: 0,
+    aiQueueFailed: 0,
     humanMessageEchoes: 0,
     statusUpdates: 0,
     unresolvedTenant: 0,
@@ -492,7 +505,7 @@ export async function POST(req: NextRequest) {
       )
 
       if (event.direction === 'inbound' && event.authorKind === 'customer' && event.messageId) {
-        await persistInboundMessage({
+        const persistedMessage = await persistInboundMessage({
           tenantId: connection.tenantId,
           conversationId: conversation.id,
           clientId: conversation.clientId,
@@ -509,6 +522,28 @@ export async function POST(req: NextRequest) {
         // by the DB trigger handle_inbox_message_insert (migration 20260717093000)
 
         summary.inboundMessages++
+
+        try {
+          const queuedRun = await enqueueInboundInboxAiRun({
+            tenantId: connection.tenantId,
+            conversationId: conversation.id,
+            messageId: persistedMessage.messageId,
+          })
+
+          if (queuedRun.duplicate) {
+            summary.aiQueueDuplicates++
+          } else if (queuedRun.queued) {
+            summary.aiQueued++
+          }
+        } catch (error) {
+          summary.aiQueueFailed++
+          console.error('[webhooks/meta-whatsapp] inbound AI queue failed', {
+            tenantId: connection.tenantId,
+            conversationId: conversation.id,
+            messageId: persistedMessage.messageId,
+            error,
+          })
+        }
       } else if (event.direction === 'outbound' && event.authorKind === 'human' && event.messageId) {
         await syncConversationStateAfterHumanMessageEcho({
           conversationId: conversation.id,

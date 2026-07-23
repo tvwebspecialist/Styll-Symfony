@@ -26,6 +26,7 @@ export type InboxToolName =
   | 'get_prices'
   | 'get_working_hours'
   | 'search_availability'
+  | 'prepare_booking_sandbox'
   | 'prepare_appointment'
   | 'confirm_appointment'
   | 'prepare_reschedule'

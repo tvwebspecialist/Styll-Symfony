@@ -8,6 +8,8 @@ Documenti collegati:
 - [Autonomous Execution Playbook](AUTONOMOUS_EXECUTION_PLAYBOOK.md)
 - [Definition of Done](DEFINITION_OF_DONE.md)
 - [Decision Log Template](DECISION_LOG_TEMPLATE.md)
+- [Conversation Memory e Slot Filling Deterministici](2026-07-20-conversation-memory-slot-filling.md)
+- [Inbound AI Receptionist Runtime](2026-07-20-inbound-ai-receptionist-runtime.md)
 - `docs/07-tecnico/whatsapp-inbox-v1-implementation.md`
 
 ## Legenda
@@ -69,7 +71,7 @@ Priorita:
 - `done` - state machine server-side centralizzata per `status`, `ownership_mode`, `assigned_staff_id` e `ai_paused_at`, con transizioni validate, audit append-only e route dedicate per la presa in carico.
 - `partial` - esiste una policy conservativa in `apps/web/src/lib/messaging/policy.ts` per handoff, sensitive data, tool policy e dispatch AI.
 - `done` - Inbox operatore mostra assegnatario, stato AI pausata, autore umano, note interne e controlli `take_control` / `release_control` / `return_to_ai`; i `message echoes` umani del provider riallineano ownership e pausa AI tramite la stessa state machine.
-- `partial` - esistono contratti `draft-only`, tool registry tipizzato, prompt registry versionato e un runtime con persistenza `inbox_ai_runs`, provider selezionabile `fake|anthropic`, output strutturato `intent/confidence/handoff`, decision engine deterministico e approval UI minima; restano aperti retrieval storico delle bozze, consolidamento approval flow e feedback loop.
+- `partial` - esistono contratti `draft-only`, tool registry tipizzato, prompt registry versionato e un runtime con persistenza `inbox_ai_runs`, provider selezionabile `fake|anthropic`, output strutturato nested `understanding`, decision engine deterministico e approval UI minima; dal 20 luglio 2026 il webhook inbound reale puo accodare un run AI idempotente per ogni messaggio WhatsApp persistito, con FAQ deterministiche tenant-scoped, memoria conversazionale ibrida (`resolver deterministico + understanding provider + merger puro`), planner appointment multi-turn (`service`, `requested_date`, `requested_time`), gestione `reschedule/cancel` advisory e `prepare_appointment` preparato solo in modalita advisory; il risultato e visibile in Inbox, un harness locale `pnpm demo:receptionist` consente la demo conversazionale e auto-send resta disabilitato; restano aperti feedback loop operatore persistiti, approval/send linking completo, disponibilita live e abilitazione di future reply autonome.
 
 ## Dipendenze esterne gia note
 
@@ -277,10 +279,14 @@ Aggiornamento 2026-07-20:
 
 Aggiornamento 2026-07-20:
 
-- aggiunto `apps/web/src/lib/ai/prompt-registry.ts` con prompt versionato `whatsapp_inbox_draft_only@2026-07-20.v1`;
+- aggiunto `apps/web/src/lib/ai/prompt-registry.ts` con prompt versionato `whatsapp_inbox_draft_only@2026-07-20.v6`;
 - aggiunto `apps/web/src/lib/ai/inbox-draft-context-core.ts` con sanitizzazione deterministica del transcript, redazione minima di email/telefono, finestra messaggi limitata e sezioni di contesto ordinate;
 - aggiunto `apps/web/src/lib/ai/inbox-draft-context.ts` per caricare tenant profile, servizi, orari e messaggi recenti con guardia `requireInboxTenantContext` e query sempre tenant-scoped;
-- ogni richiesta draft-only preparata ora espone `promptId`, `promptVersion`, `systemPrompt`, `contextSections`, `allowedTools` e `sources` tracciate per l attribution futura delle bozze;
+- il context builder include ora anche FAQ personalizzate tenant-scoped da `tenants.settings.ai_receptionist.custom_faqs`, con parsing tipizzato, default sicuri e source attribution dedicata;
+- il contesto include ora una sezione esplicita `conversation_memory` con ultimo intent, intent appointment attivo, ultimo servizio/data/orario/riferimento appuntamento risolti, slot mancanti, prossima domanda utile e riassunto conversazione;
+- il contesto include anche `receptionist_state` ricostruito dal transcript, cosi il provider riceve uno stato conversazionale gia validato e portabile;
+- il prompt aggiornato impone tono receptionist umano, risposte brevi e naturali, una sola domanda di slot filling per volta, interpretazione dei follow-up nel contesto e divieto di richiedere di nuovo informazioni gia note;
+- ogni richiesta draft-only preparata ora espone `promptId`, `promptVersion`, `systemPrompt`, `contextSections`, `allowedTools`, `sources`, `serviceCatalog` e `customFaqCatalog` tracciati per l attribution futura delle bozze;
 - l audit successivo ha corretto un difetto reale del loader messaggi: il contesto ora legge la finestra piu recente in ordine deterministico (`created_at desc`, `id desc`) e usa gli stessi limiti del prompt registry per DB e costruzione pura;
 - nessuna chiamata LLM reale e stata introdotta in questa fase.
 
@@ -299,7 +305,14 @@ Aggiornamento 2026-07-20:
 
 - aggiunto `inbox-draft-orchestrator-core.ts` come orchestratore esplicito della bozza: prepara il contesto, invoca un provider, valida la risposta, normalizza fonti/tool advisory e non invia mai messaggi;
 - aggiunto `deterministic-fake-draft-provider.ts` come provider locale deterministico per test e harness offline, senza dipendenze esterne e senza esecuzione automatica dei tool richiesti;
-- aggiunto `anthropic-draft-provider.ts` come primo provider reale via SDK ufficiale Anthropic, con selezione configurabile tramite env `INBOX_AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, modello `claude-sonnet-5` e output JSON strutturato;
+- aggiunto `anthropic-draft-provider.ts` come primo provider reale via SDK ufficiale Anthropic, con selezione configurabile tramite env `INBOX_AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, modello `claude-sonnet-5` e output JSON strutturato nested;
+- aggiunto `apps/web/src/lib/ai/inbox-memory-resolver.ts` come resolver deterministico che estrae dal transcript ultimo intent, ultimo servizio, ultima data, ultimo orario, slot mancante e stato planner senza usare il modello;
+- aggiunto `apps/web/src/lib/ai/receptionist-conversation-state.ts` come merger puro e framework-agnostic che combina transcript, resolver deterministico e understanding provider in uno stato conversazionale validato;
+- il provider espone ora `understanding.intent`, `understanding.entities`, `understanding.corrections`, `understanding.citedSources` e `understanding.requestedToolCalls`, mentre il codice valida servizio, data, ora e riferimento appuntamento contro il contesto autorevole tenant-scoped;
+- il planner appointment supporta ora `appointment_missing_service`, `appointment_missing_date`, `appointment_missing_time` e `appointment_complete`, mentre `reschedule` e `cancel` usano lo stesso stato conversazionale per raccolta progressiva dei chiarimenti;
+- il decision engine usa memoria ibrida e stato conversazionale validato per non chiedere due volte gli stessi dati, fare una sola domanda utile per turno e preparare `prepare_appointment` solo quando `service`, `requested_date` e `requested_time` sono completi;
+- `prepare_appointment` advisory riceve ora `service`, `requested_date`, `requested_time`, `customer_name`, `customer_notes` e `conversation_summary`, ma non viene eseguito automaticamente;
+- `prepare_reschedule` e `prepare_cancellation` vengono preparati solo in modalita advisory, mai eseguiti;
 - riusato `inbox_ai_runs` per audit/persistenza dei run `draft_only` con `status started/completed/failed`, `final_policy_decision`, `input_context` e `output_summary`, senza introdurre modelli paralleli;
 - aggiunta route `api/inbox/conversations/[conversationId]/draft` e una prima approval surface nella Inbox esistente: genera bozza, mostra fonti sintetiche, consente edit locale, scarto e approvazione esplicita nel box di risposta manuale;
 - il provider reale classifica ora `intent`, `handoff` e `confidence`, mantiene `requested_tools` solo advisory e non espone il reasoning interno agli operatori;
@@ -307,7 +320,11 @@ Aggiornamento 2026-07-20:
 - il runtime ora applica un decision engine deterministico che consuma `intent`, `confidence`, `handoff`, fonti citate, requested tools advisory, stato conversazione e config tenant-scoped senza delegare la decisione finale al modello;
 - il risultato pubblico della bozza espone decisione, motivo, suggerimento handoff e completezza delle richieste appointment, cosi l operatore puo distinguere draft review, handoff consigliato, FAQ candidate e action prepare candidate senza auto-send;
 - `inbox_ai_runs` registra ora anche esito decisionale, missing fields e `handoff_reason`, mentre la Inbox riusa la state machine esistente per accettare il suggerimento di handoff tramite `take_control`;
-- restano aperti retrieval della bozza dopo refresh, associazione esplicita `approval -> inbox_ai_run`, audit di discard/edit e surface piu ricca per requested tools/feedback.
+- aggiunto `apps/web/src/lib/ai/inbound-inbox-ai-runtime.ts` come entrypoint bounded per l inbound reale: il webhook Meta accoda un run solo dopo persistenza del messaggio, il cron `api/cron/inbox-ai-runtime` lo processa fuori dal path di ack e nessun auto-send viene mai eseguito;
+- l idempotenza del runtime inbound usa il vincolo unico `inbox_ai_runs(message_id, mode)` lato DB oltre alla deduplica gia esistente del webhook, cosi duplicate delivery o replay non generano doppie bozze;
+- la Inbox recupera ora l ultimo run inbound associato al messaggio, anche dopo refresh, con provider label, decision kind/reason, stato planner, prossima domanda utile, dati preparati e riferimento esplicito al messaggio cliente;
+- aggiunto `scripts/receptionist-demo.ts` per provare localmente la conversazione completa con tenant fixture, stato conversazionale e tool advisory visibili turno per turno;
+- restano aperti audit di discard/edit, collegamento esplicito `approval -> inbox_ai_run -> send manuale` e surface piu ricca per requested tools/feedback.
 
 ### Task 3.4 - Feedback loop, safety gate ed evaluation dataset
 
@@ -322,8 +339,9 @@ Aggiornamento 2026-07-20:
 
 Aggiornamento 2026-07-20:
 
-- aggiunta una suite offline locale con conversazioni rappresentative per `booking`, `pricing`, `opening_hours`, `greeting`, `complaint`, `reschedule`, `cancellation`, informazioni mancanti e messaggi poco chiari;
-- i test di evaluation verificano classificazione conservativa, handoff, requested tools advisory e assenza di claim di auto-send;
+- aggiunta una suite offline locale con 81 conversazioni realistiche complessive tra continuita receptionist e availability read-only per `greeting`, `pricing`, `opening_hours`, `booking`, `reschedule`, `cancel`, `faq`, `complaint`, `human_request`, `conversational_followup`, correzioni esplicite, follow-up contestuali, messaggi brevi, emoji, errori ortografici, dialetto leggero, prompt injection, slot disponibili, slot non disponibili, business closed, selezione della seconda/ultima proposta, timezone e multi-staff;
+- i test di evaluation verificano memoria conversazionale, continuita multi-turn, slot filling, planner appointment, structured understanding validato, requested tools advisory, assenza di tool execution, assenza di auto-send e assenza di false conferme di prenotazione;
+- aggiunti test mirati per `conversation_memory`, `receptionist-conversation-state`, follow-up contestuali come `domani`, `alle 16`, `16:30 va bene`, `la seconda va bene`, `l ultima` o `alle quattro`, availability result, business closed, completamento `prepare_booking_sandbox`, casi `reschedule/cancel` e regressioni del prompt `v6`;
 - resta da collegare il dataset ai futuri feedback operatori persistiti e a metriche comparative tra provider/versioni prompt.
 
 ## Epic 4 - FAQ automatiche
@@ -337,7 +355,15 @@ Aggiornamento 2026-07-20:
 - Test richiesti: intent fixtures, cross-tenant data tests, policy tests.
 - Definition of done: le FAQ definite vengono servite da logica deterministica con fallback chiaro.
 - Priorita: `P0`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- aggiunto `apps/web/src/lib/ai/inbox-deterministic-faq-resolver.ts` per `greeting`, `pricing`, `opening_hours` e una prima superficie `faq` personalizzata del tenant;
+- Claude resta usato per classificazione e language understanding, ma la risposta finale per questi intent viene sostituita da dati autorevoli tenant-scoped quando il resolver riesce;
+- i prezzi usano solo servizi attivi del tenant, non inferiscono importi mancanti e falliscono in modo conservativo su servizio non trovato, ambiguo o senza prezzo configurato;
+- gli orari usano `working_hours` e timezone del tenant, distinguono i giorni chiusi e dichiarano esplicitamente che non rappresentano disponibilita live di appuntamento;
+- il resolver restituisce `resolved`, `answerText`, `supportingSources`, `reasonCode`, `missingInformation`, `ambiguousInformation` e `operatorNote`, cosi il decision engine puo produrre `draft_review` o handoff sicuri senza allucinazioni.
 
 ### Task 4.2 - Availability read-only e escalation automatica
 
@@ -348,7 +374,17 @@ Aggiornamento 2026-07-20:
 - Test richiesti: slot read-only tests, tenant isolation tests, timezone tests.
 - Definition of done: il sistema propone solo disponibilita lette da fonte autorevole e scala a umano quando serve.
 - Priorita: `P1`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- introdotto un contratto puro `AvailabilityGateway` con lookup typed e `AvailabilityResult` chiuso su `available`, `slot_unavailable`, `business_closed`, `service_unavailable`;
+- aggiunti due adapter: `deterministicFakeAvailabilityGateway` per demo/test e `currentAvailabilityGateway` che riusa il runtime read-only esistente dei booking slots senza introdurre nuove pipeline;
+- il decision engine distingue ora `availability_available`, `availability_unavailable`, `availability_business_closed` e `availability_missing_information`, mantenendo nessuna mutazione, nessun auto-send e nessun booking reale;
+- le richieste complete di booking eseguono solo una verifica read-only e producono al massimo `prepare_booking_sandbox`, mai `confirm_appointment`;
+- il runtime propone al massimo 3 slot reali ordinati cronologicamente e supporta follow-up contestuali come `16:30 va bene`, `la seconda va bene`, `l ultima` e `va bene quella` quando il contesto lo consente;
+- `scripts/receptionist-demo.ts` mostra ora transcript, conversation state, availability result, suggested slots, prepared tool e draft a ogni turno, con gateway fake di default per la demo locale;
+- restano fuori dallo scope il booking reale, l allocazione definitiva su calendario, la scrittura di appuntamenti e qualsiasi reply autonoma in produzione.
 
 ### Task 4.3 - Kill switch e configurazione per tenant
 
@@ -359,7 +395,13 @@ Aggiornamento 2026-07-20:
 - Test richiesti: config precedence tests, tenant override tests.
 - Definition of done: il comportamento automatico e attivabile/disattivabile senza deploy.
 - Priorita: `P1`
-- Stato: `todo`
+- Stato: `partial`
+
+Aggiornamento 2026-07-20:
+
+- il kill switch operativo continua a usare `tenants.settings.ai_receptionist.mode`, gia rispettato sia nel runtime manuale sia nel nuovo runtime inbound;
+- la stessa configurazione ospita ora `custom_faqs`, una lista compatta e tipizzata di topic/answer/enabled usata dal context builder e dal resolver deterministico senza introdurre un knowledge framework generico;
+- manca ancora una surface admin dedicata per modificare queste FAQ senza agire direttamente sulla configurazione tenant esistente.
 
 ### Task 4.4 - Observability FAQ
 
@@ -514,10 +556,10 @@ Aggiornamento 2026-07-20:
 Questi task sono adatti a una lunga sessione autonoma senza sistemi esterni:
 
 1. Rafforzare la suite SQL/integration su assignment state, note interne, audit visibility, realtime tenant isolation e worker `messaging_outbox`, quando Supabase locale e disponibile.
-2. Completare `Task 3.3` con retrieval delle bozze persistite da `inbox_ai_runs` dopo refresh, audit approval/discard e collegamento esplicito della bozza approvata al send manuale.
+2. Completare `Task 3.3` con audit approval/discard/edit, collegamento esplicito della bozza approvata al send manuale e cron hardening del runtime `inbox-ai-runtime`.
 3. Rafforzare `Task 3.4` collegando feedback operatore, scoring comparativo e replay delle bozze persistite al dataset offline.
 4. Gestire recovery esplicito delle righe `messaging_outbox` stale in `processing` e aggiungere regression test dedicati.
-5. Implementare `Task 4.1` con FAQ deterministic engine read-only per business info, servizi, prezzi e orari.
+5. Estendere `Task 4.1` con disponibilita consultiva read-only e osservabilita FAQ prima di qualunque enablement di reply autonome.
 
 Task non adatti a batch autonomo non presidiato:
 

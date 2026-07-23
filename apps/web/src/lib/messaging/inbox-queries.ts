@@ -44,6 +44,76 @@ export interface InboxMessage {
   auditAction?: string | null
 }
 
+export interface InboxLatestAiRun {
+  id: string
+  messageId: string
+  messageBodyText: string | null
+  messageCreatedAt: string | null
+  status: 'queued' | 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+  providerId: string | null
+  promptId: string | null
+  promptVersion: string | null
+  outputSummary: string | null
+  decisionKind: string | null
+  reasonCode: string | null
+  usedAuthoritativeKnowledge: boolean
+  citedSourceSummary: Array<{
+    kind: 'conversation' | 'knowledge' | 'policy' | 'tool_result'
+    label: string
+  }>
+  appointmentPreparation: {
+    action: 'booking' | 'reschedule' | 'cancellation'
+    plannerState: string
+    eligible: boolean
+    completeFields: string[]
+    missingFields: string[]
+    nextQuestion: string | null
+    preparedToolCall: {
+      name:
+        | 'prepare_booking_sandbox'
+        | 'prepare_appointment'
+        | 'prepare_reschedule'
+        | 'prepare_cancellation'
+      arguments: {
+        service?: string
+        requested_date?: string
+        requested_time?: string
+        selected_slot?: string
+        customer_name?: string | null
+        current_appointment_reference?: string
+        customer_notes: string
+        conversation_summary: string
+      }
+    } | null
+    service: string | null
+    requestedDate: string | null
+    requestedTime: string | null
+    availabilityResult: {
+      available: boolean
+      requestedSlot: {
+        date: string
+        startTime: string
+        endTime: string
+        staffIds: string[]
+      } | null
+      suggestedSlots: Array<{
+        date: string
+        startTime: string
+        endTime: string
+        staffIds: string[]
+      }>
+      reason:
+        | 'available'
+        | 'slot_unavailable'
+        | 'business_closed'
+        | 'service_unavailable'
+    } | null
+  } | null
+  errorCategory: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
 function readAuditAction(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
     return null
@@ -79,6 +149,182 @@ function readActorDisplayName(metadata: unknown): string | null {
 
   const displayName = (actor as Record<string, unknown>).display_name
   return typeof displayName === 'string' && displayName.length > 0 ? displayName : null
+}
+
+function readAiSourceSummary(value: unknown): InboxLatestAiRun['citedSourceSummary'] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return []
+    }
+
+    const kind = (entry as Record<string, unknown>).kind
+    const label = (entry as Record<string, unknown>).label
+    if (
+      (kind !== 'conversation' && kind !== 'knowledge' && kind !== 'policy' && kind !== 'tool_result')
+      || typeof label !== 'string'
+      || label.length === 0
+    ) {
+      return []
+    }
+
+    return [{
+      kind,
+      label,
+    }]
+  })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+}
+
+function readPreparedToolCall(value: unknown): InboxLatestAiRun['appointmentPreparation'] extends infer T
+  ? T extends { preparedToolCall: infer P } ? P : never
+  : never {
+  if (!isRecord(value)) return null
+
+  const name = value.name
+  if (
+    name !== 'prepare_booking_sandbox'
+    && name !== 'prepare_appointment'
+    && name !== 'prepare_reschedule'
+    && name !== 'prepare_cancellation'
+  ) {
+    return null
+  }
+
+  const rawArguments = isRecord(value.arguments) ? value.arguments : {}
+  const customerNotes = typeof rawArguments.customer_notes === 'string'
+    ? rawArguments.customer_notes
+    : ''
+  const conversationSummary = typeof rawArguments.conversation_summary === 'string'
+    ? rawArguments.conversation_summary
+    : ''
+
+  return {
+    name,
+    arguments: {
+      service: typeof rawArguments.service === 'string' ? rawArguments.service : undefined,
+      requested_date:
+        typeof rawArguments.requested_date === 'string' ? rawArguments.requested_date : undefined,
+      requested_time:
+        typeof rawArguments.requested_time === 'string' ? rawArguments.requested_time : undefined,
+      selected_slot:
+        typeof rawArguments.selected_slot === 'string' ? rawArguments.selected_slot : undefined,
+      customer_name:
+        typeof rawArguments.customer_name === 'string' ? rawArguments.customer_name : null,
+      current_appointment_reference:
+        typeof rawArguments.current_appointment_reference === 'string'
+          ? rawArguments.current_appointment_reference
+          : undefined,
+      customer_notes: customerNotes,
+      conversation_summary: conversationSummary,
+    },
+  }
+}
+
+function readAvailabilitySlot(value: unknown): {
+  date: string
+  startTime: string
+  endTime: string
+  staffIds: string[]
+} | null {
+  if (!isRecord(value)) return null
+
+  if (
+    typeof value.date !== 'string'
+    || typeof value.startTime !== 'string'
+    || typeof value.endTime !== 'string'
+    || !Array.isArray(value.staffIds)
+  ) {
+    return null
+  }
+
+  return {
+    date: value.date,
+    startTime: value.startTime,
+    endTime: value.endTime,
+    staffIds: value.staffIds.filter((entry): entry is string => typeof entry === 'string'),
+  }
+}
+
+function readAvailabilityResult(
+  value: unknown,
+): InboxLatestAiRun['appointmentPreparation'] extends infer T
+  ? T extends { availabilityResult: infer R } ? R : never
+  : never {
+  if (!isRecord(value)) return null
+
+  const requestedSlot = readAvailabilitySlot(value.requestedSlot)
+  const suggestedSlots = Array.isArray(value.suggestedSlots)
+    ? value.suggestedSlots
+      .map((slot) => readAvailabilitySlot(slot))
+      .filter((slot): slot is NonNullable<typeof requestedSlot> => slot !== null)
+    : []
+
+  if (
+    typeof value.available !== 'boolean'
+    || (
+      value.reason !== 'available'
+      && value.reason !== 'slot_unavailable'
+      && value.reason !== 'business_closed'
+      && value.reason !== 'service_unavailable'
+    )
+  ) {
+    return null
+  }
+
+  return {
+    available: value.available,
+    requestedSlot,
+    suggestedSlots,
+    reason: value.reason,
+  }
+}
+
+function readAiAppointmentPreparation(value: unknown): InboxLatestAiRun['appointmentPreparation'] {
+  if (!isRecord(value)) return null
+
+  const response = isRecord(value.response) ? value.response : null
+  const decision = response && isRecord(response.decision) ? response.decision : null
+  const preparation = decision && isRecord(decision.appointment_preparation)
+    ? decision.appointment_preparation
+    : null
+
+  if (!preparation) return null
+
+  const action = preparation.action
+  if (action !== 'booking' && action !== 'reschedule' && action !== 'cancellation') {
+    return null
+  }
+
+  return {
+    action,
+    plannerState:
+      typeof preparation.plannerState === 'string'
+        ? preparation.plannerState
+        : typeof preparation.state === 'string'
+          ? preparation.state
+          : 'not_applicable',
+    eligible: preparation.eligible === true,
+    completeFields: readStringArray(preparation.completeFields),
+    missingFields: readStringArray(preparation.missingFields),
+    nextQuestion: typeof preparation.nextQuestion === 'string' ? preparation.nextQuestion : null,
+    preparedToolCall: readPreparedToolCall(preparation.preparedToolCall),
+    service: typeof preparation.service === 'string' ? preparation.service : null,
+    requestedDate:
+      typeof preparation.requestedDate === 'string' ? preparation.requestedDate : null,
+    requestedTime:
+      typeof preparation.requestedTime === 'string' ? preparation.requestedTime : null,
+    availabilityResult: readAvailabilityResult(preparation.availabilityResult),
+  }
 }
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -232,4 +478,64 @@ export async function queryInboxMessages(
 
     return left.createdAt.localeCompare(right.createdAt)
   })
+}
+
+export async function queryLatestInboundInboxAiRun(
+  db: MessagingAdminClient,
+  tenantId: string,
+  conversationId: string,
+): Promise<InboxLatestAiRun | null> {
+  const { data: runRows, error } = await db
+    .from('inbox_ai_runs')
+    .select('id, message_id, status, provider_id, prompt_id, prompt_version, output_summary, decision_kind, reason_code, used_authoritative_knowledge, cited_source_summary, error_category, created_at, completed_at, mode, input_context')
+    .eq('tenant_id', tenantId)
+    .eq('conversation_id', conversationId)
+    .eq('mode', 'draft_only')
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (error) {
+    throw new Error(`[inbox] latest ai run fetch failed: ${error.message}`)
+  }
+
+  const latestRun = (runRows ?? []).find(
+    (row) => typeof row.message_id === 'string' && row.message_id.length > 0,
+  )
+
+  if (!latestRun || !latestRun.message_id) {
+    return null
+  }
+
+  const { data: messageRows, error: messageError } = await db
+    .from('inbox_messages')
+    .select('id, body_text, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('id', latestRun.message_id)
+    .limit(1)
+
+  if (messageError) {
+    throw new Error(`[inbox] latest ai inbound message fetch failed: ${messageError.message}`)
+  }
+
+  const message = (messageRows ?? [])[0] ?? null
+
+  return {
+    id: latestRun.id,
+    messageId: latestRun.message_id,
+    messageBodyText: message?.body_text ?? null,
+    messageCreatedAt: message?.created_at ?? null,
+    status: latestRun.status as InboxLatestAiRun['status'],
+    providerId: latestRun.provider_id ?? null,
+    promptId: latestRun.prompt_id ?? null,
+    promptVersion: latestRun.prompt_version ?? null,
+    outputSummary: latestRun.output_summary ?? null,
+    decisionKind: latestRun.decision_kind ?? null,
+    reasonCode: latestRun.reason_code ?? null,
+    usedAuthoritativeKnowledge: latestRun.used_authoritative_knowledge ?? false,
+    citedSourceSummary: readAiSourceSummary(latestRun.cited_source_summary),
+    appointmentPreparation: readAiAppointmentPreparation(latestRun.input_context),
+    errorCategory: latestRun.error_category ?? null,
+    createdAt: latestRun.created_at,
+    completedAt: latestRun.completed_at ?? null,
+  }
 }
