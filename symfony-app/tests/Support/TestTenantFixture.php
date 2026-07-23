@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Entity\Appointment;
 use App\Entity\Client;
 use App\Entity\GalleryPhoto;
 use App\Entity\Location;
@@ -20,6 +21,8 @@ use App\Entity\StaffMember;
 use App\Entity\Tenant;
 use App\Entity\User;
 use App\Entity\WebsitePhoto;
+use App\Entity\WorkingHour;
+use App\Entity\WorkingHourOverride;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Cache\CacheItemPoolInterface;
 use RuntimeException;
@@ -383,5 +386,161 @@ final class TestTenantFixture
         ] as $entity) {
             $this->em->persist($entity);
         }
+    }
+
+    /**
+     * Seeds two tenants with calendar data for Fase 1b tests.
+     *
+     * Returns data needed for appointment and availability tests:
+     * - tenantA, tenantB
+     * - staffA, staffB (StaffMember with UUID accessible via getId())
+     * - locationA
+     * - serviceA (30 min duration)
+     * - clientA
+     * - appointmentA: 2030-01-14T09:00:00Z to 10:00:00Z UTC (= 10:00-11:00 Europe/Rome, Monday, status confirmed)
+     * - working hours for staffA on Monday (day_of_week=1): 09:00-18:00
+     * - override for staffA on 2030-01-07 (Monday): is_closed=true
+     * - appointmentB: 2030-01-14T09:00:00Z UTC — belongs to tenantB (for cross-tenant isolation tests)
+     *
+     * Test date 2030-01-07 = Monday (day_of_week=1, is_closed override)
+     * Test date 2030-01-14 = Monday (day_of_week=1, normal working hours, appointment at 10:00)
+     *
+     * @return array{
+     *   tenantA: Tenant, tenantB: Tenant,
+     *   staffA: StaffMember, staffB: StaffMember,
+     *   locationA: Location, serviceA: Service, clientA: Client,
+     *   appointmentA: Appointment, appointmentB: Appointment,
+     * }
+     */
+    public function seedTwoTenantsWithCalendarData(): array
+    {
+        $base = $this->seedTwoTenantsWithClients();
+        /** @var Tenant $tenantA */
+        $tenantA = $base['tenantA'];
+        /** @var Tenant $tenantB */
+        $tenantB = $base['tenantB'];
+
+        // Retrieve staff members created in seedTwoTenantsWithClients
+        $staffA = $this->em->createQueryBuilder()
+            ->select('s')
+            ->from(StaffMember::class, 's')
+            ->where('s.tenant = :t')
+            ->setParameter('t', $tenantA)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        $staffB = $this->em->createQueryBuilder()
+            ->select('s')
+            ->from(StaffMember::class, 's')
+            ->where('s.tenant = :t')
+            ->setParameter('t', $tenantB)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        // Location for Tenant A
+        $locationA = (new Location())
+            ->setTenant($tenantA)
+            ->setName('Calendar Test Location A')
+            ->setAddress('Via Roma 1')
+            ->setCity('Milano')
+            ->setZipCode('20100');
+
+        // Location for Tenant B
+        $locationB = (new Location())
+            ->setTenant($tenantB)
+            ->setName('Calendar Test Location B')
+            ->setAddress('Via Roma 2')
+            ->setCity('Roma')
+            ->setZipCode('00100');
+
+        // Service for Tenant A (30 min)
+        $serviceA = (new Service())
+            ->setTenant($tenantA)
+            ->setName('Calendar Test Service A')
+            ->setPrice('25.00')
+            ->setDurationMinutes(30);
+
+        // Service for Tenant B
+        $serviceB = (new Service())
+            ->setTenant($tenantB)
+            ->setName('Calendar Test Service B')
+            ->setPrice('20.00')
+            ->setDurationMinutes(30);
+
+        // Retrieve clients created in seedTwoTenantsWithClients
+        $clientA = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $tenantA)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        $clientB = $this->em->createQueryBuilder()
+            ->select('c')
+            ->from(Client::class, 'c')
+            ->where('c.tenant = :t')
+            ->setParameter('t', $tenantB)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getSingleResult();
+
+        // Working hours for staffA: Monday (day_of_week=1) 09:00-18:00
+        $workingHour = (new WorkingHour())
+            ->setTenant($tenantA)
+            ->setStaff($staffA)
+            ->setDayOfWeek(1)
+            ->setStartTime(new \DateTimeImmutable('1970-01-01 09:00:00'))
+            ->setEndTime(new \DateTimeImmutable('1970-01-01 18:00:00'));
+
+        // Override for staffA on 2030-01-07 (Monday): closed
+        $closedOverride = (new WorkingHourOverride())
+            ->setTenant($tenantA)
+            ->setStaff($staffA)
+            ->setDate(new \DateTimeImmutable('2030-01-07'))
+            ->setIsClosed(true)
+            ->setReason('Test chiusura');
+
+        // Appointment for Tenant A on 2030-01-14 (Monday) 09:00-10:00 UTC = 10:00-11:00 Europe/Rome (UTC+1 in January)
+        $appointmentA = (new Appointment())
+            ->setTenant($tenantA)
+            ->setClient($clientA)
+            ->setStaff($staffA)
+            ->setLocation($locationA)
+            ->setStartTime(new \DateTimeImmutable('2030-01-14T09:00:00+00:00'))
+            ->setEndTime(new \DateTimeImmutable('2030-01-14T10:00:00+00:00'))
+            ->setStatus(Appointment::STATUS_CONFIRMED)
+            ->setBookingSource(Appointment::SOURCE_DASHBOARD_OWNER);
+
+        // Appointment for Tenant B on same date (for cross-tenant isolation test)
+        $appointmentB = (new Appointment())
+            ->setTenant($tenantB)
+            ->setClient($clientB)
+            ->setStaff($staffB)
+            ->setLocation($locationB)
+            ->setStartTime(new \DateTimeImmutable('2030-01-14T09:00:00+00:00'))
+            ->setEndTime(new \DateTimeImmutable('2030-01-14T10:00:00+00:00'))
+            ->setStatus(Appointment::STATUS_CONFIRMED)
+            ->setBookingSource(Appointment::SOURCE_DASHBOARD_OWNER);
+
+        foreach ([$locationA, $locationB, $serviceA, $serviceB, $workingHour, $closedOverride, $appointmentA, $appointmentB] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+
+        return [
+            'tenantA'       => $tenantA,
+            'tenantB'       => $tenantB,
+            'staffA'        => $staffA,
+            'staffB'        => $staffB,
+            'locationA'     => $locationA,
+            'serviceA'      => $serviceA,
+            'clientA'       => $clientA,
+            'appointmentA'  => $appointmentA,
+            'appointmentB'  => $appointmentB,
+        ];
     }
 }
