@@ -1,10 +1,24 @@
 import type {
+  AiConversationUnderstanding,
   AiDraftIntent,
   AiDraftMessage,
   AiDraftProvider,
   AiDraftRequest,
   AiDraftResponse,
+  PreparedInboxDraftRequest,
 } from './draft-provider.ts'
+import {
+  extractCurrentAppointmentReference,
+  findDateCandidates,
+  findTimeCandidates,
+  resolveServiceMention,
+} from './inbox-memory-resolver.ts'
+import {
+  buildReceptionistPreparedToolCall,
+  inferWordBasedTimeForConversation,
+  resolveDeterministicReceptionistConversationState,
+  resolveReceptionistConversationState,
+} from './receptionist-conversation-state.ts'
 
 function findSection(
   input: AiDraftRequest,
@@ -39,125 +53,213 @@ function readTenantBusinessName(input: AiDraftRequest): string {
   return businessNameLine?.slice('business_name='.length).trim() || 'il salone'
 }
 
+function isPreparedRequest(input: AiDraftRequest): input is PreparedInboxDraftRequest {
+  return 'conversationMemory' in input
+    && 'serviceCatalog' in input
+    && 'tenantProfile' in input
+}
+
 function shouldReferenceWorkingHours(text: string): boolean {
-  return /(orari|apert|chiud|domani|oggi)/i.test(text)
+  return /(orari|apert|chiud|oggi|domani)/i.test(text)
 }
 
 function shouldReferenceServices(text: string): boolean {
   return /(prezz|cost|quanto|serviz|taglio|barba)/i.test(text)
 }
 
-function shouldPrepareAppointment(text: string): boolean {
-  return /(appunt|prenot|domani|oggi)/i.test(text)
-}
-
-function shouldRescheduleAppointment(text: string): boolean {
-  return /(spost|cambi|riprogram|rimand|posticip|anticip)/i.test(text)
-}
-
-function shouldCancelAppointment(text: string): boolean {
-  return /(annull|disdi|cancell)/i.test(text)
-}
-
-function shouldEscalateToHuman(text: string): boolean {
-  return /(operatore|persona|umano)/i.test(text)
-}
-
 function isComplaint(text: string): boolean {
-  return /(problema|male|pessim|delus|reclamo|lament|disservizio|arrabbi)/i.test(text)
+  return /(problema\w*|male|pessim\w*|delus\w*|reclamo\w*|lament\w*|disservizio\w*|arrabbi\w*)/i.test(text)
 }
 
 function isGreeting(text: string): boolean {
-  return /^(ciao|salve|buongiorno|buonasera|hey)\b/i.test(text.trim())
+  return /^(ciao|salve|buongiorno|buonasera|hey|ehi)\b[!.,\s]*$/i.test(text.trim())
 }
 
-function isUnclear(text: string): boolean {
+function isUnknown(text: string): boolean {
   const normalized = text.trim()
 
   return (
-    normalized.length < 5
+    normalized.length === 0
     || /^[?!.\s]+$/.test(normalized)
-    || /^(ci siete|mi aiutate|boh|help)\??$/i.test(normalized)
+    || /^(boh|help|mah)\??$/i.test(normalized)
   )
 }
 
-function classifyIntent(text: string): AiDraftIntent {
-  if (isGreeting(text)) return 'greeting'
-  if (isUnclear(text)) return 'unknown'
-  if (isComplaint(text)) return 'complaint'
-  if (shouldEscalateToHuman(text)) return 'human_request'
-  if (shouldCancelAppointment(text)) return 'appointment_cancel'
-  if (shouldRescheduleAppointment(text)) return 'appointment_change'
-  if (shouldPrepareAppointment(text)) return 'appointment_booking'
-  if (shouldReferenceServices(text)) return 'pricing'
-  if (shouldReferenceWorkingHours(text)) return 'opening_hours'
-  if (text.trim().length > 0) return 'faq'
-  return 'unknown'
+function isHumanRequest(text: string): boolean {
+  return /(operatore|persona|umano|staff)/i.test(text)
 }
 
-function buildDraftText(input: AiDraftRequest, intent: AiDraftIntent): string {
+function isPricing(text: string): boolean {
+  return /(prezz\w*|costo|costa|quanto viene|quanto costa|listino)/i.test(text)
+}
+
+function isOpeningHours(text: string): boolean {
+  return /(orari|orario|apert|chiud|siete aperti|quando aprite|quando chiudete)/i.test(text)
+}
+
+function isReschedule(text: string): boolean {
+  return /(spost\w*|cambi\w*|riprogram\w*|rimand\w*|posticip\w*|anticip\w*)/i.test(text)
+}
+
+function isCancel(text: string): boolean {
+  if (/(politica|policy).*(cancell)/i.test(text) || /(cancellazione).*(politica|policy)/i.test(text)) {
+    return false
+  }
+
+  return /(annull\w*|disdi\w*|cancell\w*)/i.test(text)
+}
+
+function isBooking(text: string): boolean {
+  return /(prenot\w*|appuntament\w*|posto|fiss\w*|venir\w*|pass\w*)/i.test(text)
+}
+
+function fallbackIntent(input: AiDraftRequest, latestText: string): AiDraftIntent {
+  if (isComplaint(latestText)) return 'complaint'
+  if (isHumanRequest(latestText)) return 'human_request'
+  if (isReschedule(latestText)) return 'reschedule'
+  if (isCancel(latestText)) return 'cancel'
+  if (isPricing(latestText)) return 'pricing'
+  if (isOpeningHours(latestText)) return 'opening_hours'
+  if (isBooking(latestText)) return 'booking'
+  if (isGreeting(latestText)) return 'greeting'
+  if (isUnknown(latestText)) return 'unknown'
+
+  const latestCustomerMessage = getLatestMessage(input, 'customer')
+  const previousCustomerMessage = latestCustomerMessage && input.messages.length > 1
+    ? input.messages.filter((message) => message.author === 'customer').at(-2)
+    : null
+
+  if (
+    previousCustomerMessage
+    && (isBooking(previousCustomerMessage.text) || isReschedule(previousCustomerMessage.text) || isCancel(previousCustomerMessage.text))
+    && latestText.trim().length <= 24
+  ) {
+    return 'conversational_followup'
+  }
+
+  return 'faq'
+}
+
+function formatServiceLine(servicesSummary: string): string | null {
+  const line = servicesSummary
+    .split('\n')
+    .find(Boolean)
+    ?.replace(/^- /, '')
+    .trim()
+
+  return line ?? null
+}
+
+function buildDraftText(
+  input: AiDraftRequest,
+  intent: AiDraftIntent,
+  state?: PreparedInboxDraftRequest['receptionistState'],
+): string {
   const businessName = readTenantBusinessName(input)
+  const servicesSummary = formatServiceLine(findSection(input, 'services'))
   const workingHoursSummary = findSection(input, 'working_hours')
     .split('\n')
     .find(Boolean)
-  const servicesSummary = findSection(input, 'services')
-    .split('\n')
-    .find(Boolean)
+    ?.replace(/^- /, '')
+    .trim()
+
+  if (isPreparedRequest(input)) {
+    const receptionistState = state ?? input.receptionistState
+    const preparedToolCall = buildReceptionistPreparedToolCall(receptionistState)
+
+    if (
+      (intent === 'conversational_followup'
+        || intent === 'booking'
+        || intent === 'reschedule'
+        || intent === 'cancel')
+      && receptionistState.nextQuestion
+    ) {
+      return receptionistState.nextQuestion
+    }
+
+    if (preparedToolCall?.name === 'prepare_booking_sandbox') {
+      const service = receptionistState.service ? receptionistState.service.toLowerCase() : 'appuntamento'
+      const date = receptionistState.requestedDate ?? 'la data richiesta'
+      const time = receptionistState.requestedTime
+        ? receptionistState.requestedTime.replace(':00', '')
+        : "l'orario richiesto"
+      return `Perfetto, preparo la prenotazione per ${service} il ${date} alle ${time}.`
+    }
+
+    if (
+      receptionistState.activeGoal === 'booking'
+      && receptionistState.service
+      && receptionistState.requestedDate
+      && receptionistState.requestedTime
+    ) {
+      return 'Controllo la disponibilita.'
+    }
+
+    if (preparedToolCall?.name === 'prepare_reschedule') {
+      return 'Perfetto, preparo la richiesta di spostamento per review umana.'
+    }
+
+    if (preparedToolCall?.name === 'prepare_cancellation') {
+      return 'Perfetto, preparo la richiesta di cancellazione per review umana.'
+    }
+  }
 
   switch (intent) {
-    case 'human_request':
-      return `Ciao, grazie per aver scritto a ${businessName}. Giro subito la conversazione a un operatore umano cosi puo aiutarti direttamente.`
-    case 'complaint':
-      return `Ciao, grazie per averci segnalato la situazione. Preferisco far verificare subito il caso a un operatore del team cosi possiamo risponderti con precisione.`
-    case 'pricing':
-      if (servicesSummary) {
-        return `Ciao, grazie per il messaggio. Il riferimento piu vicino che abbiamo nel contesto e: ${servicesSummary.replace(/^- /, '')}. Se ti serve una conferma puntuale, faccio verificare allo staff prima dell'invio.`
-      }
-      return 'Ciao, grazie per il messaggio. Non ho un riferimento prezzo affidabile nel contesto disponibile, quindi farei verificare allo staff prima di risponderti.'
-    case 'opening_hours':
-      if (workingHoursSummary) {
-        return `Ciao, grazie per averci scritto. Dagli orari disponibili risulta: ${workingHoursSummary.replace(/^- /, '')}. Se vuoi, posso far verificare allo staff eventuali eccezioni prima dell'invio.`
-      }
-      return 'Ciao, grazie per il messaggio. Non ho un riferimento orario completo nel contesto disponibile, quindi preferisco far verificare allo staff.'
-    case 'appointment_booking':
-      return `Ciao, grazie per aver scritto a ${businessName}. Posso preparare una proposta di appuntamento da far confermare manualmente allo staff prima dell'invio.`
-    case 'appointment_change':
-      return `Ciao, grazie per averci scritto. Posso preparare una proposta di spostamento appuntamento, ma prima va verificata dallo staff.`
-    case 'appointment_cancel':
-      return `Ciao, grazie per il messaggio. Posso preparare una bozza per la cancellazione, ma preferisco farla confermare allo staff prima dell'invio.`
     case 'greeting':
-      return `Ciao, grazie per aver scritto a ${businessName}. Dimmi pure come posso aiutarti e preparo una risposta da far verificare allo staff prima dell'invio.`
-    case 'faq':
-      return `Ciao, grazie per aver scritto a ${businessName}. Preparo una risposta chiara usando solo le informazioni disponibili e, se manca qualcosa, la faccio verificare allo staff.`
+      return `Ciao! Benvenuto da ${businessName} 👋`
+    case 'pricing':
+      return servicesSummary
+        ? `Il riferimento disponibile e ${servicesSummary}.`
+        : 'Verifico il prezzo corretto con il salone e ti confermo subito.'
+    case 'opening_hours':
+      return workingHoursSummary
+        ? `Siamo aperti ${workingHoursSummary}.`
+        : 'Verifico subito gli orari aggiornati e ti confermo.'
+    case 'booking':
+      return 'Certo.'
+    case 'reschedule':
+      return 'Certo, preparo lo spostamento appena ho i dettagli giusti.'
+    case 'cancel':
+      return 'Certo, preparo la cancellazione appena verifico quale appuntamento intendi.'
+    case 'human_request':
+      return 'Ti passo subito a un operatore.'
+    case 'complaint':
+      return 'Mi dispiace. Faccio intervenire subito un operatore.'
+    case 'conversational_followup':
+      return 'Perfetto.'
     case 'unknown':
+      return `Ciao, ti faccio aiutare subito dal team di ${businessName}.`
+    case 'faq':
     default:
-      return `Ciao, grazie per aver scritto a ${businessName}. Il contesto disponibile non basta per una risposta affidabile, quindi chiederei una verifica allo staff prima dell'invio.`
+      return `Certo, verifico il dettaglio per ${businessName} e ti rispondo in modo preciso.`
   }
 }
 
 function buildReasoning(intent: AiDraftIntent): string {
   switch (intent) {
     case 'pricing':
-      return 'La richiesta riguarda prezzi o servizi e deve usare solo listino presente nel contesto.'
+      return 'La richiesta riguarda il listino e deve usare solo servizi presenti nel contesto.'
     case 'opening_hours':
-      return 'La richiesta riguarda orari e richiede solo riferimenti presenti nella sezione working hours.'
-    case 'appointment_booking':
-      return 'La richiesta sembra una prenotazione; e ammesso solo un suggerimento preparatorio senza conferma automatica.'
-    case 'appointment_change':
-      return 'La richiesta sembra uno spostamento appuntamento; serve conferma umana prima di inviare dettagli.'
-    case 'appointment_cancel':
-      return 'La richiesta sembra una cancellazione; va trattata come bozza conservativa con revisione umana.'
+      return 'La richiesta riguarda gli orari e deve usare solo la sezione working_hours.'
+    case 'booking':
+      return 'La conversazione riguarda una prenotazione e il planner locale decide slot mancanti o completezza.'
+    case 'reschedule':
+      return 'La conversazione riguarda uno spostamento appuntamento con revisione umana.'
+    case 'cancel':
+      return 'La conversazione riguarda una cancellazione con revisione umana.'
     case 'human_request':
       return 'Il cliente chiede esplicitamente una persona del team.'
     case 'complaint':
-      return 'Il tono suggerisce un reclamo o un problema e richiede handoff umano.'
+      return 'Il tono suggerisce un reclamo e richiede handoff umano.'
+    case 'conversational_followup':
+      return 'Il messaggio dipende dal contesto precedente e va interpretato come follow-up.'
     case 'greeting':
-      return 'Il messaggio e principalmente un saluto iniziale.'
+      return 'Il messaggio e un saluto iniziale.'
     case 'faq':
-      return 'La richiesta sembra informativa ma non abbastanza specifica da richiedere tool mutativi.'
+      return 'La richiesta e informativa ma non abbastanza strutturata per un azione.'
     case 'unknown':
     default:
-      return 'Il messaggio non e abbastanza chiaro per una risposta affidabile senza verifica umana.'
+      return 'Il messaggio non e abbastanza chiaro per una risposta affidabile.'
   }
 }
 
@@ -165,21 +267,115 @@ function buildConfidence(intent: AiDraftIntent): number {
   switch (intent) {
     case 'human_request':
     case 'complaint':
-      return 0.92
+      return 0.96
     case 'pricing':
     case 'opening_hours':
-    case 'appointment_booking':
-      return 0.84
-    case 'appointment_change':
-    case 'appointment_cancel':
-      return 0.8
+    case 'booking':
+    case 'reschedule':
+    case 'cancel':
+      return 0.9
+    case 'conversational_followup':
+      return 0.88
     case 'greeting':
-      return 0.76
+      return 0.84
     case 'faq':
-      return 0.62
+      return 0.82
     case 'unknown':
     default:
-      return 0.45
+      return 0.42
+  }
+}
+
+function detectCorrection(text: string): boolean {
+  return /\b(anzi|invece|cambio|correggo|rettifico|no[, ]|non quello|piuttosto)\b/i.test(text)
+}
+
+function detectCustomerName(text: string): string | null {
+  const match = text.match(/\b(?:mi chiamo|sono)\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,80})/i)
+  return match?.[1]?.trim() ?? null
+}
+
+function buildStructuredUnderstanding(
+  input: PreparedInboxDraftRequest,
+  intent: AiDraftIntent,
+  latestCustomerMessage: AiDraftMessage | null,
+): AiConversationUnderstanding {
+  const latestText = latestCustomerMessage?.text ?? ''
+  const latestId = latestCustomerMessage?.id ?? 'provider'
+  const receptionistState = input.receptionistState
+    ?? resolveDeterministicReceptionistConversationState({
+      messages: input.messages,
+      serviceCatalog: input.serviceCatalog,
+      timezone: input.tenantProfile.timezone,
+      conversationMemory: input.conversationMemory,
+    })
+  const detectedService = resolveServiceMention(latestText, latestId, input.serviceCatalog)?.name
+    ?? resolveServiceMention(
+      input.conversationMemory.lastService?.name ?? '',
+      latestId,
+      input.serviceCatalog,
+    )?.name
+    ?? null
+
+  const requestedDate = input.conversationMemory.lastDate?.sourceMessageId === latestId
+    ? input.conversationMemory.lastDate.isoDate
+    : /\b(oggi|domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|\d{1,2}[\/.-]\d{1,2})\b/i.test(latestText)
+      ? input.conversationMemory.lastDate?.isoDate ?? null
+      : null
+  const appointmentReference =
+    intent === 'reschedule' || intent === 'cancel'
+      ? extractCurrentAppointmentReference(latestText) ?? input.conversationMemory.lastAppointmentReference
+      : null
+
+  const explicitTime = input.conversationMemory.lastTime?.sourceMessageId === latestId
+    ? input.conversationMemory.lastTime.normalizedTime
+    : null
+  const timeCandidates = latestCustomerMessage
+    ? findTimeCandidates(latestText, latestId)
+    : []
+  const dateCandidates = latestCustomerMessage
+    ? findDateCandidates(
+        latestText,
+        latestId,
+        latestCustomerMessage.createdAt,
+        input.tenantProfile.timezone,
+      )
+    : []
+  const requestedTime = (
+    intent === 'reschedule'
+      && appointmentReference
+      && timeCandidates.length === 1
+      && dateCandidates.length >= 2
+  )
+    ? null
+    : explicitTime
+    ?? inferWordBasedTimeForConversation({
+      text: latestText,
+      activeGoal: receptionistState.activeGoal,
+    })
+    ?? null
+
+  const correction = detectCorrection(latestText)
+
+  return {
+    intent,
+    confidence: buildConfidence(intent),
+    handoff: intent === 'human_request' || intent === 'complaint' || intent === 'unknown',
+    entities: {
+      service: detectedService,
+      requestedDate,
+      requestedTime,
+      appointmentReference,
+      customerName: detectCustomerName(latestText),
+      customerNotes: latestText.trim().length > 0 ? latestText.trim() : null,
+    },
+    corrections: {
+      replacesService: correction && detectedService !== null,
+      replacesDate: correction && requestedDate !== null,
+      replacesTime: correction && requestedTime !== null,
+    },
+    citedSources: latestCustomerMessage?.sourceRef ? [latestCustomerMessage.sourceRef] : [],
+    requestedToolCalls: [],
   }
 }
 
@@ -189,9 +385,42 @@ export const deterministicFakeDraftProvider: AiDraftProvider = {
     const latestCustomerMessage = getLatestMessage(input, 'customer')
     const latestAnyMessage = getLatestMessage(input)
     const latestText = latestCustomerMessage?.text ?? latestAnyMessage?.text ?? ''
-    const intent = classifyIntent(latestText)
+    const intent = isPreparedRequest(input)
+      ? input.conversationMemory.latestIntent
+      : fallbackIntent(input, latestText)
     const citedSources = new Set<string>()
     const requestedToolCalls: AiDraftResponse['requestedToolCalls'] = []
+    const understanding = isPreparedRequest(input)
+      ? buildStructuredUnderstanding(input, intent, latestCustomerMessage)
+      : {
+          intent,
+          confidence: buildConfidence(intent),
+          handoff: intent === 'human_request' || intent === 'complaint' || intent === 'unknown',
+          entities: {
+            service: null,
+            requestedDate: null,
+            requestedTime: null,
+            appointmentReference: null,
+            customerName: detectCustomerName(latestText),
+            customerNotes: latestText.trim() || null,
+          },
+          corrections: {
+            replacesService: false,
+            replacesDate: false,
+            replacesTime: false,
+          },
+          citedSources: [],
+          requestedToolCalls: [],
+        } satisfies AiConversationUnderstanding
+    const mergedState = isPreparedRequest(input)
+      ? resolveReceptionistConversationState({
+          messages: input.messages,
+          serviceCatalog: input.serviceCatalog,
+          timezone: input.tenantProfile.timezone,
+          conversationMemory: input.conversationMemory,
+          understanding,
+        })
+      : null
 
     if (latestCustomerMessage?.sourceRef) {
       citedSources.add(latestCustomerMessage.sourceRef)
@@ -204,13 +433,13 @@ export const deterministicFakeDraftProvider: AiDraftProvider = {
     }
 
     if (shouldReferenceServices(latestText)) {
-      for (const ref of findSourceRefsByPrefix(input, 'service:').slice(0, 2)) {
+      for (const ref of findSourceRefsByPrefix(input, 'service:').slice(0, 3)) {
         citedSources.add(ref)
       }
     }
 
     if (citedSources.size === 0) {
-      citedSources.add('tenant:' + input.tenantId + ':profile')
+      citedSources.add(`tenant:${input.tenantId}:profile`)
     }
 
     if (intent === 'human_request' || intent === 'complaint') {
@@ -220,34 +449,48 @@ export const deterministicFakeDraftProvider: AiDraftProvider = {
           reason: intent === 'complaint' ? 'customer_complaint' : 'customer_requested_human',
         },
       })
-    } else if (intent === 'appointment_booking') {
-      requestedToolCalls.push({
-        name: 'prepare_appointment',
-        arguments: {
-          source: 'draft_only_advisory',
-        },
-      })
-    } else if (intent === 'appointment_change') {
-      requestedToolCalls.push({
-        name: 'prepare_reschedule',
-        arguments: {
-          source: 'draft_only_advisory',
-        },
-      })
-    } else if (intent === 'appointment_cancel') {
-      requestedToolCalls.push({
-        name: 'prepare_cancellation',
-        arguments: {
-          source: 'draft_only_advisory',
-        },
-      })
+    } else if (isPreparedRequest(input)) {
+      const preparedToolCall = mergedState
+        ? buildReceptionistPreparedToolCall(mergedState)
+        : null
+      if (preparedToolCall) {
+        requestedToolCalls.push({
+          name: preparedToolCall.name,
+          arguments: preparedToolCall.arguments,
+        })
+      } else if (mergedState?.activeGoal === 'reschedule') {
+        requestedToolCalls.push({
+          name: 'prepare_reschedule',
+          arguments: {
+            source: 'conversation_state',
+          },
+        })
+      } else if (mergedState?.activeGoal === 'cancel') {
+        requestedToolCalls.push({
+          name: 'prepare_cancellation',
+          arguments: {
+            source: 'conversation_state',
+          },
+        })
+      } else if (mergedState?.activeGoal === 'booking') {
+        requestedToolCalls.push({
+          name: 'search_availability',
+          arguments: {
+            source: 'conversation_state',
+          },
+        })
+      }
     }
 
+    understanding.citedSources = [...citedSources]
+    understanding.requestedToolCalls = requestedToolCalls
+
     return {
-      draftText: buildDraftText(input, intent),
+      draftText: buildDraftText(input, intent, mergedState ?? undefined),
       confidence: buildConfidence(intent),
       intent,
       handoff: intent === 'human_request' || intent === 'complaint' || intent === 'unknown',
+      understanding,
       internalReasoning: buildReasoning(intent),
       citedSources: [...citedSources],
       requestedToolCalls,

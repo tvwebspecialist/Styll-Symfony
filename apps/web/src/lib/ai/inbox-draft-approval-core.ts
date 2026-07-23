@@ -4,6 +4,7 @@ export interface InboxDraftApprovalState {
   promptId: string
   promptVersion: string
   providerLabel: string
+  usedAuthoritativeKnowledge: boolean
   sources: PublicInboxDraftResult['sources']
   decision: PublicInboxDraftResult['decision']
   text: string
@@ -16,6 +17,7 @@ export function createInboxDraftApprovalState(
     promptId: draft.promptId,
     promptVersion: draft.promptVersion,
     providerLabel: draft.providerLabel,
+    usedAuthoritativeKnowledge: draft.usedAuthoritativeKnowledge,
     sources: draft.sources,
     decision: draft.decision,
     text: draft.text,

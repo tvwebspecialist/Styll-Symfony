@@ -212,56 +212,89 @@ export interface MessagingDatabase {
         Row: {
           completed_at: string | null
           completion_tokens: number
+          confidence: number | null
           conversation_id: string
           cost_cents: number
           created_at: string
+          cited_source_summary: Json
+          decision_kind: string | null
+          deterministic_resolver: string | null
+          error_category: string | null
           final_policy_decision: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
           handoff_reason: string | null
           id: string
           input_context: Json
+          intent: string | null
           message_id: string | null
           mode: 'draft_only' | 'faq_auto' | 'transaction_prepare'
           model: string
           output_summary: string | null
+          prompt_id: string | null
+          prompt_version: string | null
           prompt_tokens: number
-          status: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          provider_id: string | null
+          reason_code: string | null
+          status: 'queued' | 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
           tenant_id: string
+          used_authoritative_knowledge: boolean
         }
         Insert: {
           completed_at?: string | null
           completion_tokens?: number
+          confidence?: number | null
           conversation_id: string
           cost_cents?: number
           created_at?: string
+          cited_source_summary?: Json
+          decision_kind?: string | null
+          deterministic_resolver?: string | null
+          error_category?: string | null
           final_policy_decision?: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
           handoff_reason?: string | null
           id?: string
           input_context?: Json
+          intent?: string | null
           message_id?: string | null
           mode: 'draft_only' | 'faq_auto' | 'transaction_prepare'
           model: string
           output_summary?: string | null
+          prompt_id?: string | null
+          prompt_version?: string | null
           prompt_tokens?: number
-          status: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          provider_id?: string | null
+          reason_code?: string | null
+          status: 'queued' | 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
           tenant_id: string
+          used_authoritative_knowledge?: boolean
         }
         Update: {
           completed_at?: string | null
           completion_tokens?: number
+          confidence?: number | null
           conversation_id?: string
           cost_cents?: number
           created_at?: string
+          cited_source_summary?: Json
+          decision_kind?: string | null
+          deterministic_resolver?: string | null
+          error_category?: string | null
           final_policy_decision?: 'allow' | 'ask_customer' | 'ask_staff' | 'ask_owner' | 'deny_ai' | null
           handoff_reason?: string | null
           id?: string
           input_context?: Json
+          intent?: string | null
           message_id?: string | null
           mode?: 'draft_only' | 'faq_auto' | 'transaction_prepare'
           model?: string
           output_summary?: string | null
+          prompt_id?: string | null
+          prompt_version?: string | null
           prompt_tokens?: number
-          status?: 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
+          provider_id?: string | null
+          reason_code?: string | null
+          status?: 'queued' | 'started' | 'completed' | 'failed' | 'blocked' | 'skipped'
           tenant_id?: string
+          used_authoritative_knowledge?: boolean
         }
         Relationships: []
       }

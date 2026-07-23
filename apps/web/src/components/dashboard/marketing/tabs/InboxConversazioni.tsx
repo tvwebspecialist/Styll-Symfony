@@ -10,7 +10,14 @@ import {
   editInboxDraftApprovalText,
   type InboxDraftApprovalState,
 } from '@/lib/ai/inbox-draft-approval-core'
-import { getInboxConversations, getInboxMessages, type InboxConversation, type InboxMessage } from '@/lib/actions/inbox'
+import {
+  getInboxConversations,
+  getInboxLatestAiRuntime,
+  getInboxMessages,
+  type InboxConversation,
+  type InboxLatestAiRuntime,
+  type InboxMessage,
+} from '@/lib/actions/inbox'
 import {
   buildInboxRealtimeTenantFilter,
   extractRealtimeConversationId,
@@ -80,6 +87,7 @@ type GenerateDraftApiResponse =
         promptId: string
         promptVersion: string
         providerLabel: string
+        usedAuthoritativeKnowledge: boolean
         sources: Array<{
           kind: 'conversation' | 'knowledge' | 'policy' | 'tool_result'
           label: string
@@ -91,22 +99,35 @@ type GenerateDraftApiResponse =
           handoffRecommended: boolean
           appointmentPreparation: {
             action: 'booking' | 'reschedule' | 'cancellation'
+            plannerState: string
             eligible: boolean
             completeFields: Array<
-              | 'customer_identity'
               | 'service'
               | 'requested_date'
-              | 'requested_time_or_window'
+              | 'requested_time'
               | 'current_appointment_reference'
             >
             missingFields: Array<
-              | 'customer_identity'
               | 'service'
               | 'requested_date'
-              | 'requested_time_or_window'
+              | 'requested_time'
               | 'current_appointment_reference'
             >
             nextQuestion: string | null
+            preparedToolCall: {
+              name: 'prepare_appointment' | 'prepare_reschedule' | 'prepare_cancellation'
+              arguments: {
+                service?: string
+                requested_date?: string
+                requested_time?: string
+                current_appointment_reference?: string
+                customer_notes: string
+                conversation_summary: string
+              }
+            } | null
+            service: string | null
+            requestedDate: string | null
+            requestedTime: string | null
           } | null
         }
       }
@@ -195,16 +216,32 @@ function decisionAccent(kind: DraftDecisionPayload['kind']) {
 
 function appointmentFieldLabel(field: AppointmentPreparationPayload['missingFields'][number]): string {
   switch (field) {
-    case 'customer_identity':
-      return 'cliente associato'
     case 'service':
       return 'servizio'
     case 'requested_date':
       return 'data richiesta'
-    case 'requested_time_or_window':
-      return 'orario o fascia richiesta'
+    case 'requested_time':
+      return 'orario richiesto'
     case 'current_appointment_reference':
       return 'riferimento appuntamento attuale'
+  }
+}
+
+function aiRuntimeStatusLabel(status: InboxLatestAiRuntime['status']): string {
+  switch (status) {
+    case 'queued':
+      return 'Bozza AI in coda'
+    case 'started':
+      return 'Bozza AI in elaborazione'
+    case 'failed':
+      return 'Bozza AI non riuscita'
+    case 'blocked':
+      return 'Bozza AI bloccata'
+    case 'skipped':
+      return 'Bozza AI non eseguita'
+    case 'completed':
+    default:
+      return 'Bozza AI pronta'
   }
 }
 
@@ -610,6 +647,7 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
   const [noteError, setNoteError] = React.useState<string | null>(null)
   const [showNoteComposer, setShowNoteComposer] = React.useState(false)
   const [aiDraft, setAiDraft] = React.useState<InboxDraftApprovalState | null>(null)
+  const [latestAiRuntime, setLatestAiRuntime] = React.useState<InboxLatestAiRuntime | null>(null)
   const [aiDraftPending, setAiDraftPending] = React.useState(false)
   const [aiDraftError, setAiDraftError] = React.useState<string | null>(null)
   const [sendPending, setSendPending] = React.useState(false)
@@ -655,12 +693,32 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
       setMsgError(false)
       setMsgLoading(true)
       setMessages([]) // clear stale messages immediately on conversation switch
+      setLatestAiRuntime(null)
 
       try {
-        const data = await getInboxMessages(tenantId, conversationId)
+        const [messageData, latestRuntime] = await Promise.all([
+          getInboxMessages(tenantId, conversationId),
+          getInboxLatestAiRuntime(tenantId, conversationId),
+        ])
         if (cancelled) return
 
-        setMessages(data)
+        setMessages(messageData)
+        setLatestAiRuntime(latestRuntime)
+        setAiDraft((current) => {
+          if (current || !latestRuntime || latestRuntime.status !== 'completed' || !latestRuntime.text || !latestRuntime.decision || !latestRuntime.providerLabel || !latestRuntime.promptId || !latestRuntime.promptVersion) {
+            return current
+          }
+
+          return createInboxDraftApprovalState({
+            text: latestRuntime.text,
+            promptId: latestRuntime.promptId,
+            promptVersion: latestRuntime.promptVersion,
+            providerLabel: latestRuntime.providerLabel,
+            usedAuthoritativeKnowledge: latestRuntime.usedAuthoritativeKnowledge,
+            sources: latestRuntime.sources,
+            decision: latestRuntime.decision,
+          })
+        })
         setMsgLoading(false)
       } catch {
         if (cancelled) return
@@ -706,6 +764,30 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
       }
     }
 
+    async function refreshAiRuntime(conversationId: string) {
+      try {
+        const data = await getInboxLatestAiRuntime(tenantId, conversationId)
+        setLatestAiRuntime(data)
+        setAiDraft((current) => {
+          if (current || !data || data.status !== 'completed' || !data.text || !data.decision || !data.providerLabel || !data.promptId || !data.promptVersion) {
+            return current
+          }
+
+          return createInboxDraftApprovalState({
+            text: data.text,
+            promptId: data.promptId,
+            promptVersion: data.promptVersion,
+            providerLabel: data.providerLabel,
+            usedAuthoritativeKnowledge: data.usedAuthoritativeKnowledge,
+            sources: data.sources,
+            decision: data.decision,
+          })
+        })
+      } catch {
+        // Keep the current UI state if the runtime snapshot refresh fails.
+      }
+    }
+
     const channel = supabase
       .channel(`inbox:${tenantId}`)
       .on(
@@ -722,6 +804,7 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
 
           if (activeId && conversationId === activeId) {
             void refreshMessages(activeId)
+            void refreshAiRuntime(activeId)
           }
         },
       )
@@ -764,6 +847,23 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
           void refreshMessages(activeId)
         },
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inbox_ai_runs',
+          filter: tenantFilter,
+        },
+        (payload) => {
+          const conversationId = extractRealtimeConversationId(payload.new ?? payload.old)
+          if (!activeId || conversationId !== activeId) {
+            return
+          }
+
+          void refreshAiRuntime(activeId)
+        },
+      )
       .subscribe()
 
     return () => {
@@ -799,6 +899,7 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
     setNoteError(null)
     setShowNoteComposer(false)
     setAiDraft(null)
+    setLatestAiRuntime(null)
     setAiDraftError(null)
     setSendError(null)
     setOwnershipError(null)
@@ -1390,6 +1491,113 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
               flexDirection: 'column',
               gap: 8,
             }}>
+              {latestAiRuntime && !aiDraft && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 18,
+                    padding: '12px 14px',
+                    background: '#FFFFFF',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: '#374151', letterSpacing: '0.02em' }}>
+                        {latestAiRuntime.providerLabel ?? 'AI receptionist'}
+                      </span>
+                      {latestAiRuntime.promptVersion && (
+                        <span style={{ fontSize: 11, color: '#6B7280' }}>
+                          {latestAiRuntime.promptVersion}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>
+                      {aiRuntimeStatusLabel(latestAiRuntime.status)}
+                    </span>
+                  </div>
+                  {latestAiRuntime.inboundMessage.bodyText && (
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: '1px solid #E5E7EB',
+                        background: '#F9FAFB',
+                        padding: '8px 10px',
+                      }}
+                    >
+                      <div style={{ fontSize: 10, fontWeight: 800, color: '#6B7280', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>
+                        Messaggio cliente associato
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#1F2937', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {latestAiRuntime.inboundMessage.bodyText}
+                      </p>
+                    </div>
+                  )}
+                  {latestAiRuntime.decision && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        borderRadius: 14,
+                        border: `1px solid ${decisionAccent(latestAiRuntime.decision.kind).border}`,
+                        background: decisionAccent(latestAiRuntime.decision.kind).background,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        alignSelf: 'flex-start',
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        border: `1px solid ${decisionAccent(latestAiRuntime.decision.kind).border}`,
+                        color: decisionAccent(latestAiRuntime.decision.kind).color,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: '0.02em',
+                        background: '#FFFFFF',
+                      }}>
+                        {decisionLabel(latestAiRuntime.decision.kind)}
+                      </span>
+                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#374151' }}>
+                        {latestAiRuntime.decision.reasonSummary}
+                      </p>
+                      {latestAiRuntime.decision.appointmentPreparation && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#1F2937' }}>
+                            Planner {latestAiRuntime.decision.appointmentPreparation.action === 'booking'
+                              ? 'prenotazione'
+                              : latestAiRuntime.decision.appointmentPreparation.action === 'reschedule'
+                                ? 'spostamento'
+                                : 'cancellazione'}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 11, color: '#4B5563' }}>
+                              Stato: {latestAiRuntime.decision.appointmentPreparation.plannerState}
+                            </span>
+                            <span style={{ fontSize: 11, color: latestAiRuntime.decision.appointmentPreparation.eligible ? '#065F46' : '#B45309', fontWeight: 700 }}>
+                              {latestAiRuntime.decision.appointmentPreparation.eligible ? 'Tool preparabile' : 'Dati incompleti'}
+                            </span>
+                          </div>
+                          {latestAiRuntime.decision.appointmentPreparation.missingFields.length > 0 && (
+                            <p style={{ margin: 0, fontSize: 11, color: '#6B7280', lineHeight: 1.45 }}>
+                              Mancano: {latestAiRuntime.decision.appointmentPreparation.missingFields.map((field) => appointmentFieldLabel(field)).join(', ')}.
+                            </p>
+                          )}
+                          {latestAiRuntime.decision.appointmentPreparation.nextQuestion && (
+                            <p style={{ margin: 0, fontSize: 11, color: '#4B5563', lineHeight: 1.45 }}>
+                              Prossima domanda consigliata: {latestAiRuntime.decision.appointmentPreparation.nextQuestion}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {aiDraft && (
                 <div
                   style={{
@@ -1410,11 +1618,47 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
                       <span style={{ fontSize: 11, color: '#7C3AED' }}>
                         {aiDraft.promptVersion}
                       </span>
+                      {aiDraft.usedAuthoritativeKnowledge && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            background: '#ECFDF5',
+                            border: '1px solid #A7F3D0',
+                            color: '#065F46',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: '0.03em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          Dati tenant verificati
+                        </span>
+                      )}
                     </div>
-                      <span style={{ fontSize: 11, color: '#6B7280' }}>
+                    <span style={{ fontSize: 11, color: '#6B7280' }}>
                       Bozza locale, mai inviata automaticamente
                     </span>
                   </div>
+                  {latestAiRuntime?.inboundMessage.bodyText && (
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: '1px solid #E5E7EB',
+                        background: '#FFFFFF',
+                        padding: '8px 10px',
+                      }}
+                    >
+                      <div style={{ fontSize: 10, fontWeight: 800, color: '#6B7280', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>
+                        Messaggio cliente associato
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {latestAiRuntime.inboundMessage.bodyText}
+                      </p>
+                    </div>
+                  )}
                   <div
                     style={{
                       display: 'flex',
@@ -1475,6 +1719,15 @@ export function InboxConversazioni({ tenantId }: { tenantId: string }) {
                         {aiDraft.decision.appointmentPreparation.nextQuestion && (
                           <p style={{ margin: 0, fontSize: 11, color: '#4B5563', lineHeight: 1.45 }}>
                             Prossima domanda consigliata: {aiDraft.decision.appointmentPreparation.nextQuestion}
+                          </p>
+                        )}
+                        {aiDraft.decision.appointmentPreparation.preparedToolCall && (
+                          <p style={{ margin: 0, fontSize: 11, color: '#374151', lineHeight: 1.45 }}>
+                            Dati preparati: {[
+                              aiDraft.decision.appointmentPreparation.service,
+                              aiDraft.decision.appointmentPreparation.requestedDate,
+                              aiDraft.decision.appointmentPreparation.requestedTime,
+                            ].filter(Boolean).join(' | ')}
                           </p>
                         )}
                       </div>

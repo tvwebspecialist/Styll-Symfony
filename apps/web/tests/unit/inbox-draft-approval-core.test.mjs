@@ -12,8 +12,9 @@ function makeDraft() {
   return {
     text: 'Bozza iniziale',
     promptId: 'whatsapp_inbox_draft_only',
-    promptVersion: '2026-07-20.v3',
+    promptVersion: '2026-07-20.v6',
     providerLabel: 'AI bozza locale',
+    usedAuthoritativeKnowledge: false,
     sources: [
       {
         kind: 'conversation',
@@ -36,7 +37,8 @@ test('draft approval state can be created and edited locally before approval', (
 
   assert.equal(initialState.text, 'Bozza iniziale')
   assert.equal(editedState.text, 'Bozza modificata')
-  assert.equal(editedState.promptVersion, '2026-07-20.v3')
+  assert.equal(editedState.promptVersion, '2026-07-20.v6')
+  assert.equal(editedState.usedAuthoritativeKnowledge, false)
   assert.equal(editedState.decision.kind, 'draft_review')
 })
 

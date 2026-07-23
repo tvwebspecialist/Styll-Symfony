@@ -1,27 +1,147 @@
-import { z } from 'zod'
-
-export const MagicFieldSchema = z.enum([
+const MAGIC_FIELDS = [
   'tagline',
   'description',
   'about_title',
   'about_text',
   'team_description',
-])
+] as const
 
-export const MagicContextSchema = z.object({
-  business_name: z.string().trim().min(1).max(120),
-  city: z.string().trim().min(1).max(120),
-  services: z.array(z.string().trim().min(1).max(120)).max(20),
-  staff_count: z.number().int().min(0).max(500),
-}).strict()
+type SafeParseSuccess<T> = {
+  success: true
+  data: T
+}
 
-export const MagicWandRequestSchema = z.object({
-  field: MagicFieldSchema,
-  context: MagicContextSchema,
-}).strict()
+type SafeParseFailure = {
+  success: false
+  error: {
+    issues: string[]
+  }
+}
 
-export type MagicField = z.infer<typeof MagicFieldSchema>
-export type MagicContext = z.infer<typeof MagicContextSchema>
+type SafeParseResult<T> = SafeParseSuccess<T> | SafeParseFailure
+
+export type MagicField = (typeof MAGIC_FIELDS)[number]
+
+export interface MagicContext {
+  business_name: string
+  city: string
+  services: string[]
+  staff_count: number
+}
+
+function success<T>(data: T): SafeParseSuccess<T> {
+  return {
+    success: true,
+    data,
+  }
+}
+
+function failure(issue: string): SafeParseFailure {
+  return {
+    success: false,
+    error: {
+      issues: [issue],
+    },
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeBoundedString(
+  value: unknown,
+  maxLength: number,
+): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  if (normalized.length === 0 || normalized.length > maxLength) {
+    return null
+  }
+
+  return normalized
+}
+
+export const MagicFieldSchema = {
+  safeParse(value: unknown): SafeParseResult<MagicField> {
+    if (typeof value !== 'string' || !MAGIC_FIELDS.includes(value as MagicField)) {
+      return failure('Invalid magic field.')
+    }
+
+    return success(value as MagicField)
+  },
+}
+
+export const MagicContextSchema = {
+  safeParse(value: unknown): SafeParseResult<MagicContext> {
+    if (!isRecord(value)) {
+      return failure('Invalid magic context.')
+    }
+
+    const businessName = normalizeBoundedString(value.business_name, 120)
+    const city = normalizeBoundedString(value.city, 120)
+    const services = value.services
+    const staffCount = value.staff_count
+
+    if (!businessName || !city) {
+      return failure('Invalid magic context.')
+    }
+
+    if (!Array.isArray(services) || services.length > 20) {
+      return failure('Invalid magic context.')
+    }
+
+    const normalizedServices = services.map((service) => normalizeBoundedString(service, 120))
+    if (normalizedServices.some((service) => service === null)) {
+      return failure('Invalid magic context.')
+    }
+
+    if (
+      typeof staffCount !== 'number'
+      || !Number.isInteger(staffCount)
+      || staffCount < 0
+      || staffCount > 500
+    ) {
+      return failure('Invalid magic context.')
+    }
+
+    return success({
+      business_name: businessName,
+      city,
+      services: normalizedServices as string[],
+      staff_count: staffCount,
+    })
+  },
+}
+
+export const MagicWandRequestSchema = {
+  safeParse(value: unknown): SafeParseResult<{
+    field: MagicField
+    context: MagicContext
+  }> {
+    if (!isRecord(value)) {
+      return failure('Invalid magic wand request.')
+    }
+
+    const field = MagicFieldSchema.safeParse(value.field)
+    if (!field.success) {
+      return failure('Invalid magic wand request.')
+    }
+
+    const context = MagicContextSchema.safeParse(value.context)
+    if (!context.success) {
+      return failure('Invalid magic wand request.')
+    }
+
+    return success({
+      field: field.data,
+      context: context.data,
+    })
+  },
+}
 
 export function buildMagicWandPrompt(field: MagicField, ctx: MagicContext): string {
   switch (field) {

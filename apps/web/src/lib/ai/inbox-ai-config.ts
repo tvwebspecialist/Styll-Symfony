@@ -1,7 +1,9 @@
 import {
   AI_DRAFT_INTENTS,
+  INBOX_AI_CUSTOM_FAQ_TOPICS,
   INBOX_AI_RECEPTIONIST_MODES,
   type AiDraftIntent,
+  type InboxAiCustomFaqEntry,
   type InboxAiReceptionistConfig,
 } from './draft-provider.ts'
 
@@ -13,6 +15,12 @@ const DEFAULT_ALLOWED_AUTONOMOUS_INTENTS: AiDraftIntent[] = [
   'opening_hours',
 ]
 const MAX_CONFIGURATION_TEXT_LENGTH = 280
+const MAX_CUSTOM_FAQ_ANSWER_LENGTH = 500
+
+function readOptionalBoolean(value: unknown): boolean | null {
+  if (typeof value !== 'boolean') return null
+  return value
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -53,6 +61,36 @@ function readAutonomousIntents(value: unknown): AiDraftIntent[] {
     : [...DEFAULT_ALLOWED_AUTONOMOUS_INTENTS]
 }
 
+function readCustomFaqEntries(value: unknown): InboxAiCustomFaqEntry[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const validTopics = new Set(INBOX_AI_CUSTOM_FAQ_TOPICS)
+  const normalized: InboxAiCustomFaqEntry[] = []
+
+  for (const entry of value) {
+    if (!isRecord(entry)) continue
+
+    const topic = typeof entry.topic === 'string' ? entry.topic.trim() : ''
+    if (!validTopics.has(topic as InboxAiCustomFaqEntry['topic'])) {
+      continue
+    }
+
+    const answer = readOptionalText(entry.answer)?.slice(0, MAX_CUSTOM_FAQ_ANSWER_LENGTH) ?? null
+    if (!answer) continue
+
+    const enabled = readOptionalBoolean(entry.enabled) ?? true
+    normalized.push({
+      topic: topic as InboxAiCustomFaqEntry['topic'],
+      answer,
+      enabled,
+    })
+  }
+
+  return normalized
+}
+
 export function resolveInboxReceptionistConfig(
   settings: unknown,
 ): InboxAiReceptionistConfig {
@@ -77,5 +115,6 @@ export function resolveInboxReceptionistConfig(
     preferredTone: readOptionalText(rawConfig.preferred_tone),
     greetingStyle: readOptionalText(rawConfig.greeting_style),
     escalationInstructions: readOptionalText(rawConfig.escalation_instructions),
+    customFaqs: readCustomFaqEntries(rawConfig.custom_faqs),
   }
 }

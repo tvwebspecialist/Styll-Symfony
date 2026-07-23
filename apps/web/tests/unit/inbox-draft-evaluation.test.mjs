@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { deterministicFakeDraftProvider } from '../../src/lib/ai/deterministic-fake-draft-provider.ts'
+import { resolveInboxConversationMemory } from '../../src/lib/ai/inbox-memory-resolver.ts'
 
 function makeDraftRequest({
   latestCustomerText,
@@ -28,6 +29,7 @@ function makeDraftRequest({
       sourceRefs: ['tenant:tenant-a:profile'],
     },
   ]
+  const serviceCatalog = []
 
   if (servicesText) {
     contextSections.push({
@@ -48,6 +50,20 @@ function makeDraftRequest({
         ref: 'service:service-2',
       },
     )
+    serviceCatalog.push(
+      {
+        id: 'service-1',
+        name: 'Taglio',
+        price: 25,
+        durationMinutes: 30,
+      },
+      {
+        id: 'service-2',
+        name: 'Barba',
+        price: 15,
+        durationMinutes: 20,
+      },
+    )
   }
 
   if (workingHoursText) {
@@ -64,12 +80,12 @@ function makeDraftRequest({
     })
   }
 
-  return {
+  const request = {
     tenantId: 'tenant-a',
     conversationId: 'conversation-1',
     promptId: 'whatsapp_inbox_draft_only',
-    promptVersion: '2026-07-20.v3',
-    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v3\nMode: draft_only',
+    promptVersion: '2026-07-20.v6',
+    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v6\nMode: draft_only',
     messages: [
       {
         id: 'message-1',
@@ -84,20 +100,52 @@ function makeDraftRequest({
     allowedTools: [
       'get_prices',
       'get_working_hours',
+      'search_availability',
+      'prepare_booking_sandbox',
       'prepare_appointment',
       'prepare_reschedule',
       'prepare_cancellation',
       'request_human_handoff',
     ],
+    conversationState: {
+      status: 'ai_draft_only',
+      ownershipMode: 'hybrid',
+      aiPausedAt: null,
+      clientId: 'client-1',
+    },
+    tenantProfile: {
+      businessName: 'Barber House',
+      timezone: 'Europe/Rome',
+    },
+    receptionistConfig: {
+      mode: 'supervised',
+      autoReplyConfidenceThreshold: 0.75,
+      handoffConfidenceThreshold: 0.65,
+      allowedAutonomousIntents: ['greeting', 'pricing', 'opening_hours', 'faq'],
+      preferredTone: 'caldo e diretto',
+      greetingStyle: 'saluto breve',
+      escalationInstructions: null,
+      customFaqs: [],
+    },
+    serviceCatalog,
+    customFaqCatalog: [],
   }
+
+  request.conversationMemory = resolveInboxConversationMemory({
+    messages: request.messages,
+    serviceCatalog: request.serviceCatalog,
+    timezone: request.tenantProfile.timezone,
+  })
+
+  return request
 }
 
 const evaluationCases = [
   {
     name: 'booking request',
     latestCustomerText: 'Vorrei prenotare un taglio domani pomeriggio.',
-    expectedIntent: 'appointment_booking',
-    expectedTool: 'prepare_appointment',
+    expectedIntent: 'booking',
+    expectedTool: 'search_availability',
     expectedHandoff: false,
   },
   {
@@ -121,7 +169,7 @@ const evaluationCases = [
     expectedIntent: 'pricing',
     expectedTool: null,
     expectedHandoff: false,
-    expectedDraftPattern: /Non ho un riferimento prezzo affidabile/,
+    expectedDraftPattern: /Verifico il prezzo corretto/,
   },
   {
     name: 'greeting',
@@ -133,14 +181,14 @@ const evaluationCases = [
   {
     name: 'cancellation',
     latestCustomerText: 'Devo cancellare l appuntamento di domani.',
-    expectedIntent: 'appointment_cancel',
+    expectedIntent: 'cancel',
     expectedTool: 'prepare_cancellation',
     expectedHandoff: false,
   },
   {
     name: 'reschedule',
     latestCustomerText: 'Possiamo spostare l appuntamento a venerdi?',
-    expectedIntent: 'appointment_change',
+    expectedIntent: 'reschedule',
     expectedTool: 'prepare_reschedule',
     expectedHandoff: false,
   },
@@ -157,7 +205,7 @@ const evaluationCases = [
     expectedIntent: 'unknown',
     expectedTool: null,
     expectedHandoff: true,
-    expectedDraftPattern: /contesto disponibile non basta/,
+    expectedDraftPattern: /ti faccio aiutare subito dal team/,
   },
 ]
 

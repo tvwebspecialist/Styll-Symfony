@@ -16,7 +16,7 @@ test('prompt registry exposes a single versioned draft-only prompt', () => {
   assert.equal(definitions.length, 1)
   assert.deepEqual(definitions[0], getInboxDraftPromptDefinition())
   assert.equal(definitions[0].promptId, 'whatsapp_inbox_draft_only')
-  assert.equal(definitions[0].version, '2026-07-20.v3')
+  assert.equal(definitions[0].version, '2026-07-20.v6')
 })
 
 test('prompt registry keeps deny_ai tools out of the draft context', () => {
@@ -35,8 +35,11 @@ test('prompt registry renders deterministic draft-only instructions', () => {
   assert.match(prompt, /draft_only/)
   assert.match(prompt, /Never claim a message was sent/)
   assert.match(prompt, /Honor tenant-specific tone, greeting style, and escalation notes/)
+  assert.match(prompt, /conversation_memory/)
+  assert.match(prompt, /Treat explicit customer corrections as newer than previous values/)
   assert.match(prompt, /Never invent prices, availability, appointment confirmations/)
-  assert.match(prompt, /Classify the latest customer intent conservatively/)
+  assert.match(prompt, /Never confirm that a booking, reschedule, or cancellation was executed/)
+  assert.match(prompt, /conversational_followup/)
   assert.match(prompt, /confirm_appointment/)
   assert.doesNotMatch(prompt, /refund/)
 })

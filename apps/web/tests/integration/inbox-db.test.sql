@@ -414,7 +414,84 @@ END;
 $$;
 
 -- ─────────────────────────────────────────────────────────────
--- SECTION 4: CONSTRAINT COVERAGE
+-- SECTION 4: INBOUND AI RUN IDEMPOTENCY
+-- ─────────────────────────────────────────────────────────────
+
+DO $$
+DECLARE
+  ai_msg_id uuid := 'dddddddd-0000-0000-0000-000000000001';
+  dup_error text;
+  run_count integer;
+BEGIN
+  RAISE NOTICE '';
+  RAISE NOTICE '=== INBOUND AI RUN IDEMPOTENCY TESTS ===';
+
+  INSERT INTO public.inbox_messages (
+    id, tenant_id, conversation_id, provider,
+    direction, author_kind, body_text, created_at
+  ) VALUES (
+    ai_msg_id,
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000001',
+    'meta_whatsapp',
+    'inbound',
+    'customer',
+    'Quanto costa il taglio?',
+    now()
+  )
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.inbox_ai_runs (
+    tenant_id, conversation_id, message_id,
+    provider_id, prompt_id, prompt_version,
+    model, mode, status
+  ) VALUES (
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    'cccccccc-0000-0000-0000-000000000001',
+    ai_msg_id,
+    'deterministic_fake_draft_v1',
+    'whatsapp_inbox_draft_only',
+    '2026-07-20.v4',
+    'deterministic_fake_draft_v1',
+    'draft_only',
+    'queued'
+  );
+
+  BEGIN
+    INSERT INTO public.inbox_ai_runs (
+      tenant_id, conversation_id, message_id,
+      provider_id, prompt_id, prompt_version,
+      model, mode, status
+    ) VALUES (
+      'aaaaaaaa-0000-0000-0000-000000000001',
+      'cccccccc-0000-0000-0000-000000000001',
+      ai_msg_id,
+      'deterministic_fake_draft_v1',
+      'whatsapp_inbox_draft_only',
+      '2026-07-20.v4',
+      'deterministic_fake_draft_v1',
+      'draft_only',
+      'queued'
+    );
+    dup_error := 'no error';
+  EXCEPTION WHEN unique_violation THEN
+    dup_error := 'unique_violation';
+  END;
+
+  SELECT count(*) INTO run_count
+    FROM public.inbox_ai_runs
+   WHERE message_id = ai_msg_id
+     AND mode = 'draft_only';
+
+  PERFORM test_assert(dup_error = 'unique_violation',
+    'INBOUND AI IDEMPOTENCY: duplicate run for same inbound message -> unique_violation');
+  PERFORM test_assert(run_count = 1,
+    'INBOUND AI IDEMPOTENCY: only one draft_only run exists for the same inbound message');
+END;
+$$;
+
+-- ─────────────────────────────────────────────────────────────
+-- SECTION 5: CONSTRAINT COVERAGE
 -- ─────────────────────────────────────────────────────────────
 
 DO $$
@@ -457,7 +534,7 @@ END;
 $$;
 
 -- ─────────────────────────────────────────────────────────────
--- SECTION 5: service_window_expires_at
+-- SECTION 6: service_window_expires_at
 -- ─────────────────────────────────────────────────────────────
 
 DO $$

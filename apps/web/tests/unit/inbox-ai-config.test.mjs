@@ -13,6 +13,7 @@ test('resolveInboxReceptionistConfig falls back to a safe draft-only default', (
   assert.equal(config.preferredTone, null)
   assert.equal(config.greetingStyle, null)
   assert.equal(config.escalationInstructions, null)
+  assert.deepEqual(config.customFaqs, [])
 })
 
 test('resolveInboxReceptionistConfig keeps only valid tenant overrides and trims personalization text', () => {
@@ -25,6 +26,18 @@ test('resolveInboxReceptionistConfig keeps only valid tenant overrides and trims
       preferred_tone: '  caldo e rassicurante  ',
       greeting_style: ' saluto breve ',
       escalation_instructions: ' coinvolgi il titolare per reclami ',
+      custom_faqs: [
+        {
+          topic: 'payment_methods',
+          answer: ' Accettiamo carte, contanti e Satispay. ',
+          enabled: true,
+        },
+        {
+          topic: 'not_real',
+          answer: 'ignora',
+          enabled: true,
+        },
+      ],
     },
   })
 
@@ -35,4 +48,11 @@ test('resolveInboxReceptionistConfig keeps only valid tenant overrides and trims
   assert.equal(config.preferredTone, 'caldo e rassicurante')
   assert.equal(config.greetingStyle, 'saluto breve')
   assert.equal(config.escalationInstructions, 'coinvolgi il titolare per reclami')
+  assert.deepEqual(config.customFaqs, [
+    {
+      topic: 'payment_methods',
+      answer: 'Accettiamo carte, contanti e Satispay.',
+      enabled: true,
+    },
+  ])
 })

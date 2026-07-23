@@ -36,6 +36,13 @@ function makeInput(overrides = {}) {
         preferredTone: 'caldo e professionale',
         greetingStyle: 'saluto breve',
         escalationInstructions: 'coinvolgi lo staff se il cliente e agitato',
+        customFaqs: [
+          {
+            topic: 'payment_methods',
+            answer: 'Accettiamo carte e contanti.',
+            enabled: true,
+          },
+        ],
       },
     },
     services: [
@@ -99,7 +106,7 @@ test('buildInboxDraftRequest prepares a versioned draft-only payload with traced
   const draftRequest = buildInboxDraftRequest(makeInput())
 
   assert.equal(draftRequest.promptId, 'whatsapp_inbox_draft_only')
-  assert.equal(draftRequest.promptVersion, '2026-07-20.v3')
+  assert.equal(draftRequest.promptVersion, '2026-07-20.v6')
   assert.equal(draftRequest.messages.length, 2)
   assert.equal(draftRequest.messages[0].sourceRef, 'message:message-1')
   assert.equal(draftRequest.messages[0].text.includes('[redacted phone]'), true)
@@ -108,13 +115,16 @@ test('buildInboxDraftRequest prepares a versioned draft-only payload with traced
   assert.equal(draftRequest.receptionistConfig.preferredTone, 'caldo e professionale')
   assert.deepEqual(
     draftRequest.contextSections.map((section) => section.key),
-    ['conversation_state', 'tenant_profile', 'services', 'working_hours', 'tool_policies'],
+    ['conversation_state', 'conversation_memory', 'tenant_profile', 'services', 'working_hours', 'custom_faqs', 'tool_policies'],
   )
   assert.ok(
     draftRequest.sources.some((source) => source.ref === 'service:service-1'),
   )
   assert.ok(
     draftRequest.sources.some((source) => source.ref === 'working_hours:wh-1'),
+  )
+  assert.ok(
+    draftRequest.sources.some((source) => source.ref === 'faq:payment_methods'),
   )
   assert.ok(
     draftRequest.allowedTools.includes('confirm_appointment'),
@@ -137,10 +147,21 @@ test('buildInboxDraftRequest prepares a versioned draft-only payload with traced
   )
   assert.match(workingHoursSection.text, /lunedi: 09:00:00-13:00:00, 14:00:00-18:00:00/)
 
+  const customFaqSection = draftRequest.contextSections.find(
+    (section) => section.key === 'custom_faqs',
+  )
+  assert.match(customFaqSection.text, /Metodi di pagamento: Accettiamo carte e contanti\./)
+
   const conversationStateSection = draftRequest.contextSections.find(
     (section) => section.key === 'conversation_state',
   )
   assert.match(conversationStateSection.text, /known_customer=true/)
+
+  const conversationMemorySection = draftRequest.contextSections.find(
+    (section) => section.key === 'conversation_memory',
+  )
+  assert.match(conversationMemorySection.text, /active_intent=booking/)
+  assert.match(conversationMemorySection.text, /requested_date=2026-07-21/)
 })
 
 test('buildInboxDraftRequest keeps only the latest prompt-sized conversation window', () => {
@@ -153,10 +174,14 @@ test('buildInboxDraftRequest keeps only the latest prompt-sized conversation win
 
   const draftRequest = buildInboxDraftRequest(makeInput({ messages }))
 
-  assert.equal(draftRequest.messages.length, 8)
+  assert.equal(draftRequest.messages.length, 12)
   assert.deepEqual(
     draftRequest.messages.map((message) => message.id),
     [
+      'message-29',
+      'message-30',
+      'message-31',
+      'message-32',
       'message-33',
       'message-34',
       'message-35',
@@ -241,6 +266,25 @@ test('buildInboxDraftRequest keeps source refs unique and limited to included co
     sourceRefs.includes('message:message-999'),
     false,
   )
+})
+
+test('buildInboxDraftRequest handles services without a configured price safely', () => {
+  const draftRequest = buildInboxDraftRequest(makeInput({
+    services: [
+      {
+        id: 'service-3',
+        name: 'Consulenza',
+        description: null,
+        price: null,
+        durationMinutes: 15,
+        displayOrder: 3,
+      },
+    ],
+  }))
+
+  const servicesSection = draftRequest.contextSections.find((section) => section.key === 'services')
+  assert.match(servicesSection.text, /Consulenza \| Prezzo non configurato \| 15 min/)
+  assert.equal(draftRequest.serviceCatalog[0].price, null)
 })
 
 test('buildInboxDraftRequest keeps all non-deny tools available for advisory-only drafting', () => {

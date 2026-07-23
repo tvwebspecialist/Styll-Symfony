@@ -30,6 +30,7 @@ const TOOL_POLICY: Record<InboxToolName, ToolPolicyDecision> = {
   get_prices: 'allow',
   get_working_hours: 'allow',
   search_availability: 'allow',
+  prepare_booking_sandbox: 'allow',
   prepare_appointment: 'allow',
   confirm_appointment: 'ask_customer',
   prepare_reschedule: 'allow',

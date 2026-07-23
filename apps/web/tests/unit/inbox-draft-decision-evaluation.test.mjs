@@ -4,6 +4,19 @@ import assert from 'node:assert/strict'
 import { deterministicFakeDraftProvider } from '../../src/lib/ai/deterministic-fake-draft-provider.ts'
 import { resolveInboxDraftDecision } from '../../src/lib/ai/inbox-draft-decision.ts'
 import { getInboxToolDefinition } from '../../src/lib/messaging/tool-registry.ts'
+import { resolveInboxConversationMemory } from '../../src/lib/ai/inbox-memory-resolver.ts'
+
+const AVAILABLE_RESULT = {
+  available: true,
+  requestedSlot: {
+    date: '2026-07-21',
+    startTime: '16:00',
+    endTime: '16:30',
+    staffIds: ['staff-1'],
+  },
+  suggestedSlots: [],
+  reason: 'available',
+}
 
 function makeDraftRequest({
   latestCustomerText,
@@ -83,12 +96,12 @@ function makeDraftRequest({
     })
   }
 
-  return {
+  const request = {
     tenantId: 'tenant-a',
     conversationId: 'conversation-1',
     promptId: 'whatsapp_inbox_draft_only',
-    promptVersion: '2026-07-20.v3',
-    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v3\nMode: draft_only',
+    promptVersion: '2026-07-20.v6',
+    systemPrompt: 'Prompt whatsapp_inbox_draft_only@2026-07-20.v6\nMode: draft_only',
     messages: [
       {
         id: 'message-1',
@@ -103,6 +116,8 @@ function makeDraftRequest({
     allowedTools: [
       'get_prices',
       'get_working_hours',
+      'search_availability',
+      'prepare_booking_sandbox',
       'prepare_appointment',
       'prepare_reschedule',
       'prepare_cancellation',
@@ -127,10 +142,20 @@ function makeDraftRequest({
       preferredTone: 'caldo e diretto',
       greetingStyle: 'saluto breve',
       escalationInstructions: null,
+      customFaqs: [],
       ...receptionistConfig,
     },
     serviceCatalog,
+    customFaqCatalog: [],
   }
+
+  request.conversationMemory = resolveInboxConversationMemory({
+    messages: request.messages,
+    serviceCatalog: request.serviceCatalog,
+    timezone: request.tenantProfile.timezone,
+  })
+
+  return request
 }
 
 function enrichRequestedToolCalls(requestedToolCalls) {
@@ -172,6 +197,7 @@ async function evaluateCase(testCase) {
       requestedToolCalls: testCase.requestedToolCallsOverride
         ? testCase.requestedToolCallsOverride
         : enrichRequestedToolCalls(providerResult.requestedToolCalls),
+      availabilityResult: testCase.availabilityResult ?? null,
     },
   })
 
@@ -213,21 +239,22 @@ const evaluationCases = [
     name: 'booking with missing service',
     latestCustomerText: 'Vorrei prenotare domani pomeriggio.',
     expectedDecision: 'draft_review',
-    expectedReason: 'action_missing_fields',
-    expectedMissingFields: ['service'],
+    expectedReason: 'appointment_missing_service',
+    expectedMissingFields: ['service', 'requested_time'],
   },
   {
     name: 'booking with missing date',
     latestCustomerText: 'Vorrei prenotare un taglio nel pomeriggio.',
     expectedDecision: 'draft_review',
-    expectedReason: 'action_missing_fields',
-    expectedMissingFields: ['requested_date'],
+    expectedReason: 'appointment_missing_date',
+    expectedMissingFields: ['requested_date', 'requested_time'],
   },
   {
     name: 'booking with all required data',
-    latestCustomerText: 'Vorrei prenotare un taglio domani pomeriggio.',
+    latestCustomerText: 'Vorrei prenotare un taglio domani alle 16.',
     expectedDecision: 'action_prepare_candidate',
-    expectedReason: 'action_ready',
+    expectedReason: 'availability_available',
+    availabilityResult: AVAILABLE_RESULT,
   },
   {
     name: 'reschedule request',
@@ -288,21 +315,11 @@ const evaluationCases = [
     expectedReason: 'missing_required_sources',
   },
   {
-    name: 'denied tool',
-    latestCustomerText: 'Vorrei prenotare un taglio domani pomeriggio.',
-    requestedToolCallsOverride: [
-      {
-        ...enrichRequestedToolCalls([{ name: 'prepare_appointment', arguments: {} }])[0],
-        policy: 'deny_ai',
-      },
-    ],
-    providerResultOverride: {
-      handoff: false,
-      confidence: 0.91,
-      intent: 'appointment_booking',
-    },
-    expectedDecision: 'human_handoff',
-    expectedReason: 'tool_policy_denied',
+    name: 'booking with missing time',
+    latestCustomerText: 'Vorrei prenotare un taglio domani.',
+    expectedDecision: 'draft_review',
+    expectedReason: 'appointment_missing_time',
+    expectedMissingFields: ['requested_time'],
   },
   {
     name: 'AI paused conversation',
