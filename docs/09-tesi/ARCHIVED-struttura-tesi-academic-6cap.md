@@ -6,7 +6,7 @@
 # Struttura Tesi — Progetto Styll
 
 > Documento di pianificazione per la stesura della tesi di laurea sul progetto Styll: piattaforma SaaS verticale per la fidelizzazione nel settore barbershop con gamification e rilevamento silenzioso del churn.
-
+holahola
 ---
 
 ## 1. INFORMAZIONI GENERALI
